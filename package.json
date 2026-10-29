@@ -28,6 +28,10 @@
       "types": "./dist/model/index.d.ts",
       "default": "./dist/model/index.js"
     },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "default": "./dist/host/index.js"
+    },
     "./tree-table": {
       "types": "./dist/widgets/tree-table/index.d.ts",
       "default": "./dist/widgets/tree-table/index.js"

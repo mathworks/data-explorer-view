@@ -56,6 +56,7 @@ defineVariableEditor();
 | Entry | What it holds |
 |---|---|
 | `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions, a folder's hierarchy |
+| `data-explorer-view/host` | for a host that serves the wire format, not for an app: the document registry over core's module-level session, the answers posted to a webview, the inspector's page (also in `/model` until 1.0, deprecated there) |
 | `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
 | `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
 | `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |

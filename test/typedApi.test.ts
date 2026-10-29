@@ -184,7 +184,8 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
-    import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
+    import { rowPlannerFor, buildPropertyGroups } from 'data-explorer-view/model';
+    import { childRowsMessage } from 'data-explorer-view/host';
     import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
