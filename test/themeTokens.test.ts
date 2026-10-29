@@ -35,9 +35,10 @@ const READS = CODE.flatMap(([file, code]) => varReads(code).map((read) => ({ fil
 
 /** Tokens a widget declares for itself and reads back (the table's --dex-row-ink, the frozen
  *  edge, the project page's --dex-muted): the widget's own business, not the theme's. A name the
- *  theme also declares stays a theme token — the selected row redeclares --dex-color-text-muted. */
+ *  theme also declares stays a theme token — the selected row redeclares --dex-color-text-muted.
+ *  Declared in a stylesheet, or set on an element as a styleProps key (`'--dex-table-min-width':`). */
 const OWNED = new Set(
-  CODE.flatMap(([, code]) => [...code.matchAll(/(--dex-[\w-]+)\s*:/g)].map((m) => m[1])).filter(
+  CODE.flatMap(([, code]) => [...code.matchAll(/(--dex-[\w-]+)'?\s*:/g)].map((m) => m[1])).filter(
     (name) => !LIGHT.has(name),
   ),
 );

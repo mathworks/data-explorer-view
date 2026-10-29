@@ -5,6 +5,7 @@ import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
+import { styleProps } from '../shared/styleProps.js';
 import { dragModeFromModifiers, type DragMode } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
 import {
@@ -3712,7 +3713,7 @@ export class DexTreeTable extends LitElement {
       if (isEditing) {
         return html`
           <div class="name-cell">
-            <span class="indent" style="width: ${depth * 16}px"></span>
+            <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
             <span class="toggle empty"></span>
             ${this._renderEditor(label)}
           </div>
@@ -3722,7 +3723,7 @@ export class DexTreeTable extends LitElement {
       const iconId = row.Name?.iconId || '';
       return html`
         <div class="name-cell">
-          <span class="indent" style="width: ${depth * 16}px"></span>
+          <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
           <span
             class="toggle ${hasChildren ? '' : 'empty'} ${awaiting ? 'loading' : ''}"
             title=${awaiting ? 'Loading…' : nothing}
@@ -4081,17 +4082,17 @@ export class DexTreeTable extends LitElement {
         aria-colcount=${visibleCols.length}
         aria-label="Data entries"
         tabindex="0"
-        style="--dex-table-min-width: ${this._minTableWidth}px"
+        ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
         @keydown=${this._onTableKeyDown}
         @contextmenu=${this._onContainerContextMenu}
         @dragover=${this._onBodyDragOver}
         @drop=${this._onBodyDrop}
       >
-        <div class="virtual-spacer" style="height: ${totalHeight + headerHeight}px;">
+        <div class="virtual-spacer" ${styleProps({ height: `${totalHeight + headerHeight}px` })}>
           <table>
             <colgroup>
-              ${visibleCols.map((col) => html`<col style="width: ${this._getColWidth(col)}" />`)}
+              ${visibleCols.map((col) => html`<col ${styleProps({ width: this._getColWidth(col) })} />`)}
             </colgroup>
             <thead>
               <tr role="row">
@@ -4129,13 +4130,13 @@ export class DexTreeTable extends LitElement {
             </thead>
           </table>
           ${totalRows === 0 && this._filterText
-            ? html`<div class="no-match-state" style="top: ${headerHeight}px">
+            ? html`<div class="no-match-state" ${styleProps({ top: `${headerHeight}px` })}>
                 ${this._noMatchMessage()}
               </div>`
             : nothing}
-          <table class="rows-table" style="top: ${offsetTop}px;">
+          <table class="rows-table" ${styleProps({ top: `${offsetTop}px` })}>
             <colgroup>
-              ${visibleCols.map((col) => html`<col style="width: ${this._getColWidth(col)}" />`)}
+              ${visibleCols.map((col) => html`<col ${styleProps({ width: this._getColWidth(col) })} />`)}
             </colgroup>
             <tbody>
               ${sliceRows.map((row, ri) => {
@@ -4215,7 +4216,7 @@ export class DexTreeTable extends LitElement {
     const countSuffix = this._dragCount > 1 ? ` (+${this._dragCount - 1})` : '';
     return html`<div
       class="drop-tooltip ${this._dropForbidden ? 'forbidden' : ''}"
-      style="left:${this._dropTooltipX + 14}px; top:${this._dropTooltipY + 16}px"
+      ${styleProps({ left: `${this._dropTooltipX + 14}px`, top: `${this._dropTooltipY + 16}px` })}
     >
       ${this._dropForbidden ? html`<span class="drop-tooltip-icon">⊘</span>` : ''}${this._dragIconId
         ? html`<dex-icon class="drop-tooltip-row-icon" .iconId=${this._dragIconId} .size=${14}></dex-icon>`
@@ -4295,7 +4296,7 @@ export class DexTreeTable extends LitElement {
     const existing = this._tokenForColumn(col);
     return html`
       <dex-column-filter
-        style="left: ${this._filterPopupX}px; top: ${this._filterPopupY}px;"
+        ${styleProps({ left: `${this._filterPopupX}px`, top: `${this._filterPopupY}px` })}
         .column=${col}
         .columnLabel=${this.columnLabels?.[col] || col}
         .op=${existing?.op ?? 'contains'}
@@ -4313,7 +4314,7 @@ export class DexTreeTable extends LitElement {
   private _renderColumnMenu() {
     if (!this._columnMenuOpen) return nothing;
     return html`
-      <div class="column-menu" style="right: ${this._columnMenuX}px; top: ${this._columnMenuY}px;">
+      <div class="column-menu" ${styleProps({ right: `${this._columnMenuX}px`, top: `${this._columnMenuY}px` })}>
         ${(() => {
           let lastGroup: string | null = null;
           return this._orderedColumns.map((col) => {
