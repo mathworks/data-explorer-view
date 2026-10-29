@@ -19,10 +19,12 @@ import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
+import { annotateModelViewRows, annotateVariableRows, type UsageGraph } from '../usage/usageCells.js';
 import { DocumentRegistry } from '../workspace/SlddModel.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
 import type { ChildRows, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
+import type { TreeTableRow } from '../rows/tableRow.js';
 
 export type { DocKind } from './readDocument.js';
 
@@ -35,6 +37,28 @@ export interface WorkspaceOptions {
    * this is, as the extension does.
    */
   rowBudget?: number;
+  /**
+   * Where the Usage column's answers come from: who uses each variable of a dictionary or a
+   * MAT-file, and where each parameter of a model's blocks comes from. Every paint and every
+   * `children()` answer is filled from the graph it gives for the document's uri, as the VS Code
+   * extension fills its tables from the folder around a file. Unset, a table's Usage column holds
+   * only what the file itself says (a model's blocks, by name).
+   */
+  usage?: UsageSource;
+}
+
+/**
+ * The usage graphs a workspace fills its tables' Usage column from: one that can answer for a
+ * document, given its uri.
+ *
+ * Over a folder, the graph for a document is core's `planSummaries(cache, reader, files, uri)` —
+ * the summaries of just the files that can reach it — through `buildUsageGraphFromSummaries`.
+ * The document must be open under the uri the folder lists it by (`sourceUri(path)`), since that
+ * is the uri the graph's answers name it by.
+ */
+export interface UsageSource {
+  /** The graph that answers for the document opened under `uri`. A rejection leaves the cells as the file has them. */
+  graphFor(uri: string): Promise<UsageGraph>;
 }
 
 /** One open document. */
@@ -95,6 +119,7 @@ function arrayBufferOf(bytes: ArrayBuffer | Uint8Array): ArrayBuffer {
 interface Shared {
   registry: DocumentRegistry;
   budget: number;
+  usage: UsageSource | undefined;
   closed(doc: InPageDoc): void;
 }
 
@@ -103,8 +128,8 @@ class InPageDoc implements Doc {
   /** The current read, or undefined when it failed (`failure` says why) or the document is closed. */
   private reading: Reading | undefined;
   private failure = '';
-  /** The current read's paint, once built, or why it could not be. */
-  private painted: TableView | Error | undefined;
+  /** The current read's paint, once asked for: it is filled (`usage`) before it resolves. */
+  private painted: Promise<TableView> | undefined;
   private readonly listeners = new Set<(change: TableChange) => void>();
   private disposed = false;
 
@@ -118,7 +143,7 @@ class InPageDoc implements Doc {
     this.read(bytes);
     this.table = {
       open: async () => this.open(),
-      children: async (rowId) => this.children(rowId),
+      children: (rowId) => this.children(rowId),
       matrix: async (nodeId) => this.matrix(nodeId),
       inspect: async (selection) => this.inspect(selection),
       subscribe: (listener) => {
@@ -134,7 +159,7 @@ class InPageDoc implements Doc {
     if (this.kind === 'project') return;
     let change: TableChange;
     try {
-      change = { kind: 'replaceAll', view: this.open() };
+      change = { kind: 'replaceAll', view: await this.open() };
     } catch (err) {
       change = { kind: 'error', message: messageOf(err) };
     }
@@ -181,31 +206,53 @@ class InPageDoc implements Doc {
     this.shared.registry.release(binaryEditSrcId(this.uri));
   }
 
-  private open(): TableView {
-    if (this.disposed) throw new Error(`${this.name} is closed.`);
+  private open(): Promise<TableView> {
+    if (this.disposed) return Promise.reject(new Error(`${this.name} is closed.`));
     const r = this.reading;
-    if (!r) throw new Error(this.failure);
-    if (!this.painted) {
-      try {
-        const planned = r.planner.payload(r.node, this.shared.budget, r.paint);
-        const notice = r.notice();
-        const warnings = r.banner(lazyRowsBanner(planned.plan, warningBanner(sourceWarnings(r.node))));
-        this.painted = {
-          docUri: this.uri,
-          rows: planned.rows,
-          columns: [...COLUMNS],
-          columnLabels: { ...COLUMN_LABELS },
-          columnGroups: { ...COLUMN_GROUPS },
-          editable: false,
-          ...(notice === undefined ? {} : { notice }),
-          ...(warnings === undefined ? {} : { warnings }),
-        };
-      } catch (err) {
-        this.painted = new Error(r.paintFailed(err));
-      }
-    }
-    if (this.painted instanceof Error) throw this.painted;
+    if (!r) return Promise.reject(new Error(this.failure));
+    this.painted ??= this.paint(r);
     return this.painted;
+  }
+
+  private async paint(r: Reading): Promise<TableView> {
+    let view: TableView;
+    try {
+      const planned = r.planner.payload(r.node, this.shared.budget, r.paint);
+      const notice = r.notice();
+      const warnings = r.banner(lazyRowsBanner(planned.plan, warningBanner(sourceWarnings(r.node))));
+      view = {
+        docUri: this.uri,
+        rows: planned.rows,
+        columns: [...COLUMNS],
+        columnLabels: { ...COLUMN_LABELS },
+        columnGroups: { ...COLUMN_GROUPS },
+        editable: false,
+        ...(notice === undefined ? {} : { notice }),
+        ...(warnings === undefined ? {} : { warnings }),
+      };
+    } catch (err) {
+      throw new Error(r.paintFailed(err));
+    }
+    await this.fillUsage(view.rows);
+    return view;
+  }
+
+  /**
+   * The Usage column of `rows`, from the workspace's usage graph for this document: a model's
+   * block rows take their parameters' sources and its workspace variables their users; every
+   * other document's variables take theirs. The rule the extension fills its tables by
+   * (usageCells.ts). A graph that cannot be had leaves the cells as the file has them.
+   */
+  private async fillUsage(rows: TreeTableRow[]): Promise<void> {
+    const usage = this.shared.usage;
+    if (!usage || rows.length === 0) return;
+    try {
+      const graph = await usage.graphFor(this.uri);
+      if (this.kind === 'model') annotateModelViewRows(this.uri, rows, graph);
+      else annotateVariableRows(this.uri, rows, graph);
+    } catch {
+      /* no graph: the cells keep what the read gave them */
+    }
   }
 
   /** The node a row id names in the current tree, or null. */
@@ -219,9 +266,10 @@ class InPageDoc implements Doc {
     }
   }
 
-  private children(rowId: string): ChildRows {
+  private async children(rowId: string): Promise<ChildRows> {
     const r = this.reading;
     const { nodeId, rows, truncated } = childRowsMessage(rowId, this.find(rowId), r?.planner ?? rowPlannerFor(this.name), r?.fetch);
+    await this.fillUsage(rows);
     return { nodeId, rows, truncated };
   }
 
@@ -258,6 +306,7 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
   const shared: Shared = {
     registry: new DocumentRegistry(session),
     budget,
+    usage: options.usage,
     closed: (doc) => {
       if (docs.get(doc.uri) === doc) docs.delete(doc.uri);
     },
