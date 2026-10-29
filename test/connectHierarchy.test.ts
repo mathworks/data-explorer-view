@@ -64,38 +64,38 @@ const rowOf = (el: DexHierarchy, label: string): HTMLElement =>
   [...el.shadowRoot!.querySelectorAll<HTMLElement>('[role="treeitem"]')].find((r) => r.querySelector('.label')!.textContent === label)!;
 
 describe('a hierarchy connected to a folder', () => {
+  // The folder is read off disk, so a draw lands after the reads do, however many ticks they take:
+  // each step waits for what it expects rather than for a count of ticks.
+  const drawn = (el: DexHierarchy, rows: string[]) => expect.poll(() => labels(el)).toEqual(rows);
+
   it('draws the folder, and opens rows through the hierarchy', async () => {
     const { el } = connected();
-    await settle(el);
-    expect(labels(el)).toEqual(['workspace']);
+    await drawn(el, ['workspace']);
     rowOf(el, 'workspace').click();
-    await settle(el);
-    expect(labels(el)).toEqual(['workspace', 'binary.sldd', 'data.sldd', 'model.slx']);
+    await drawn(el, ['workspace', 'binary.sldd', 'data.sldd', 'model.slx']);
     rowOf(el, 'model.slx').click();
-    await settle(el);
-    expect(labels(el)).toEqual(['workspace', 'binary.sldd', 'data.sldd', 'model.slx', 'plant.slx', 'External Data']);
+    await drawn(el, ['workspace', 'binary.sldd', 'data.sldd', 'model.slx', 'plant.slx', 'External Data']);
   });
 
   it('hands the app the file a chosen row opens, and nothing for a row that is no file', async () => {
     const { el, handle } = connected();
     const opened: string[] = [];
     handle.on('open', (uri) => opened.push(uri));
-    await settle(el);
+    await drawn(el, ['workspace']);
     rowOf(el, 'workspace').click();
-    await settle(el);
+    await drawn(el, ['workspace', 'binary.sldd', 'data.sldd', 'model.slx']);
     rowOf(el, 'data.sldd').click();
     expect(opened).toEqual(['file:///workspace/data.sldd']);
   });
 
   it('draws again on a rebuild, with what was open still open', async () => {
     const { el, hierarchy } = connected();
-    await settle(el);
+    await drawn(el, ['workspace']);
     rowOf(el, 'workspace').click();
-    await settle(el);
+    await drawn(el, ['workspace', 'binary.sldd', 'data.sldd', 'model.slx']);
     listed = WORKSPACE.filter((f) => !f.path.endsWith('binary.sldd'));
     hierarchy.rebuild();
-    await settle(el);
-    expect(labels(el)).toEqual(['workspace', 'data.sldd', 'model.slx']);
+    await drawn(el, ['workspace', 'data.sldd', 'model.slx']);
     expect(el.selectedKey).toBe(rowOf(el, 'workspace').dataset.key);
   });
 
@@ -105,27 +105,24 @@ describe('a hierarchy connected to a folder', () => {
     const { el, hierarchy, handle } = connected(empty);
     const errors: string[] = [];
     handle.on('error', (message) => errors.push(message));
-    await settle(el);
-    expect(errors).toEqual(['the folder is gone']);
+    await expect.poll(() => errors).toEqual(['the folder is gone']);
     expect(el.hidden).toBe(true);
     expect(empty.hidden).toBe(false);
     failing = false;
     hierarchy.rebuild();
-    await settle(el);
-    expect(labels(el)).toEqual(['workspace']);
+    await drawn(el, ['workspace']);
     expect(el.hidden).toBe(false);
     expect(empty.hidden).toBe(true);
     listed = [];
     hierarchy.rebuild();
-    await settle(el);
-    expect(el.hidden).toBe(true);
+    await expect.poll(() => el.hidden).toBe(true);
   });
 
   it('hears nothing more once disposed', async () => {
     const { el, hierarchy, handle } = connected();
     const opened: string[] = [];
     handle.on('open', (uri) => opened.push(uri));
-    await settle(el);
+    await drawn(el, ['workspace']);
     handle.dispose();
     listed = [];
     hierarchy.rebuild();
