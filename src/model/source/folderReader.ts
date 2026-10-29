@@ -6,7 +6,9 @@
 //
 // Every question is a `folderRequest` with an id of its own, and its answer the `folderAnswer`
 // with that id, whenever it comes. What is not a message of the wire is ignored; an answer in a
-// shape a reader cannot use is a file that cannot be read (null), or for a listing a failure.
+// shape a reader cannot use is a file that cannot be read (null), or for a listing a failure; and
+// a question the host refused (a file it did not list) is answered null, as a reader answers for
+// a file it was not given.
 //
 // DOM-free: a port is anything that posts and listens (wire.ts TablePort).
 import type { SourceFile } from 'data-explorer-core';
@@ -79,7 +81,7 @@ export function folderReader(port: TablePort): FolderReader {
     if (!pending) return;
     waiting.delete(m.id);
     if (typeof m.error === 'string') pending.reject(new Error(m.error));
-    else pending.resolve(m.value);
+    else pending.resolve(typeof m.refused === 'string' ? null : m.value);
   });
 
   const ask = (what: FolderAsk, file?: SourceFile): Promise<unknown> => {

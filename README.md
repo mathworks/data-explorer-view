@@ -178,8 +178,9 @@ where the files are, across one message channel: `serveFolder({ files, reader },
 port)` there (Electron's main process, a worker), and `folderReader(port)` in
 the page, which is both the folder's `files` and its `reader`
 (`new FolderHierarchy({ files: folder, reader: () => folder })`). The host reads
-only the files it listed, and `changed()` on its end tells the page's
-`onChange` listeners to rebuild. A table beside the tree opens the file the tree
+only the files it listed: a question names a file by its exact uri in the host's
+own listing, and any other is refused with nothing read. `changed()` on its end
+tells the page's `onChange` listeners to rebuild. A table beside the tree opens the file the tree
 shows for a name a link holds with connectTable's `resolveLink:
 (link, fromUri) => hierarchy.resolveLink(link, fromUri)`, whose answer arrives on
 `navigate` as `uri`. See [the hierarchy's page](docs/widgets/hierarchy.md).

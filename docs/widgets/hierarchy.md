@@ -75,8 +75,16 @@ folder read where the files are, across one message channel, in the wire format 
 table's (`data-explorer-view/model`'s `FolderRequestMessage`, `FolderAnswerMessage`,
 `FolderChangedMessage`). `serveFolder(folder, port)` answers from the same `files` and `reader`
 a hierarchy beside its files is given; `folderReader(port)` is both of them on the page's side.
-The host reads only the files it listed, whatever the page asks for, and `serveFolder` imports
-nothing at run time, so a main process that bundles it bundles nothing else.
+`serveFolder` imports nothing at run time, so a main process that bundles it bundles nothing
+else.
+
+The page is not trusted, and the host reads only the files it listed. A question names its file
+by uri, which is matched exactly against the host's own last listing, and the file read is the
+listing's own, never a path the page sends. Any other uri is refused and nothing is read for it:
+one outside the folder, one with `..` in it, a prefix that looks like the folder's, another
+scheme, another spelling of a listed file (nothing is decoded, resolved or normalised), or one
+asked before the folder is listed. A project store is answered only for a listed file. The page's
+reader answers a refused question null, as core's readers answer for a file they were not given.
 
 ```js
 // Where the files are: Electron's main process, over a MessageChannelMain port given to the page.

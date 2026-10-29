@@ -58,7 +58,7 @@ export function folderReader(port) {
         if (typeof m.error === 'string')
             pending.reject(new Error(m.error));
         else
-            pending.resolve(m.value);
+            pending.resolve(typeof m.refused === 'string' ? null : m.value);
     });
     const ask = (what, file) => {
         if (closed)

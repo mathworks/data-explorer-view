@@ -7,13 +7,15 @@
 // beside its reader; this holds the wire's own rules: what is read, what is refused, what fails,
 // what is moved, and what stops.
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SourceFile } from 'data-explorer-core';
+import { nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node';
 import {
   FolderHierarchy,
   folderReader,
   serveFolder,
+  sourceUri,
   type FolderReads,
   type GraphReader,
   type TablePort,
@@ -39,7 +41,7 @@ function memoryFolder(contents: Record<string, ArrayBuffer>, overrides: Partial<
       return {
         version: async (f) => (read.push(`version ${f.path}`), known.has(f.path) ? `v:${f.path}` : null),
         bytes: async (f) => (read.push(`bytes ${f.path}`), known.has(f.path) ? (contents[f.path] ?? null) : null),
-        projectStore: async () => null,
+        projectStore: async (f) => (read.push(`projectStore ${f.path}`), null),
         ...overrides,
       };
     },
@@ -226,6 +228,113 @@ describe('a folder across a channel', () => {
     reader.dispose();
     await expect(waiting).rejects.toThrow('This folder reader is closed.');
     await expect(reader.version(A)).rejects.toThrow('This folder reader is closed.');
+  });
+});
+
+describe('the boundary: the host reads only the files it listed', () => {
+  // A folder on disk read by core's own reader, which trusts the SourceFile it is handed (it reads
+  // its `path`): only the boundary keeps the page from naming what it reads. One file is listed;
+  // the others named below exist beside it, or are other spellings of it.
+  const FIXTURES = resolve(import.meta.dirname, '../test-integration/fixtures');
+  const LISTED = join(FIXTURES, 'workspace/data.sldd');
+  const LISTED_URI = sourceUri(LISTED);
+  const DIR_URI = sourceUri(join(FIXTURES, 'workspace'));
+  const CRAFTED: [string, unknown][] = [
+    ['a file beside it the folder did not list', sourceUri(join(FIXTURES, 'workspace/params.sldd'))],
+    ['an absolute path outside the folder', sourceUri('/etc/passwd')],
+    ['a `..` out of the folder', `${DIR_URI}/../usageorder/sharedParams.sldd`],
+    ['a `..` after the listed file', `${LISTED_URI}/../params.sldd`],
+    ['a `..` percent-encoded', `${DIR_URI}/%2E%2E/usageorder/sharedParams.sldd`],
+    ['a prefix that looks like the folder', `${DIR_URI}-evil/data.sldd`],
+    ['the listed name with more after it', `${LISTED_URI}.bak`],
+    ['another scheme', LISTED_URI.replace(/^file:/, 'vscode-file:')],
+    ['a source id prefix', `binedit:${LISTED_URI}`],
+    ['the scheme in capitals', LISTED_URI.replace(/^file:/, 'FILE:')],
+    ['the name in another case', LISTED_URI.replace(/data\.sldd$/, 'Data.sldd')],
+    ['the listed path, not its uri', LISTED],
+    ['no uri', undefined],
+    ['a uri that is not a string', 42],
+  ];
+
+  let calls: string[] = [];
+  function onDisk(): FolderReads {
+    return {
+      files: { list: async () => [{ uriString: LISTED_URI, path: LISTED }] },
+      reader: (files) => {
+        const core = nodeSourceReader(files);
+        return {
+          version: (f) => (calls.push(`version ${f.path}`), core.version(f)),
+          bytes: (f) => (calls.push(`bytes ${f.path}`), core.bytes(f)),
+          projectStore: (f) => (calls.push(`projectStore ${f.path}`), readProjectStoreFromDisk(f.path)),
+        };
+      },
+    };
+  }
+
+  /** The page's end, writing its own requests: what a page that is not folderReader can send. */
+  function crafting() {
+    const [host, page] = channel();
+    const server = serveFolder(onDisk(), host);
+    const answers = new Map<number, Record<string, unknown>>();
+    const unlisten = page.onMessage((m) => {
+      const a = m as Record<string, unknown>;
+      if (a?.type === 'folderAnswer' && typeof a.id === 'number') answers.set(a.id, a);
+    });
+    stops.push(() => (server.dispose(), unlisten()));
+    let lastId = 0;
+    return async (request: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      const id = ++lastId;
+      page.postMessage({ type: 'folderRequest', id, ...request });
+      for (let i = 0; i < 400 && !answers.has(id); i++) await tick();
+      return answers.get(id)!;
+    };
+  }
+  afterEach(() => {
+    calls = [];
+  });
+
+  it('refuses every question about a file it did not list, before the folder is listed and after, and reads nothing', async () => {
+    const ask = crafting();
+    for (const listed of [false, true]) {
+      if (listed) expect((await ask({ ask: 'list' })).value).toEqual([{ uriString: LISTED_URI, path: LISTED }]);
+      for (const [why, uri] of CRAFTED) {
+        for (const what of ['version', 'bytes', 'projectStore']) {
+          const answer = await ask({ ask: what, ...(uri === undefined ? {} : { uri }) });
+          expect(answer, `${what}: ${why}`).toEqual({ type: 'folderAnswer', id: answer.id, refused: 'Not a file of the folder.' });
+        }
+      }
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('refuses a question the wire does not have', async () => {
+    const ask = crafting();
+    await ask({ ask: 'list' });
+    for (const what of ['readFile', 'stat', '__proto__', 7]) {
+      expect((await ask({ ask: what, uri: LISTED_URI })).refused, String(what)).toBe('Not a file of the folder.');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('reads a listed file at the path it listed, whatever path the page sends with it', async () => {
+    const ask = crafting();
+    await ask({ ask: 'list' });
+    const answer = await ask({ ask: 'bytes', uri: LISTED_URI, path: '/etc/passwd', file: { uriString: LISTED_URI, path: '/etc/passwd' } });
+    expect(new Uint8Array(answer.value as ArrayBuffer)).toEqual(new Uint8Array(readFileSync(LISTED)));
+    expect(calls).toEqual([`bytes ${LISTED}`]);
+  });
+
+  it("answers the page's reader null for a refused file, as a reader answers for one it was not given", async () => {
+    const [host, page] = channel();
+    const server = serveFolder(onDisk(), host);
+    const reader = folderReader(page);
+    stops.push(() => (server.dispose(), reader.dispose()));
+    await reader.list();
+    const outside = join(FIXTURES, 'workspace/params.sldd');
+    expect(await reader.bytes({ uriString: sourceUri(outside), path: outside })).toBeNull();
+    expect(await reader.version({ uriString: `${DIR_URI}/../workspace/params.sldd`, path: outside })).toBeNull();
+    expect(await reader.projectStore({ uriString: sourceUri('/etc/passwd'), path: '/etc/passwd' })).toBeNull();
+    expect(calls).toEqual([]);
   });
 });
 

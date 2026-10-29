@@ -6,8 +6,9 @@
 // hierarchy across the channel draws what it draws beside its reader
 // (test/goldens/hierarchy.test.ts holds the two to each other).
 //
-// It reads only what the folder lists: a question names its file by uri, and is answered from the
-// host's own listing, never from a path the page sends.
+// It reads only what the folder lists: a question names its file by uri, matched exactly against
+// the host's own listing, and the file read is the listing's, never a path the page sends. Any
+// other question is refused before anything is read (wire.ts says the rule).
 //
 // DOM-free, and with no import at run time, so a main process that bundles it bundles nothing else.
 import type { SourceFile } from 'data-explorer-core';
@@ -47,6 +48,9 @@ export interface FolderServer {
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
+/** The one reason a question is refused: it names nothing the host listed. */
+const NOT_LISTED = 'Not a file of the folder.';
+
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
 }
@@ -62,8 +66,14 @@ interface TransferPort {
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
  *   `folder.reader(files)` its reader;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
- *   listing the question names, or null for one it does not hold;
+ *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
+ * - every other question about a file `refused`, with nothing read: a uri the listing does not
+ *   hold (outside the folder, with `..`, a look-alike prefix, another scheme or spelling), none,
+ *   one asked before any listing, an `ask` the wire does not have;
  * - a throw or a rejection with its message, for the page's call to reject with.
+ *
+ * The page is not trusted: what reaches the reader is only ever a file the folder listed, so a
+ * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  *
  * `changed()` says the folder changed. Any other message is left alone, for whatever else listens
  * on the port (a table's, for one).
@@ -119,6 +129,8 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
     return files.map(({ uriString, path }) => ({ uriString, path }));
   };
 
+  const refuse = (id: number): void => post({ type: 'folderAnswer', id, refused: NOT_LISTED });
+
   const unlisten = port.onMessage((m) => {
     if (!isRecord(m) || m.type !== 'folderRequest' || typeof m.id !== 'number') return;
     const { id, ask } = m;
@@ -128,10 +140,14 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
       case 'version':
       case 'bytes':
       case 'projectStore': {
+        // The listing's own file, by an exact match of its uri: no other is ever read.
         const now = listing;
         const file = typeof m.uri === 'string' ? now?.files.get(m.uri) : undefined;
-        return answer(id, async () => (now && file ? now.reader[ask](file) : null));
+        if (!now || !file) return refuse(id);
+        return answer(id, () => now.reader[ask](file));
       }
+      default:
+        return refuse(id);
     }
   });
 

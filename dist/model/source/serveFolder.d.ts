@@ -33,8 +33,14 @@ export interface FolderServer {
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
  *   `folder.reader(files)` its reader;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
- *   listing the question names, or null for one it does not hold;
+ *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
+ * - every other question about a file `refused`, with nothing read: a uri the listing does not
+ *   hold (outside the folder, with `..`, a look-alike prefix, another scheme or spelling), none,
+ *   one asked before any listing, an `ask` the wire does not have;
  * - a throw or a rejection with its message, for the page's call to reject with.
+ *
+ * The page is not trusted: what reaches the reader is only ever a file the folder listed, so a
+ * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  *
  * `changed()` says the folder changed. Any other message is left alone, for whatever else listens
  * on the port (a table's, for one).

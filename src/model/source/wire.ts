@@ -165,6 +165,14 @@ export type TableClientMessage = ReadyMessage | SelectMessage | RequestChildrenM
 // finish. Each is plain data (structured-clone safe; a file's bytes are an ArrayBuffer, which a
 // port that can transfer hands over rather than copies). A port may carry a table's messages beside
 // these, but one folder's.
+//
+// THE HOST READS ONLY WHAT IT LISTED. Core's readers answer only for the files they are given;
+// at this boundary that rule is the host's: a question names a file by uri, the uri is matched
+// exactly against the host's own last listing, and the file read is the host's SourceFile, never
+// a path the page sends. A uri that matches no listed file (outside the folder, holding `..`,
+// with a prefix that looks like the folder's, of another scheme, or another spelling of a listed
+// one: nothing is decoded, resolved or normalised) is refused, and nothing is read for it. A
+// project store is answered only for a listed file, from beside it, by the host's reader.
 
 /** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
 export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
@@ -176,8 +184,9 @@ export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
  * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
  *   host keeps this listing, and the questions below are about its files.
  * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
- *   `uri` of its last listing. A uri that listing does not hold is answered null and nothing is
- *   read, so a page can have the host read only the files the host listed.
+ *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
+ *   and nothing is read: a page can have the host read only the files the host listed. So is a
+ *   question asked before the host has listed the folder, and an `ask` of no other name.
  */
 export interface FolderRequestMessage {
   type: 'folderRequest';
@@ -189,7 +198,7 @@ export interface FolderRequestMessage {
 }
 
 /**
- * The answer to the `folderRequest` with this `id`: a `value`, or an `error`.
+ * The answer to the `folderRequest` with this `id`: a `value`, an `error`, or a refusal.
  *
  * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
  * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
@@ -201,6 +210,12 @@ export interface FolderAnswerMessage {
   value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
   /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
   error?: string;
+  /**
+   * Why the host did not answer: the question names no file of its last listing (or asks what the
+   * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
+   * was not given.
+   */
+  refused?: string;
 }
 
 /** The folder changed (a file created, deleted or saved): the page reads it again (FolderHierarchy.rebuild). */
