@@ -13,6 +13,7 @@ import {
   type FilterOp, type FilterTerm, type FilterToken,
 } from '../../model/filter/rowFilter.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import { nextExpandedIds } from '../../model/actions/rowUpdates.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 import { defineAddGallery } from './dex-add-gallery.js';
 import { defineColumnFilter } from './dex-column-filter.js';
@@ -1527,6 +1528,62 @@ export class DexTreeTable extends LitElement {
   }
 
   @state() private _expandedIds: Set<string> = new Set();
+
+  /**
+   * The rows shown open, by id: a copy, the caller's to keep.
+   *
+   * Set it to open exactly these rows — an expansion the app saved, or the one it read before
+   * giving the table new rows (nextExpandedIds keeps those that still exist). An id with no row is
+   * kept, and opens its row if one comes. Setting it fetches nothing; expand() is the twisty's
+   * click, which asks for children the payload held back.
+   */
+  get expandedIds(): Set<string> {
+    return new Set(this._expandedIds);
+  }
+  set expandedIds(ids: Iterable<string>) {
+    this._expandedIds = new Set(ids);
+  }
+
+  /**
+   * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
+   * closed, and a row whose children the payload held back (`_lazy`) asks for them once
+   * (dex-request-children). Read off `rows` as they are now, so it may follow an assignment of
+   * them directly.
+   */
+  expand(ids: Iterable<string>): void {
+    const parents = new Set<string>();
+    const lazy = new Set<string>();
+    for (const r of this.rows) {
+      if (r.parent !== null) parents.add(r.parent);
+      if (r._lazy) lazy.add(r.ID);
+    }
+    const next = new Set(this._expandedIds);
+    for (const id of ids) {
+      if (next.has(id) || (!parents.has(id) && !lazy.has(id))) continue;
+      next.add(id);
+      if (!parents.has(id)) this._requestChildren(id);
+    }
+    this._expandedIds = next;
+    this._visibleRowsCache = null;
+  }
+
+  /** Closes these rows. */
+  collapse(ids: Iterable<string>): void {
+    const next = new Set(this._expandedIds);
+    for (const id of ids) next.delete(id);
+    this._expandedIds = next;
+    this._visibleRowsCache = null;
+  }
+
+  // The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
+  // (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
+  // sections, a MAT-file's variables, though not one whose children were held back, whose first
+  // click fetches — and from then on the rows the user opened stay open while they exist, and
+  // what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
+  // was, to the app (expandedIds).
+  @property({ type: Boolean, attribute: 'expand-top-level' }) expandTopLevel = false;
+  // Whether rows with any in them have arrived: until then there is no expansion of the user's.
+  private _shownRows = false;
   @state() private _filterText = '';
   // Not @state: derived from _filterText, and keyed by it so it cannot go stale.
   private _filterParseCache: { text: string; terms: FilterTerm[]; tokens: FilterToken[] } | null = null;
@@ -2773,19 +2830,23 @@ export class DexTreeTable extends LitElement {
       // Guarded on the delivered count, not on the ask: a row re-marked `_lazy` after
       // delivering a budget's worth of children has rows under it already, and asking
       // again would re-deliver the same first budget for ever.
-      if (this._lazyIds.has(rowId) && !this._childCounts.has(rowId) && !this._pendingChildren.has(rowId)) {
-        this._pendingChildren.add(rowId);
-        this.dispatchEvent(
-          new CustomEvent('dex-request-children', {
-            detail: { nodeId: rowId },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
+      if (this._lazyIds.has(rowId) && !this._childCounts.has(rowId)) this._requestChildren(rowId);
     }
     this._expandedIds = newSet;
     this._visibleRowsCache = null;
+  }
+
+  // Asks for a deferred row's children, unless it has been asked about since its rows arrived.
+  private _requestChildren(rowId: string): void {
+    if (this._pendingChildren.has(rowId)) return;
+    this._pendingChildren.add(rowId);
+    this.dispatchEvent(
+      new CustomEvent('dex-request-children', {
+        detail: { nodeId: rowId },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _expandAncestors(rowIds: string[]): void {
@@ -3958,6 +4019,8 @@ export class DexTreeTable extends LitElement {
       this._loadPersistedState();
     }
     if (changedProps.has('rows')) {
+      if (this.expandTopLevel) this._expandedIds = nextExpandedIds(this._shownRows ? this._expandedIds : null, this.rows);
+      if (this.rows.length > 0) this._shownRows = true;
       this._invalidateCache();
       this._buildCaches();
     }
