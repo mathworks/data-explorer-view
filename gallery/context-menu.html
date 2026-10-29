@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Context menu · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="demo" id="stage">
+        <p>
+          Right-click the box, or focus it and press Shift+F10 or the context-menu key. The menu
+          sends <code>dex-action</code> with the item's id; arrow keys move through the items,
+          Enter picks one, Escape closes it.
+        </p>
+        <div class="menu-target" id="target" tabindex="0" aria-label="Menu target">Right-click here</div>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Events</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <dex-context-menu id="menu"></dex-context-menu>
+    <script type="module" src="./src/pages/context-menu.ts"></script>
+  </body>
+</html>

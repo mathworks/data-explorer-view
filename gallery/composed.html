@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Composed · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="stage" id="stage">
+        <div class="toolbar" id="toolbar"></div>
+      </section>
+      <aside class="pane" aria-label="Properties">
+        <h2>Properties</h2>
+        <p class="placeholder" id="inspector-empty">Select an entry to view its properties.</p>
+        <dex-property-inspector id="inspector"></dex-property-inspector>
+      </aside>
+    </main>
+    <dex-variable-editor id="editor"></dex-variable-editor>
+    <script type="module" src="./src/pages/composed.ts"></script>
+  </body>
+</html>

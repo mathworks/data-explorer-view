@@ -79,7 +79,10 @@
     "check:api": "node scripts/check-api.mjs",
     "check:leak": "node scripts/leak-check.mjs",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run check:api && npm run test && npm run check:leak"
+    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run check:api && npm run test && npm run check:leak",
+    "gallery": "vite --config gallery/vite.config.ts",
+    "gallery:build": "tsc -p gallery/tsconfig.json && vite build --config gallery/vite.config.ts",
+    "test:gallery": "playwright test -c gallery/playwright.config.ts"
   },
   "peerDependencies": {
     "data-explorer-core": "^1.47.0",
@@ -87,11 +90,13 @@
   },
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.11.0",
+    "@playwright/test": "1.62.0",
     "data-explorer-core": "github:mathworks/data-explorer-core#v1.47.0",
     "fflate": "^0.8.3",
     "happy-dom": "^20.9.0",
     "lit": "^3.2.0",
     "typescript": "^5.7.0",
+    "vite": "^8.3.4",
     "vitest": "^4.1.12"
   }
 }

@@ -151,11 +151,21 @@ import { useIconAssets } from 'data-explorer-view/icon-assets';
 useIconAssets(); // before the first icon renders
 ```
 
-In Vite's dev server, leave the package out of dependency pre-bundling
-(`optimizeDeps: { exclude: ['data-explorer-view'] }`): a pre-bundled copy of
-the module is no longer beside the icons. Vite turns icons smaller than its
-`build.assetsInlineLimit` into `data:` URLs, so a Content-Security-Policy needs
-`img-src data:` unless that limit is 0.
+In Vite's dev server, leave the package out of dependency pre-bundling: a
+pre-bundled copy of the module is no longer beside the icons. Vite then does
+not look inside the package for what it imports either, so name those for
+pre-bundling. Otherwise the dev server finds them as the first page loads,
+and reloads that page:
+
+```js
+optimizeDeps: {
+  exclude: ['data-explorer-view'],
+  include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+},
+```
+
+Vite turns icons smaller than its `build.assetsInlineLimit` into `data:` URLs,
+so a Content-Security-Policy needs `img-src data:` unless that limit is 0.
 
 **`theme.css`** holds every colour, font and size token the widgets read: light
 defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
@@ -188,6 +198,16 @@ line from the manifest: change the widget's JSDoc, not the page.
 tag. A widget, property, method, attribute or event that is gone or renamed
 fails it, unless `package.json`'s version is a major bump (while 0.x, a minor
 one) over that tag's.
+
+The gallery shows every widget on a page of its own, on small public files, and
+is what the browser tests run against, in Chromium, Firefox and WebKit. It is
+also an example of an app built on the package. See
+[gallery/README.md](gallery/README.md).
+
+```sh
+npm run gallery        # the pages, in Vite's dev server
+npm run test:gallery   # the browser tests
+```
 
 ## License
 

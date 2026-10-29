@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="demo">
+      <h1>data-explorer-view gallery</h1>
+      <p>
+        Each widget of data-explorer-view on a page of its own, and one page that composes them,
+        on small public files read in the page by data-explorer-core. Every page imports the
+        package by its public entries only; read <code>gallery/src/pages/</code> for how each one
+        is set up, and <code>gallery/src/wiring/</code> for how an app feeds the widgets today.
+      </p>
+      <ul class="pages" id="pages"></ul>
+    </main>
+    <script type="module" src="./src/pages/index.ts"></script>
+  </body>
+</html>

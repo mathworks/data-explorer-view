@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Property inspector · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split three">
+      <aside class="pane left" aria-label="File and entry">
+        <div class="toolbar" id="toolbar"></div>
+        <h2 id="entries-label">Entries</h2>
+        <select id="entries" size="16" aria-labelledby="entries-label"></select>
+      </aside>
+      <section class="stage" id="stage">
+        <p class="placeholder" id="inspector-empty">Pick an entry to view its properties.</p>
+        <dex-property-inspector id="inspector"></dex-property-inspector>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Events</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <script type="module" src="./src/pages/property-inspector.ts"></script>
+  </body>
+</html>

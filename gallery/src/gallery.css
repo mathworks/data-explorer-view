@@ -1,0 +1,266 @@
+/* Copyright 2026 The MathWorks, Inc. */
+
+/* The gallery's own chrome. Its colours and fonts are view's --dex-* tokens, so the chrome
+   follows the theme switch with the widgets. */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+/* The browser's own controls and scrollbars, which theme.css does not reach. */
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--dex-bg-primary);
+  color: var(--dex-color-text);
+  font-family: var(--dex-font-family);
+  font-size: var(--dex-font-size);
+}
+
+code {
+  font-family: var(--dex-font-mono);
+  font-size: 12px;
+}
+
+.bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 12px;
+  background: var(--dex-bg-tertiary);
+  border-bottom: 1px solid var(--dex-border-color);
+}
+
+.bar .home {
+  font-weight: 600;
+  color: var(--dex-color-text);
+  text-decoration: none;
+}
+
+.bar nav {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.bar nav a {
+  padding: 3px 8px;
+  border-radius: 3px;
+  color: var(--dex-color-link);
+  text-decoration: none;
+}
+
+.bar nav a:hover {
+  background: var(--dex-bg-hover);
+}
+
+.bar nav a[aria-current='page'] {
+  background: var(--dex-color-accent-bg);
+  color: var(--dex-selection-fg);
+}
+
+/* The chrome's own controls; the project page styles its own. */
+.bar select,
+.toolbar select,
+#entries,
+.buttons button {
+  font: inherit;
+  color: var(--dex-input-fg);
+  background: var(--dex-input-bg);
+  border: 1px solid var(--dex-input-border);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.buttons button {
+  cursor: pointer;
+}
+
+.buttons button:hover {
+  background: var(--dex-bg-hover);
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A widget, and a pane beside it. The class names here stay clear of the project page's, which
+   is light-DOM markup (.row, .target, .empty, .link, …) that a page's own rules reach. */
+main.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  overflow: hidden;
+}
+
+main.split.three {
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.stage.scroll {
+  overflow: auto;
+}
+
+.toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--dex-border-color-light);
+}
+
+.stage > dex-tree-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  background: var(--dex-bg-secondary);
+  border-left: 1px solid var(--dex-border-color);
+}
+
+.pane.left {
+  border-left: 0;
+  border-right: 1px solid var(--dex-border-color);
+}
+
+.pane h2 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dex-color-text-secondary);
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.placeholder {
+  padding: 8px 12px;
+  color: var(--dex-color-text-muted);
+}
+
+.demo {
+  padding: 24px;
+}
+
+.demo p {
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+.menu-target {
+  display: grid;
+  place-items: center;
+  height: 160px;
+  max-width: 420px;
+  border: 1px dashed var(--dex-border-color);
+  border-radius: 6px;
+  color: var(--dex-color-text-secondary);
+  user-select: none;
+}
+
+.menu-target:focus-visible {
+  outline: 2px solid var(--dex-color-accent);
+  outline-offset: 2px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#entries {
+  margin: 0 12px 12px;
+  min-height: 12em;
+}
+
+.pane .toolbar .field,
+.pane .toolbar select {
+  max-width: 100%;
+}
+
+#event-log {
+  margin: 0;
+  padding: 0 12px 12px 32px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+#event-log li {
+  padding: 2px 0;
+}
+
+#event-log code {
+  font-family: var(--dex-font-mono);
+  color: var(--dex-color-accent);
+}
+
+/* The index page. */
+.pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.pages a {
+  display: block;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--dex-border-color);
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pages a:hover {
+  background: var(--dex-bg-hover);
+}
+
+.pages strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--dex-color-link);
+}
+
+/* High contrast for the chrome's own controls: theme.css themes only the widgets. */
+@media (forced-colors: active) {
+  .buttons button,
+  .bar select,
+  .toolbar select,
+  .bar nav a[aria-current='page'] {
+    border: 1px solid ButtonText;
+  }
+}
