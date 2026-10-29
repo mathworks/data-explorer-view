@@ -23,6 +23,7 @@ import { isMatFile } from 'data-explorer-core';
 import { buildChildRows, buildRowsPlanned, type ClipMark } from './rowBuilder.js';
 import { buildMatRowsPlanned, type SavedStatus } from './matRowBuilder.js';
 import type { RowPlan } from './lazyRows.js';
+import type { TreeTableRow } from './tableRow.js';
 
 /** What the payload needs beyond the tree — the stamps only the host can answer. */
 export interface PlanOptions {
@@ -52,7 +53,7 @@ export interface RowPlanner {
    * The whole table for `node`, planned to `budget`. The plan comes back so the caller
    * can say what it held back (`lazyRowsBanner`).
    */
-  payload(node: any, budget: number, opts?: PlanOptions): { rows: any[]; plan: RowPlan };
+  payload(node: any, budget: number, opts?: PlanOptions): { rows: TreeTableRow[]; plan: RowPlan };
   /**
    * The rows under one node, for a `requestChildren`. The same shape as `payload`,
    * including the plan: a fetch can lose names too (a node whose own children outnumber
@@ -60,7 +61,7 @@ export interface RowPlanner {
    * rows came down. `opts` is the payload's, so a fetched row is stamped as its siblings
    * were (a MAT-file's `canCopy`); the sectioned planner needs nothing from it.
    */
-  children(node: any, budget: number, opts?: PlanOptions): { rows: any[]; plan: RowPlan };
+  children(node: any, budget: number, opts?: PlanOptions): { rows: TreeTableRow[]; plan: RowPlan };
 }
 
 /**

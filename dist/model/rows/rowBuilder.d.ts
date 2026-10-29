@@ -1,6 +1,7 @@
 import { RowCellPool } from 'data-explorer-core';
 import { type RowPlan } from './lazyRows.js';
 import { type ClipMark } from './rowStamp.js';
+import type { TreeTableRow } from './tableRow.js';
 export declare const COLUMNS: string[];
 export declare const COLUMN_LABELS: Record<string, string>;
 export declare const COLUMN_GROUPS: Record<string, string>;
@@ -9,7 +10,7 @@ export declare const PROJECT_COLUMN_LABELS: Record<string, string>;
 export { clipMarkKey, splitClipMarkKey, type ClipMark } from './rowStamp.js';
 /** The rows for a sectioned tree, plus what the plan held back (for the banner). */
 export interface SectionedRows {
-    rows: any[];
+    rows: TreeTableRow[];
     plan: RowPlan;
 }
 /**
@@ -34,7 +35,7 @@ export interface SectionedRows {
  */
 export declare function buildRowsPlanned(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark, budget?: number): SectionedRows;
 /** The rows alone, unplanned — the signature every caller that cannot answer a fetch uses. */
-export declare function buildRows(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark): any[];
+export declare function buildRows(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark): TreeTableRow[];
 /**
  * The rows under one node, within `budget` — the answer to a `requestChildren` on a
  * sectioned source.
@@ -57,4 +58,4 @@ export declare function buildRows(sldd: any, modifiedNames?: Set<string>, clipMa
  * rule that gives a payload every name.
  */
 export declare function buildChildRows(node: any, budget?: number): SectionedRows;
-export declare function buildEntryRows(entry: any, sectionName: string, modifiedNames?: Set<string>, clipMark?: ClipMark, pool?: RowCellPool, budget?: number): any[];
+export declare function buildEntryRows(entry: any, sectionName: string, modifiedNames?: Set<string>, clipMark?: ClipMark, pool?: RowCellPool, budget?: number): TreeTableRow[];

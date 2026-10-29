@@ -77,8 +77,8 @@ export class DexAddGallery extends LitElement {
          */
         this.pinned = false;
         /**
-         * The classes a MAT-file can take a new variable of, as its host says core lists them, or null
-         * for a dictionary's gallery. Given, the tiles are those classes' (matCatalog): a MAT-file has
+         * The classes a MAT-file can take a new variable of, as core lists them, or null for a
+         * dictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has
          * no sections, so no tile names one, and nothing is offered that the file cannot take.
          * Default null. Property only.
          */

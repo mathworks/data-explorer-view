@@ -1,11 +1,21 @@
 // Copyright 2026 The MathWorks, Inc.
 import { matrixDescriptor, type MatrixDescriptor } from '../matrix/matrixPayload.js';
 
-export interface PIPropertyRow {
+// The property inspector's rows: what buildPropertyGroups makes of a node, and what
+// `<dex-property-inspector>` takes as `groups`. Declared here, in the model, so the two name one
+// type: the property-inspector entry re-exports it.
+
+/** One row of the inspector: a property's name and its value as text. */
+export interface PropertyRow {
   name: string;
   value: string;
-  editable: boolean;
-  type: 'text' | 'link';
+  /**
+   * The value is an input; a committed change sends `dex-property-changed`. buildPropertyGroups
+   * sets it false.
+   */
+  editable?: boolean;
+  /** `link` anchors the NAME, and a click sends `dex-pi-navigate` with `linkTarget` (else the name). */
+  type?: 'text' | 'link';
   linkTarget?: string;
   // A link on the VALUE, set by core on the Data Type property when the type names another
   // entry in the same dictionary. Distinct from `linkTarget` above, which pairs with
@@ -19,21 +29,27 @@ export interface PIPropertyRow {
   matrix?: MatrixDescriptor;
 }
 
-export interface PIPropertyGroup {
+/** One titled group of the inspector's rows. */
+export interface PropertyGroup {
   title: string;
-  properties: PIPropertyRow[];
+  properties: PropertyRow[];
 }
+
+/** @deprecated PropertyRow, under the name it had when the model and the widget each declared one. */
+export type PIPropertyRow = PropertyRow;
+/** @deprecated PropertyGroup, under the name it had when the model and the widget each declared one. */
+export type PIPropertyGroup = PropertyGroup;
 
 // Replicates the vendored two-step transform (PIController.convertToPIObject +
 // LitRenderer.setPIContent). graphture/usedBy extras are intentionally omitted.
-export function buildPropertyGroups(node: any): PIPropertyGroup[] {
+export function buildPropertyGroups(node: any): PropertyGroup[] {
   if (!node || typeof node.toPIObject !== 'function') return [];
   const raw = node.toPIObject();
   if (!raw || !raw.propertySheet) return [];
   const obj = raw.objects && raw.objects[0] ? raw.objects[0] : {};
-  const out: PIPropertyGroup[] = [];
+  const out: PropertyGroup[] = [];
   for (const groupDef of raw.propertySheet.groups ?? []) {
-    const properties: PIPropertyRow[] = [];
+    const properties: PropertyRow[] = [];
     for (const item of groupDef.items ?? []) {
       if (item.type !== 'property') continue;
       const propDef = (raw.propertySheet.properties ?? []).find(
@@ -45,7 +61,7 @@ export function buildPropertyGroups(node: any): PIPropertyGroup[] {
       // folded into `link`: that one would make this a `type: 'link'` row, whose template
       // anchors the property name and mutes the value.
       const valueLink = (propDef as any).valueLink;
-      const row: PIPropertyRow = {
+      const row: PropertyRow = {
         name: propDef.displayName || propDef.name,
         value: String(obj[propDef.name] ?? ''),
         editable: false, // read-only V1

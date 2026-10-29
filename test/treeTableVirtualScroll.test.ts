@@ -13,11 +13,13 @@
 // height when the container has not been laid out — but a genuine end-to-end
 // check of painted geometry needs a real browser.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
 
 defineTreeTable();
 
-const ROW_H = 26; // DEFAULT_ROW_HEIGHT; the header occupies one row of the same height
+const ROW_H = 28; // DEFAULT_ROW_HEIGHT; the header occupies one row of the same height
 
 function makeRow(id: string, name = id): TreeTableRow {
   return { ID: id, parent: null, Name: { label: name }, Value: '', DataType: '', Description: '', Status: '' };
@@ -175,6 +177,37 @@ describe('only a window of rows is rendered', () => {
     expect(spacer.style.height).toBe(`${100 * 40 + 40}px`);
     await scrollTo(table, 2000);
     // (2000 - 40 header) / 40 = row 49, less the 10-row buffer above it.
+    expect(renderedIds(table)[0]).toBe('r39');
+    table.remove();
+  });
+});
+
+describe('with no theme sheet, rows are laid out at the height they are drawn', () => {
+  // A page that loads no theme.css sets no --dex-row-height, so each row is drawn at the
+  // fallback its var() writes, and virtual scrolling lays rows out at rowHeight. The two were
+  // 28 and 26, so on such a page the slice the scrollbar promised drifted off the rows on
+  // screen by 2px a row. Every case in this file runs with no token set, which is that page.
+  const fallbacks = (): string[] => {
+    const css = (DexTreeTable.styles as { cssText: string }[]).map((s) => s.cssText).join('\n');
+    return [...css.matchAll(/var\(\s*--dex-row-height\s*,\s*([^)]+)\)/g)].map((m) => m[1]!.trim());
+  };
+
+  it('draws every row and the header at one fallback, which is theme.css\'s value', () => {
+    const drawn = fallbacks();
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(new Set(drawn)).toEqual(new Set([`${ROW_H}px`]));
+    const theme = readFileSync(join(process.cwd(), 'src', 'theme', 'tokens.css'), 'utf8');
+    expect(theme).toMatch(new RegExp(`--dex-row-height:\\s*${ROW_H}px;`));
+  });
+
+  it('lays rows out at that height when nothing sets the token', async () => {
+    expect(new DexTreeTable().rowHeight).toBe(ROW_H);
+    const table = await mountLarge(100);
+    expect(getComputedStyle(table).getPropertyValue('--dex-row-height')).toBe('');
+    const spacer = table.shadowRoot!.querySelector('.virtual-spacer') as HTMLElement;
+    expect(spacer.style.height).toBe(`${100 * ROW_H + ROW_H}px`);
+    // (1400 - 28 header) / 28 = row 49, less the 10-row buffer above it.
+    await scrollTo(table, 50 * ROW_H);
     expect(renderedIds(table)[0]).toBe('r39');
     table.remove();
   });

@@ -1,22 +1,6 @@
 import { LitElement } from 'lit';
-import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
-/** One titled group of the inspector's rows. */
-export interface PropertyGroup {
-    title: string;
-    properties: PropertyRow[];
-}
-/** One row of the inspector: a property's name and its value as text. */
-export interface PropertyRow {
-    name: string;
-    value: string;
-    /** The value is an input; a committed change sends `dex-property-changed`. */
-    editable?: boolean;
-    /** `link` anchors the NAME, and a click sends `dex-pi-navigate` with `linkTarget` (else the name). */
-    type?: 'text' | 'link';
-    linkTarget?: string;
-    valueLink?: string;
-    matrix?: MatrixDescriptor;
-}
+import type { PropertyGroup, PropertyRow } from '../../model/inspector/piBuilder.js';
+export type { PropertyGroup, PropertyRow };
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
     propName: string;

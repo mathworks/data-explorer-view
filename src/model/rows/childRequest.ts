@@ -17,6 +17,7 @@ import { findNode } from '../workspace/SlddModel.js';
 import { LAZY_ROW_BUDGET } from './lazyRows.js';
 import type { PlanOptions, RowPlanner } from './rowPlanner.js';
 import { postOrReport, type PostTarget } from './postPayload.js';
+import type { TreeTableRow } from './tableRow.js';
 
 /**
  * Fill the Usage column of these rows — `usageGraph.annotateDataRows`, passed in rather
@@ -27,7 +28,7 @@ import { postOrReport, type PostTarget } from './postPayload.js';
  * the integration suite. One parameter keeps it a unit test, and the provider that has
  * the dependency anyway is the one that supplies it.
  */
-export type UsageFiller = (sourceUri: string, rows: any[]) => Promise<boolean>;
+export type UsageFiller = (sourceUri: string, rows: TreeTableRow[]) => Promise<boolean>;
 
 /**
  * The `childRows` envelope for a node, or for the absence of one. Total: never throws.
@@ -56,8 +57,8 @@ export function childRowsMessage(
   node: any,
   planner: RowPlanner,
   opts?: PlanOptions,
-): { type: 'childRows'; nodeId: string; rows: any[]; truncated: number } {
-  let rows: any[] = [];
+): { type: 'childRows'; nodeId: string; rows: TreeTableRow[]; truncated: number } {
+  let rows: TreeTableRow[] = [];
   let truncated = 0;
   try {
     const built = node ? planner.children(node, LAZY_ROW_BUDGET, opts) : null;

@@ -24,6 +24,7 @@
 //
 // Kept vscode-free so the rule is unit-testable; the providers own the postMessage.
 import type { WarningBanner } from './parseWarnings.js';
+import type { TreeTableRow } from './tableRow.js';
 
 /**
  * The most rows one payload may carry.
@@ -45,7 +46,7 @@ export const MAX_TABLE_ROWS = 100_000;
 /** Rows for one payload, and how many the builder actually produced. */
 export interface CappedRows {
   /** At most `max` rows, in builder order. */
-  rows: any[];
+  rows: TreeTableRow[];
   /** The pre-cap count. Equal to `rows.length` when nothing was dropped. */
   total: number;
 }
@@ -64,7 +65,7 @@ export interface CappedRows {
  * what the banner is for: an incomplete table that says so beats a complete one
  * that never loads, and both beat the spinner.
  */
-export function capRows(rows: any[], max: number = MAX_TABLE_ROWS): CappedRows {
+export function capRows(rows: TreeTableRow[], max: number = MAX_TABLE_ROWS): CappedRows {
   if (rows.length <= max) {
     return { rows, total: rows.length };
   }

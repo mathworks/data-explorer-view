@@ -5,20 +5,28 @@ links, some matrices with the glyph that opens them. It holds no data and follow
 of its own: the app sets `groups`, from the model's buildPropertyGroups, when the selection
 changes, and hears about edits and links through events.
 
+The model's InspectorSelection holds the rule for which node a selection shows: the FIRST
+selected row's, and none for a section row or a row whose node is gone.
+
 ```js
 import 'data-explorer-view/theme.css';
 import { definePropertyInspector } from 'data-explorer-view/property-inspector';
-import { buildPropertyGroups, findNode } from 'data-explorer-view/model';
+import { InspectorSelection, buildPropertyGroups, findNode } from 'data-explorer-view/model';
 
 definePropertyInspector();
 const inspector = document.createElement('dex-property-inspector');
 document.body.append(inspector);
 
-table.addEventListener('dex-row-selected', (e) => {
-  const id = e.detail.rowIds.at(-1);
-  const node = id ? findNode(uri, id) : null;
-  inspector.groups = node ? buildPropertyGroups(node) : [];
-});
+const selection = new InspectorSelection(
+  {
+    showNode: (node) => (inspector.groups = buildPropertyGroups(node)), // PropertyGroup[]
+    clear: () => (inspector.groups = []),
+  },
+  findNode,
+);
+table.addEventListener('dex-row-selected', (e) => selection.show(uri, e.detail.rowIds));
+// After the document changes under the selection (an edit, an undo), show it again:
+//   selection.refresh(uri);
 inspector.addEventListener('dex-pi-navigate', (e) => {
   goTo(e.detail.sourceId);
 });

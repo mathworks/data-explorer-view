@@ -1,4 +1,5 @@
 import type { WarningBanner } from './parseWarnings.js';
+import type { TreeTableRow } from './tableRow.js';
 /**
  * The most rows one payload may carry.
  *
@@ -18,7 +19,7 @@ export declare const MAX_TABLE_ROWS = 100000;
 /** Rows for one payload, and how many the builder actually produced. */
 export interface CappedRows {
     /** At most `max` rows, in builder order. */
-    rows: any[];
+    rows: TreeTableRow[];
     /** The pre-cap count. Equal to `rows.length` when nothing was dropped. */
     total: number;
 }
@@ -36,7 +37,7 @@ export interface CappedRows {
  * what the banner is for: an incomplete table that says so beats a complete one
  * that never loads, and both beat the spinner.
  */
-export declare function capRows(rows: any[], max?: number): CappedRows;
+export declare function capRows(rows: TreeTableRow[], max?: number): CappedRows;
 /**
  * The banner for a capped payload, folding in whatever the parse already had to say.
  *

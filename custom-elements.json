@@ -768,6 +768,22 @@
       "exports": [
         {
           "kind": "js",
+          "name": "PropertyGroup",
+          "declaration": {
+            "name": "PropertyGroup",
+            "module": "dist/widgets/property-inspector/dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PropertyRow",
+          "declaration": {
+            "name": "PropertyRow",
+            "module": "dist/widgets/property-inspector/dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "DexPropertyInspector",
           "declaration": {
             "name": "DexPropertyInspector",
@@ -1500,7 +1516,7 @@
                 "text": "readonly string[] | null"
               },
               "default": "null",
-              "description": "The classes a MAT-file can take a new variable of, as its host says core lists them, or null\nfor a dictionary's gallery. Given, the tiles are those classes' (matCatalog): a MAT-file has\nno sections, so no tile names one, and nothing is offered that the file cannot take.\nDefault null. Property only."
+              "description": "The classes a MAT-file can take a new variable of, as core lists them, or null for a\ndictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has\nno sections, so no tile names one, and nothing is offered that the file cannot take.\nDefault null. Property only."
             }
           ],
           "events": [
@@ -2043,7 +2059,7 @@
                 "text": "TreeTableRow[]"
               },
               "default": "[]",
-              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's buildRows (or\nbuildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.",
+              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's planner makes of a\ndocument, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the\nchildren of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.\nAttribute `rows` (JSON); set the property.",
               "attribute": "rows"
             },
             {
@@ -2059,8 +2075,8 @@
             {
               "kind": "field",
               "name": "rowHeight",
-              "default": "26",
-              "description": "A row's height in CSS pixels, which virtual scrolling lays the rows out at: the\n`--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.",
+              "default": "28",
+              "description": "The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no\n`--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px\nwithout one, so to change the height set the token, which both read. Default 28. Attribute\n`rowheight`.",
               "attribute": "rowheight",
               "type": {
                 "text": "number"
@@ -2134,7 +2150,7 @@
                 "text": "readonly string[] | null"
               },
               "default": "null",
-              "description": "The classes a MAT-file's gallery offers, as its host says core lists them (setRows'\n`add: {classes}`), or null, the default, for a dictionary's gallery, which offers every tile.\nThe gallery draws the tiles of these classes only (matCatalog). Property only."
+              "description": "The classes a MAT-file's gallery offers, as core lists the classes a MAT-file can hold, or\nnull, the default, for a dictionary's gallery, which offers every tile. The gallery draws the\ntiles of these classes only (the model's matCatalog). Property only."
             },
             {
               "kind": "field",
@@ -2143,7 +2159,7 @@
                 "text": "boolean"
               },
               "default": "true",
-              "description": "Whether a row can be dragged, or a dragged row let go over one. False where the document is\nread-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from\nanother table draws no drop target here, on a row or on the empty body. Default true.\nAttribute `rowdrag`.",
+              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `rowdrag`.",
               "attribute": "rowdrag"
             },
             {
@@ -2164,7 +2180,7 @@
                 "text": "string | null"
               },
               "default": "'dex'",
-              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so a key set before then is the only one read; one\nset later reads again, from that key. Attribute `storage-key`.",
+              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so set it before the table goes into the page: a\nkey set later reads them again, from that key, after the table has shown the ones under the\nkey it had. Attribute `storage-key`.",
               "attribute": "storage-key"
             },
             {
@@ -2236,7 +2252,7 @@
                 "text": "| ((\n        targetRowId: string,\n        mode: 'copy' | 'move',\n      ) => { canDrop: boolean; cursor: string; tooltip: string; noop: boolean } | null)\n    | null"
               },
               "default": "null",
-              "description": "Predicts a drop for the row under the cursor ('' for the empty body), injected by the\nhost-side glue (table-main) and backed by the pure dropDecision: whether it may drop, the\ncursor and the tooltip to show, and whether it would change nothing. Returns null when it\ncannot predict — no drag it was told about, or a target with no rule — and null REFUSES:\nwith glue present, \"cannot say\" is not \"yes\". Only a table with no predictor at all, the\ndefault, falls back to the built-in permissive drag behavior, so it is usable without the\nglue. Property only."
+              "description": "Predicts a drop for the row under the cursor ('' for the space under the rows), as the\ndragover goes: whether it may drop, the cursor and the tooltip to show, and whether it would\nchange nothing. The app sets it, from the model's dropDecision and what it knows is being\ndragged (a drag can come from another table). Returns null when it cannot predict — no drag\nit was told about, or a target with no rule — and null REFUSES: with a predictor, \"cannot\nsay\" is not \"yes\". With none, the default, any row takes a drop and the space under the rows\ntakes none. Property only."
             },
             {
               "kind": "method",
@@ -2247,7 +2263,7 @@
                   "text": "void"
                 }
               },
-              "description": "Open or close the Add gallery, anchored under the Add button.\n\nPublic because the keyboard's way in comes from outside this element: the host's\n`dataExplorer.addEntry` command posts `openAddGallery`, and table-main calls this. It\nTOGGLES, so the accelerator behaves exactly as the button does rather than being a\nsecond, subtly different way to open the same popover.\n\nOpening is one flag because the popover is anchored in CSS, so both callers land on the\nsame geometry without either of them measuring anything. A view that cannot add has no\nAdd button and nothing to open — the command is a no-op there, which is the right answer\nfor a read-only .slx: the keybinding's `when` clause already excludes that view, but the\nCommand Palette does not have to."
+              "description": "Opens the `+ Add` gallery under the Add button, or closes it if it is open, as a click on the\nbutton does: an app's keyboard shortcut for adding an entry. It opens nothing while the button\nis not drawn (`canAdd` false, or `readonly`)."
             },
             {
               "kind": "method",
@@ -2265,7 +2281,7 @@
                   }
                 }
               ],
-              "description": "Open the inline name editor on a row, from outside the component.\n\nThe host asks for this after creating an entry from the gallery (`beginRename`), and it\ngoes through the very path a double-click takes — `_cellEditTarget`, which is the one\nplace that knows whether a cell may be edited at all. So a row whose Name the host would\nrefuse gets no editor rather than one whose commit bounces. Returns whether the editor\nopened, so a caller can keep holding a request whose row has not arrived yet."
+              "description": "Opens the Name editor on a row, as a double-click on its Name does: what an app calls after\nadding an entry the user should name (`dex-add-entry`'s `rename`). The edit comes back as\n`dex-edit-completed`. Returns whether the editor opened: false when the row is not in `rows`\nyet, so an app can call again once it is, or when its Name cannot be edited."
             },
             {
               "kind": "method",
@@ -2289,7 +2305,7 @@
                   }
                 }
               ],
-              "description": "Open the Value editor of `rowId` on `text`, the whole value its summary stands for, which the\nhost sent in answer to this table's `dex-edit-text-request`. In the textarea, as the text is one\nlong line of up to 200,000 characters; committed unchanged it posts nothing, and changed it\nposts the whole text. Only the answer to the last request opens an editor, and only while no\nother editor is open and the cell still takes this one: an answer that arrives after the user\nmoved on opens nothing."
+              "description": "The answer to `dex-edit-text-request`: opens the Value editor of `rowId` on `text`, the whole\nvalue the cell's summary stands for. In a textarea, as the text can be one long line of up to\n200,000 characters; committed unchanged it sends nothing, and changed it sends\n`dex-edit-completed` with the whole text. Only the answer to the last request opens an\neditor, and only while no other editor is open and the cell still takes this one: an answer\nthat arrives after the user moved on opens nothing."
             },
             {
               "kind": "method",
@@ -2299,7 +2315,7 @@
                   "text": "void"
                 }
               },
-              "description": "Focus (and select) the search input — e.g. for a Ctrl+F shortcut."
+              "description": "Focuses (and selects) the search input: an app's Ctrl+F."
             },
             {
               "kind": "method",
@@ -2333,7 +2349,7 @@
               "type": {
                 "text": "CustomEvent<RequestChildrenDetail>"
               },
-              "description": "A row whose children the payload held back (`_lazy`) was opened: answer with its rows.\nAsked once until its rows arrive."
+              "description": "A row whose children the payload held back (`_lazy`) was opened: answer with its rows,\nmerged into `rows` under it (the model's childRowsMessage builds them with the file's\nplanner, and mergeChildRows puts them in place). Asked once until its rows arrive."
             },
             {
               "name": "dex-table-context-menu",
@@ -2389,7 +2405,7 @@
               "type": {
                 "text": "CustomEvent<LinkClickedDetail>"
               },
-              "description": "A link in a cell was clicked: any cell whose text names its `linkTarget` (a Data Type, Used\nBy, a block, a parameter)."
+              "description": "A link in a cell was clicked: a Data Type, Used By, a block or a parameter. `target` says\nwhat it points at; see LinkClickedDetail for its forms."
             }
           ],
           "attributes": [
@@ -2399,7 +2415,7 @@
                 "text": "TreeTableRow[]"
               },
               "default": "[]",
-              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's buildRows (or\nbuildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.",
+              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's planner makes of a\ndocument, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the\nchildren of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.\nAttribute `rows` (JSON); set the property.",
               "fieldName": "rows"
             },
             {
@@ -2414,7 +2430,7 @@
             {
               "name": "rowheight",
               "default": "DEFAULT_ROW_HEIGHT",
-              "description": "A row's height in CSS pixels, which virtual scrolling lays the rows out at: the\n`--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.",
+              "description": "The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no\n`--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px\nwithout one, so to change the height set the token, which both read. Default 28. Attribute\n`rowheight`.",
               "fieldName": "rowHeight"
             },
             {
@@ -2477,7 +2493,7 @@
                 "text": "boolean"
               },
               "default": "true",
-              "description": "Whether a row can be dragged, or a dragged row let go over one. False where the document is\nread-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from\nanother table draws no drop target here, on a row or on the empty body. Default true.\nAttribute `rowdrag`.",
+              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `rowdrag`.",
               "fieldName": "rowDrag"
             },
             {
@@ -2495,7 +2511,7 @@
                 "text": "string | null"
               },
               "default": "'dex'",
-              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so a key set before then is the only one read; one\nset later reads again, from that key. Attribute `storage-key`.",
+              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so set it before the table goes into the page: a\nkey set later reads them again, from that key, after the table has shown the ones under the\nkey it had. Attribute `storage-key`.",
               "fieldName": "storageKey"
             },
             {
@@ -2650,6 +2666,14 @@
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "TreeTableRow",
+          "declaration": {
+            "name": "TreeTableRow",
+            "module": "dist/widgets/tree-table/dex-tree-table.js"
+          }
+        },
         {
           "kind": "js",
           "name": "DexTreeTable",
@@ -3287,7 +3311,7 @@
                   }
                 }
               ],
-              "description": "Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:\nname, class, shape, node id. The cells are not here yet — the app fetches them for\n`matrix.nodeId` (vscode's matrixOpen.ts posts a `requestMatrix`) and hands the answer to\ndeliver(). Until then the panel shows its title and a waiting line."
+              "description": "Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:\nname, class, shape, node id. The cells are not here yet — the app fetches them for\n`matrix.nodeId` (the model's matrixCellsMessage builds the answer) and hands it to\ndeliver(). Until then the panel shows its title and a waiting line."
             },
             {
               "kind": "method",
@@ -3305,7 +3329,7 @@
                   }
                 }
               ],
-              "description": "The host answered a `requestMatrix`. Fills the panel in, or says why it cannot\nbe filled in. Ignores an answer that is not about what is currently on screen:\nopen A, change your mind, open B, and A's reply can still be in flight — taking\nit would put A's numbers under B's title, which is worse than a slow panel."
+              "description": "The cells the app fetched for the panel show() opened: fills the panel in, or says why it\ncannot be filled in (the answer's `message`). Ignores an answer that is not about what is\ncurrently on screen: open A, change your mind, open B, and A's reply can still be in flight —\ntaking it would put A's numbers under B's title, which is worse than a slow panel."
             },
             {
               "kind": "method",

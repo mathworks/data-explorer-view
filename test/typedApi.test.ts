@@ -16,7 +16,7 @@
 // names as Lit observes them, no private member.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { sourceFiles } from './tools/moduleGraph.js';
 
@@ -164,6 +164,10 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
+    import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
+    import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
+    import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
+    import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
 
     defineTreeTable(); definePropertyInspector(); defineVariableEditor(); defineContextMenu(); defineErrorDialog(); defineIcon();
     const table = document.createElement('dex-tree-table');
@@ -215,6 +219,24 @@ describe('an app written in TypeScript, against the built package', () => {
     // @ts-expect-error a detail of another event
     table.addEventListener('dex-link-clicked', (e) => e.detail.rowIds);
 
+    // The model's rows and groups go into the widgets as they are, typed, with no cast.
+    const planned = rowPlannerFor('a.sldd').payload(null, 10);
+    table.rows = planned.rows;
+    const first: TableRow | undefined = planned.rows[0];
+    s(first?.Name.label ?? '');
+    // @ts-expect-error rows are the table's row type, not any
+    planned.rows[0]?.Name.nope;
+    table.rows = childRowsMessage('n', null, rowPlannerFor('a.mat')).rows;
+    const rowsOfModel: ModelRow[] = table.rows;
+    void rowsOfModel;
+    inspector.groups = buildPropertyGroups(null);
+    const groupsOfModel: PIPropertyGroup[] = inspector.groups;
+    const inspectorGroups: InspectorGroup[] = groupsOfModel;
+    const modelGroups: ModelGroup[] = inspectorGroups;
+    const rowOf: InspectorRow | undefined = modelGroups[0]?.properties[0];
+    const modelRow: ModelPropertyRow | undefined = rowOf;
+    void modelRow;
+
     // One declaration, named by both entries.
     const p: ModelPayload = { name: 'A', className: 'double', dims: [1, 1], nodeId: 'n', cells: ['1'] };
     const q: EditorPayload = p;
@@ -255,21 +277,28 @@ describe('an app written in TypeScript, against the built package', () => {
     expect(files.some((f) => f.endsWith('dist/widgets/tree-table/dex-tree-table.d.ts'))).toBe(true);
   });
 
-  it('names one MatrixPayload and one MatrixDescriptor from the model and the variable editor', () => {
+  it('names one declaration for each type the model and a widget entry share', () => {
     const checker = program.getTypeChecker();
     const consumer = program.getSourceFile(CONSUMER)!;
+    // The interface an imported name stands for, through any re-export and type alias.
     const declarationOf = (local: string): string => {
       let found: ts.Symbol | undefined;
       consumer.forEachChild(function find(node): void {
         if (ts.isImportSpecifier(node) && node.name.text === local) found = checker.getSymbolAtLocation(node.name);
         node.forEachChild(find);
       });
-      const target = checker.getAliasedSymbol(found!);
-      const decl = target.declarations![0]!;
-      return `${decl.getSourceFile().fileName}:${decl.pos}`;
+      const declared = checker.getDeclaredTypeOfSymbol(checker.getAliasedSymbol(found!));
+      const decl = declared.symbol!.declarations![0]!;
+      return `${relative(ROOT, decl.getSourceFile().fileName)}:${decl.pos}`;
     };
     expect(declarationOf('EditorPayload')).toBe(declarationOf('ModelPayload'));
     expect(declarationOf('EditorDescriptor')).toBe(declarationOf('ModelDescriptor'));
     expect(declarationOf('ModelPayload')).toContain('dist/model/matrix/matrixPayload.d.ts');
+    expect(declarationOf('TableRow')).toBe(declarationOf('ModelRow'));
+    expect(declarationOf('ModelRow')).toContain('dist/model/rows/tableRow.d.ts');
+    expect(declarationOf('InspectorGroup')).toBe(declarationOf('ModelGroup'));
+    expect(declarationOf('PIPropertyGroup')).toBe(declarationOf('ModelGroup'));
+    expect(declarationOf('InspectorRow')).toBe(declarationOf('ModelPropertyRow'));
+    expect(declarationOf('ModelGroup')).toContain('dist/model/inspector/piBuilder.d.ts');
   });
 });

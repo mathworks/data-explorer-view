@@ -1,5 +1,6 @@
 import type { PlanOptions, RowPlanner } from './rowPlanner.js';
 import { type PostTarget } from './postPayload.js';
+import type { TreeTableRow } from './tableRow.js';
 /**
  * Fill the Usage column of these rows — `usageGraph.annotateDataRows`, passed in rather
  * than imported.
@@ -9,7 +10,7 @@ import { type PostTarget } from './postPayload.js';
  * the integration suite. One parameter keeps it a unit test, and the provider that has
  * the dependency anyway is the one that supplies it.
  */
-export type UsageFiller = (sourceUri: string, rows: any[]) => Promise<boolean>;
+export type UsageFiller = (sourceUri: string, rows: TreeTableRow[]) => Promise<boolean>;
 /**
  * The `childRows` envelope for a node, or for the absence of one. Total: never throws.
  *
@@ -35,7 +36,7 @@ export type UsageFiller = (sourceUri: string, rows: any[]) => Promise<boolean>;
 export declare function childRowsMessage(nodeId: string, node: any, planner: RowPlanner, opts?: PlanOptions): {
     type: 'childRows';
     nodeId: string;
-    rows: any[];
+    rows: TreeTableRow[];
     truncated: number;
 };
 /**
