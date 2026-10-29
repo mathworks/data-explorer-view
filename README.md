@@ -62,7 +62,7 @@ defineVariableEditor();
 | `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |
 | `data-explorer-view/context-menu` | [`<dex-context-menu>`](docs/widgets/context-menu.md) |
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
-| `data-explorer-view/project-page` | a project's page, as HTML and the stylesheet it is drawn with |
+| `data-explorer-view/project-page` | [`<dex-project-page>`](docs/widgets/project-page.md), a project's page, and the HTML renderer and stylesheet it draws with |
 | `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
@@ -132,8 +132,12 @@ a link's `source` as it comes: the file to open for a link to another
 document.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
 what the VS Code extension shows for the same file, read-only; editing comes in
-a later release, and so does the page a project (`doc.kind === 'project'`)
-opens on.
+a later release. A project (`doc.kind === 'project'`) opens on a page rather
+than in a table: `<dex-project-page>` draws the message `readProjectPage(markerPath,
+fs)` reads from its store (core's `StoreFs`; `nodeStoreFs` from
+`data-explorer-core/node` in Electron or Node), the message the extension's
+project page is sent, and says `dex-project-open` with the path of a link to
+follow.
 
 A source can also be across a message channel, to a worker or another
 process holding the documents: `serveTable(doc.table, port)` on the side that

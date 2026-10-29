@@ -791,9 +791,155 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/project-page/dex-project-page.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A MATLAB project's page: what it is, its startup and shutdown files, shortcuts, path, labels,\nlocations and the projects it references, from the message `projectPageMessage` builds. Each\nsection with many rows has a filter, and one past its cap a Show all; both are kept across a\nnew page of the same project (a store saved on disk), and dropped for another project. A link\nto a file or a project is the app's to open: a click, Enter or Space sends `dex-project-open`.\n\nThe page is in the element's shadow root with its stylesheet adopted, so it needs no\n`style-src 'unsafe-inline'`, and the page's class names reach nothing else on the page.",
+          "name": "DexProjectPage",
+          "members": [
+            {
+              "kind": "field",
+              "name": "payload",
+              "type": {
+                "text": "ProjectPagePayload | null"
+              },
+              "default": "null",
+              "description": "The project shown: `projectPageMessage`'s answer (its `type` is ignored), or null for none.\nA page of another project (another `root`) starts with every filter cleared; a page of the\nsame one keeps them. Setting it clears `error`."
+            },
+            {
+              "kind": "field",
+              "name": "error",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`.",
+              "attribute": "error"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-project-open",
+              "type": {
+                "text": "CustomEvent<ProjectOpenDetail>"
+              },
+              "description": "A link to a file, a folder or a project was followed, by a click, Enter or Space."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "error",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`.",
+              "fieldName": "error"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-project-page",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineProjectPage",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-project-page'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-project-page>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexProjectPage",
+          "declaration": {
+            "name": "DexProjectPage",
+            "module": "dist/widgets/project-page/dex-project-page.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineProjectPage",
+          "declaration": {
+            "name": "defineProjectPage",
+            "module": "dist/widgets/project-page/dex-project-page.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/project-page/index.js",
       "declarations": [],
       "exports": [
+        {
+          "kind": "js",
+          "name": "DexProjectPage",
+          "declaration": {
+            "name": "DexProjectPage",
+            "module": "./dex-project-page.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineProjectPage",
+          "declaration": {
+            "name": "defineProjectPage",
+            "module": "./dex-project-page.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ProjectOpenDetail",
+          "declaration": {
+            "name": "ProjectOpenDetail",
+            "module": "./dex-project-page.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ProjectPageEventMap",
+          "declaration": {
+            "name": "ProjectPageEventMap",
+            "module": "./dex-project-page.js"
+          }
+        },
         {
           "kind": "js",
           "name": "ROW_CAP",

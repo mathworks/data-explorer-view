@@ -59,7 +59,8 @@ export {
   spliceEntryRows,
 } from './actions/rowUpdates.js';
 
-// Ids: section rows, sources, paths, the Add gallery's catalog and a project's MSP roles.
+// Ids: section rows, sources, paths, the Add gallery's catalog, and a project's MSP roles and how
+// a project is found to be one.
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
 export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
@@ -68,6 +69,7 @@ export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export type { GalleryCategory, GalleryTile, SectionKey } from './ids/addCatalog.js';
 export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
+export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 
 // The hierarchy: the graph of which file references which, and the health marks on it; a
 // folder's files read into it over core's source cache; and the folder as a tree's rows.
@@ -95,6 +97,10 @@ export type {
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+
+// A project's page: the message its page is drawn from (<dex-project-page>), from its store.
+export { projectPageMessage, readProjectPage } from './source/projectPage.js';
+export type { SetProjectMessage } from './source/projectPage.js';
 
 // Usage: who uses each variable and where each block's parameters come from, as the Usage
 // column's cells (over core's usage index), and the grammar of the links in them.
