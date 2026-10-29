@@ -23,7 +23,7 @@ npm run test:gallery    # the browser tests (see below)
 | `error-dialog.html` | `<dex-error-dialog>`: an error, and a refused edit with Revert |
 | `project-page.html` | a MATLAB project's page, from its project store |
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
-| `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, the selection fills the inspector, the matrix glyph opens the editor |
+| `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, a search finds an entry by name, the selection fills the inspector, the matrix glyph opens the editor |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -77,7 +77,9 @@ widgets to the document's table source:
   dictionary), beside the table; a file chosen there opens as one picked. Its workspace's
   `usage` is a graph over the same folders (`folderUsage`, core's `planSummaries`), so a
   dictionary entry names the blocks that use it, and a click on one follows the link with
-  `resolveNavSource` and `selectByName`.
+  `resolveNavSource` and `selectByName`. The search box above the folder lists the entries of
+  the folders that match (`NameIndex`, `searchEntries`, `folderNames`), and opens the one picked
+  in its file.
 
 The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
 the page in the document and handles its filters and links.

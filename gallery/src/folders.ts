@@ -11,7 +11,7 @@ import usageCtrlA from '../../test-integration/fixtures/usageorder/ctrlA.slx?url
 import usagePlantB from '../../test-integration/fixtures/usageorder/plantB.slx?url';
 import usageShared from '../../test-integration/fixtures/usageorder/sharedParams.sldd?url';
 import { isGraphPath, newSourceCache, planSummaries, type SourceCache, type SourceFile } from 'data-explorer-core';
-import { buildUsageGraphFromSummaries, FolderHierarchy, type GraphReader, type UsageSource } from 'data-explorer-view/model';
+import { buildUsageGraphFromSummaries, FolderHierarchy, NameIndex, type GraphReader, type UsageSource } from 'data-explorer-view/model';
 import { FIXTURES } from './fixtures';
 
 /** A folder: its path, and each file's name and URL. */
@@ -104,4 +104,15 @@ export function folderUsage(reading: Reading): UsageSource {
   const files = reading.files.filter((f) => isGraphPath(f.path));
   const reader = reading.reader(files);
   return { graphFor: async (uri) => buildUsageGraphFromSummaries(await planSummaries(reading.cache, reader, files, uri)) };
+}
+
+/** The folders' entry names, for a search over them, through the hierarchy's cache. */
+export function folderNames(reading: Reading): NameIndex {
+  const files = reading.files.filter((f) => isGraphPath(f.path));
+  return new NameIndex({
+    files: { list: async () => files },
+    // A page edits nothing here, so no file has unsaved bytes.
+    reader: (listed) => ({ ...reading.reader(listed), dirtyBytes: () => null }),
+    cache: reading.cache,
+  });
 }

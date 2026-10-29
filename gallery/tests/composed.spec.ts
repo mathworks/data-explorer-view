@@ -100,3 +100,25 @@ test("a dictionary's Usage names the blocks of both models, and a click opens th
   await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-ctrlA.slx');
   await expect(row(page, 'GainA')).toHaveAttribute('aria-selected', 'true');
 });
+
+test('the search finds an entry by name, across the folders, and opens its file on it', async ({ page }) => {
+  await page.goto('composed.html');
+  const search = page.getByRole('searchbox', { name: 'Search entries' });
+  const results = page.getByRole('list', { name: 'Matching entries' }).getByRole('button');
+  // By name or by file: shared_gain.slx's blocks match on their file's name.
+  await search.fill('gain');
+  await expect(results).toHaveText([
+    /GainA\s*ctrlA\.slx$/,
+    /GainB\s*plantB\.slx$/,
+    /PlantGain\s*shared_gain\.slx$/,
+    /SharedGain\s*sharedParams\.sldd$/,
+    /Trim\s*shared_gain\.slx$/,
+  ]);
+  // Every result draws its icon.
+  await expect(results.locator('dex-icon img')).toHaveCount(5);
+  await results.filter({ hasText: 'GainB' }).click();
+  await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-plantB.slx');
+  await expect(row(page, 'GainB')).toHaveAttribute('aria-selected', 'true');
+  await search.fill('');
+  await expect(results).toHaveCount(0);
+});
