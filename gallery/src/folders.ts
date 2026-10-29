@@ -10,8 +10,8 @@ import workspaceParams from '../../test-integration/fixtures/workspace/params.sl
 import usageCtrlA from '../../test-integration/fixtures/usageorder/ctrlA.slx?url';
 import usagePlantB from '../../test-integration/fixtures/usageorder/plantB.slx?url';
 import usageShared from '../../test-integration/fixtures/usageorder/sharedParams.sldd?url';
-import { isGraphPath, newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
-import { FolderHierarchy, NameIndex, UsageGraphs, type GraphReader } from 'data-explorer-view/model';
+import { newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
+import { FolderHierarchy, type GraphReader } from 'data-explorer-view/model';
 import { FIXTURES } from './fixtures';
 
 /** A folder: its path, and each file's name and URL. */
@@ -92,30 +92,5 @@ export function folderHierarchy(reading: Reading, isDirty?: (uri: string) => boo
     reader: reading.reader,
     cache: reading.cache,
     ...(isDirty ? { isDirty } : {}),
-  });
-}
-
-/**
- * Who uses what, over the folders: a usage graph per document, from the summaries of just the
- * files that can reach it, as a workspace's `usage` takes it. Through the hierarchy's cache.
- */
-export function folderUsage(reading: Reading): UsageGraphs {
-  // The files a usage graph reads: no projects, which define no variables.
-  const files = reading.files.filter((f) => isGraphPath(f.path));
-  return new UsageGraphs({
-    // A page's folder and nothing else: no open editors to key the graphs by.
-    inputs: { inputsKey: () => '', candidates: async () => files, readerFor: reading.reader },
-    cache: reading.cache,
-  });
-}
-
-/** The folders' entry names, for a search over them, through the hierarchy's cache. */
-export function folderNames(reading: Reading): NameIndex {
-  const files = reading.files.filter((f) => isGraphPath(f.path));
-  return new NameIndex({
-    files: { list: async () => files },
-    // A page edits nothing here, so no file has unsaved bytes.
-    reader: (listed) => ({ ...reading.reader(listed), dirtyBytes: () => null }),
-    cache: reading.cache,
   });
 }
