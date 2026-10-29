@@ -32,16 +32,12 @@ export function wireTable(table: DexTreeTable, handlers: TableHandlers): TableHa
   }
 
   table.addEventListener('dex-request-children', (e) => {
-    const nodeId = (e as CustomEvent<{ nodeId?: unknown }>).detail?.nodeId;
-    if (typeof nodeId !== 'string' || nodeId === '') return;
+    const { nodeId } = e.detail;
     const merged = mergeChildRows(table.rows, nodeId, handlers.children(nodeId));
     if (merged) install(merged);
   });
 
-  table.addEventListener('dex-row-selected', (e) => {
-    const rowIds = (e as CustomEvent<{ rowIds?: unknown }>).detail?.rowIds;
-    handlers.select(Array.isArray(rowIds) ? rowIds : []);
-  });
+  table.addEventListener('dex-row-selected', (e) => handlers.select(e.detail.rowIds));
 
   return {
     setPayload(payload) {

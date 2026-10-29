@@ -22,7 +22,7 @@ const stage = byId('stage');
 const editor = byId<DexVariableEditor>('editor');
 const inspector = wireInspector(byId<DexPropertyInspector>('inspector'), byId('inspector-empty'));
 let doc: OpenDocument | null = null;
-wireMatrix(document, editor, (nodeId) => (doc ? matrixCells(doc, nodeId) : null));
+wireMatrix(document.body, editor, (nodeId) => (doc ? matrixCells(doc, nodeId) : null));
 
 async function show(fixture: Fixture): Promise<void> {
   if (doc) closeDocument(doc);

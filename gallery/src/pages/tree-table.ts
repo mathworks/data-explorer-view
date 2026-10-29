@@ -23,7 +23,10 @@ logEvents(
     'dex-matrix-open',
     'dex-table-context-menu',
     'dex-edit-completed',
+    'dex-edit-text-request',
     'dex-add-entry',
+    'dex-row-drag-start',
+    'dex-row-drop',
   ],
   byId('event-log'),
 );

@@ -104,6 +104,9 @@ export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   return el as T;
 }
 
+/** The widgets' events, by the names their modules declare on HTMLElementEventMap. */
+type DexEvent = Extract<keyof HTMLElementEventMap, `dex-${string}`>;
+
 // An element in a detail (the matrix glyph's anchorEl, for one) as its tag, so the log says
 // what was there without serialising the DOM.
 function describe(_key: string, value: unknown): unknown {
@@ -114,15 +117,15 @@ function describe(_key: string, value: unknown): unknown {
  * Lists every event named in `names` that reaches `target`, newest first, with its detail: what
  * a widget tells the app, which is all an app has to listen to.
  */
-export function logEvents(target: EventTarget, names: readonly string[], log: HTMLElement): void {
+export function logEvents(target: HTMLElement, names: readonly DexEvent[], log: HTMLElement): void {
   for (const name of names) {
     target.addEventListener(name, (e) => {
       const item = document.createElement('li');
       const code = document.createElement('code');
       code.textContent = name;
       item.append(code);
-      const detail = (e as CustomEvent).detail;
-      if (detail !== undefined && detail !== null) item.append(` ${JSON.stringify(detail, describe)}`);
+      const { detail } = e;
+      if (detail !== null) item.append(` ${JSON.stringify(detail, describe)}`);
       log.prepend(item);
       while (log.childElementCount > 20) log.lastElementChild?.remove();
     });

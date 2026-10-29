@@ -40,6 +40,9 @@ published declarations.
 - `src/shell.ts` is the part an app writes once: `theme.css`, then `useIconAssets()`
   before the first icon renders, so Vite copies every icon into the build.
 - Each page in `src/pages/` calls the define function of each widget it places.
+- Listeners read each event's `detail` as its widget types it on
+  `HTMLElementEventMap`, with no cast; they listen on an element (`document.body`
+  at the widest), since the document's own event map does not include them.
 - `vite.config.ts` has what view's README asks of a Vite app: for the dev server,
   `optimizeDeps.exclude: ['data-explorer-view']` and an `optimizeDeps.include` of
   what the package imports (`tests/devServer.spec.ts` holds both lists to `dist/`);
