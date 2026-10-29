@@ -55,7 +55,7 @@ defineVariableEditor();
 
 | Entry | What it holds |
 |---|---|
-| `data-explorer-view/model` | the view model: rows, inspector pages, matrix cells, the rules for actions |
+| `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions |
 | `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
 | `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
 | `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |
@@ -91,6 +91,54 @@ document.addEventListener('dex-matrix-open', (e) => {
 });
 ```
 
+## Show a file in a table (preview)
+
+A workspace opens files in the page, with core, and gives each one a table
+source: what the table shows, and the answers it asks for as the user opens
+rows, values and the inspector.
+
+```js
+import { createWorkspace } from 'data-explorer-view/model';
+
+const ws = createWorkspace();
+const doc = await ws.open(await file.arrayBuffer(), file.name); // a File, from an <input> or a drop
+const view = await doc.table.open(); // rows, columns, headings and banners
+```
+
+`connectTable` and `connectInspector`, coming next, will wire a table and an
+inspector to a source in one line each. Until then the widgets take the answers
+as they are, with no conversion:
+
+```js
+import { mergeChildRows } from 'data-explorer-view/model';
+
+table.readonly = true;
+Object.assign(table, { rows: view.rows, columns: view.columns, columnLabels: view.columnLabels, columnGroups: view.columnGroups });
+table.addEventListener('dex-request-children', async (e) => {
+  const { nodeId, rows } = await doc.table.children(e.detail.nodeId); // the rows under a `_lazy` row
+  table.rows = mergeChildRows(table.rows, nodeId, rows) ?? table.rows;
+});
+table.addEventListener('dex-row-selected', async (e) => {
+  inspector.groups = (await doc.table.inspect(e.detail.rowIds)).groups; // the first row's properties
+});
+document.body.addEventListener('dex-matrix-open', async (e) => {
+  editor.show(e.detail.anchorEl, e.detail.matrix);
+  editor.deliver(await doc.table.matrix(e.detail.matrix.nodeId)); // the cells, or why there are none
+});
+```
+
+`view.notice` and `view.warnings` are the banners to show above the table, and
+`doc.table.open()` rejects, with the banner's words, for a file that cannot be
+read. When the file changes, `doc.reload(bytes)` reads it again and tells
+`doc.table.subscribe(listener)` the new view (`replaceAll`), or why it could
+not (`error`). A document's uri is its identity, in every row id: by default
+`file:///<name>`; to open two files that share a name, pass each one's
+`sourceUri(path)` as the third argument, which spells a path as VS Code does.
+`doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
+what the VS Code extension shows for the same file, read-only; editing comes in
+a later release, and so does the page a project (`doc.kind === 'project'`)
+opens on.
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's
@@ -100,10 +148,10 @@ acts on. It uses no DOM and no Node, so it runs in a page, a worker or a
 terminal UI.
 
 ```js
-import { getModelFromBytes, rowPlannerFor, LAZY_ROW_BUDGET } from 'data-explorer-view/model';
+import { createWorkspace } from 'data-explorer-view/model';
 
-const node = getModelFromBytes(uri, name, bytes); // core reads the file
-const { rows } = rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET); // the table's rows
+const doc = await createWorkspace().open(bytes, name); // core reads the file
+const { rows } = await doc.table.open(); // the table's rows
 ```
 
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with
