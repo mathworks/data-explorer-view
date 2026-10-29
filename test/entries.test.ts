@@ -37,7 +37,7 @@ const specifier = (key: string): string => `${NAME}${key.slice(1)}`;
 const file = (target: string): string => join(ROOT, target);
 
 const TAGS = ['dex-tree-table', 'dex-filter-bar', 'dex-column-filter', 'dex-add-gallery', 'dex-property-inspector',
-  'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-matrix-open', 'dex-icon'];
+  'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-matrix-open', 'dex-icon'];
 const OLD_PATHS = ['icons/wsTable.svg', 'model/rows/rowBuilder.js', 'widgets/tree-table/dex-tree-table.js', 'theme/global.css'];
 
 interface Loaded {

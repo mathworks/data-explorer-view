@@ -32,12 +32,14 @@ export { dropFactsOf } from './actions/dropFacts.js';
 export { resolveOperands, sectionRowIdOf } from './actions/operands.js';
 export { sectionRules, wholeFileRules } from './actions/sectionRules.js';
 export { insertEntryRows, mergeChildRows, nextExpandedIds, nextStickyIds, pendingSelectionToApply, spliceEntryRows, } from './actions/rowUpdates.js';
-// Ids: section rows, sources, paths, the Add gallery's catalog and a project's MSP roles.
+// Ids: section rows, sources, paths, the Add gallery's catalog, and a project's MSP roles and how
+// a project is found to be one.
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
 export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
+export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 // The hierarchy: the graph of which file references which, and the health marks on it; a
 // folder's files read into it over core's source cache; and the folder as a tree's rows.
 export { RelGraph } from './hierarchy/graphModel.js';
@@ -46,6 +48,8 @@ export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+// A project's page: the message its page is drawn from (<dex-project-page>), from its store.
+export { projectPageMessage, readProjectPage } from './source/projectPage.js';
 // Usage: who uses each variable and where each block's parameters come from, as the Usage
 // column's cells (over core's usage index), and the grammar of the links in them.
 export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsageGraphFromSummaries, } from './usage/usageCells.js';

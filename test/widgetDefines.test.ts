@@ -17,6 +17,7 @@ import { blankCommentsAndKeepLines } from './tools/moduleGraph.js';
 import { DexContextMenu, defineContextMenu } from '../src/widgets/context-menu/dex-context-menu.js';
 import { DexErrorDialog, defineErrorDialog } from '../src/widgets/error-dialog/dex-error-dialog.js';
 import { DexHierarchy, defineHierarchy } from '../src/widgets/hierarchy/dex-hierarchy.js';
+import { DexProjectPage, defineProjectPage } from '../src/widgets/project-page/dex-project-page.js';
 import { DexPropertyInspector, definePropertyInspector } from '../src/widgets/property-inspector/dex-property-inspector.js';
 import { DexIcon, defineIcon } from '../src/widgets/shared/dex-icon.js';
 import { DexMatrixOpen, defineMatrixOpen } from '../src/widgets/shared/dex-matrix-open.js';
@@ -45,6 +46,7 @@ const WIDGETS: Widget[] = [
   { tag: 'dex-context-menu', file: 'context-menu/dex-context-menu.ts', cls: DexContextMenu, define: defineContextMenu },
   { tag: 'dex-error-dialog', file: 'error-dialog/dex-error-dialog.ts', cls: DexErrorDialog, define: defineErrorDialog },
   { tag: 'dex-hierarchy', file: 'hierarchy/dex-hierarchy.ts', cls: DexHierarchy, define: defineHierarchy },
+  { tag: 'dex-project-page', file: 'project-page/dex-project-page.ts', cls: DexProjectPage, define: defineProjectPage },
   { tag: 'dex-matrix-open', file: 'shared/dex-matrix-open.ts', cls: DexMatrixOpen, define: defineMatrixOpen },
   { tag: 'dex-icon', file: 'shared/dex-icon.ts', cls: DexIcon, define: defineIcon },
 ];

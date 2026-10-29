@@ -11,8 +11,8 @@
 // cells of every matrix), the Usage cells its folder fills (usage.json, which a compressed
 // dictionary has none of), and the fixture itself to the path it has there; and per fixture
 // folder, its relationship tree (hierarchy.json) and every file the tree opens (a project's marker
-// among them). Each when it is missing or differs. The kind this package does not answer yet
-// (project) is left. Reports what changed; the diff is the review.
+// among them); and per project, its page (project.json). Each when it is missing or differs.
+// Reports what changed; the diff is the review.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
@@ -56,6 +56,11 @@ for (const key of readdirSync(from).sort()) {
     for (const kind of SOME_KINDS) {
       if (existsSync(join(from, key, `${kind}.json`))) copy(join(from, key, `${kind}.json`), join(to, key, `${kind}.json`));
     }
+    copy(join(resolve(vscode), rel), join(here, rel));
+  }
+  const project = join(from, key, 'project.json');
+  if (existsSync(project)) {
+    copy(project, join(to, key, 'project.json'));
     copy(join(resolve(vscode), rel), join(here, rel));
   }
   const tree = join(from, key, 'hierarchy.json');
