@@ -15,10 +15,10 @@
 // emitter knows it) or a bare basename.
 //
 // ONE READING of the grammar: the table's own (parseLinkTarget, ids/linkTarget.ts), which splits
-// at the FIRST `@`, as core does. The extension's copy of this split at the last, which agreed
-// only because VS Code's `Uri.toString()` percent-encodes an `@`: an app naming files by their
-// raw paths (`file:///u/me@corp/x.sldd`) would have had the link opened in a document whose name
-// begins after the user name. A name never holds an `@`; a uri may.
+// at the first `@` a uri follows, else at the last. The extension's copy of this split at the last
+// `@`, which agrees on every target the extension writes (VS Code's `Uri.toString()` spells an `@`
+// as `%40`) and keeps a pre-SID block's name whole (`blocks:Gain@1@…`); an app naming files by
+// their raw paths (`file:///u/me@corp/x.sldd`) needs the `@` before the uri instead.
 import { parseLinkTarget } from '../ids/linkTarget.js';
 // Parse a target into { name, source }, or null when malformed.
 export function parseNavTarget(target) {

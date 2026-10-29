@@ -23,6 +23,11 @@ export type LinkTarget =
     kind: 'file';
     file: string;
 };
+/**
+ * Where a target's source begins: after the first `@` that a uri follows, else after the last
+ * `@`; -1 for a target with none. See the header.
+ */
+export declare function sourceAt(target: string): number;
 /** Read a link target: `name@source`, `blocks:<sid>@source`, `workspace:<name>@source`, or a file. */
 export declare function parseLinkTarget(target: string): LinkTarget;
 /**
