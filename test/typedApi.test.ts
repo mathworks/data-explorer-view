@@ -183,7 +183,8 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
-    import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
+    import { rowPlannerFor, childRowsMessage, buildPropertyGroups, mergeChildRows } from 'data-explorer-view/model';
+    import { createWorkspace, sourceUri, type Doc, type DocKind, type MatrixPage, type TableChange, type TableSource, type TableView } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -260,6 +261,48 @@ describe('an app written in TypeScript, against the built package', () => {
     const rowOf: InspectorRow | undefined = modelGroups[0]?.properties[0];
     const modelRow: ModelPropertyRow | undefined = rowOf;
     void modelRow;
+
+    // A document's table, from a workspace, goes into the widgets as it is: the rows, columns and
+    // labels into the table, a page into the inspector, a matrix into the variable editor.
+    void (async () => {
+      const ws = createWorkspace({ rowBudget: 1000 });
+      const doc: Doc = await ws.open(new Uint8Array(0), 'plant.sldd', sourceUri('/work/plant.sldd'));
+      const kind: DocKind = doc.kind;
+      s(kind);
+      const source: TableSource = doc.table;
+      const view: TableView = await source.open();
+      table.rows = view.rows;
+      table.columns = view.columns;
+      table.columnLabels = view.columnLabels;
+      table.columnGroups = view.columnGroups;
+      table.rows = (await source.children('n')).rows;
+      inspector.groups = (await source.inspect(table.selectedRowIds)).groups;
+      const page: MatrixPage = await source.matrix('n');
+      void editor.deliver(page);
+      if (!page.matrix) s(page.message);
+      // The README's wiring, as it is written there.
+      table.readonly = true;
+      Object.assign(table, { rows: view.rows, columns: view.columns, columnLabels: view.columnLabels, columnGroups: view.columnGroups });
+      table.addEventListener('dex-request-children', async (e) => {
+        const { nodeId, rows } = await doc.table.children(e.detail.nodeId);
+        table.rows = mergeChildRows(table.rows, nodeId, rows) ?? table.rows;
+      });
+      table.addEventListener('dex-row-selected', async (e) => {
+        inspector.groups = (await doc.table.inspect(e.detail.rowIds)).groups;
+      });
+      document.body.addEventListener('dex-matrix-open', async (e) => {
+        editor.show(e.detail.anchorEl, e.detail.matrix);
+        editor.deliver(await doc.table.matrix(e.detail.matrix.nodeId));
+      });
+      const stop = source.subscribe((c: TableChange) => {
+        if (c.kind === 'replaceAll') table.rows = c.view.rows;
+        else if (c.kind === 'error') s(c.message);
+      });
+      stop();
+      await doc.reload(new ArrayBuffer(0));
+      doc.dispose();
+      ws.dispose();
+    })();
 
     // One declaration, named by both entries.
     const p: ModelPayload = { name: 'A', className: 'double', dims: [1, 1], nodeId: 'n', cells: ['1'] };
