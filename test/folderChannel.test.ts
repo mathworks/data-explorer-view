@@ -231,6 +231,83 @@ describe('a folder across a channel', () => {
   });
 });
 
+describe('look-alikes of a listed file', () => {
+  // A folder holding only /w/a.sldd, listed. Each uri below names it in some other spelling, or
+  // names something else; none may be normalised into it. Each is answered null, and nothing is read.
+  const LOOK_ALIKES: [string, string][] = [
+    ['a `..` segment', 'file:///w/../w/a.sldd'],
+    ['a `.` segment', 'file:///w/./a.sldd'],
+    ['an absolute path outside the folder', 'file:///etc/passwd'],
+    ['the path in place of the uri', '/w/a.sldd'],
+    ['the scheme in capitals', 'FILE:///w/a.sldd'],
+    ['a query', 'file:///w/a.sldd?x'],
+    ['a fragment', 'file:///w/a.sldd#x'],
+    ['a percent-encoded dot', 'file:///w/a%2Esldd'],
+    ['a trailing slash', 'file:///w/a.sldd/'],
+    ['a trailing space', 'file:///w/a.sldd '],
+    ['vscode-file:', 'vscode-file://vscode-app/w/a.sldd'],
+    ['http:', 'http://localhost/w/a.sldd'],
+    ['data:', 'data:,A'],
+  ];
+
+  async function listedA() {
+    listed = [A];
+    const { reader, page } = across(memoryFolder({ '/w/a.sldd': bytes('A') }));
+    expect(await reader.list()).toEqual([A]);
+    read = [];
+    return { reader, page };
+  }
+
+  it.each(LOOK_ALIKES)('%s (%s): null for bytes, version and projectStore, and nothing read', async (_why, uriString) => {
+    const { reader } = await listedA();
+    const crafted: SourceFile = { uriString, path: A.path };
+    expect(await reader.bytes(crafted)).toBeNull();
+    expect(await reader.version(crafted)).toBeNull();
+    expect(await reader.projectStore(crafted)).toBeNull();
+    expect(read).toEqual([]);
+  });
+
+  /** What the host answers a request posted raw on the page's port, by its id. */
+  function rawAnswers(page: TablePort) {
+    const answers = new Map<number, Record<string, unknown>>();
+    stops.push(
+      page.onMessage((m) => {
+        const a = m as Record<string, unknown>;
+        if (a?.type === 'folderAnswer' && typeof a.id === 'number' && a.id >= 10_000) answers.set(a.id, a);
+      }),
+    );
+    return answers;
+  }
+
+  it.each([
+    ['no uri', {}],
+    ['a number', { uri: 42 }],
+    ['an object', { uri: {} }],
+  ])('a raw request with %s for a uri is refused, and nothing read', async (_why, uri) => {
+    const { page } = await listedA();
+    const answers = rawAnswers(page);
+    for (const [i, ask] of ['bytes', 'version', 'projectStore'].entries()) {
+      page.postMessage({ type: 'folderRequest', id: 10_000 + i, ask, ...uri });
+    }
+    await tick();
+    for (const i of [0, 1, 2]) {
+      expect(answers.get(10_000 + i)).toEqual({ type: 'folderAnswer', id: 10_000 + i, refused: 'Not a file of the folder.' });
+    }
+    expect(read).toEqual([]);
+  });
+
+  it.each(['list2', 'constructor', '__proto__'])('an ask the wire does not have (%s) is answered with no value, and nothing read', async (ask) => {
+    const { page } = await listedA();
+    const answers = rawAnswers(page);
+    page.postMessage({ type: 'folderRequest', id: 10_000, ask, uri: A.uriString });
+    await tick();
+    // Refused rather than left unanswered, so a page that sent it is not left waiting: no value
+    // either way.
+    expect(answers.get(10_000)).toEqual({ type: 'folderAnswer', id: 10_000, refused: 'Not a file of the folder.' });
+    expect(read).toEqual([]);
+  });
+});
+
 describe('the boundary: the host reads only the files it listed', () => {
   // A folder on disk read by core's own reader, which trusts the SourceFile it is handed (it reads
   // its `path`): only the boundary keeps the page from naming what it reads. One file is listed;
