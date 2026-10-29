@@ -3,6 +3,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
 import { dragModeFromModifiers, type DragMode } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
@@ -353,6 +354,7 @@ const OP_WORD_TEXT: Record<FilterOp, string> = {
 
 export class DexTreeTable extends LitElement {
   static override styles = [
+    hiddenStyles,
     highContrastStyles,
     css`
       :host {

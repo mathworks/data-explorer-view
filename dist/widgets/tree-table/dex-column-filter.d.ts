@@ -2,7 +2,7 @@ import { LitElement } from 'lit';
 import { type FilterOp } from '../../model/filter/rowFilter.js';
 export declare const OP_GLYPHS: ReadonlyArray<readonly [FilterOp, string, string]>;
 export declare class DexColumnFilter extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     /** Column key the condition is about. */
     column: string;
     /** Header label; also the prefix the written text uses. */

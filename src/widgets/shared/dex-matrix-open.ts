@@ -12,6 +12,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
+import { hiddenStyles } from './hidden.styles.js';
 import { defineIcon } from './dex-icon.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 
@@ -27,7 +28,7 @@ export interface MatrixOpenDetail {
 }
 
 export class DexMatrixOpen extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: inline-flex;
       vertical-align: middle;
@@ -57,7 +58,7 @@ export class DexMatrixOpen extends LitElement {
       outline-offset: 1px;
       opacity: 1;
     }
-  `;
+  `];
 
   @property({ attribute: false }) matrix: MatrixDescriptor | null = null;
   @property({ type: String }) rowId?: string;

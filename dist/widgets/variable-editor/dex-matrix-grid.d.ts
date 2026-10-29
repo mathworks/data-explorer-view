@@ -9,7 +9,7 @@ export interface MatrixPayload extends MatrixDescriptor {
     cells: string[];
 }
 export declare class DexMatrixGrid extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     matrix: MatrixPayload | null;
     private _page;
     private _r;

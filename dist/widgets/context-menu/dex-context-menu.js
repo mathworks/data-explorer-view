@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
 export class DexContextMenu extends LitElement {
     constructor() {
@@ -51,7 +52,7 @@ export class DexContextMenu extends LitElement {
             this.close();
         };
     }
-    static { this.styles = [menuitemFocusRingStyles, css `
+    static { this.styles = [hiddenStyles, menuitemFocusRingStyles, css `
     :host {
       position: fixed;
       z-index: 10000;

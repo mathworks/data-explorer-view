@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
 import { dragModeFromModifiers } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
@@ -400,6 +401,7 @@ export class DexTreeTable extends LitElement {
         this._pendingFlashId = null;
     }
     static { this.styles = [
+        hiddenStyles,
         highContrastStyles,
         css `
       :host {

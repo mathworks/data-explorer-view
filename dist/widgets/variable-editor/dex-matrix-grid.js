@@ -33,6 +33,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 // A cell is right-aligned only if EVERY cell in the matrix reads as a number, so
 // one non-numeric entry keeps the whole column block left-aligned rather than
@@ -105,7 +106,7 @@ export class DexMatrixGrid extends LitElement {
         // twice as much of the one cost windowing cannot remove, so they share one.
         this._scan = null;
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: block;
       /* The containing block for the probes below. They must NOT be inside
@@ -262,7 +263,7 @@ export class DexMatrixGrid extends LitElement {
 
     .pager button[disabled] { opacity: 0.4; cursor: default; }
     .pager select { font: inherit; }
-  `; }
+  `]; }
     get _dims() {
         return this.matrix?.dims ?? [];
     }

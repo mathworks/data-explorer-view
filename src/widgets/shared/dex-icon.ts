@@ -3,6 +3,7 @@
 import { LitElement, html, css } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
+import { hiddenStyles } from './hidden.styles.js';
 
 const ALIASES: Record<string, string> = {
   struct: 'typeStruct',
@@ -70,7 +71,7 @@ export function setIconBase(url: string): void {
 }
 
 export class DexIcon extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: inline-flex;
       align-items: center;
@@ -85,7 +86,7 @@ export class DexIcon extends LitElement {
          theme.css inverts their lightness and rotates the hue back, so a blue stroke stays blue. */
       filter: var(--dex-icon-filter, none);
     }
-  `;
+  `];
 
   @property({ type: String }) iconId = '';
   @property({ type: Number }) size = 16;

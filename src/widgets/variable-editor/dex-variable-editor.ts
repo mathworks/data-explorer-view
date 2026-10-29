@@ -8,6 +8,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixGrid } from './dex-matrix-grid.js';
 import type { DexMatrixGrid, MatrixDescriptor, MatrixPayload } from './dex-matrix-grid.js';
 
@@ -29,7 +30,7 @@ const OFFSET = 4;
 const MARGIN = 8;
 
 export class DexVariableEditor extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       position: fixed;
       z-index: 10000;
@@ -99,7 +100,7 @@ export class DexVariableEditor extends LitElement {
       color: var(--dex-color-text-muted, #666);
       white-space: nowrap;
     }
-  `;
+  `];
 
   @state() private _open = false;
   // What the row carried, set by show(). The panel opens, titles and positions

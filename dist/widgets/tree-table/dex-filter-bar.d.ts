@@ -1,7 +1,7 @@
 import { LitElement } from 'lit';
 import { type FilterToken } from '../../model/filter/rowFilter.js';
 export declare class DexFilterBar extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     /** The applied filter text. The bar never mutates it; it proposes replacements. */
     text: string;
     /** Its parse, from the table's one `parseFilterExpression` call. */

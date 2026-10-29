@@ -15,6 +15,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { formatToken } from '../../model/filter/rowFilter.js';
 // Glyph per operator: chips and radios must agree, and `≠ ≥ ≤` read faster than
 // their ASCII spellings. `contains` shows the colon it writes.
@@ -39,7 +40,7 @@ export class DexColumnFilter extends LitElement {
         /** True when the table already has a condition for this column. */
         this.hasExisting = false;
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       position: fixed;
       z-index: 1001;
@@ -169,7 +170,7 @@ export class DexColumnFilter extends LitElement {
         outline-offset: 1px !important;
       }
     }
-  `; }
+  `]; }
     /** Focus the value box; the caller opens the popup for typing, not for reading. */
     focusValue() {
         this._valueInput?.focus();

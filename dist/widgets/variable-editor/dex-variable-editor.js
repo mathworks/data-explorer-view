@@ -14,6 +14,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixGrid } from './dex-matrix-grid.js';
 // Shown while the fetch is in flight. On the 1000x1000 entry this exists for a
 // perceptible moment, which is the whole reason the panel opens before its data.
@@ -52,7 +53,7 @@ export class DexVariableEditor extends LitElement {
             this.close();
         };
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       position: fixed;
       z-index: 10000;
@@ -122,7 +123,7 @@ export class DexVariableEditor extends LitElement {
       color: var(--dex-color-text-muted, #666);
       white-space: nowrap;
     }
-  `; }
+  `]; }
     // From the DESCRIPTOR, never the payload: the title has to be right from the
     // moment the panel appears, which is before any cells exist.
     get _title() {

@@ -6,7 +6,7 @@ export interface MatrixCellsAnswer {
     message?: string;
 }
 export declare class DexVariableEditor extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     private _open;
     private _descriptor;
     private _payload;

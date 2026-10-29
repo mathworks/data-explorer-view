@@ -18,13 +18,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
+import { hiddenStyles } from './hidden.styles.js';
 import { defineIcon } from './dex-icon.js';
 export class DexMatrixOpen extends LitElement {
     constructor() {
         super(...arguments);
         this.matrix = null;
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: inline-flex;
       vertical-align: middle;
@@ -54,7 +55,7 @@ export class DexMatrixOpen extends LitElement {
       outline-offset: 1px;
       opacity: 1;
     }
-  `; }
+  `]; }
     // The host element is not focusable, so a bare focus() would land on <body>.
     // dex-variable-editor.close() calls anchorEl.focus() to return focus here.
     focus(options) {

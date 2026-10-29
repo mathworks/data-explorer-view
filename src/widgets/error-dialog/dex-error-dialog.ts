@@ -3,9 +3,10 @@
 import { LitElement, html, css } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 
 export class DexErrorDialog extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: none;
     }
@@ -125,7 +126,7 @@ export class DexErrorDialog extends LitElement {
       color: var(--dex-color-error, #d32f2f);
       border-color: var(--dex-color-error, #d32f2f);
     }
-  `;
+  `];
 
   @property({ type: String }) dialogTitle = '';
   @property({ type: String }) message = '';

@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
+import { hiddenStyles } from './hidden.styles.js';
 const ALIASES = {
     struct: 'typeStruct',
     cell: 'wsBrackets',
@@ -74,7 +75,7 @@ export class DexIcon extends LitElement {
         this.iconId = '';
         this.size = 16;
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: inline-flex;
       align-items: center;
@@ -89,7 +90,7 @@ export class DexIcon extends LitElement {
          theme.css inverts their lightness and rotates the hue back, so a blue stroke stays blue. */
       filter: var(--dex-icon-filter, none);
     }
-  `; }
+  `]; }
     render() {
         if (!this.iconId) {
             return html ``;

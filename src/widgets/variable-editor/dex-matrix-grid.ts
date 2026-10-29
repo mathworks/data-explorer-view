@@ -27,6 +27,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 
 // Mirror of the host's MatrixDescriptor / MatrixPayload pair. Declared here rather
@@ -88,7 +89,7 @@ const DEFAULT_COL_WIDTH = 64;
 const DEFAULT_ROWHEADER_WIDTH = 36;
 
 export class DexMatrixGrid extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: block;
       /* The containing block for the probes below. They must NOT be inside
@@ -245,7 +246,7 @@ export class DexMatrixGrid extends LitElement {
 
     .pager button[disabled] { opacity: 0.4; cursor: default; }
     .pager select { font: inherit; }
-  `;
+  `];
 
   @property({ attribute: false }) matrix: MatrixPayload | null = null;
 

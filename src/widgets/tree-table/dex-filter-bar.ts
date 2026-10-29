@@ -13,6 +13,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { removeToken, type FilterToken, type FilterOp } from '../../model/filter/rowFilter.js';
 import { OP_GLYPHS } from './dex-column-filter.js';
 
@@ -25,7 +26,7 @@ const WARNING_TEXT: Record<NonNullable<FilterToken['warning']>, string> = {
 };
 
 export class DexFilterBar extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: flex;
       flex: 1 1 auto;
@@ -176,7 +177,7 @@ export class DexFilterBar extends LitElement {
         outline: 2px solid Highlight !important;
       }
     }
-  `;
+  `];
 
   /** The applied filter text. The bar never mutates it; it proposes replacements. */
   @property({ type: String }) text = '';
