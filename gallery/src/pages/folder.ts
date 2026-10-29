@@ -8,7 +8,11 @@
 // table shows (reveal), as an explorer follows its editor.
 //
 // Both ends are in this page, over a MessageChannel, for the gallery's sake: in an app the first
-// half runs in Electron's main process, or a worker, and only the port crosses.
+// half runs in Electron's main process, or a worker, and only the port crosses. That half imports
+// only data-explorer-view/serve, the entry made for it.
+//
+// `?limit=N` lists only the folder's first N files, as core's `listFolder` does past its limit:
+// the tree then ends with a row that says so.
 import ctrlA from '../../../test-integration/fixtures/usageorder/ctrlA.slx?url';
 import plantB from '../../../test-integration/fixtures/usageorder/plantB.slx?url';
 import sharedParams from '../../../test-integration/fixtures/usageorder/sharedParams.sldd?url';
@@ -17,37 +21,14 @@ import workspaceModel from '../../../test-integration/fixtures/workspace/model.s
 import workspaceParams from '../../../test-integration/fixtures/workspace/params.sldd?url';
 import type { SourceFile } from 'data-explorer-core';
 import { connectHierarchy, defineHierarchy, type DexHierarchy } from 'data-explorer-view/hierarchy';
-import {
-  createWorkspace,
-  FolderHierarchy,
-  folderReader,
-  serveFolder,
-  sourceUri,
-  uriPath,
-  type Doc,
-  type FolderReads,
-  type LinkTarget,
-  type TablePort,
-} from 'data-explorer-view/model';
+import { createWorkspace, FolderHierarchy, folderReader, sourceUri, uriPath, type Doc, type LinkTarget } from 'data-explorer-view/model';
+import { listedFiles, portFromMessagePort, serveFolder, type FolderReads } from 'data-explorer-view/serve';
 import { connectTable, defineTreeTable, type TableHandle } from 'data-explorer-view/tree-table';
 import { byId, startPage } from '../shell';
 
 startPage();
 defineHierarchy();
 defineTreeTable();
-
-/** One end of a MessageChannel as a port of the wire, which hands over what `transfer` lists. */
-function portOf(port: MessagePort): TablePort {
-  return {
-    postMessage: (message: unknown, transfer?: Transferable[]) => port.postMessage(message, transfer ?? []),
-    onMessage(listener) {
-      const hear = (e: MessageEvent) => listener(e.data);
-      port.addEventListener('message', hear);
-      port.start();
-      return () => port.removeEventListener('message', hear);
-    },
-  };
-}
 
 const channel = new MessageChannel();
 
@@ -68,9 +49,11 @@ const URLS: Readonly<Record<string, string>> = {
 
 function served(): FolderReads {
   const urls = new Map(Object.entries(URLS).map(([rel, url]) => [`${ROOT}/${rel}`, url]));
-  const files = [...urls.keys()].sort().map((path): SourceFile => ({ uriString: sourceUri(path), path }));
+  const paths = [...urls.keys()].sort();
+  const limit = Number(new URLSearchParams(location.search).get('limit')) || paths.length;
   return {
-    files: { list: async () => files },
+    // A listing as core's listFolder answers one: the first files, and whether there were more.
+    files: { list: async () => listedFiles({ files: paths.slice(0, limit), truncated: paths.length > limit }) },
     reader: (listed) => {
       const known = new Set(listed.map((f) => f.path));
       const urlOf = (file: SourceFile) => (known.has(file.path) ? urls.get(file.path) : undefined);
@@ -88,11 +71,11 @@ function served(): FolderReads {
 }
 
 // Each file's bytes handed over, not copied: a MessagePort takes a transfer list.
-serveFolder(served(), portOf(channel.port1), { transfer: true });
+serveFolder(served(), portFromMessagePort(channel.port1), { transfer: true });
 
 // --- The page ---------------------------------------------------------------------------------------
 
-const folder = folderReader(portOf(channel.port2));
+const folder = folderReader(portFromMessagePort(channel.port2));
 const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
 const tree = connectHierarchy(byId<DexHierarchy>('folder'), hierarchy, { expandTopLevel: true });
 folder.onChange(() => hierarchy.rebuild());
