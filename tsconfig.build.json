@@ -1,0 +1,7 @@
+// What a consumer runs: dist/ is committed (a git dependency installs without running a build),
+// so it carries the JavaScript and the declarations and nothing else, no source maps.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "declaration": true, "sourceMap": false, "noEmit": false },
+  "include": ["src/**/*.ts"]
+}

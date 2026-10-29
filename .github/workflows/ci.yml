@@ -1,0 +1,64 @@
+# Continuous integration: leak check, typecheck (the model also without a DOM), import
+# boundaries, that the committed dist/ is the build of src/, and the unit tests. Runs on
+# every push to main and on pull requests.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Checking out is the only thing the token is for here: this workflow writes nothing
+# back — no comment, no commit, no release. Spelled out rather than left to the
+# repository default, which a settings change could widen without anyone touching a
+# workflow file.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # No later step uses git with the token, so checkout does not keep it.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Before `npm ci`, deliberately: the check needs no dependencies, and a leak
+      # should be reported in seconds rather than behind the install. It is also the
+      # one check whose failure cannot be fixed by retrying.
+      - name: Leak check
+        run: npm run check:leak
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # src/ may import only itself, data-explorer-core and lit; src/model neither lit
+      # nor a widget.
+      - name: Import boundaries
+        run: npm run check:boundary
+
+      # dist/ is committed and is what a consumer runs (see .gitignore), so it must be
+      # the build of src/. It deletes dist/ first because tsc never deletes an output:
+      # built over the committed copy, a file whose source is gone would stay and pass.
+      # The status line prints every file that differs; it prints nothing when dist/
+      # matches. To fix a red: rm -rf dist && npm run build, then commit dist/.
+      - name: dist/ is the build of src/
+        run: |
+          rm -rf dist
+          npm run build
+          git status --porcelain --untracked-files=all -- dist
+          git diff --exit-code --stat -- dist
+          test -z "$(git status --porcelain --untracked-files=all -- dist)"
+
+      - name: Unit tests
+        run: npm test

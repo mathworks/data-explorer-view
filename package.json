@@ -1,0 +1,50 @@
+{
+  "name": "data-explorer-view",
+  "version": "0.1.0",
+  "description": "Widgets and view model for Simulink data files, built on data-explorer-core",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mathworks/data-explorer-view.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mathworks/data-explorer-view/issues"
+  },
+  "homepage": "https://github.com/mathworks/data-explorer-view#readme",
+  "files": [
+    "dist",
+    "src/theme"
+  ],
+  "exports": {
+    "./model/*.js": {
+      "types": "./dist/model/*.d.ts",
+      "default": "./dist/model/*.js"
+    },
+    "./widgets/*.js": {
+      "types": "./dist/widgets/*.d.ts",
+      "default": "./dist/widgets/*.js"
+    },
+    "./theme/*.css": "./src/theme/*.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.model.json",
+    "check:boundary": "node scripts/check-boundary.mjs",
+    "check:leak": "node scripts/leak-check.mjs",
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run test && npm run check:leak"
+  },
+  "peerDependencies": {
+    "data-explorer-core": "^1.47.0",
+    "lit": "^3.2.0"
+  },
+  "devDependencies": {
+    "data-explorer-core": "github:mathworks/data-explorer-core#v1.47.0",
+    "fflate": "^0.8.3",
+    "happy-dom": "^20.9.0",
+    "lit": "^3.2.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,23 @@
+node_modules/
+coverage/
+*.tgz
+.DS_Store
+
+# NOTE: dist/ is intentionally committed (not ignored). This package is consumed as a git
+# dependency, and enterprise npm setups often set `ignore-scripts=true`, which skips any
+# build on install. Shipping a prebuilt dist/ makes the git dependency resolve
+# unconditionally. Rebuild with `npm run build` and commit dist/ with the source change;
+# CI's "dist/ is the build of src/" step rebuilds it from clean and fails if it differs.
+
+# Written by test/parity/dump.test.ts on every run, for reading by eye.
+test/parity/dump-output.txt
+
+# Screenshots and page snapshots a browser-automation session leaves behind. Scratch
+# output, never source.
+.playwright-mcp/
+
+# Local-only internal notes — must never be pushed to the public remote
+CLAUDE.md
+docs/deep-work/
+docs/superpowers/
+.superpowers/
