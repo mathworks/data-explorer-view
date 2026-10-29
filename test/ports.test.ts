@@ -17,6 +17,9 @@ import {
 
 const A: SourceFile = { uriString: 'file:///w/a.sldd', path: '/w/a.sldd' };
 
+/** Until `test` holds: for a message on its way, never a fixed wait, which a loaded machine outruns. */
+const until = (test: () => boolean): Promise<void> => expect.poll(test, { timeout: 10_000, interval: 5 }).toBe(true);
+
 describe('a MessagePort', () => {
   it('carries a folder both ways, and hands its bytes over with `transfer`', async () => {
     const { port1, port2 } = new MessageChannel();
@@ -48,10 +51,13 @@ describe('a MessagePort', () => {
     const heard: unknown[] = [];
     const stop = portFromMessagePort(port2).onMessage((m) => heard.push(m));
     port1.postMessage({ n: 1 });
-    await new Promise((done) => setTimeout(done, 20));
+    await until(() => heard.length === 1);
     stop();
+    // A listener still on the port hears the next message: the one let go of was told the same.
+    const still: unknown[] = [];
+    portFromMessagePort(port2).onMessage((m) => still.push(m));
     port1.postMessage({ n: 2 });
-    await new Promise((done) => setTimeout(done, 20));
+    await until(() => still.length === 1);
     expect(heard).toEqual([{ n: 1 }]);
     port1.close();
     port2.close();
@@ -109,9 +115,9 @@ describe("Electron's MessagePortMain", () => {
       { transfer: true },
     );
     main.deliver({ type: 'folderRequest', id: 1, ask: 'list' });
-    await new Promise((done) => setTimeout(done, 20));
+    await until(() => calls.length === 1);
     main.deliver({ type: 'folderRequest', id: 2, ask: 'bytes', uri: A.uriString });
-    await new Promise((done) => setTimeout(done, 20));
+    await until(() => calls.length === 2);
     expect(calls.map((c) => c.length)).toEqual([1, 1]);
     expect(calls[1]![0]).toEqual({ type: 'folderAnswer', id: 2, value: buffer });
     expect(buffer.byteLength).toBe(4);
