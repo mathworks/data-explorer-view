@@ -74,6 +74,20 @@ export interface InspectorView {
     groups: PropertyGroup[];
 }
 /**
+ * What a property inspector follows: each page it should show, as the selection or the document
+ * changes, and the cells of a matrix one of its rows describes. A connected table's handle is one
+ * (its selection, inspected); `inspectorFeed(port)` is another (the pages a host sends).
+ */
+export interface InspectorFeed {
+    /**
+     * Hear each page to show, until the returned function is called. A page with no groups is
+     * nothing to show.
+     */
+    onPage(listener: (view: InspectorView) => void): () => void;
+    /** The cells of the matrix an inspector row's `matrix` describes, by its `nodeId`. */
+    matrix(nodeId: string): Promise<MatrixPage>;
+}
+/**
  * Something that changed what the table shows, after `open()`: the repaints a source sends its
  * subscribers.
  *

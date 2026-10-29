@@ -39,6 +39,7 @@ export { insertEntryRows, mergeChildRows, nextExpandedIds, nextStickyIds, pendin
 // Ids: section rows, sources, paths, the Add gallery's catalog and a project's MSP roles.
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
 export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
+export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 // The hierarchy: the graph of which file references which, and the health marks on it.
@@ -46,6 +47,11 @@ export { RelGraph } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri } from './source/sourceUri.js';
+// A source across a message channel: the table's end (messageSource, and inspectorFeed for an
+// inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
+// between them.
+export { inspectorFeed, messageSource } from './source/messageSource.js';
+export { serveTable } from './source/serveTable.js';
 // The workspace: the documents open in core's session, and a dictionary's parts read off disk.
 export { findNode, getModel, getModelForBinaryTab, getModelFromBytes, getModelFromParsed, invalidate, openSourceView, parseDetached, peekModel, releaseIfUnviewed, releaseSourceView, } from './workspace/SlddModel.js';
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
