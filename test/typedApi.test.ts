@@ -341,6 +341,7 @@ describe('an app written in TypeScript, against the built package', () => {
       await ws.setUsage();
       await doc.repaint();
       await folder.changed(['file:///w/a.sldd']);
+      b(folder.has('file:///w/a.sldd'));
       void folder.hierarchy.roots();
       void folder.names.list();
       folder.dispose();
