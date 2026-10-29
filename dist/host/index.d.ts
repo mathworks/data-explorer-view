@@ -1,0 +1,10 @@
+export { findNode, getModel, getModelForBinaryTab, getModelFromBytes, getModelFromParsed, invalidate, openSourceView, parseDetached, peekModel, releaseIfUnviewed, releaseSourceView, } from '../model/workspace/SlddModel.js';
+export type { TabSources } from '../model/workspace/SlddModel.js';
+export { answerChildRequest, childRowsMessage } from '../model/rows/childRequest.js';
+export type { UsageFiller } from '../model/rows/childRequest.js';
+export { answerMatrixRequest, matrixCellsMessage } from '../model/matrix/matrixRequest.js';
+export { postOrFallback, postOrReport } from '../model/rows/postPayload.js';
+export type { PostTarget } from '../model/rows/postPayload.js';
+export { MAX_TABLE_ROWS, capRows, rowCapBanner } from '../model/rows/rowCap.js';
+export type { CappedRows } from '../model/rows/rowCap.js';
+export { InspectorPage } from '../model/inspector/inspectorPage.js';

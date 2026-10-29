@@ -78,6 +78,7 @@ describe('every entry in package.json exports', () => {
   it('names the designed entries, and the 0.x paths beside them', () => {
     expect(ENTRIES).toEqual([
       './model',
+      './host',
       './tree-table',
       './property-inspector',
       './variable-editor',
@@ -140,23 +141,24 @@ describe('every entry in package.json exports', () => {
   });
 });
 
-describe('the model entry', () => {
-  // Followed through the shipped JavaScript, not src/: dist/ is what an app loads.
-  function closure(start: string): { files: string[]; bare: Set<string> } {
-    const files: string[] = [];
-    const bare = new Set<string>();
-    const queue = [start];
-    while (queue.length) {
-      const at = queue.shift()!;
-      if (files.includes(at)) continue;
-      files.push(at);
-      for (const { fileName: spec } of ts.preProcessFile(readFileSync(at, 'utf8'), true, true).importedFiles) {
-        if (spec.startsWith('.')) queue.push(resolve(dirname(at), spec));
-        else bare.add(spec);
-      }
+// Followed through the shipped JavaScript, not src/: dist/ is what an app loads.
+function closure(start: string): { files: string[]; bare: Set<string> } {
+  const files: string[] = [];
+  const bare = new Set<string>();
+  const queue = [start];
+  while (queue.length) {
+    const at = queue.shift()!;
+    if (files.includes(at)) continue;
+    files.push(at);
+    for (const { fileName: spec } of ts.preProcessFile(readFileSync(at, 'utf8'), true, true).importedFiles) {
+      if (spec.startsWith('.')) queue.push(resolve(dirname(at), spec));
+      else bare.add(spec);
     }
-    return { files: files.map((f) => relative(ROOT, f)), bare };
   }
+  return { files: files.map((f) => relative(ROOT, f)), bare };
+}
+
+describe('the model entry', () => {
 
   it('loads the model and core, and no widget and no lit', () => {
     const { files, bare } = closure(file((EXPORTS['./model'] as { default: string }).default));
@@ -168,6 +170,21 @@ describe('the model entry', () => {
   it('loads in a Node with no DOM, and adds no global', () => {
     expect(loaded.exports[specifier('./model')]!.length).toBeGreaterThan(50);
     expect(loaded.modelGlobals).toEqual([]);
+  });
+});
+
+describe('the host entry', () => {
+  it('loads the model and core, and no widget and no lit', () => {
+    const { files, bare } = closure(file((EXPORTS['./host'] as { default: string }).default));
+    expect(files.filter((f) => !f.startsWith('dist/model/') && !f.startsWith('dist/host/'))).toEqual([]);
+    expect([...bare]).toEqual(['data-explorer-core']);
+  });
+
+  it("exports nothing ./model does not, until 1.0: a host's names are still the model's too", () => {
+    const model = new Map(loaded.exports[specifier('./model')]);
+    const host = loaded.exports[specifier('./host')]!;
+    expect(host.length).toBeGreaterThan(10);
+    expect(host.filter(([name, type]) => model.get(name) !== type)).toEqual([]);
   });
 });
 
