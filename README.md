@@ -271,8 +271,8 @@ read again, the hierarchy rebuilt, and each open dictionary's and MAT-file's
 table repainted once a burst when a model was created or deleted. A change
 asked for while one runs is taken with the others as one more listing. A
 workspace that outlives a folder takes the next one's with `ws.setUsage(usage,
-usageReposts)`, which repaints its open dictionaries and MAT-files refilled;
-`doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
+usageReposts)`, which repaints every open table it shows (dictionaries, MAT-files
+and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
 [the folder session's page](docs/folder-session.md).
 
 ## What is in it

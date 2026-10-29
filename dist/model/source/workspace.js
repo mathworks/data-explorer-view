@@ -79,17 +79,14 @@ class InPageDoc {
     /** Take out the repost subscription the workspace's hub owes this document, in place of any held. */
     subscribeReposts() {
         this.reposts?.dispose();
-        this.reposts = this.repostsUsage && !this.disposed ? this.shared.usageReposts?.subscribe(() => void this.repostUsage()) : undefined;
-    }
-    /** The workspace's usage source changed: a paint made from the last one is not kept. */
-    dropPaint() {
-        this.painted = undefined;
+        this.reposts = this.repostsUsage && !this.disposed ? this.shared.usageReposts?.subscribe(() => void this.refillUsage()) : undefined;
     }
     /**
-     * The folder changed under the Usage column: paint again from the same read, refilled, for a
-     * table that is showing it. With none subscribed, the next `open()` paints afresh.
+     * The Usage column changed under the table (a repost, or a new usage source): paint again from
+     * the same read, refilled, for a table that is showing it. With none subscribed, the next
+     * `open()` paints afresh.
      */
-    async repostUsage() {
+    async refillUsage() {
         if (this.disposed || !this.reading)
             return;
         this.painted = undefined;
@@ -283,11 +280,9 @@ export function createWorkspace(options = {}) {
             shared.usage = usage;
             shared.usageReposts = usageReposts;
             const open = [...docs.values()];
-            for (const doc of open) {
+            for (const doc of open)
                 doc.subscribeReposts();
-                doc.dropPaint();
-            }
-            await Promise.all(open.filter((doc) => doc.repostsUsage).map((doc) => doc.repaint()));
+            await Promise.all(open.map((doc) => doc.refillUsage()));
         },
         dispose() {
             if (disposed)

@@ -48,8 +48,13 @@ as one more listing. Each resolves when the session is up to date.
 
 A workspace takes its usage source at `createWorkspace({ usage, usageReposts })`, or later:
 `ws.setUsage(folder.usage, folder.reposts)` fills the Usage column from the new source from then
-on, repaints every open dictionary's and MAT-file's table refilled, and moves their repost
-subscriptions to the new hub; `ws.setUsage()` goes back to none. A model's table is refilled at
-its next paint; `doc.repaint()` repaints any one table now.
+on. Every paint reads the source, a model's as much as a dictionary's: a dictionary entry's cell
+names the blocks that use it, and a model block's cell resolves each parameter to the file that
+holds it (`Gain=SharedGain (sharedParams.sldd)`, its link naming that file by uri, where the file
+alone could only name it by its basename). So every open table that is shown (one with a
+subscriber) is painted again, refilled: dictionaries, MAT-files and models; one with none is
+refilled at its next paint, and a project has no table. The repost subscriptions move to the new
+hub and stay a dictionary's and a MAT-file's alone: no other model changes what a model's table
+says. `ws.setUsage()` goes back to none. `doc.repaint()` repaints any one table now.
 
 `dispose()` lets the watch go, stops the reposts, and makes a later `changed()` do nothing.

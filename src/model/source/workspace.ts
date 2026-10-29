@@ -124,10 +124,12 @@ export interface Workspace {
   /**
    * Fill the Usage column from `usage` from now on, and repaint from `usageReposts` (both as
    * `createWorkspace` takes them; leaving one out means none): for a workspace that outlives a
-   * folder, or a usage source that comes after the documents. Every open dictionary's and
-   * MAT-file's table is painted again, refilled (`replaceAll`), and its repost subscription moves
-   * to the new hub. A model's table is not repainted, as no repost repaints one: it is refilled at
-   * its next paint, and `doc.repaint()` paints it now. Resolves when the repaints are done.
+   * folder, or a usage source that comes after the documents. Every paint reads the source, a
+   * model's block parameters as much as a dictionary's users, so every open document's table that
+   * has a subscriber is painted again, refilled (`replaceAll`): dictionaries, MAT-files and models;
+   * one with none is refilled at its next paint. A project has no table. The repost subscriptions
+   * move to the new hub, and stay a dictionary's and a MAT-file's alone, as the hub's rule has it.
+   * Resolves when the repaints are done.
    */
   setUsage(usage?: UsageSource, usageReposts?: UsageReposts): Promise<void>;
   /** Close every document and the session they were read into. */
@@ -209,19 +211,16 @@ class InPageDoc implements Doc {
   /** Take out the repost subscription the workspace's hub owes this document, in place of any held. */
   subscribeReposts(): void {
     this.reposts?.dispose();
-    this.reposts = this.repostsUsage && !this.disposed ? this.shared.usageReposts?.subscribe(() => void this.repostUsage()) : undefined;
+    this.reposts = this.repostsUsage && !this.disposed ? this.shared.usageReposts?.subscribe(() => void this.refillUsage()) : undefined;
   }
 
-  /** The workspace's usage source changed: a paint made from the last one is not kept. */
-  dropPaint(): void {
-    this.painted = undefined;
-  }
 
   /**
-   * The folder changed under the Usage column: paint again from the same read, refilled, for a
-   * table that is showing it. With none subscribed, the next `open()` paints afresh.
+   * The Usage column changed under the table (a repost, or a new usage source): paint again from
+   * the same read, refilled, for a table that is showing it. With none subscribed, the next
+   * `open()` paints afresh.
    */
-  private async repostUsage(): Promise<void> {
+  async refillUsage(): Promise<void> {
     if (this.disposed || !this.reading) return;
     this.painted = undefined;
     if (this.listeners.size > 0) await this.emitPaint();
@@ -408,11 +407,8 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
       shared.usage = usage;
       shared.usageReposts = usageReposts;
       const open = [...docs.values()];
-      for (const doc of open) {
-        doc.subscribeReposts();
-        doc.dropPaint();
-      }
-      await Promise.all(open.filter((doc) => doc.repostsUsage).map((doc) => doc.repaint()));
+      for (const doc of open) doc.subscribeReposts();
+      await Promise.all(open.map((doc) => doc.refillUsage()));
     },
     dispose() {
       if (disposed) return;

@@ -223,35 +223,50 @@ describe('a folder session', () => {
 describe('a workspace whose usage source comes later', () => {
   const usedBy = (rows: readonly TreeTableRow[], name: string): unknown => rows.find((r) => r.Name?.label === name)?.UsedBy;
   const blockNames = (cell: unknown): string[] => ((cell as { blockLinks?: { blockName: string }[] })?.blockLinks ?? []).map((b) => b.blockName);
+  const blockCell = (rows: readonly TreeTableRow[], name: string): unknown => rows.find((r) => r._isBlockRow && r.Name?.label === name)?.UsedBy;
+  const viewOf = (heard: { doc: string; change: TableChange }[], doc: string) =>
+    (heard.filter((h) => h.doc === doc).at(-1)!.change as Extract<TableChange, { kind: 'replaceAll' }>).view;
 
-  it('setUsage repaints its open data tables, refilled, and not its models', async () => {
+  it('setUsage repaints every open table that is shown, refilled: dictionaries and models', async () => {
     const s = session();
     const ws = createWorkspace();
     try {
       const dict = await ws.open(disk('sharedParams.sldd'), 'sharedParams.sldd', DICT);
       const model = await ws.open(disk('ctrlA.slx'), 'ctrlA.slx', file('ctrlA.slx').uriString);
+      const unshown = await ws.open(disk('plantB.slx'), 'plantB.slx', file('plantB.slx').uriString);
       expect(blockNames(usedBy((await dict.table.open()).rows, 'SharedGain'))).toEqual([]);
-      await model.table.open();
+      // Before: a block's parameter cell is core's own answer, from the file alone.
+      const sessionCell = blockCell((await model.table.open()).rows, 'GainA');
       const heard: { doc: string; change: TableChange }[] = [];
       dict.table.subscribe((change) => heard.push({ doc: 'dict', change }));
       model.table.subscribe((change) => heard.push({ doc: 'model', change }));
       await ws.setUsage(s.usage, s.reposts);
-      expect(heard.map((h) => `${h.doc}:${h.change.kind}`)).toEqual(['dict:replaceAll']);
-      const view = (heard[0]!.change as Extract<TableChange, { kind: 'replaceAll' }>).view;
-      expect(blockNames(usedBy(view.rows, 'SharedGain'))).toEqual(['GainA', 'LimitA', 'GainB']);
-      // The model's next paint is filled; doc.repaint() paints it now.
-      await model.repaint();
-      expect(heard.map((h) => `${h.doc}:${h.change.kind}`)).toEqual(['dict:replaceAll', 'model:replaceAll']);
-      // The repost subscription moved with it: a model deleted repaints the dictionary.
-      folder.delete('plantB.slx');
-      await s.changed([file('plantB.slx').uriString]);
-      await expect.poll(() => heard.length).toBe(3);
-      const after = (heard[2]!.change as Extract<TableChange, { kind: 'replaceAll' }>).view;
-      expect(blockNames(usedBy(after.rows, 'SharedGain'))).toEqual(['GainA', 'LimitA']);
-      // And without a source, the column is the file's own again.
+      expect(heard.map((h) => `${h.doc}:${h.change.kind}`).sort()).toEqual(['dict:replaceAll', 'model:replaceAll']);
+      expect(blockNames(usedBy(viewOf(heard, 'dict').rows, 'SharedGain'))).toEqual(['GainA', 'LimitA', 'GainB']);
+      // After: the graph's, which resolves the parameter to the dictionary that holds it, by uri.
+      const graphCell = blockCell(viewOf(heard, 'model').rows, 'GainA');
+      expect(graphCell).not.toEqual(sessionCell);
+      expect(graphCell).toEqual({
+        paramLinks: [expect.objectContaining({ paramName: 'SharedGain', source: 'sharedParams.sldd', linkTarget: `SharedGain@${DICT}` })],
+      });
+      // A table nobody shows is refilled at its next paint.
+      expect(blockCell((await unshown.table.open()).rows, 'GainB')).toEqual({
+        paramLinks: [expect.objectContaining({ paramName: 'SharedGain', linkTarget: `SharedGain@${DICT}` })],
+      });
+      // The repost subscriptions moved with it, and stay the dictionary's: a model created
+      // repaints the dictionary, and not the model.
+      heard.length = 0;
+      put('copyA.slx', disk('ctrlA.slx'));
+      await s.changed([file('copyA.slx').uriString]);
+      await expect.poll(() => heard.length).toBe(1);
+      await sleep(20);
+      expect(heard.map((h) => h.doc)).toEqual(['dict']);
+      expect(blockNames(usedBy(viewOf(heard, 'dict').rows, 'SharedGain'))).toEqual(['GainA', 'LimitA', 'GainA', 'LimitA', 'GainB']);
+      // And without a source, every column is the files' own again.
+      heard.length = 0;
       await ws.setUsage();
-      const plain = (heard.at(-1)!.change as Extract<TableChange, { kind: 'replaceAll' }>).view;
-      expect(blockNames(usedBy(plain.rows, 'SharedGain'))).toEqual([]);
+      expect(blockNames(usedBy(viewOf(heard, 'dict').rows, 'SharedGain'))).toEqual([]);
+      expect(blockCell(viewOf(heard, 'model').rows, 'GainA')).toEqual(sessionCell);
     } finally {
       ws.dispose();
     }

@@ -96,10 +96,12 @@ export interface Workspace {
     /**
      * Fill the Usage column from `usage` from now on, and repaint from `usageReposts` (both as
      * `createWorkspace` takes them; leaving one out means none): for a workspace that outlives a
-     * folder, or a usage source that comes after the documents. Every open dictionary's and
-     * MAT-file's table is painted again, refilled (`replaceAll`), and its repost subscription moves
-     * to the new hub. A model's table is not repainted, as no repost repaints one: it is refilled at
-     * its next paint, and `doc.repaint()` paints it now. Resolves when the repaints are done.
+     * folder, or a usage source that comes after the documents. Every paint reads the source, a
+     * model's block parameters as much as a dictionary's users, so every open document's table that
+     * has a subscriber is painted again, refilled (`replaceAll`): dictionaries, MAT-files and models;
+     * one with none is refilled at its next paint. A project has no table. The repost subscriptions
+     * move to the new hub, and stay a dictionary's and a MAT-file's alone, as the hub's rule has it.
+     * Resolves when the repaints are done.
      */
     setUsage(usage?: UsageSource, usageReposts?: UsageReposts): Promise<void>;
     /** Close every document and the session they were read into. */
