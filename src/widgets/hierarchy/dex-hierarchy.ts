@@ -12,7 +12,7 @@ import type { HierarchyItem } from '../../model/hierarchy/folderHierarchy.js';
 export type { HierarchyItem };
 
 /** What `dex-hierarchy-selected` carries: the row chosen. */
-export interface HierarchySelectDetail {
+export interface HierarchySelectedDetail {
   /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
   uri: string | null;
   /** The row's key, as `selectedKey` now holds it. */
@@ -351,7 +351,7 @@ export class DexHierarchy extends LitElement {
 
   private _announce(item: HierarchyItem): void {
     this.dispatchEvent(
-      new CustomEvent<HierarchySelectDetail>('dex-hierarchy-selected', {
+      new CustomEvent<HierarchySelectedDetail>('dex-hierarchy-selected', {
         detail: { uri: item.id ?? null, key: item.key, item },
         bubbles: true,
         composed: true,
@@ -486,7 +486,7 @@ export interface HierarchyEventMap {
    * A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
    * null for a row that is no file. Sent again each time a row is chosen.
    */
-  'dex-hierarchy-selected': CustomEvent<HierarchySelectDetail>;
+  'dex-hierarchy-selected': CustomEvent<HierarchySelectedDetail>;
 }
 
 declare global {

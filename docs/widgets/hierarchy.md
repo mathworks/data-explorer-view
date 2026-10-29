@@ -199,11 +199,11 @@ typed with no cast, on the element, the document or the window.
 A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
 null for a row that is no file. Sent again each time a row is chosen.
 
-`detail` is a `HierarchySelectDetail`:
+`detail` is a `HierarchySelectedDetail`:
 
 ```ts
 /** What `dex-hierarchy-selected` carries: the row chosen. */
-export interface HierarchySelectDetail {
+export interface HierarchySelectedDetail {
   /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
   uri: string | null;
   /** The row's key, as `selectedKey` now holds it. */

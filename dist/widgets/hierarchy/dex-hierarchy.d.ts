@@ -2,7 +2,7 @@ import { LitElement, type PropertyValues } from 'lit';
 import type { HierarchyItem } from '../../model/hierarchy/folderHierarchy.js';
 export type { HierarchyItem };
 /** What `dex-hierarchy-selected` carries: the row chosen. */
-export interface HierarchySelectDetail {
+export interface HierarchySelectedDetail {
     /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
     uri: string | null;
     /** The row's key, as `selectedKey` now holds it. */
@@ -104,7 +104,7 @@ export interface HierarchyEventMap {
      * A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
      * null for a row that is no file. Sent again each time a row is chosen.
      */
-    'dex-hierarchy-selected': CustomEvent<HierarchySelectDetail>;
+    'dex-hierarchy-selected': CustomEvent<HierarchySelectedDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

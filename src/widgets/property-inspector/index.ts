@@ -6,10 +6,10 @@ export { DexPropertyInspector, definePropertyInspector } from './dex-property-in
 export { connectInspector } from './connectInspector.js';
 export type { ConnectInspectorOptions, InspectorHandle } from './connectInspector.js';
 export type {
-  PiNavigateDetail,
   PropertyChangedDetail,
   PropertyGroup,
   PropertyInspectorEventMap,
+  PropertyNavigateDetail,
   PropertyRow,
 } from './dex-property-inspector.js';
 export { DexMatrixOpen, defineMatrixOpen } from '../shared/dex-matrix-open.js';

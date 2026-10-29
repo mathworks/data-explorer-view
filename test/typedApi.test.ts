@@ -126,6 +126,27 @@ describe('custom-elements.json', () => {
     }
   });
 
+  // docs/widget-conventions.md: a detail is named for its event, an attribute is its property's
+  // name in dash-case, and data comes in by a property alone.
+  it("names each event's detail for the event: RowSelectedDetail for dex-row-selected, or null", () => {
+    for (const w of widgets) {
+      for (const e of w.events ?? []) {
+        const detail = `${e.name.replace(/^dex-/, '').split('-').map((p: string) => p[0]!.toUpperCase() + p.slice(1)).join('')}Detail`;
+        expect([`CustomEvent<${detail}>`, 'CustomEvent<null>'], `${w.tagName} ${e.name}`).toContain(e.type?.text);
+      }
+    }
+  });
+
+  it("spells each attribute as its property's name in dash-case, and gives data none", () => {
+    for (const w of widgets) {
+      for (const a of w.attributes ?? []) {
+        expect(a.name, `${w.tagName} ${a.fieldName}`).toBe(a.fieldName.replace(/[A-Z]/g, (c: string) => `-${c.toLowerCase()}`));
+        const type = w.members.find((m: any) => m.name === a.fieldName)?.type?.text ?? '';
+        expect(type, `${w.tagName} ${a.name}`).not.toMatch(/\[\]|Record<|Map<|Set<|\{|=>/);
+      }
+    }
+  });
+
   it('names attributes as Lit observes them, and documents every property', () => {
     for (const w of widgets) {
       const observed = new Set<string>((customElementsObserved.get(w.tagName) ?? []) as string[]);
@@ -177,7 +198,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineVariableEditor, type MatrixCellsAnswer } from 'data-explorer-view/variable-editor';
     import { defineContextMenu } from 'data-explorer-view/context-menu';
     import { defineErrorDialog } from 'data-explorer-view/error-dialog';
-    import { connectHierarchy, defineHierarchy, type HierarchyHandle, type HierarchySelectDetail } from 'data-explorer-view/hierarchy';
+    import { connectHierarchy, defineHierarchy, type HierarchyHandle, type HierarchySelectedDetail } from 'data-explorer-view/hierarchy';
     import { defineProjectPage, type ProjectOpenDetail } from 'data-explorer-view/project-page';
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
@@ -235,7 +256,7 @@ describe('an app written in TypeScript, against the built package', () => {
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
     menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
-    tree.addEventListener('dex-hierarchy-selected', (e) => { const d: HierarchySelectDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
+    tree.addEventListener('dex-hierarchy-selected', (e) => { const d: HierarchySelectedDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
     project.addEventListener('dex-project-open', (e) => { const d: ProjectOpenDetail = e.detail; s(d.path); b(d.preferProject ?? false); });
     {
       const message: SetProjectMessage = projectPageMessage({}, '/w/P/P.prj', '/w/P');

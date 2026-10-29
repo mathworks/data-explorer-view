@@ -8,7 +8,7 @@ export interface PropertyChangedDetail {
     oldValue: string;
 }
 /** What `dex-property-navigate` carries: the target of the link clicked. */
-export interface PiNavigateDetail {
+export interface PropertyNavigateDetail {
     sourceId: string;
 }
 /**
@@ -46,7 +46,7 @@ export interface PropertyInspectorEventMap {
      * A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
      * value link (its `valueLink`).
      */
-    'dex-property-navigate': CustomEvent<PiNavigateDetail>;
+    'dex-property-navigate': CustomEvent<PropertyNavigateDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

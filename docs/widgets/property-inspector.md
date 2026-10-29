@@ -86,11 +86,11 @@ export interface PropertyChangedDetail {
 A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
 value link (its `valueLink`).
 
-`detail` is a `PiNavigateDetail`:
+`detail` is a `PropertyNavigateDetail`:
 
 ```ts
 /** What `dex-property-navigate` carries: the target of the link clicked. */
-export interface PiNavigateDetail {
+export interface PropertyNavigateDetail {
   sourceId: string;
 }
 ```

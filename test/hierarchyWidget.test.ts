@@ -6,7 +6,7 @@
 // what it tells the app. Over hand-made items, so each case shows the rows it is about; the rows a
 // real folder makes are FolderHierarchy's (folderHierarchy.test.ts, goldens/hierarchy.test.ts).
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { defineHierarchy, type DexHierarchy, type HierarchyItem, type HierarchySelectDetail } from '../src/widgets/hierarchy/index.js';
+import { defineHierarchy, type DexHierarchy, type HierarchyItem, type HierarchySelectedDetail } from '../src/widgets/hierarchy/index.js';
 
 beforeAll(() => defineHierarchy());
 afterEach(() => document.body.replaceChildren());
@@ -157,7 +157,7 @@ describe('the rows', () => {
 describe('choosing a row', () => {
   it('a click selects it, says which file it opens, and opens or closes it', async () => {
     const el = await tree();
-    const heard: HierarchySelectDetail[] = [];
+    const heard: HierarchySelectedDetail[] = [];
     document.body.addEventListener('dex-hierarchy-selected', (e) => heard.push(e.detail));
     rowOf(el, 'w').click();
     await settle(el);
@@ -339,7 +339,7 @@ describe('revealRow', () => {
 
   it('sends dex-hierarchy-selected for the row when asked to choose it, and opens or closes nothing', async () => {
     const el = await tree();
-    const sent: HierarchySelectDetail[] = [];
+    const sent: HierarchySelectedDetail[] = [];
     el.addEventListener('dex-hierarchy-selected', (e) => sent.push(e.detail));
     el.revealRow([FOLDER, MODEL], { choose: true });
     await settle(el);

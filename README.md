@@ -41,7 +41,9 @@ Releases are tags, and `dist/` is committed, so installing needs no build step.
 ## Using a widget
 
 Each widget has an entry of its own, which exports its class, its define
-function and the types of what it takes and sends:
+function and the types of what it takes and sends. What every widget does the
+same way (data in by properties, actions out by events, and how each is named)
+is in [docs/widget-conventions.md](docs/widget-conventions.md):
 
 ```js
 import 'data-explorer-view/theme.css';
