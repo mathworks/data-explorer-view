@@ -30,6 +30,34 @@ export interface ProjectOpenDetail {
 export class DexProjectPage extends LitElement {
   static override styles = [
     hiddenStyles,
+    // The page's controls under forced colours (Windows high contrast): a border that says "this
+    // is a control", and a focus ring in the system's own colour. A page in the document gets
+    // these from its app (vscode's webview-page.css), and the app's rules stop at the shadow root,
+    // so the element brings the same declarations itself. Each selector is inside
+    // `:where(.dex-page)`, so it weighs what it weighs in the document (a list, not an `:is()`,
+    // which would give `button` the weight of `[role='button']`), and the block comes before the
+    // page's stylesheet, so the page's own rules still win where they win there: the filter keeps
+    // its border, Show all its `border: 0`, and a link its own focus ring.
+    css`
+      @media (forced-colors: active) {
+        :where(.dex-page) button,
+        :where(.dex-page) [role='button'],
+        :where(.dex-page) [tabindex='0'] {
+          border: 1px solid ButtonText;
+        }
+        :where(.dex-page) button:focus-visible,
+        :where(.dex-page) [role='button']:focus-visible,
+        :where(.dex-page) [tabindex='0']:focus-visible {
+          outline: 2px solid Highlight;
+          outline-offset: 2px;
+        }
+        :where(.dex-page) input,
+        :where(.dex-page) select,
+        :where(.dex-page) textarea {
+          border: 1px solid ButtonText;
+        }
+      }
+    `,
     unsafeCSS(PROJECT_PAGE_CSS),
     css`
       /* What the stylesheet sets on the document's body, for a page that is the whole document,

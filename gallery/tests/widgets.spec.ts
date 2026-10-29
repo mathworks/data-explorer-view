@@ -125,3 +125,58 @@ test('the project page draws in its own shadow root, with its stylesheet adopted
   await page.keyboard.press('Enter');
   await expect(page.locator('#event-log li').first()).toHaveText('startup.m');
 });
+
+test("under forced colours, the project page's controls have a border, and a focus ring", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.goto('project-page.html');
+  await expect(page.locator('#project h1')).toHaveText('MyProj');
+  expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches)).toBe(true);
+  // A section past the filter threshold and the row cap, so the page draws a filter and a Show all.
+  await page.locator('#project').evaluate((el) => {
+    const project = el as HTMLElement & { payload: { page: { pathFolders: string[] } } };
+    const pathFolders = Array.from({ length: 40 }, (_, i) => `utils/f${i}`);
+    project.payload = { ...project.payload, page: { ...project.payload.page, pathFolders } };
+  });
+  const link = page.locator('#project a.link').first();
+  const filter = page.locator('#project input.filter');
+  const more = page.locator('#project button.more');
+  await expect(more).toHaveText('Show all 40');
+
+  // What this browser makes of a system colour, read off a plain element in the document.
+  const system = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('i'));
+    const of = (colour: string) => ((probe.style.color = colour), getComputedStyle(probe).color);
+    const colours = { ButtonText: of('ButtonText'), Highlight: of('Highlight') };
+    probe.remove();
+    return colours;
+  });
+  const look = (control: typeof link) =>
+    control.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        focusVisible: el.matches(':focus-visible'),
+        border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+        outline: `${s.outlineWidth} ${s.outlineStyle} ${s.outlineOffset}`,
+        outlineColor: s.outlineColor,
+      };
+    });
+
+  // A link is a control: a border in the system's button text colour, all round.
+  for (const side of ['top', 'right', 'bottom', 'left']) {
+    await expect(link).toHaveCSS(`border-${side}-width`, '1px');
+    await expect(link).toHaveCSS(`border-${side}-style`, 'solid');
+  }
+  expect((await look(link)).border).toBe(`1px solid ${system.ButtonText}`);
+  // Focused, it keeps the page's own ring, as the page in a document does (the page's rule
+  // outweighs the control block there too); its colour is the browser's to force.
+  await link.focus();
+  expect(await look(link)).toMatchObject({ focusVisible: true, outline: '1px solid 1px' });
+
+  // Show all keeps the page's `border: 0`, and focused it has the system's highlight ring.
+  expect((await look(more)).border).toMatch(/^0px none /);
+  await more.focus();
+  expect(await look(more)).toMatchObject({ focusVisible: true, outline: '2px solid 2px', outlineColor: system.Highlight });
+
+  // The filter keeps a border of its own.
+  expect((await look(filter)).border).toMatch(/^1px solid /);
+});
