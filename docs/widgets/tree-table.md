@@ -48,6 +48,18 @@ to those a list names or a test passes: to leave out one nothing fills in this d
 connectTable(table, doc.table, { columns: (column, view) => column !== 'UsedBy' || view.rows.some((r) => r.UsedBy) });
 ```
 
+`resolveLink` names the file a link opens, for an app that knows where the files a link names
+are: it is asked first of every link but one into the table's own document, a uri it answers
+goes out with `navigate` as `uri` (or, when it is this document, selects the link's entry here),
+and null leaves the link to the table's own rule. A folder's hierarchy answers by the rule its
+tree draws with, so a link to a dictionary a model names by its file name alone opens the copy
+the tree shows under that model, wherever in the folder it is:
+
+```js
+const handle = connectTable(table, doc.table, { resolveLink: (link, fromUri) => hierarchy.resolveLink(link, fromUri) });
+handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the file the tree shows
+```
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.

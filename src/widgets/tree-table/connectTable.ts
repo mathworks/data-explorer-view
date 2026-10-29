@@ -86,6 +86,20 @@ export interface ConnectTableOptions {
    * option.
    */
   columns?: readonly string[] | ((column: string, view: TableView) => boolean);
+  /**
+   * The file a link opens, for an app that knows where the files a link names are: asked of each
+   * link the table follows, but one into the table's own document, with that document's uri
+   * (`fromUri`). A uri is the file the link opens: a link to an entry of this table's own
+   * document then selects it here, as a Data Type link does, and any other link goes to
+   * `navigate` with the uri as its `uri`. Null, undefined, or a throw leaves the link to the
+   * table's own rule, as without this option.
+   *
+   * A FolderHierarchy's `resolveLink` is one, so a table's links open the files a folder's tree
+   * shows for the names they hold: `resolveLink: (link, fromUri) => hierarchy.resolveLink(link,
+   * fromUri)`. Default: none; the table selects a Data Type link's row, and sends every other link
+   * to `navigate`.
+   */
+  resolveLink?: (link: LinkTarget, fromUri: string) => string | null | undefined | Promise<string | null | undefined>;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -94,6 +108,11 @@ export interface NavigateRequest {
   target: string;
   /** What it points at. */
   link: LinkTarget;
+  /**
+   * The uri of the file the link opens, as connectTable's `resolveLink` named it: open this one,
+   * rather than the file `link` names. Absent without a `resolveLink`, or when it named none.
+   */
+  uri?: string;
 }
 
 /** A copy that did not reach the clipboard (the handle's `copyFailed`). */
@@ -424,12 +443,14 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   });
 
   // A Data Type link names a row of this table; every other target is for whoever opens
-  // documents, and so is a local one whose row is not here after all.
-  listen(table, 'dex-link-clicked', (e) => {
-    const target = e.detail?.target;
-    if (typeof target !== 'string') return;
-    const navigate = (): void => emit('navigate', { target, link: parseLinkTarget(target) });
-    const name = localLinkName(target, docUri);
+  // documents, and so is a local one whose row is not here after all. The app's resolveLink names
+  // the file of any other first: a link it resolves to this document is local too. One rule
+  // decides, asked of the target as it is or of its entry in the file resolveLink named.
+  const localName = (target: string, link: LinkTarget, uri: string | undefined): string | null =>
+    localLinkName(uri === undefined ? target : link.kind === 'entry' ? `${link.name}@${uri}` : '', docUri);
+  const follow = (target: string, link: LinkTarget, uri: string | undefined): void => {
+    const navigate = (): void => emit('navigate', { target, link, ...(uri === undefined ? {} : { uri }) });
+    const name = localName(target, link, uri);
     if (name === null) return navigate();
     pendingSelectName = name;
     applyPendingNameSelection();
@@ -438,6 +459,20 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       pendingSelectName = null;
       navigate();
     }
+  };
+  listen(table, 'dex-link-clicked', (e) => {
+    const target = e.detail?.target;
+    if (typeof target !== 'string') return;
+    const link = parseLinkTarget(target);
+    const resolveLink = options.resolveLink;
+    if (!resolveLink || localName(target, link, undefined) !== null) return follow(target, link, undefined);
+    const from = docUri;
+    Promise.resolve()
+      .then(() => resolveLink(link, from))
+      .catch(() => undefined)
+      .then((uri) => {
+        if (!disposed) follow(target, link, typeof uri === 'string' && uri !== '' ? uri : undefined);
+      });
   });
 
   // Ctrl/Cmd+F: the search box. Not with modifiers the table does not own.

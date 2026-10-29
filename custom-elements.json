@@ -420,7 +420,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, and a file's mark a badge (a circular\nreference, unsaved changes).\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,\nand a row with rows under it opens or closes. The arrow keys move through the rows (Right opens\na row or goes into it, Left closes it or goes to its parent), Home and End go to the first and\nthe last. connectHierarchy wires one to a FolderHierarchy.",
+          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, and a file's mark a badge (a circular\nreference, unsaved changes).\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,\nand a row with rows under it opens or closes. The arrow keys move through the rows (Right opens\na row or goes into it, Left closes it or goes to its parent), Home and End go to the first and\nthe last. `revealRow` shows a row the app names (the file it has open), and `expandTopLevel`\nopens the folder's own row on first show. connectHierarchy wires one to a FolderHierarchy.",
           "name": "DexHierarchy",
           "members": [
             {
@@ -468,6 +468,41 @@
               "default": "'Files'",
               "description": "What a screen reader calls the tree. Default `Files`. Attribute `label`.",
               "attribute": "label"
+            },
+            {
+              "kind": "field",
+              "name": "expandTopLevel",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Open each top-level row (a folder's own row, each project's) the first time the tree shows it,\nby adding its key to `expandedKeys`, as a table opens its sections; after that the row stays\nas the user leaves it, through new `items` too. Another folder's rows are new rows, and open.\nOff, the default, a folder opens closed. Attribute `expand-top-level`.",
+              "attribute": "expand-top-level"
+            },
+            {
+              "kind": "method",
+              "name": "revealRow",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "path",
+                  "type": {
+                    "text": "readonly HierarchyItem[]"
+                  }
+                },
+                {
+                  "name": "options",
+                  "default": "{}",
+                  "type": {
+                    "text": "{ choose?: boolean }"
+                  }
+                }
+              ],
+              "description": "Show a row: open each row of `path` but the last (the rows from a top-level row down to it,\nas FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as\nit is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,\nand a choice of the user's before the row is drawn leaves the scroll undone.\n\nSends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on\nit sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a\nfile's row."
             }
           ],
           "events": [
@@ -488,6 +523,15 @@
               "default": "'Files'",
               "description": "What a screen reader calls the tree. Default `Files`. Attribute `label`.",
               "fieldName": "label"
+            },
+            {
+              "name": "expand-top-level",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Open each top-level row (a folder's own row, each project's) the first time the tree shows it,\nby adding its key to `expandedKeys`, as a table opens its sections; after that the row stays\nas the user leaves it, through new `items` too. Another folder's rows are new rows, and open.\nOff, the default, a folder opens closed. Attribute `expand-top-level`.",
+              "fieldName": "expandTopLevel"
             }
           ],
           "superclass": {
@@ -643,6 +687,14 @@
           "name": "HierarchyHandleEventMap",
           "declaration": {
             "name": "HierarchyHandleEventMap",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RevealOptions",
+          "declaration": {
+            "name": "RevealOptions",
             "module": "./connectHierarchy.js"
           }
         },

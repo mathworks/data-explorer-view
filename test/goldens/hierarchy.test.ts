@@ -14,12 +14,18 @@
 //
 // Nothing is normalised. A row is written out with the fields the extension's goldens record, in
 // the order they record them, and the text is compared whole.
+//
+// And the same folder read across a channel (serveFolder where the files are, folderReader where
+// the hierarchy is: test/goldens/channel.ts's, as a worker's) draws the same tree, finds the same
+// row for every file (pathTo), and that row is the one its rule names, found in the tree drawn
+// whole.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isSupportedPath, type SourceFile } from 'data-explorer-core';
 import { nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node';
-import { FolderHierarchy, type HierarchyItem } from '../../src/model/index.js';
+import { FolderHierarchy, folderReader, serveFolder, type FolderReads, type HierarchyItem } from '../../src/model/index.js';
+import { channel } from './channel.js';
 
 const REPO = resolve(import.meta.dirname, '../..');
 const SNAPSHOTS = join(import.meta.dirname, '__snapshots__');
@@ -47,16 +53,30 @@ function filesUnder(rel: string): string[] {
 const fakeFile = (rel: string): SourceFile => ({ uriString: `file:///fx/${rel}`, path: `/fx/${rel}` });
 const diskPath = (file: SourceFile): string => join(REPO, file.path.replace(/^\/fx\//, ''));
 
-/** The hierarchy of one fixture folder, read off disk by core's node readers. */
-function hierarchyOf(folder: string): FolderHierarchy {
+/** One fixture folder, listed as the extension lists it and read off disk by core's node readers. */
+function readsOf(folder: string): FolderReads {
   const files = filesUnder(folder).map(fakeFile);
-  return new FolderHierarchy({
+  return {
     files: { list: async () => files },
     reader: (listed) => ({
       ...nodeSourceReader(listed, { pathOf: diskPath }),
       projectStore: async (file) => readProjectStoreFromDisk(diskPath(file)),
     }),
-  });
+  };
+}
+
+/** The hierarchy of one fixture folder, beside its reader. */
+const hierarchyOf = (folder: string): FolderHierarchy => new FolderHierarchy(readsOf(folder));
+
+/** The hierarchy of one fixture folder, its reader across a channel; its bytes moved, or copied. */
+function acrossChannel(folder: string, transfer: boolean): { hierarchy: FolderHierarchy; stop: () => void } {
+  const [host, page] = channel();
+  const served = serveFolder(readsOf(folder), host, { transfer });
+  const remote = folderReader(page);
+  return {
+    hierarchy: new FolderHierarchy({ files: remote, reader: () => remote }),
+    stop: () => (served.dispose(), remote.dispose()),
+  };
 }
 
 /** One row as the extension's goldens record it: these fields, in this order. */
@@ -120,6 +140,59 @@ describe('a folder hierarchy draws what the extension draws', { timeout: 60_000 
       // Every file of the folder is a row somewhere: a file the tree dropped would be gone from
       // the view the user is reading, and no edge could show it.
       expect([...opened(rows)].sort(byCodePoint)).toEqual(filesUnder(folder).map((rel) => fakeFile(rel).uriString));
+    });
+  }
+});
+
+/** Every row of the tree, drawn whole: each with a twisty opened, as `expanded` opens them. */
+interface Drawn {
+  item: HierarchyItem;
+  children: Drawn[];
+}
+async function drawn(hierarchy: FolderHierarchy, items: HierarchyItem[]): Promise<Drawn[]> {
+  const out: Drawn[] = [];
+  for (const item of items) {
+    out.push({ item, children: item.collapsible === 'collapsed' ? await drawn(hierarchy, await hierarchy.children(item)) : [] });
+  }
+  return out;
+}
+
+/** pathTo's rule, read off the whole tree: the shallowest row of `uri`, the first of its depth from the top. */
+function shallowest(tree: Drawn[], uri: string): string[] | undefined {
+  let level = tree.map((node) => ({ node, path: [node.item.key] }));
+  while (level.length > 0) {
+    const found = level.find(({ node }) => node.item.id === uri);
+    if (found) return found.path;
+    level = level.flatMap(({ node, path }) => node.children.map((child) => ({ node: child, path: [...path, child.item.key] })));
+  }
+  return undefined;
+}
+
+const keysOf = (path: HierarchyItem[] | undefined): string[] | undefined => path?.map((item) => item.key);
+
+describe('a folder hierarchy across a channel draws what it draws beside its reader', { timeout: 60_000 }, () => {
+  for (const folder of FOLDERS) {
+    it(folder, async () => {
+      const near = hierarchyOf(folder);
+      const nearRows = await expanded(near, await near.roots());
+      const golden = readFileSync(join(SNAPSHOTS, folder.split('/').join('__'), 'hierarchy.json'), 'utf8');
+      const tree = await drawn(near, await near.roots());
+      const uris = [...opened(nearRows)];
+      for (const transfer of [false, true]) {
+        const { hierarchy: far, stop } = acrossChannel(folder, transfer);
+        try {
+          const farRows = await expanded(far, await far.roots());
+          expect(JSON.stringify(farRows, null, 1) + '\n').toBe(golden);
+          expect(farRows).toEqual(nearRows);
+          for (const uri of uris) {
+            const path = keysOf(await far.pathTo(uri));
+            expect(path, uri).toEqual(keysOf(await near.pathTo(uri)));
+            expect(path, uri).toEqual(shallowest(tree, uri));
+          }
+        } finally {
+          stop();
+        }
+      }
     });
   }
 });

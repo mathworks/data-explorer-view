@@ -159,7 +159,9 @@ const hierarchy = new FolderHierarchy({
   reader: (files) => readerFor(files),       // a GraphReader: versions, bytes, project stores
 });
 defineHierarchy();
-connectHierarchy(tree, hierarchy).on('open', (uri) => openTab(uri));
+const handle = connectHierarchy(tree, hierarchy, { expandTopLevel: true }); // the folder's row open
+handle.on('open', (uri) => openTab(uri));
+handle.reveal(activeTab.uri); // show the file the app has open: its row opened up to and selected
 ```
 
 The app lists the folder and reads its files: in Electron or Node, core's
@@ -170,6 +172,18 @@ is read), and `refresh()` redraws the marks for a file's unsaved changes
 (`isDirty`). `resolveReference(name, referrer)` answers which file a bare name
 means, by the rule the tree draws with. The rows are what the VS Code
 extension's sidebar draws for the same folder.
+
+A page with no file system (a sandboxed Electron window) has its folder read
+where the files are, across one message channel: `serveFolder({ files, reader },
+port)` there (Electron's main process, a worker), and `folderReader(port)` in
+the page, which is both the folder's `files` and its `reader`
+(`new FolderHierarchy({ files: folder, reader: () => folder })`). The host reads
+only the files it listed: a question names a file by its exact uri in the host's
+own listing, and any other is refused with nothing read. `changed()` on its end
+tells the page's `onChange` listeners to rebuild. A table beside the tree opens the file the tree
+shows for a name a link holds with connectTable's `resolveLink:
+(link, fromUri) => hierarchy.resolveLink(link, fromUri)`, whose answer arrives on
+`navigate` as `uri`. See [the hierarchy's page](docs/widgets/hierarchy.md).
 
 The Usage column says who uses each variable of a dictionary or a MAT-file,
 and where each parameter of a model's blocks comes from: answers that are in

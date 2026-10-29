@@ -44,7 +44,8 @@ interface Line {
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,
  * and a row with rows under it opens or closes. The arrow keys move through the rows (Right opens
  * a row or goes into it, Left closes it or goes to its parent), Home and End go to the first and
- * the last. connectHierarchy wires one to a FolderHierarchy.
+ * the last. `revealRow` shows a row the app names (the file it has open), and `expandTopLevel`
+ * opens the folder's own row on first show. connectHierarchy wires one to a FolderHierarchy.
  *
  * @tagname dex-hierarchy
  */
@@ -198,6 +199,13 @@ export class DexHierarchy extends LitElement {
   @property({ attribute: false }) selectedKey: string | null = null;
   /** What a screen reader calls the tree. Default `Files`. Attribute `label`. */
   @property({ type: String }) label = 'Files';
+  /**
+   * Open each top-level row (a folder's own row, each project's) the first time the tree shows it,
+   * by adding its key to `expandedKeys`, as a table opens its sections; after that the row stays
+   * as the user leaves it, through new `items` too. Another folder's rows are new rows, and open.
+   * Off, the default, a folder opens closed. Attribute `expand-top-level`.
+   */
+  @property({ type: Boolean, attribute: 'expand-top-level' }) expandTopLevel = false;
 
   // The rows under each open row, by its key, for the items there are now; and those for the
   // items there were, drawn while the new ones are read, so an open row does not blink shut.
@@ -208,9 +216,44 @@ export class DexHierarchy extends LitElement {
   @state() private _focusKey: string | null = null;
   private _focusPending = false;
   private _open = new Set<string>();
+  // The top-level rows expandTopLevel has opened once, by key: from then on they are the user's.
+  private _openedTop = new Set<string>();
+  // The row revealRow() is to scroll into view once it is drawn.
+  private _scrollKey: string | null = null;
+
+  /**
+   * Show a row: open each row of `path` but the last (the rows from a top-level row down to it,
+   * as FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as
+   * it is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,
+   * and a choice of the user's before the row is drawn leaves the scroll undone.
+   *
+   * Sends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on
+   * it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a
+   * file's row.
+   */
+  revealRow(path: readonly HierarchyItem[], options: { choose?: boolean } = {}): void {
+    const row = path[path.length - 1];
+    if (!row) return;
+    const closed = path.slice(0, -1).map((item) => item.key).filter((key) => !this.expandedKeys.includes(key));
+    if (closed.length > 0) this.expandedKeys = [...this.expandedKeys, ...closed];
+    this.selectedKey = row.key;
+    this._focusKey = row.key;
+    this._scrollKey = row.key;
+    if (options.choose) this._announce(row);
+  }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
-    if (changed.has('expandedKeys')) this._open = new Set(this.expandedKeys);
+    let opened = false;
+    if (changed.has('items') && this.expandTopLevel && Array.isArray(this.items)) {
+      const fresh = this.items.filter((i) => i.collapsible === 'collapsed' && !this._openedTop.has(i.key)).map((i) => i.key);
+      for (const key of fresh) this._openedTop.add(key);
+      const closed = fresh.filter((key) => !this.expandedKeys.includes(key));
+      if (closed.length > 0) {
+        this.expandedKeys = [...this.expandedKeys, ...closed];
+        opened = true;
+      }
+    }
+    if (changed.has('expandedKeys') || opened) this._open = new Set(this.expandedKeys);
     if (changed.has('items') || changed.has('loadChildren')) {
       this._generation++;
       // Only an open row's: a closed one is asked again when it is opened, and draws nothing meanwhile.
@@ -225,6 +268,11 @@ export class DexHierarchy extends LitElement {
     if (this._focusPending) {
       this._focusPending = false;
       this._rowElement(this._focusKey)?.focus();
+    }
+    const reveal = this._rowElement(this._scrollKey);
+    if (reveal) {
+      this._scrollKey = null;
+      reveal.scrollIntoView?.({ block: 'nearest' });
     }
   }
 
@@ -272,12 +320,19 @@ export class DexHierarchy extends LitElement {
   private _focus(key: string): void {
     this._focusKey = key;
     this._focusPending = true;
+    this._scrollKey = null;
   }
 
   // A click or Enter: the row is selected, says so, and opens or closes.
   private _choose(item: HierarchyItem): void {
+    this._scrollKey = null;
     this.selectedKey = item.key;
     this._focusKey = item.key;
+    this._announce(item);
+    this._setOpen(item, !this._open.has(item.key));
+  }
+
+  private _announce(item: HierarchyItem): void {
     this.dispatchEvent(
       new CustomEvent<HierarchySelectDetail>('dex-hierarchy-select', {
         detail: { uri: item.id ?? null, key: item.key, item },
@@ -285,7 +340,6 @@ export class DexHierarchy extends LitElement {
         composed: true,
       }),
     );
-    this._setOpen(item, !this._open.has(item.key));
   }
 
   private _onKeydown(e: KeyboardEvent): void {

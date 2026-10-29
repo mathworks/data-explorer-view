@@ -24,6 +24,7 @@ npm run test:gallery    # the browser tests (see below)
 | `project-page.html` | a MATLAB project's page, from its project store |
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
 | `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, the selection fills the inspector, the matrix glyph opens the editor |
+| `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`) |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -78,6 +79,11 @@ widgets to the document's table source:
   `usage` is a graph over the same folders (`folderUsage`, core's `planSummaries`), so a
   dictionary entry names the blocks that use it, and a click on one follows the link with
   `resolveNavSource` and `selectByName`.
+- `folder.ts`: both ends of a folder across a `MessageChannel`, as an app whose page cannot read
+  files has them (the first in Electron's main process or a worker): `serveFolder` over a list of
+  fixture files whose reader fetches them, and in the page a `FolderHierarchy` over
+  `folderReader(port)`, through which the page reads the files it opens too. The table's
+  `resolveLink` is the hierarchy's, and each file it opens is revealed in the tree.
 
 The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
 the page in the document and handles its filters and links.
@@ -88,7 +94,9 @@ the page in the document and handles its filters and links.
 exception or failed request, and every icon draws; each kind of file draws its rows; a
 click and the arrow keys move the selection; the selection fills the inspector; the
 matrix glyph opens the editor on the right cells; the hierarchy opens a folder with the
-mouse and the keyboard and hands the page the file chosen; the menu, the dialog and the
+mouse and the keyboard and hands the page the file chosen; a folder read across a channel
+opens its top level, follows a link to the file its tree shows and reveals the table's file; the
+menu, the dialog and the
 project page answer the mouse and the keyboard; and the theme switch changes the colours of the
 page and of the widgets. `csp.spec.ts` checks that every built page has the strict
 policy, and that each engine refuses an inline style and a `data:` image under it, so
