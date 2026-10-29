@@ -84,6 +84,9 @@ export declare class DexTreeTable extends LitElement {
     canAdd: boolean;
     addClasses: readonly string[] | null;
     rowDrag: boolean;
+    readonly: boolean;
+    private get _addsEntries();
+    private get _dragsRows();
     storageKey: string | null;
     get selectedRowId(): string;
     set selectedRowId(id: string);

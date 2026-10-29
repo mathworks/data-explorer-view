@@ -253,6 +253,15 @@ export class DexTreeTable extends LitElement {
         // read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
         // another table draws no drop target here, on a row or on the empty body.
         this.rowDrag = true;
+        // A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
+        // No cell editor opens — not on a double-click, not on Enter, not for beginRename or
+        // openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
+        // whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
+        // the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
+        // dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+        // what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
+        // False, the default, is the table as it always was, each cell's own flags deciding.
+        this.readonly = false;
         // Where the user's column choices (which are shown, and their order) are kept: the page's
         // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
         // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
@@ -1513,6 +1522,14 @@ export class DexTreeTable extends LitElement {
       }
     `,
     ]; }
+    // Whether the `+ Add` button is drawn and the gallery can open.
+    get _addsEntries() {
+        return this.canAdd && !this.readonly;
+    }
+    // Whether a row can be dragged, or a dragged row let go over one (rowDrag, above).
+    get _dragsRows() {
+        return this.rowDrag && !this.readonly;
+    }
     get selectedRowId() {
         return this.selectedRowIds[this.selectedRowIds.length - 1] || '';
     }
@@ -1931,7 +1948,7 @@ export class DexTreeTable extends LitElement {
             this._closeAddGallery();
             return;
         }
-        if (!this.canAdd)
+        if (!this._addsEntries)
             return;
         this._addGalleryOpen = true;
     }
@@ -1946,6 +1963,8 @@ export class DexTreeTable extends LitElement {
         // The gallery's own event is composed, so without this it would also reach the
         // host-facing module, which would see the same click twice under two names.
         e.stopPropagation();
+        if (this.readonly)
+            return;
         const detail = e.detail;
         // Whether the new row should open its name editor travels WITH the request, because it
         // is a fact about this gesture and nothing later can recover it: by the time the host
@@ -2689,7 +2708,7 @@ export class DexTreeTable extends LitElement {
         return dragModeFromModifiers(navigator.platform, { altKey: e.altKey, ctrlKey: e.ctrlKey });
     }
     _onRowDragStart(rowId, e) {
-        if (!this.rowDrag) {
+        if (!this._dragsRows) {
             e.preventDefault();
             return;
         }
@@ -2748,7 +2767,7 @@ export class DexTreeTable extends LitElement {
         this.dispatchEvent(new CustomEvent('dex-row-drag-end', { bubbles: true, composed: true }));
     }
     _onRowDragOver(rowId, e) {
-        if (!this.rowDrag) {
+        if (!this._dragsRows) {
             // Not accepted (no preventDefault), and nothing drawn: no row of this table takes a drop.
             if (e.dataTransfer)
                 e.dataTransfer.dropEffect = 'none';
@@ -2827,7 +2846,7 @@ export class DexTreeTable extends LitElement {
     _onBodyDragOver(e) {
         if (this._isRowOrHeaderEvent(e) || this._dragColId)
             return;
-        if (!this.rowDrag || !this.dropPredictor) {
+        if (!this._dragsRows || !this.dropPredictor) {
             if (e.dataTransfer)
                 e.dataTransfer.dropEffect = 'none';
             return;
@@ -2855,7 +2874,7 @@ export class DexTreeTable extends LitElement {
             return;
         e.preventDefault();
         const mode = this._lastDragMode;
-        const decision = this.rowDrag && this.dropPredictor ? this.dropPredictor('', mode) : null;
+        const decision = this._dragsRows && this.dropPredictor ? this.dropPredictor('', mode) : null;
         this._dragSourceId = null;
         this._dropTargetId = null;
         this._dropPosition = null;
@@ -2878,6 +2897,10 @@ export class DexTreeTable extends LitElement {
     _onRowDrop(targetRowId, e) {
         e.preventDefault();
         e.stopPropagation();
+        // Unreachable from a real drag, whose dragover a read-only table never accepts; said here too,
+        // since this is the handler that sends the drop.
+        if (this.readonly)
+            return;
         // Use the mode from the last dragover, not the drop event: Chromium/macOS
         // often reports the modifier as released on `drop`, which would silently
         // downgrade a Cmd-drag Copy to a Move. dragover tracked it correctly.
@@ -2912,6 +2935,10 @@ export class DexTreeTable extends LitElement {
      * rests on. treeTableCellStates.test.ts pins the two against each other.
      */
     _cellEditTarget(row, columnId) {
+        // Read-only: no cell has an editor, whatever its flags say. Here, so every reader of the
+        // question — the gestures, beginRename, the drawn state, an open editor — has the same answer.
+        if (this.readonly)
+            return null;
         if (columnId === 'Name') {
             return row.Name?.editable ? { text: row.Name?.label || '' } : null;
         }
@@ -3642,9 +3669,12 @@ export class DexTreeTable extends LitElement {
             this._invalidateCache();
             this._buildCaches();
         }
-        if (changedProps.has('rows') || changedProps.has('columns')) {
+        if (changedProps.has('rows') || changedProps.has('columns') || changedProps.has('readonly')) {
             this._closeEditorIfCellNoLongerEditable();
         }
+        // Made read-only with the gallery open: nothing in it may be added any more.
+        if (changedProps.has('readonly') && this.readonly)
+            this._addGalleryOpen = false;
         if (changedProps.has('_expandedIds') || changedProps.has('_filterText') || changedProps.has('_sortState')) {
             this._visibleRowsCache = null;
         }
@@ -3810,6 +3840,7 @@ export class DexTreeTable extends LitElement {
         aria-rowcount=${totalRows + 1}
         aria-colcount=${visibleCols.length}
         aria-label="Data entries"
+        aria-readonly=${this.readonly ? 'true' : nothing}
         tabindex="0"
         ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
@@ -3893,7 +3924,7 @@ export class DexTreeTable extends LitElement {
                     : 'drop-target-on'
                 : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''}"
                     data-row-id="${row.ID}"
-                    draggable=${this.rowDrag ? 'true' : 'false'}
+                    draggable=${this._dragsRows ? 'true' : 'false'}
                     @contextmenu=${(e) => this._onRowContextMenu(row.ID, e)}
                     @dragstart=${(e) => this._onRowDragStart(row.ID, e)}
                     @dragend=${(e) => this._onRowDragEnd(e)}
@@ -3954,7 +3985,7 @@ export class DexTreeTable extends LitElement {
     </div>`;
     }
     _renderAddButton() {
-        if (!this.canAdd)
+        if (!this._addsEntries)
             return nothing;
         return html `
       <button
@@ -4134,6 +4165,9 @@ __decorate([
 __decorate([
     property({ type: Boolean })
 ], DexTreeTable.prototype, "rowDrag", void 0);
+__decorate([
+    property({ type: Boolean, reflect: true })
+], DexTreeTable.prototype, "readonly", void 0);
 __decorate([
     property({ type: String, attribute: 'storage-key' })
 ], DexTreeTable.prototype, "storageKey", void 0);
