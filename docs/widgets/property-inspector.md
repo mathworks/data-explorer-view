@@ -2,37 +2,31 @@
 
 The properties of one entry: titled groups of name–value rows, some of them editable, some
 links, some matrices with the glyph that opens them. It holds no data and follows no selection
-of its own: the app sets `groups`, from the model's buildPropertyGroups, when the selection
-changes, and hears about edits and links through events.
+of its own: it shows the `groups` it is given, and says what the user does through events.
 
-The model's InspectorSelection holds the rule for which node a selection shows: the FIRST
-selected row's, and none for a section row or a row whose node is gone.
+`connectInspector` gives it a feed to follow: a connected table's handle (the table's
+selection, shown by the rule the model holds: the FIRST selected row, and nothing for a section
+heading or a row that is gone), or the pages a host sends across a channel (`inspectorFeed`).
+It shows each page, shows the `empty` element instead while there is nothing, opens the
+variable editor from the Value row's glyph, and hands a clicked cross-reference to the app.
 
 ```js
 import 'data-explorer-view/theme.css';
-import { definePropertyInspector } from 'data-explorer-view/property-inspector';
-import { InspectorSelection, buildPropertyGroups, findNode } from 'data-explorer-view/model';
+import { connectInspector, definePropertyInspector } from 'data-explorer-view/property-inspector';
 
 definePropertyInspector();
 const inspector = document.createElement('dex-property-inspector');
 document.body.append(inspector);
 
-const selection = new InspectorSelection(
-  {
-    showNode: (node) => (inspector.groups = buildPropertyGroups(node)), // PropertyGroup[]
-    clear: () => (inspector.groups = []),
-  },
-  findNode,
-);
-table.addEventListener('dex-row-selected', (e) => selection.show(uri, e.detail.rowIds));
-// After the document changes under the selection (an edit, an undo), show it again:
-//   selection.refresh(uri);
-inspector.addEventListener('dex-pi-navigate', (e) => {
-  goTo(e.detail.sourceId);
-});
+// `handle` is connectTable's: the inspector follows that table, and shares its variable editor.
+const connected = connectInspector(inspector, handle, { empty: placeholder });
+connected.on('navigate', (target) => goTo(target)); // a cross-reference, `name@source`
 ```
 
-The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which needs the same
+Without connectInspector, set `groups` yourself: `(await source.inspect(rowIds)).groups`, or the
+model's buildPropertyGroups of a node.
+
+The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which opens the same
 [variable editor](variable-editor.md) as the table's.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->

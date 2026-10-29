@@ -5,48 +5,33 @@ bar, columns the user sorts, resizes, reorders, hides and filters on, cell edito
 and drop, links, the glyph that opens a matrix, and the `+ Add` gallery. It virtualises its
 rows, so a dictionary of a hundred thousand entries scrolls as a small one does.
 
-It holds no document. The app gives it rows (the model builds them from what core read) and
-answers what it asks for; every user action goes out as a `dex-*` event, and the table never
-changes the document itself. Its defaults are a full editor: `readonly` makes it a viewer,
-`canAdd` and `rowDrag` turn the `+ Add` button and dragging on and off.
+It holds no document. The app gives it rows and answers what it asks for; every user action
+goes out as a `dex-*` event, and the table never changes the document itself. Its defaults are a
+full editor: `readonly` makes it a viewer, `canAdd` and `rowDrag` turn the `+ Add` button and
+dragging on and off.
+
+`connectTable` feeds it from a table source: a document opened in the page
+(`createWorkspace().open(bytes, name)`), or a host across a channel (`messageSource(port)`). It
+shows the source's view (rows, columns, headings, the banners above them), keeps the rows the
+user opened, their selection and their search across a repaint, fetches the rows a paint held
+back, opens the variable editor on a matrix glyph, selects the row a Data Type link names, and
+gives a read-only context menu and Ctrl+F. What is the app's comes out of the handle it returns.
 
 ```js
 import 'data-explorer-view/theme.css';
-import { defineTreeTable } from 'data-explorer-view/tree-table';
-import {
-  COLUMN_GROUPS, COLUMN_LABELS, COLUMNS, LAZY_ROW_BUDGET,
-  childRowsMessage, findNode, getModelFromBytes, mergeChildRows, rowPlannerFor,
-} from 'data-explorer-view/model';
+import { createWorkspace } from 'data-explorer-view/model';
+import { connectTable, defineTreeTable } from 'data-explorer-view/tree-table';
 
 defineTreeTable();
 const table = document.createElement('dex-tree-table');
 table.storageKey = 'my-app';     // this app's column choices; read when the table is connected,
 table.readonly = true;           //   so set it before appending
-table.expandTopLevel = true;     // open the sections, then keep what the user opens
 document.body.append(table);
 
-// Core reads the file under a source id of the app's choosing (its URL, say); the planner is the
-// file kind's, and holds back the children of rows past the budget.
-const node = getModelFromBytes(uri, name, bytes);
-const planner = rowPlannerFor(name);
-table.columns = COLUMNS;
-table.columnLabels = COLUMN_LABELS;
-table.columnGroups = COLUMN_GROUPS;
-table.rows = planner.payload(node, LAZY_ROW_BUDGET).rows; // TreeTableRow[]
-
-table.addEventListener('dex-row-selected', (e) => {
-  showProperties(e.detail.rowIds);  // string[]: typed, no cast
-});
-table.addEventListener('dex-request-children', (e) => {
-  // A row whose children were held back was opened: build them with the same planner, from
-  // the row's node, and put them under it.
-  const { nodeId } = e.detail;
-  const { rows } = childRowsMessage(nodeId, findNode(uri, nodeId), planner);
-  table.rows = mergeChildRows(table.rows, nodeId, rows) ?? table.rows;
-});
-table.addEventListener('dex-link-clicked', (e) => {
-  openTarget(e.detail.target);      // `name@source`, `blocks:…`, a file: see LinkClickedDetail
-});
+const doc = await createWorkspace().open(bytes, 'plant.sldd'); // core reads the file, in the page
+const handle = connectTable(table, doc.table);
+handle.on('select', (rowIds) => showProperties(rowIds)); // or connectInspector(inspector, handle)
+handle.on('navigate', ({ link }) => openTarget(link)); // a row of another document, a file
 ```
 
 See also the [context menu](context-menu.md) (its items for a selection come from
@@ -118,6 +103,14 @@ type `string[] | null` · default `null` · attribute `columns`
 The column keys this document has, which the Columns menu offers; the user's saved order and
 choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
 (JSON).
+
+### `banners`
+
+type `TableBanners | null` · default `null` · property only
+
+The banners drawn above the search bar: an error, a notice, and what the document's read
+could not read (TableBanners), each when present. connectTable sets it from what its source
+says. Default null: none. Property only.
 
 ### `loading`
 
@@ -448,3 +441,6 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-tooltip-bg` | `#f8f8f8` |  |
 | `--dex-tooltip-border` | `#c8c8c8` |  |
 | `--dex-tooltip-fg` | `#333` | The tooltip that follows the pointer while a row is dragged. |
+| `--dex-warning-bg` | `rgba(255, 190, 60, 0.12)` |  |
+| `--dex-warning-border` | `#b89500` |  |
+| `--dex-warning-fg` | `#333` | A "this file did not read whole" notice. |

@@ -16,13 +16,13 @@ npm run test:gallery    # the browser tests (see below)
 
 | Page | Shows |
 |---|---|
-| `tree-table.html` | a data dictionary (text and zip), a MAT-file and a model, each in a `<dex-tree-table>`; its read-only switch; the events it sends |
+| `tree-table.html` | a data dictionary (text and zip), a MAT-file and a model, each in a `<dex-tree-table>` fed by `connectTable`; its read-only switch; the events it sends |
 | `property-inspector.html` | `<dex-property-inspector>` with the properties of an entry picked from a list |
 | `variable-editor.html` | `<dex-variable-editor>` on a matrix, a 3-D array and a 4-D one |
 | `context-menu.html` | `<dex-context-menu>`, from a right-click and from the keyboard |
 | `error-dialog.html` | `<dex-error-dialog>`: an error, and a refused edit with Revert |
 | `project-page.html` | a MATLAB project's page, from its project store |
-| `composed.html` | table, inspector and variable editor together: the selection fills the inspector, the matrix glyph opens the editor |
+| `composed.html` | table, inspector and variable editor together (`connectTable`, `connectInspector`): the selection fills the inspector, the matrix glyph opens the editor |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -55,16 +55,22 @@ published declarations.
 
 ## The wiring
 
-`src/wiring/` is what an app writes today to feed the widgets: read a file into core's
-session (`documents.ts`), build the table's rows, the inspector's properties and the
-variable editor's cells with view's model (`tableData.ts`), and connect the widgets'
-events to those answers (`tableWiring.ts`, `inspectorWiring.ts`, `matrixWiring.ts`). The
-project page is an HTML string; `projectWiring.ts` reads the project store, puts the
-page in the document and handles its filters and links.
+What an app writes to show a file, and nothing more: each page reads its fixture's bytes into a
+workspace (`createWorkspace().open(bytes, name, uri)`, in `src/fixtures.ts`), and wires the
+widgets to the document's table source:
 
-It is written by hand on purpose, so it shows what each widget asks of an app. It will
-shrink as view takes over reading files for a table and connecting the inspector and the
-variable editor to it.
+- `tree-table.ts`: `connectTable(table, doc.table)`. The table shows the file, fetches the rows a
+  paint held back, opens a variable editor on a matrix glyph, draws its banners and offers a
+  read-only menu.
+- `composed.ts`: the same, with the page's own variable editor, and
+  `connectInspector(inspector, handle, { empty })`, which follows the table's selection and opens
+  the same editor from its Value row.
+- `property-inspector.ts`: no table, so the inspector follows the page's list of entries instead,
+  an `InspectorFeed` of the pages `doc.table.inspect()` answers for each pick.
+- `variable-editor.ts`: `show()`, then `deliver(await doc.table.matrix(nodeId))`.
+
+The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
+the page in the document and handles its filters and links.
 
 ## Tests
 

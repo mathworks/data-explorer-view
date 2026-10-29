@@ -1,13 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
-// The tree table alone: one file at a time, its read-only switch, and every event it sends.
-// Nothing answers the events here but the lazy-children request; the composed page wires the
-// selection and the matrix glyph to the other widgets.
-import { defineTreeTable, type DexTreeTable } from 'data-explorer-view/tree-table';
-import { askedFixture, fixturePicker, type Fixture } from '../fixtures';
+// The tree table alone: one file at a time, its read-only switch, and every event it sends. The
+// file is read in the page, and connectTable feeds the table from it; the composed page adds the
+// inspector and the variable editor.
+import { createWorkspace, type Doc } from 'data-explorer-view/model';
+import { connectTable, defineTreeTable, type TableHandle } from 'data-explorer-view/tree-table';
+import { askedFixture, fixturePicker, openFixture, type Fixture } from '../fixtures';
 import { byId, logEvents, startPage } from '../shell';
-import { closeDocument, openFixture, type OpenDocument } from '../wiring/documents';
-import { childRows, tablePayload } from '../wiring/tableData';
-import { wireTable } from '../wiring/tableWiring';
 
 startPage();
 defineTreeTable(); // <dex-tree-table>, and the filter bar, column filter and Add gallery it draws
@@ -31,37 +29,32 @@ logEvents(
   byId('event-log'),
 );
 
-let doc: OpenDocument | null = null;
-let table: DexTreeTable | null = null;
+// `?budget=5` paints five rows' worth and holds the rest back, as a file too large to show at once
+// is painted: the banner says so, and a row's children load as it is opened.
+const budget = Number(new URLSearchParams(location.search).get('budget'));
+const ws = createWorkspace(budget >= 1 ? { rowBudget: budget } : {});
+let shown: { doc: Doc; handle: TableHandle } | null = null;
 
 async function show(fixture: Fixture): Promise<void> {
-  if (doc) closeDocument(doc);
-  doc = null;
-  table?.remove();
-  const el = document.createElement('dex-tree-table');
-  table = el;
-  el.readonly = readonly.checked;
+  shown?.handle.table.remove();
+  shown?.handle.dispose();
+  shown?.doc.dispose();
+  shown = null;
+  const table = document.createElement('dex-tree-table');
+  table.readonly = readonly.checked;
   // Where the table keeps this file's column choices.
-  el.storageKey = `dex-gallery:${fixture.id}`;
-  stage.append(el);
-  const wired = wireTable(el, {
-    children: (nodeId) => (doc ? childRows(doc, nodeId).rows : []),
-    select: () => {},
-  });
-  const opened = await openFixture(fixture);
-  if (!el.isConnected) {
-    closeDocument(opened); // another file was picked meanwhile
-    return;
-  }
-  doc = opened;
-  wired.setPayload(tablePayload(opened));
+  table.storageKey = `dex-gallery:${fixture.id}`;
+  stage.append(table);
+  const doc = await openFixture(ws, fixture);
+  if (!table.isConnected) return void doc.dispose(); // another file was picked meanwhile
+  shown = { doc, handle: connectTable(table, doc.table) };
   const params = new URLSearchParams(location.search);
   params.set('fixture', fixture.id);
   history.replaceState(null, '', `?${params}`);
 }
 
 readonly.addEventListener('change', () => {
-  if (table) table.readonly = readonly.checked;
+  if (shown) shown.handle.table.readonly = readonly.checked;
 });
 const first = askedFixture();
 byId('toolbar').prepend(fixturePicker(first, (f) => void show(f)));

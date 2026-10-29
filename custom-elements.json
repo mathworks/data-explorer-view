@@ -686,6 +686,53 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/property-inspector/connectInspector.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "connectInspector",
+          "return": {
+            "type": {
+              "text": "InspectorHandle"
+            }
+          },
+          "parameters": [
+            {
+              "name": "inspector",
+              "type": {
+                "text": "DexPropertyInspector"
+              }
+            },
+            {
+              "name": "feed",
+              "type": {
+                "text": "InspectorFeed"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "ConnectInspectorOptions"
+              }
+            }
+          ],
+          "description": "Wire `inspector` to `feed`: show every page it sends, and answer what the inspector asks."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "connectInspector",
+          "declaration": {
+            "name": "connectInspector",
+            "module": "dist/widgets/property-inspector/connectInspector.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/property-inspector/dex-property-inspector.js",
       "declarations": [
         {
@@ -835,6 +882,30 @@
           "declaration": {
             "name": "definePropertyInspector",
             "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "connectInspector",
+          "declaration": {
+            "name": "connectInspector",
+            "module": "./connectInspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConnectInspectorOptions",
+          "declaration": {
+            "name": "ConnectInspectorOptions",
+            "module": "./connectInspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "InspectorHandle",
+          "declaration": {
+            "name": "InspectorHandle",
+            "module": "./connectInspector.js"
           }
         },
         {
@@ -1524,6 +1595,53 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/connectTable.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "connectTable",
+          "return": {
+            "type": {
+              "text": "TableHandle"
+            }
+          },
+          "parameters": [
+            {
+              "name": "table",
+              "type": {
+                "text": "DexTreeTable"
+              }
+            },
+            {
+              "name": "source",
+              "type": {
+                "text": "TableSource"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "ConnectTableOptions"
+              }
+            }
+          ],
+          "description": "Wire `table` to `source`: show what it answers, and answer what the table asks. Returns the\nhandle that says what the app is to do (`on`), and through which it selects.\n\nThe table is left to the app in what it is (`readonly`, `canAdd`, `rowDrag`, `storageKey`):\nconnectTable sets `loading` until the first paint, `expandTopLevel`, and what each paint says."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "connectTable",
+          "declaration": {
+            "name": "connectTable",
+            "module": "dist/widgets/tree-table/connectTable.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/tree-table/dex-add-gallery.js",
       "declarations": [
         {
@@ -2157,6 +2275,15 @@
             },
             {
               "kind": "field",
+              "name": "banners",
+              "type": {
+                "text": "TableBanners | null"
+              },
+              "default": "null",
+              "description": "The banners drawn above the search bar: an error, a notice, and what the document's read\ncould not read (TableBanners), each when present. connectTable sets it from what its source\nsays. Default null: none. Property only."
+            },
+            {
+              "kind": "field",
               "name": "loading",
               "type": {
                 "text": "boolean"
@@ -2677,6 +2804,19 @@
               "name": "--dex-tooltip-fg",
               "description": "The tooltip that follows the pointer while a row is dragged.",
               "default": "#333"
+            },
+            {
+              "name": "--dex-warning-bg",
+              "default": "rgba(255, 190, 60, 0.12)"
+            },
+            {
+              "name": "--dex-warning-border",
+              "default": "#b89500"
+            },
+            {
+              "name": "--dex-warning-fg",
+              "description": "A \"this file did not read whole\" notice.",
+              "default": "#333"
             }
           ]
         },
@@ -2743,6 +2883,62 @@
           "declaration": {
             "name": "defineTreeTable",
             "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "connectTable",
+          "declaration": {
+            "name": "connectTable",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConnectTableOptions",
+          "declaration": {
+            "name": "ConnectTableOptions",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "NavigateRequest",
+          "declaration": {
+            "name": "NavigateRequest",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableAction",
+          "declaration": {
+            "name": "TableAction",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableHandle",
+          "declaration": {
+            "name": "TableHandle",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableHandleEventMap",
+          "declaration": {
+            "name": "TableHandleEventMap",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableMenuContext",
+          "declaration": {
+            "name": "TableMenuContext",
+            "module": "./connectTable.js"
           }
         },
         {
@@ -2814,6 +3010,14 @@
           "name": "RowSelectedDetail",
           "declaration": {
             "name": "RowSelectedDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableBanners",
+          "declaration": {
+            "name": "TableBanners",
             "module": "./dex-tree-table.js"
           }
         },

@@ -13,7 +13,8 @@ import {
   type FilterOp, type FilterTerm, type FilterToken,
 } from '../../model/filter/rowFilter.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
-import { nextExpandedIds } from '../../model/actions/rowUpdates.js';
+import { nextExpandedIds, nextStickyIds } from '../../model/actions/rowUpdates.js';
+import type { WarningBanner } from '../../model/rows/parseWarnings.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 import { defineAddGallery } from './dex-add-gallery.js';
 import type { AddTileDetail } from './dex-add-gallery.js';
@@ -100,6 +101,19 @@ export interface LinkClickedDetail {
 /** What `dex-add-entry` carries: the tile's class, section and label, and whether to rename the row. */
 export interface AddEntryDetail extends AddTileDetail {
   rename: boolean;
+}
+
+/**
+ * The banners above the rows (`banners`): what went wrong, why the document is shown the way it
+ * is, and what its read could not read. Each is drawn when present, in that order.
+ */
+export interface TableBanners {
+  /** What went wrong: the document could not be shown, or an answer could not all be shown. */
+  error?: string;
+  /** Why the document is shown the way it is (TableView.notice). */
+  notice?: string;
+  /** What the read could not read, and what the paint held back (TableView.warnings). */
+  warnings?: WarningBanner;
 }
 
 interface SortEntry {
@@ -364,6 +378,44 @@ export class DexTreeTable extends LitElement {
         overflow: hidden;
         font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
         font-size: 13px;
+      }
+
+      /* The banners strip (banners): above the search bar, a tall one scrolling in its own box
+         rather than pushing the rows out of the table. */
+      .banners {
+        flex: 0 0 auto;
+        max-height: 40%;
+        overflow: auto;
+        font-size: 12px;
+      }
+      .banner {
+        box-sizing: border-box;
+        padding: 6px 10px;
+        border-bottom: 1px solid;
+      }
+      /* The theme's error and accent inks, on the search bar's surface: tokens every theme (and
+         an app's mapping of them) already sets, so a banner needs none of its own. */
+      .banner-error {
+        color: var(--dex-color-error, #d32f2f);
+        background: var(--dex-bg-secondary, #f8f8f8);
+        border-color: var(--dex-color-error, #d32f2f);
+      }
+      .banner-notice {
+        color: var(--dex-color-text, #333);
+        background: var(--dex-bg-secondary, #f8f8f8);
+        border-color: var(--dex-color-accent, #0078d4);
+      }
+      .banner-warning {
+        color: var(--dex-warning-fg, #333);
+        background: var(--dex-warning-bg, rgba(255, 190, 60, 0.12));
+        border-color: var(--dex-warning-border, #b89500);
+      }
+      .banner-headline {
+        font-weight: 600;
+      }
+      .banner-details {
+        margin: 4px 0 0;
+        padding-inline-start: 18px;
       }
 
       .filter-bar {
@@ -1495,6 +1547,12 @@ export class DexTreeTable extends LitElement {
    * (JSON).
    */
   @property({ type: Array }) columns: string[] | null = null;
+  /**
+   * The banners drawn above the search bar: an error, a notice, and what the document's read
+   * could not read (TableBanners), each when present. connectTable sets it from what its source
+   * says. Default null: none. Property only.
+   */
+  @property({ attribute: false }) banners: TableBanners | null = null;
   // Waiting for the first payload — a DIFFERENT state from "the payload arrived
   // and it was empty", which is the one that reads "No data". The host parses
   // synchronously (and scans the workspace for the usage graph on first open), so
@@ -1630,6 +1688,20 @@ export class DexTreeTable extends LitElement {
   }
 
   /**
+   * @internal connectTable's repaint: `rows` in place of the rows shown, keeping in the list an
+   * active search shows the rows it shows now, and those of `keep` (nextStickyIds). A row the user
+   * edits out of their own search, or the row a host selects after an edit, does not vanish from
+   * under them; the list is searched again when they next search.
+   */
+  _replaceRows(rows: TreeTableRow[], keep: readonly string[]): void {
+    // Read BEFORE the new rows land: what the user is looking at is the answer to a search.
+    const prevVisible = this._getVisibleRows().map((r) => r.ID);
+    this.rows = rows;
+    this._stickyRowIds = nextStickyIds(this._filterText, prevVisible, rows, keep);
+    this._visibleRowsCache = null;
+  }
+
+  /**
    * The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
    * (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
    * sections, a MAT-file's variables, though not one whose children were held back, whose first
@@ -1644,8 +1716,8 @@ export class DexTreeTable extends LitElement {
   // Not @state: derived from _filterText, and keyed by it so it cannot go stale.
   private _filterParseCache: { text: string; terms: FilterTerm[]; tokens: FilterToken[] } | null = null;
   // Rows kept in the filtered list although they no longer match, because the user
-  // edited them there. Written by installRows (table-main.ts) on every repaint from
-  // nextStickyIds; dropped here the moment the user searches again.
+  // edited them there. Written by _replaceRows (connectTable's repaint) from nextStickyIds;
+  // dropped here the moment the user searches again.
   private _stickyRowIds: Set<string> = new Set();
   // The row whose whole Value text this table asked the host for last (openWholeValueEditor).
   private _awaitedWholeValue: string | null = null;
@@ -4213,9 +4285,28 @@ export class DexTreeTable extends LitElement {
     const body =
       this.rows.length === 0 ? this._renderNoRows() : this._renderTable(allVisible, totalRows, visibleCols);
     return html`
-      ${this._renderFilterBar()} ${body} ${this._renderColumnMenu()} ${this._renderColumnFilterPopup()}
+      ${this._renderBanners()}${this._renderFilterBar()} ${body} ${this._renderColumnMenu()} ${this._renderColumnFilterPopup()}
       ${this._renderDropTooltip()}
     `;
+  }
+
+  // The banners strip, or nothing at all when there is no banner: a table that is never given
+  // one draws exactly what it drew before the property existed.
+  private _renderBanners() {
+    const b = this.banners;
+    if (!b || (!b.error && !b.notice && !b.warnings)) return nothing;
+    return html`<div class="banners">
+      ${b.error ? html`<div class="banner banner-error" role="alert">${b.error}</div>` : nothing}
+      ${b.notice ? html`<div class="banner banner-notice" role="status">${b.notice}</div>` : nothing}
+      ${b.warnings
+        ? html`<div class="banner banner-warning" role="status">
+            <div class="banner-headline">${b.warnings.headline}</div>
+            ${b.warnings.details.length
+              ? html`<ul class="banner-details">${b.warnings.details.map((line) => html`<li>${line}</li>`)}</ul>`
+              : nothing}
+          </div>`
+        : nothing}
+    </div>`;
   }
 
   // The table's region when there are no rows to put in it, which is two states,

@@ -175,16 +175,16 @@ beforeAll(async () => {
 describe('an app written in TypeScript, against the built package', () => {
   const CONSUMER = join(ROOT, 'test', '__typed-api-consumer__.ts');
   const text = `
-    import { defineTreeTable, type RowSelectedDetail, type MatrixOpenDetail } from 'data-explorer-view/tree-table';
-    import { definePropertyInspector } from 'data-explorer-view/property-inspector';
+    import { connectTable, defineTreeTable, type RowSelectedDetail, type MatrixOpenDetail, type TableBanners } from 'data-explorer-view/tree-table';
+    import { connectInspector, definePropertyInspector } from 'data-explorer-view/property-inspector';
     import { defineVariableEditor, type MatrixCellsAnswer } from 'data-explorer-view/variable-editor';
     import { defineContextMenu } from 'data-explorer-view/context-menu';
     import { defineErrorDialog } from 'data-explorer-view/error-dialog';
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
-    import { rowPlannerFor, childRowsMessage, buildPropertyGroups, mergeChildRows } from 'data-explorer-view/model';
-    import { createWorkspace, sourceUri, type Doc, type DocKind, type MatrixPage, type TableChange, type TableSource, type TableView } from 'data-explorer-view/model';
+    import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
+    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -280,20 +280,19 @@ describe('an app written in TypeScript, against the built package', () => {
       const page: MatrixPage = await source.matrix('n');
       void editor.deliver(page);
       if (!page.matrix) s(page.message);
-      // The README's wiring, as it is written there.
-      table.readonly = true;
-      Object.assign(table, { rows: view.rows, columns: view.columns, columnLabels: view.columnLabels, columnGroups: view.columnGroups });
-      table.addEventListener('dex-request-children', async (e) => {
-        const { nodeId, rows } = await doc.table.children(e.detail.nodeId);
-        table.rows = mergeChildRows(table.rows, nodeId, rows) ?? table.rows;
-      });
-      table.addEventListener('dex-row-selected', async (e) => {
-        inspector.groups = (await doc.table.inspect(e.detail.rowIds)).groups;
-      });
-      document.body.addEventListener('dex-matrix-open', async (e) => {
-        editor.show(e.detail.anchorEl, e.detail.matrix);
-        editor.deliver(await doc.table.matrix(e.detail.matrix.nodeId));
-      });
+      // The README's quick start, as it is written there, and the handle's hooks.
+      const handle = connectTable(table, doc.table);
+      connectInspector(inspector, handle);
+      handle.on('navigate', ({ link }) => s(link.kind === 'file' ? link.file : link.source));
+      handle.on('select', (rowIds) => rowIds.map(s));
+      handle.selectByName('Kp');
+      // Across a channel: the host serves, the page's table follows the messages.
+      const port: TablePort = { postMessage: () => {}, onMessage: () => () => {} };
+      const stopServing = serveTable(doc.table, port);
+      const far = connectTable(table, messageSource(port), { menu: false, banners: (b: TableBanners) => s(b.error ?? '') });
+      connectInspector(inspector, inspectorFeed(port), { empty: (isEmpty) => b(isEmpty) }).on('navigate', s);
+      far.dispose();
+      stopServing();
       const stop = source.subscribe((c: TableChange) => {
         if (c.kind === 'replaceAll') table.rows = c.view.rows;
         else if (c.kind === 'error') s(c.message);
