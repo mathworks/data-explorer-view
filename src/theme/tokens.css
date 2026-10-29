@@ -90,6 +90,13 @@
   --dex-warning-fg: #333;
   --dex-warning-bg: rgba(255, 190, 60, 0.12);
   --dex-warning-border: #b89500;
+  /* The banners above a table: what went wrong, and why a document is shown the way it is. */
+  --dex-error-fg: #a1260d;
+  --dex-error-bg: rgba(241, 76, 76, 0.12);
+  --dex-error-border: #be1100;
+  --dex-notice-fg: #333;
+  --dex-notice-bg: rgba(100, 148, 237, 0.12);
+  --dex-notice-border: #4084d0;
   /* The tooltip that follows the pointer while a row is dragged. */
   --dex-tooltip-fg: #333;
   --dex-tooltip-bg: #f8f8f8;
@@ -165,6 +172,12 @@
   --dex-warning-fg: #e0e0e0;
   --dex-warning-bg: rgba(255, 190, 60, 0.12);
   --dex-warning-border: #b89500;
+  --dex-error-fg: #f48771;
+  --dex-error-bg: rgba(241, 76, 76, 0.12);
+  --dex-error-border: #be1100;
+  --dex-notice-fg: #e0e0e0;
+  --dex-notice-bg: rgba(100, 148, 237, 0.12);
+  --dex-notice-border: #4084d0;
   --dex-tooltip-fg: #ccc;
   --dex-tooltip-bg: #252526;
   --dex-tooltip-border: #454545;
@@ -231,6 +244,12 @@
   --dex-warning-fg: #000;
   --dex-warning-bg: #fff;
   --dex-warning-border: #000;
+  --dex-error-fg: #b71c1c;
+  --dex-error-bg: #fff;
+  --dex-error-border: #b71c1c;
+  --dex-notice-fg: #000;
+  --dex-notice-bg: #fff;
+  --dex-notice-border: #000;
   --dex-tooltip-fg: #000;
   --dex-tooltip-bg: #fff;
   --dex-tooltip-border: #000;

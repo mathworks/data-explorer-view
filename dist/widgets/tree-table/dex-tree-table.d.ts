@@ -1,5 +1,6 @@
 import { LitElement } from 'lit';
 import { type DragMode } from '../shared/dragMode.js';
+import type { WarningBanner } from '../../model/rows/parseWarnings.js';
 import type { AddTileDetail } from './dex-add-gallery.js';
 import type { TreeTableRow } from '../../model/rows/tableRow.js';
 export type { TreeTableRow };
@@ -69,6 +70,18 @@ export interface LinkClickedDetail {
 export interface AddEntryDetail extends AddTileDetail {
     rename: boolean;
 }
+/**
+ * The banners above the rows (`banners`): what went wrong, why the document is shown the way it
+ * is, and what its read could not read. Each is drawn when present, in that order.
+ */
+export interface TableBanners {
+    /** What went wrong: the document could not be shown, or an answer could not all be shown. */
+    error?: string;
+    /** Why the document is shown the way it is (TableView.notice). */
+    notice?: string;
+    /** What the read could not read, and what the paint held back (TableView.warnings). */
+    warnings?: WarningBanner;
+}
 export interface BlockLinkGroup {
     modelName: string;
     blocks: {
@@ -132,6 +145,12 @@ export declare class DexTreeTable extends LitElement {
      * (JSON).
      */
     columns: string[] | null;
+    /**
+     * The banners drawn above the search bar: an error, a notice, and what the document's read
+     * could not read (TableBanners), each when present. connectTable sets it from what its source
+     * says. Default null: none. Property only.
+     */
+    banners: TableBanners | null;
     /**
      * The rows are on their way: while there are none, the table says Loading… (with a spinner,
      * after half a second) instead of "No data"; the search bar stays. Set it while a document is
@@ -207,6 +226,13 @@ export declare class DexTreeTable extends LitElement {
     expand(ids: Iterable<string>): void;
     /** Closes these rows. */
     collapse(ids: Iterable<string>): void;
+    /**
+     * @internal connectTable's repaint: `rows` in place of the rows shown, keeping in the list an
+     * active search shows the rows it shows now, and those of `keep` (nextStickyIds). A row the user
+     * edits out of their own search, or the row a host selects after an edit, does not vanish from
+     * under them; the list is searched again when they next search.
+     */
+    _replaceRows(rows: TreeTableRow[], keep: readonly string[]): void;
     /**
      * The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
      * (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
@@ -477,6 +503,7 @@ export declare class DexTreeTable extends LitElement {
     private _noMatchMessage;
     private _renderFilterBar;
     render(): import("lit-html").TemplateResult<1>;
+    private _renderBanners;
     private _renderNoRows;
     private _renderTable;
     private _renderDropTooltip;
