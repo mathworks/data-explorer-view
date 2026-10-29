@@ -6,9 +6,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DataModel } from 'data-explorer-core';
-import { getModel, getModelFromBytes, findNode, invalidate } from '../src/view/model/workspace/SlddModel.js';
-import { buildRows } from '../src/view/model/rows/rowBuilder.js';
-import { buildMatRows } from '../src/view/model/rows/matRowBuilder.js';
+import { getModel, getModelFromBytes, findNode, invalidate } from '../src/model/workspace/SlddModel.js';
+import { buildRows } from '../src/model/rows/rowBuilder.js';
+import { buildMatRows } from '../src/model/rows/matRowBuilder.js';
 
 // Build a MatNode from fixture bytes through the core barrel (addMatSource parses
 // the .mat and builds the MatNode), not the data-model-internal MatNode/parseMat.

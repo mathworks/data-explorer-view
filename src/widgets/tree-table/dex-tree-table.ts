@@ -73,7 +73,7 @@ export interface TreeTableRow {
  * The compile-time half of the row contract with core.
  *
  * TreeTableRow cannot simply extend core's RowData. The host layer normalizes a
- * row on its way here (src/view/model/rows/rowBuilder.ts, usageCells.ts, matrixPayload.ts):
+ * row on its way here (src/model/rows/rowBuilder.ts, usageCells.ts, matrixPayload.ts):
  * it stringifies core's `Value: unknown`, and it adds cell shapes core has no name
  * for — `paramLinks`, `blockLinks`, `clipboardMode`, `_matrix`. So the two shapes
  * are declared separately, and were checked against each other nowhere.
@@ -1419,7 +1419,7 @@ export class DexTreeTable extends LitElement {
       }
 
       /* The theme's own colour for a modified file, and the same one the sections tree's
-         Modified badge uses (DECORATIONS.modified in src/view/model/hierarchy/health.ts), so "modified" is
+         Modified badge uses (DECORATIONS.modified in src/model/hierarchy/health.ts), so "modified" is
          one colour on both surfaces. The literal it replaces failed AA on dark and
          high-contrast themes (3.54:1 on Dark Modern, 4.18:1 on HC Black). The fallback is
          reached only where the colour is unregistered: the built-in git extension

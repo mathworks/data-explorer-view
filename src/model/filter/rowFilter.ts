@@ -27,7 +27,7 @@
 //
 // The one thing it does import is the `section:` row-id convention, which is NOT in
 // that list: it is not the component's state but a shape both sides of the protocol
-// agree on (src/view/model/ids/sectionRowId.ts, stamped by the host's rowBuilder), so a
+// agree on (src/model/ids/sectionRowId.ts, stamped by the host's rowBuilder), so a
 // caller cannot hold a different opinion about it and there is nothing to inject.
 
 import { isSectionRowId } from '../ids/sectionRowId.js';

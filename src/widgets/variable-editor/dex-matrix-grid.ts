@@ -16,7 +16,7 @@
 // 642 MB, to fill a box capped at 640x320 that can show about sixteen columns by
 // sixteen rows of it. So only the window near the scroll position is built, on BOTH
 // axes, and the rest is padding — the same rule dex-tree-table has always used for
-// its rows, shared with it rather than copied (src/view/widgets/shared/virtualWindow.ts).
+// its rows, shared with it rather than copied (src/widgets/shared/virtualWindow.ts).
 //
 // Windowing columns is what forces the one visible change here: a column is now a
 // FIXED width rather than `max-content`, because the padding either side of the
@@ -38,7 +38,7 @@ import { virtualWindow } from '../shared/virtualWindow.js';
 // label the glyph and title the panel — and the cells are fetched by node id when a
 // panel actually opens. A 1000x1000 entry is 4 MB of cell strings; stamped onto a
 // row it is paid for every such row on screen, re-sort and repaint, for a panel that
-// may never be opened. See src/view/model/matrix/matrixPayload.ts and src/webview/matrixOpen.ts.
+// may never be opened. See src/model/matrix/matrixPayload.ts and src/webview/matrixOpen.ts.
 export interface MatrixDescriptor {
   name: string;
   className: string;

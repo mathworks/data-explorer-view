@@ -19,9 +19,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DataModel, isModelFile, parseModel } from 'data-explorer-core';
-import { getModelFromBytes, getModelFromParsed, invalidate } from '../src/view/model/workspace/SlddModel.js';
-import { buildRows } from '../src/view/model/rows/rowBuilder.js';
-import { sourceWarnings } from '../src/view/model/rows/parseWarnings.js';
+import { getModelFromBytes, getModelFromParsed, invalidate } from '../src/model/workspace/SlddModel.js';
+import { buildRows } from '../src/model/rows/rowBuilder.js';
+import { sourceWarnings } from '../src/model/rows/parseWarnings.js';
 
 const dir = join(import.meta.dirname, 'fixtures');
 

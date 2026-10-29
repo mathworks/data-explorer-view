@@ -16,9 +16,9 @@
 // "every name in the file", so that is what is asserted here, in the one shape that can
 // tell the difference: a fat early section and a thin late one.
 import { describe, it, expect } from 'vitest';
-import { buildRows, buildRowsPlanned, buildChildRows, buildEntryRows } from '../src/view/model/rows/rowBuilder.js';
-import { rowPlannerFor } from '../src/view/model/rows/rowPlanner.js';
-import { buildSectionRowId } from '../src/view/model/ids/sectionRowId.js';
+import { buildRows, buildRowsPlanned, buildChildRows, buildEntryRows } from '../src/model/rows/rowBuilder.js';
+import { rowPlannerFor } from '../src/model/rows/rowPlanner.js';
+import { buildSectionRowId } from '../src/model/ids/sectionRowId.js';
 
 /**
  * A duck-typed entry subtree: `kids` children, each with `grandkids` of its own.

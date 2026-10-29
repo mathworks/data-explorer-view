@@ -22,11 +22,11 @@
 // These go through the real planner, the real sectioned builder and the real fetch, and the
 // dictionaries are parsed by core from JSON text, so what is counted is real rows of real nodes.
 import { afterEach, describe, expect, it } from 'vitest';
-import { LAZY_ROW_BUDGET, planRows } from '../src/view/model/rows/lazyRows.js';
-import { rowPlannerFor } from '../src/view/model/rows/rowPlanner.js';
-import { answerChildRequest, childRowsMessage } from '../src/view/model/rows/childRequest.js';
-import { getModel, releaseIfUnviewed } from '../src/view/model/workspace/SlddModel.js';
-import { buildSectionRowId } from '../src/view/model/ids/sectionRowId.js';
+import { LAZY_ROW_BUDGET, planRows } from '../src/model/rows/lazyRows.js';
+import { rowPlannerFor } from '../src/model/rows/rowPlanner.js';
+import { answerChildRequest, childRowsMessage } from '../src/model/rows/childRequest.js';
+import { getModel, releaseIfUnviewed } from '../src/model/workspace/SlddModel.js';
+import { buildSectionRowId } from '../src/model/ids/sectionRowId.js';
 
 /** A JSON .sldd holding `entries`, in the `__MW_TEXT_PARTS__` shape MATLAB writes. */
 function dictionaryText(entries: Array<{ name: string; value: unknown }>): string {

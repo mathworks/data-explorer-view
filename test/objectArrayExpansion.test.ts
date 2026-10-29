@@ -24,8 +24,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { getModel, getModelFromBytes } from '../src/view/model/workspace/SlddModel.js';
-import { buildRows } from '../src/view/model/rows/rowBuilder.js';
+import { getModel, getModelFromBytes } from '../src/model/workspace/SlddModel.js';
+import { buildRows } from '../src/model/rows/rowBuilder.js';
 
 function fixture(name: string): string {
   return readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8');

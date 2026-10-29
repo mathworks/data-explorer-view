@@ -21,12 +21,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { getModel, getModelFromBytes, invalidate } from '../src/view/model/workspace/SlddModel.js';
-import { isGriddable, matrixPayload } from '../src/view/model/matrix/matrixPayload.js';
-import { matrixCellsMessage } from '../src/view/model/matrix/matrixRequest.js';
-import { buildRows } from '../src/view/model/rows/rowBuilder.js';
-import { buildMatRows } from '../src/view/model/rows/matRowBuilder.js';
-import { buildPropertyGroups } from '../src/view/model/inspector/piBuilder.js';
+import { getModel, getModelFromBytes, invalidate } from '../src/model/workspace/SlddModel.js';
+import { isGriddable, matrixPayload } from '../src/model/matrix/matrixPayload.js';
+import { matrixCellsMessage } from '../src/model/matrix/matrixRequest.js';
+import { buildRows } from '../src/model/rows/rowBuilder.js';
+import { buildMatRows } from '../src/model/rows/matRowBuilder.js';
+import { buildPropertyGroups } from '../src/model/inspector/piBuilder.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
