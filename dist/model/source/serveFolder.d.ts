@@ -21,9 +21,12 @@ export interface ServeFolderOptions {
 export interface FolderServer {
     /**
      * Say the folder changed (a file created, deleted or saved): the page's folderReader tells its
-     * `onChange` listeners, for its hierarchy to read the folder again.
+     * `onChange` listeners, for its hierarchy to read the folder again. `uris`, when the host knows
+     * them, are the files the change touched, as the listing names them (`sourceUri(path)`): a hint
+     * that does not say how each changed (wire.ts FolderChangedMessage). Absent: something changed.
+     * Each call is one message, as it is made: debouncing a watcher's burst is the host's.
      */
-    changed(): void;
+    changed(uris?: readonly string[]): void;
     /** Stop answering. Reads still going are not answered. */
     dispose(): void;
 }
@@ -31,7 +34,7 @@ export interface FolderServer {
  * Answer the page's end of `port` (folderReader) from `folder`, until `dispose()`:
  *
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
- *   `folder.reader(files)` its reader;
+ *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
@@ -42,21 +45,17 @@ export interface FolderServer {
  * The page is not trusted: what reaches the reader is only ever a file the folder listed, so a
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  *
- * `changed()` says the folder changed. Any other message is left alone, for whatever else listens
- * on the port (a table's, for one).
+ * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
+ * listens on the port (a table's, for one).
  *
- * In Electron's main process, over a `MessageChannelMain` port given to the page:
+ * In Electron's main process, over a `MessageChannelMain` port given to the page (README, "Serve a
+ * folder from Electron's main process"):
  * ```ts
- * const served = serveFolder({ files, reader }, {
- *   postMessage: (message) => port.postMessage(message),
- *   onMessage: (listener) => {
- *     const hear = (e: Electron.MessageEvent) => listener(e.data);
- *     port.on('message', hear);
- *     port.start();
- *     return () => port.off('message', hear);
- *   },
- * });
- * watcher.on('change', () => served.changed());
+ * const served = serveFolder(
+ *   { files: { list: async () => listedFiles(await listFolder(root)) }, reader },
+ *   portFromMainPort(port1),
+ * );
+ * watch(root, { recursive: true }, (_event, name) => name && served.changed([sourceUri(join(root, name))]));
  * ```
  */
 export declare function serveFolder(folder: FolderReads, port: TablePort, options?: ServeFolderOptions): FolderServer;

@@ -15,8 +15,9 @@ export interface HierarchySelectDetail {
  * the files it references, opened a level at a time. The rows are HierarchyItems
  * (`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of
  * `loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its
- * file's name and kind, an unresolved reference a warning, and a file's mark a badge (a circular
- * reference, unsaved changes).
+ * file's name and kind, an unresolved reference a warning, a file's mark a badge (a circular
+ * reference, unsaved changes), and a notice (a folder of which only the first files are shown) an
+ * information mark.
  *
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,
  * and a row with rows under it opens or closes. The arrow keys move through the rows (Right opens

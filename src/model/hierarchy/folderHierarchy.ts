@@ -14,6 +14,7 @@
 import { newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
 import type { LinkTarget } from '../ids/linkTarget.js';
 import { srcIdToUriString } from '../ids/srcId.js';
+import { isTruncated, type FolderFileList } from './folderList.js';
 import { RelGraph, type GraphNode, type GroupKind, type NodeKind } from './graphModel.js';
 import { graphSourcesOf, type GraphReader } from './graphSources.js';
 import type { HealthState } from './health.js';
@@ -24,8 +25,12 @@ export interface FolderFiles {
    * Every supported file in the folder, listed afresh for each build. In a STABLE order: folder
    * order decides which of two same-named files a reference resolves to, so the same folder must
    * list the same way every time (a code-point sort of the paths does).
+   *
+   * A plain `SourceFile[]` is an answer. One that stopped at a limit says so with `truncated`
+   * (FolderFileList; `listedFiles` keeps core's `listFolder` flag), and the hierarchy then ends
+   * with a row that says only the first files are shown.
    */
-  list(): Promise<readonly SourceFile[]>;
+  list(): Promise<FolderFileList>;
 }
 
 /** What a FolderHierarchy reads its folder with. */
@@ -50,8 +55,12 @@ export interface FolderHierarchyOptions {
 export interface HierarchyItem {
   /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
   label: string;
-  /** A file's kind, `group` for a project, a folder or a model's External Data, or `missing` for a reference no file answers. */
-  kind: NodeKind;
+  /**
+   * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
+   * reference no file answers, or `notice` for the row that says something of the folder rather
+   * than being in it (that only its first files are shown).
+   */
+  kind: NodeKind | 'notice';
   /** What a group is (`kind` is `group`). */
   groupKind?: GroupKind;
   /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
@@ -121,6 +130,8 @@ export function healthOf(node: GraphNode, dirty: boolean): HealthState | null {
  */
 export class FolderHierarchy {
   private graph: Promise<RelGraph> | null = null;
+  // How many files a graph was built from, for a graph whose listing was cut short.
+  private readonly cutAt = new WeakMap<RelGraph, number>();
   /** The cache its reads go through: hand it to the app's other folder passes (UsageGraphs), to read the folder once. */
   readonly cache: SourceCache;
   private readonly nodes = new WeakMap<HierarchyItem, GraphNode>();
@@ -130,10 +141,17 @@ export class FolderHierarchy {
     this.cache = options.cache ?? newSourceCache();
   }
 
-  /** The top level: a row per project, then per folder, each by name. */
+  /**
+   * The top level: a row per project, then per folder, each by name; and last, when the folder's
+   * listing was cut short (FolderFileList.truncated), a `notice` row that says only its first
+   * files are shown.
+   */
   async roots(): Promise<HierarchyItem[]> {
     const graph = await this.ensureGraph();
-    return this.itemsOf(graph.roots(), '');
+    const items = this.itemsOf(graph.roots(), '');
+    const cut = this.cutAt.get(graph);
+    if (cut !== undefined) items.push(truncatedNotice(cut));
+    return items;
   }
 
   /**
@@ -242,7 +260,9 @@ export class FolderHierarchy {
   // pass over the same artifacts: a build after a save reads the saved file and `stat`s the rest.
   private async buildGraph(): Promise<RelGraph> {
     const files = await this.options.files.list();
-    return new RelGraph(await graphSourcesOf(this.cache, this.options.reader(files), files));
+    const graph = new RelGraph(await graphSourcesOf(this.cache, this.options.reader(files), files));
+    if (isTruncated(files)) this.cutAt.set(graph, files.length);
+    return graph;
   }
 
   private itemsOf(nodes: readonly GraphNode[], parentKey: string): HierarchyItem[] {
@@ -304,6 +324,19 @@ export class FolderHierarchy {
       key,
     };
   }
+}
+
+/** The row that ends a folder whose listing stopped at `count` files. */
+function truncatedNotice(count: number): HierarchyItem {
+  const n = count.toLocaleString('en-US');
+  return {
+    label: count === 1 ? 'Only the first file is shown' : `Only the first ${n} files are shown`,
+    kind: 'notice',
+    collapsible: 'none',
+    tooltip: `This folder holds more data files than the ${n} listed. Open a folder inside it to see the rest.`,
+    // No group's or file's key: those are `project:`, `folder:`, `external-data:` or a uri.
+    key: `/${encodeURIComponent('notice:truncated')}`,
+  };
 }
 
 // Who a node is among its siblings: its file, or its group's directory, or its kind and label.

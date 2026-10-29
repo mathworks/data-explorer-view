@@ -1,5 +1,6 @@
 import { type SourceCache, type SourceFile } from 'data-explorer-core';
 import type { LinkTarget } from '../ids/linkTarget.js';
+import { type FolderFileList } from './folderList.js';
 import { type GraphNode, type GroupKind, type NodeKind } from './graphModel.js';
 import { type GraphReader } from './graphSources.js';
 import type { HealthState } from './health.js';
@@ -9,8 +10,12 @@ export interface FolderFiles {
      * Every supported file in the folder, listed afresh for each build. In a STABLE order: folder
      * order decides which of two same-named files a reference resolves to, so the same folder must
      * list the same way every time (a code-point sort of the paths does).
+     *
+     * A plain `SourceFile[]` is an answer. One that stopped at a limit says so with `truncated`
+     * (FolderFileList; `listedFiles` keeps core's `listFolder` flag), and the hierarchy then ends
+     * with a row that says only the first files are shown.
      */
-    list(): Promise<readonly SourceFile[]>;
+    list(): Promise<FolderFileList>;
 }
 /** What a FolderHierarchy reads its folder with. */
 export interface FolderHierarchyOptions {
@@ -33,8 +38,12 @@ export interface FolderHierarchyOptions {
 export interface HierarchyItem {
     /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
     label: string;
-    /** A file's kind, `group` for a project, a folder or a model's External Data, or `missing` for a reference no file answers. */
-    kind: NodeKind;
+    /**
+     * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
+     * reference no file answers, or `notice` for the row that says something of the folder rather
+     * than being in it (that only its first files are shown).
+     */
+    kind: NodeKind | 'notice';
     /** What a group is (`kind` is `group`). */
     groupKind?: GroupKind;
     /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
@@ -77,12 +86,17 @@ export declare function healthOf(node: GraphNode, dirty: boolean): HealthState |
 export declare class FolderHierarchy {
     private readonly options;
     private graph;
+    private readonly cutAt;
     /** The cache its reads go through: hand it to the app's other folder passes (UsageGraphs), to read the folder once. */
     readonly cache: SourceCache;
     private readonly nodes;
     private readonly listeners;
     constructor(options: FolderHierarchyOptions);
-    /** The top level: a row per project, then per folder, each by name. */
+    /**
+     * The top level: a row per project, then per folder, each by name; and last, when the folder's
+     * listing was cut short (FolderFileList.truncated), a `notice` row that says only its first
+     * files are shown.
+     */
     roots(): Promise<HierarchyItem[]>;
     /**
      * The rows under `item`, from the graph as it is now: an item from before a rebuild answers

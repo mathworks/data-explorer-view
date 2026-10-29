@@ -1,3 +1,4 @@
+import { folderFileList } from '../hierarchy/folderList.js';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
@@ -29,7 +30,7 @@ function storeOf(value) {
  * build of a hierarchy:
  *
  * ```ts
- * const folder = folderReader(port);
+ * const folder = folderReader(portFromMessagePort(port));
  * const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
  * folder.onChange(() => hierarchy.rebuild());
  * ```
@@ -45,8 +46,14 @@ export function folderReader(port) {
         if (!isRecord(m))
             return;
         if (m.type === 'folderChanged') {
-            for (const listener of [...listeners])
-                listener();
+            // Uris that are not a list are no hint at all: read it all again.
+            const uris = Array.isArray(m.uris) ? m.uris.filter((u) => typeof u === 'string') : undefined;
+            for (const listener of [...listeners]) {
+                if (uris)
+                    listener(uris);
+                else
+                    listener();
+            }
             return;
         }
         if (m.type !== 'folderAnswer' || typeof m.id !== 'number')
@@ -58,7 +65,7 @@ export function folderReader(port) {
         if (typeof m.error === 'string')
             pending.reject(new Error(m.error));
         else
-            pending.resolve(typeof m.refused === 'string' ? null : m.value);
+            pending.resolve({ value: typeof m.refused === 'string' ? null : m.value, truncated: m.truncated === true });
     });
     const ask = (what, file) => {
         if (closed)
@@ -71,13 +78,16 @@ export function folderReader(port) {
         });
     };
     return {
-        list: async () => filesOf(await ask('list')),
-        version: async (file) => {
-            const version = await ask('version', file);
-            return typeof version === 'string' ? version : null;
+        list: async () => {
+            const { value, truncated } = await ask('list');
+            return folderFileList(filesOf(value), truncated);
         },
-        bytes: async (file) => bytesOf(await ask('bytes', file)),
-        projectStore: async (file) => storeOf(await ask('projectStore', file)),
+        version: async (file) => {
+            const { value } = await ask('version', file);
+            return typeof value === 'string' ? value : null;
+        },
+        bytes: async (file) => bytesOf((await ask('bytes', file)).value),
+        projectStore: async (file) => storeOf((await ask('projectStore', file)).value),
         onChange(listener) {
             listeners.add(listener);
             return () => void listeners.delete(listener);

@@ -57,6 +57,7 @@ defineVariableEditor();
 |---|---|
 | `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions, a folder's hierarchy |
 | `data-explorer-view/host` | for a host that serves the wire format, not for an app: the document registry over core's module-level session, the answers posted to a webview, the inspector's page (also in `/model` until 1.0, deprecated there) |
+| `data-explorer-view/serve` | for the process that holds the files and draws nothing (Electron's main, a worker): `serveFolder`, `serveTable`, `sourceUri`, `listedFiles` and the port adapters, loading nothing else (also in `/model`) |
 | `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
 | `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
 | `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |
@@ -169,8 +170,11 @@ handle.reveal(activeTab.uri); // show the file the app has open: its row opened 
 ```
 
 The app lists the folder and reads its files: in Electron or Node, core's
-`nodeSourceReader(files)` and `readProjectStoreFromDisk(path)`
-(`data-explorer-core/node`) are a reader. `hierarchy.rebuild()` reads the
+`listFolder(root)`, `nodeSourceReader(files)` and `readProjectStoreFromDisk(path)`
+(`data-explorer-core/node/folder`) are a listing and a reader, and
+`listedFiles(listing)` turns the listing into the folder's files. A listing cut
+at its limit says so (`truncated`), and the tree then ends with a row that says
+only the first files are shown. `hierarchy.rebuild()` reads the
 folder again when a file in it is created, deleted or saved (only what changed
 is read), and `refresh()` redraws the marks for a file's unsaved changes
 (`isDirty`). `resolveReference(name, referrer)` answers which file a bare name
@@ -183,8 +187,10 @@ port)` there (Electron's main process, a worker), and `folderReader(port)` in
 the page, which is both the folder's `files` and its `reader`
 (`new FolderHierarchy({ files: folder, reader: () => folder })`). The host reads
 only the files it listed: a question names a file by its exact uri in the host's
-own listing, and any other is refused with nothing read. `changed()` on its end
-tells the page's `onChange` listeners to rebuild. A table beside the tree opens the file the tree
+own listing, and any other is refused with nothing read. `changed(uris?)` on its
+end tells the page's `onChange` listeners to rebuild, with the files a watcher
+saw change when it knows them (a hint: the page lists again to tell what came,
+went or was saved). A table beside the tree opens the file the tree
 shows for a name a link holds with connectTable's `resolveLink:
 (link, fromUri) => hierarchy.resolveLink(link, fromUri)`, whose answer arrives on
 `navigate` as `uri`. See [the hierarchy's page](docs/widgets/hierarchy.md).
@@ -235,6 +241,39 @@ const names = new NameIndex({ files, reader: (files) => ({ ...readerFor(files), 
 const records = sortNameRecords(await names.list());
 for (const item of searchEntries(records, 'Gain')) list.append(rowFor(item.label, item.description, item.iconId));
 ```
+
+### Serve a folder from Electron's main process
+
+Main serves the folder over one end of a `MessageChannelMain` and sends the page
+the other. A port cannot cross `contextBridge`, so the preload hands it into the
+page with `window.postMessage`, and the page takes it only from its own window:
+
+```js
+// main: data-explorer-view/serve and core's node/folder load neither view's model nor core's
+import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+import { listedFiles, portFromMainPort, serveFolder, sourceUri } from 'data-explorer-view/serve';
+const { port1, port2 } = new MessageChannelMain();
+const served = serveFolder({
+  files: { list: async () => listedFiles(await listFolder(root)) },
+  reader: (files) => ({ ...nodeSourceReader(files), projectStore: (f) => readProjectStoreFromDisk(f.path) }),
+}, portFromMainPort(port1));
+watch(root, { recursive: true }, (_e, name) => name && served.changed([sourceUri(join(root, String(name)))]));
+win.webContents.postMessage('folder-port', null, [port2]);
+
+// preload
+ipcRenderer.on('folder-port', (e) => window.postMessage({ type: 'folder-port' }, '*', e.ports));
+
+// page
+window.addEventListener('message', (e) => {
+  if (e.source !== window || e.data?.type !== 'folder-port' || !e.ports[0]) return;
+  const folder = folderReader(portFromMessagePort(e.ports[0]));
+  const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
+  folder.onChange(() => hierarchy.rebuild());
+  connectHierarchy(tree, hierarchy, { expandTopLevel: true });
+});
+```
+
+Debouncing the watcher's bursts is the app's: each `changed()` is one message.
 
 ## What is in it
 

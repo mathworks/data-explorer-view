@@ -89,6 +89,20 @@ describe('the rows', () => {
     expect(asked).toEqual(['/w', '/w/m']);
   });
 
+  it('draws a notice, the row that says only the first files are shown, with an information mark', async () => {
+    const NOTICE = item('/notice%3Atruncated', 'Only the first 2 files are shown', { kind: 'notice', tooltip: 'More files.' });
+    const el = await tree();
+    el.items = [FOLDER, NOTICE];
+    await settle(el);
+    const row = rowOf(el, 'Only the first 2 files are shown');
+    expect(row.classList.contains('notice')).toBe(true);
+    expect(row.querySelector('svg.info')).not.toBeNull();
+    expect(row.querySelector('svg.warning, dex-icon')).toBeNull();
+    expect(row.getAttribute('aria-expanded')).toBeNull();
+    expect(row.title).toBe('More files.');
+    expect(rows(el).at(-1)).toBe(row);
+  });
+
   it('marks an unresolved reference with a warning, and a file with unsaved changes with a badge', async () => {
     const el = await tree();
     el.expandedKeys = ['/w', '/w/m'];

@@ -216,11 +216,28 @@ export interface FolderAnswerMessage {
    * was not given.
    */
   refused?: string;
+  /**
+   * On the answer to a `list`: true when the listing was cut short, the folder holding more
+   * supported files than `value` (FolderFileList.truncated, which a structured clone of the array
+   * would drop). Absent: all of them. A page that does not know the field reads the files alone.
+   */
+  truncated?: boolean;
 }
 
-/** The folder changed (a file created, deleted or saved): the page reads it again (FolderHierarchy.rebuild). */
+/**
+ * The folder changed: the page reads it again (FolderHierarchy.rebuild, UsageGraphs and
+ * NameIndex invalidate).
+ *
+ * `uris`, when the host knows them, are the files the change touched, by their uriString in the
+ * listing's form (`sourceUri(path)`). A HINT only: it does not say whether each was created,
+ * deleted or saved (the page tells those apart by listing the folder again), a host may send one
+ * change as several messages or several as one, and none may be missing from what it knows.
+ * Absent means something changed, read it all again, as a page that does not know the field
+ * does in any case.
+ */
 export interface FolderChangedMessage {
   type: 'folderChanged';
+  uris?: string[];
 }
 
 /** Every message a folder's host sends the page's end. */

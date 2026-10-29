@@ -3,8 +3,13 @@ import type { GraphReader } from '../hierarchy/graphSources.js';
 import type { TablePort } from './wire.js';
 /** A folder read across a channel: what folderReader returns. */
 export interface FolderReader extends FolderFiles, GraphReader {
-    /** Hear the host say the folder changed (its FolderServer's `changed()`), until the returned function is called. */
-    onChange(listener: () => void): () => void;
+    /**
+     * Hear the host say the folder changed (its FolderServer's `changed()`), until the returned
+     * function is called. `uris`, when the host sent them, are the files the change touched, by
+     * their uriString as the listing has them: a hint, which does not say whether each was created,
+     * deleted or saved (list the folder again for that). Absent: something changed.
+     */
+    onChange(listener: (uris?: readonly string[]) => void): () => void;
     /** Stop listening, and reject what is still waiting. */
     dispose(): void;
 }
@@ -16,7 +21,7 @@ export interface FolderReader extends FolderFiles, GraphReader {
  * build of a hierarchy:
  *
  * ```ts
- * const folder = folderReader(port);
+ * const folder = folderReader(portFromMessagePort(port));
  * const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
  * folder.onChange(() => hierarchy.rebuild());
  * ```

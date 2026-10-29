@@ -191,6 +191,8 @@ describe('an app written in TypeScript, against the built package', () => {
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
     import { projectPageMessage, readProjectPage, type SetProjectMessage } from 'data-explorer-view/model';
     import { folderReader, serveFolder, type FolderReader, type FolderReads, type FolderServer, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
+    import { folderFileList, portFromMessagePort, type FolderFileList } from 'data-explorer-view/model';
+    import * as serve from 'data-explorer-view/serve';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -376,6 +378,38 @@ describe('an app written in TypeScript, against the built package', () => {
       const asked: FolderRequestMessage = { type: 'folderRequest', id: 1, ask: 'bytes', uri: sourceUri('/w/a.sldd') };
       const answered: FolderHostMessage = { type: 'folderAnswer', id: asked.id, value: new ArrayBuffer(0) };
       void answered;
+      // What changed, as a hint; a listing cut short; a notice row among the rows.
+      served.changed([sourceUri('/w/a.sldd')]);
+      remote.onChange((uris) => uris?.map(s))();
+      const changed: FolderHostMessage = { type: 'folderChanged', uris: ['file:///w/a.sldd'] };
+      void changed;
+      const listing: FolderFileList = await remote.list();
+      b(listing.truncated ?? false);
+      listing.filter((f) => f.path).map((f) => s(f.uriString));
+      const capped: FolderReads = { files: { list: async () => folderFileList([], true) }, reader: () => read };
+      void capped;
+      for (const item of await across.roots()) if (item.kind === 'notice') s(item.label);
+      // The host's end, from the entry made for it: a main process's port by its shape, a page's MessagePort.
+      class ElectronMessagePortMain {
+        // As Electron 44 declares MessagePortMain: overloads for 'close' and 'message'.
+        on(event: 'close', listener: () => void): this;
+        on(event: 'message', listener: (messageEvent: { data: any; ports: ElectronMessagePortMain[] }) => void): this;
+        on(): this { return this; }
+        off(event: 'close', listener: () => void): this;
+        off(event: 'message', listener: (messageEvent: { data: any; ports: ElectronMessagePortMain[] }) => void): this;
+        off(): this { return this; }
+        close(): void {}
+        postMessage(message: any, transfer?: ElectronMessagePortMain[]): void { void message; void transfer; }
+        start(): void {}
+      }
+      const main: serve.MainPort = new ElectronMessagePortMain();
+      const fromMain: serve.TablePort = serve.portFromMainPort(main);
+      serve.serveFolder({ files: { list: async () => serve.listedFiles({ files: ['/w/a.sldd'], truncated: true }) }, reader: () => read }, fromMain).changed([serve.sourceUri('/w/a.sldd')]);
+      serve.serveTable(doc.table, fromMain)();
+      const page: TablePort = portFromMessagePort(new MessageChannel().port1);
+      // @ts-expect-error a MessagePortMain is not a DOM MessagePort
+      portFromMessagePort(main);
+      void page;
       remote.dispose();
       served.dispose();
       linked.dispose();

@@ -75,6 +75,11 @@ export { serveTable } from './source/serveTable.js';
 // (serveFolder, where the files are), and the page's (folderReader), in the same wire format.
 export { serveFolder } from './source/serveFolder.js';
 export { folderReader } from './source/folderReader.js';
+// A folder's files as a listing answers them, saying when it was cut short; and the ports a
+// channel comes in (a MessagePort, Electron's MessagePortMain). A host has these, serveFolder and
+// serveTable on data-explorer-view/serve too, which loads nothing else.
+export { folderFileList, listedFiles } from './hierarchy/folderList.js';
+export { portFromMainPort, portFromMessagePort } from './source/ports.js';
 // A dictionary's parts read off disk, under the read policy (a source that cannot be read is a
 // failure, not an empty dictionary).
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';

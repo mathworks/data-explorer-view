@@ -13,7 +13,9 @@ import type { SourceFile } from 'data-explorer-core';
 import { nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node';
 import {
   FolderHierarchy,
+  folderFileList,
   folderReader,
+  listedFiles,
   serveFolder,
   sourceUri,
   type FolderReads,
@@ -31,7 +33,7 @@ const tick = () => new Promise((done) => setTimeout(done, 5));
 
 /** What the host's reader was asked, by path. */
 let read: string[] = [];
-let listed: SourceFile[] = [A, B];
+let listed: readonly SourceFile[] = [A, B];
 
 function memoryFolder(contents: Record<string, ArrayBuffer>, overrides: Partial<GraphReader> = {}): FolderReads {
   return {
@@ -228,6 +230,90 @@ describe('a folder across a channel', () => {
     reader.dispose();
     await expect(waiting).rejects.toThrow('This folder reader is closed.');
     await expect(reader.version(A)).rejects.toThrow('This folder reader is closed.');
+  });
+});
+
+describe('a listing cut short', () => {
+  it('says so across the channel, and a listing of them all says nothing', async () => {
+    listed = folderFileList([A], true);
+    const { reader, page } = across(memoryFolder({}));
+    const raw: Record<string, unknown>[] = [];
+    stops.push(page.onMessage((m) => void raw.push(m as Record<string, unknown>)));
+    const cut = await reader.list();
+    expect([...cut]).toEqual([A]);
+    expect(cut.truncated).toBe(true);
+    // On the wire, beside the files: an array's own flag would not survive the clone.
+    expect(raw.find((m) => m.type === 'folderAnswer')).toEqual({ type: 'folderAnswer', id: 1, value: [A], truncated: true });
+    listed = [A, B];
+    const all = await reader.list();
+    expect(all.truncated).toBeUndefined();
+    expect(raw.filter((m) => m.type === 'folderAnswer')[1]).toEqual({ type: 'folderAnswer', id: 2, value: [A, B] });
+  });
+
+  it("keeps core's listing's flag, each path under its sourceUri", () => {
+    const cut = listedFiles({ files: ['/w/a.sldd', 'C:\\w\\b.sldd'], truncated: true });
+    expect([...cut]).toEqual([A, { uriString: 'file:///c%3A/w/b.sldd', path: 'C:\\w\\b.sldd' }]);
+    expect(cut.truncated).toBe(true);
+    expect(listedFiles({ files: ['/w/a.sldd'], truncated: false }).truncated).toBeUndefined();
+    expect(listedFiles({ files: [] }).truncated).toBeUndefined();
+  });
+
+  it('ends a hierarchy across the channel with a row that says only the first files are shown', async () => {
+    listed = folderFileList([A, B], true);
+    const { reader } = across(memoryFolder({}));
+    const roots = await new FolderHierarchy({ files: reader, reader: () => reader }).roots();
+    expect(roots.map((r) => [r.kind, r.label])).toEqual([
+      ['group', 'w'],
+      ['notice', 'Only the first 2 files are shown'],
+    ]);
+  });
+});
+
+describe('what changed', () => {
+  async function hearing(uris?: readonly string[][]) {
+    const { server, reader, page } = across(memoryFolder({}));
+    const heard: { args: number; uris: readonly string[] | undefined }[] = [];
+    reader.onChange((...args: (readonly string[] | undefined)[]) => void heard.push({ args: args.length, uris: args[0] }));
+    const raw: unknown[] = [];
+    stops.push(page.onMessage((m) => void raw.push(m)));
+    for (const batch of uris ?? []) server.changed(batch);
+    return { server, heard, raw };
+  }
+
+  it('carries the uris the host names, as it names them', async () => {
+    const touched = Object.freeze([A.uriString, sourceUri('/w/my plant@corp.slx')]);
+    const { heard, raw } = await hearing([touched]);
+    await tick();
+    expect(heard).toEqual([{ args: 1, uris: [A.uriString, 'file:///w/my%20plant%40corp.slx'] }]);
+    expect(raw).toEqual([{ type: 'folderChanged', uris: [A.uriString, 'file:///w/my%20plant%40corp.slx'] }]);
+  });
+
+  it('leaves them absent when the host names none: something changed', async () => {
+    const { server, heard, raw } = await hearing();
+    server.changed();
+    await tick();
+    expect(heard).toEqual([{ args: 0, uris: undefined }]);
+    expect(raw).toEqual([{ type: 'folderChanged' }]);
+  });
+
+  it('passes a burst through as it comes, one change a call, in order', async () => {
+    const { server, heard } = await hearing([[A.uriString], [B.uriString], [A.uriString, B.uriString]]);
+    server.changed();
+    server.changed([]);
+    await tick();
+    expect(heard.map((h) => h.uris)).toEqual([[A.uriString], [B.uriString], [A.uriString, B.uriString], undefined, []]);
+  });
+
+  it('reads uris that are not a list of strings as none: something changed', async () => {
+    const [host, page] = channel();
+    const reader = folderReader(page);
+    stops.push(() => reader.dispose());
+    const heard: (readonly string[] | undefined)[] = [];
+    reader.onChange((uris) => void heard.push(uris));
+    host.postMessage({ type: 'folderChanged', uris: 'file:///w/a.sldd' });
+    host.postMessage({ type: 'folderChanged', uris: [A.uriString, 7, null] });
+    await tick();
+    expect(heard).toEqual([undefined, [A.uriString]]);
   });
 });
 

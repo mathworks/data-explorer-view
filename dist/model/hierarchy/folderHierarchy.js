@@ -13,6 +13,7 @@
 // knows where the files are.
 import { newSourceCache } from 'data-explorer-core';
 import { srcIdToUriString } from '../ids/srcId.js';
+import { isTruncated } from './folderList.js';
 import { RelGraph } from './graphModel.js';
 import { graphSourcesOf } from './graphSources.js';
 // The icon a node draws, by kind. `project` is a safety net: a project marker heads a group,
@@ -62,14 +63,24 @@ export class FolderHierarchy {
     constructor(options) {
         this.options = options;
         this.graph = null;
+        // How many files a graph was built from, for a graph whose listing was cut short.
+        this.cutAt = new WeakMap();
         this.nodes = new WeakMap();
         this.listeners = new Set();
         this.cache = options.cache ?? newSourceCache();
     }
-    /** The top level: a row per project, then per folder, each by name. */
+    /**
+     * The top level: a row per project, then per folder, each by name; and last, when the folder's
+     * listing was cut short (FolderFileList.truncated), a `notice` row that says only its first
+     * files are shown.
+     */
     async roots() {
         const graph = await this.ensureGraph();
-        return this.itemsOf(graph.roots(), '');
+        const items = this.itemsOf(graph.roots(), '');
+        const cut = this.cutAt.get(graph);
+        if (cut !== undefined)
+            items.push(truncatedNotice(cut));
+        return items;
     }
     /**
      * The rows under `item`, from the graph as it is now: an item from before a rebuild answers
@@ -177,7 +188,10 @@ export class FolderHierarchy {
     // pass over the same artifacts: a build after a save reads the saved file and `stat`s the rest.
     async buildGraph() {
         const files = await this.options.files.list();
-        return new RelGraph(await graphSourcesOf(this.cache, this.options.reader(files), files));
+        const graph = new RelGraph(await graphSourcesOf(this.cache, this.options.reader(files), files));
+        if (isTruncated(files))
+            this.cutAt.set(graph, files.length);
+        return graph;
     }
     itemsOf(nodes, parentKey) {
         const seen = new Map();
@@ -237,6 +251,18 @@ export class FolderHierarchy {
             key,
         };
     }
+}
+/** The row that ends a folder whose listing stopped at `count` files. */
+function truncatedNotice(count) {
+    const n = count.toLocaleString('en-US');
+    return {
+        label: count === 1 ? 'Only the first file is shown' : `Only the first ${n} files are shown`,
+        kind: 'notice',
+        collapsible: 'none',
+        tooltip: `This folder holds more data files than the ${n} listed. Open a folder inside it to see the rest.`,
+        // No group's or file's key: those are `project:`, `folder:`, `external-data:` or a uri.
+        key: `/${encodeURIComponent('notice:truncated')}`,
+    };
 }
 // Who a node is among its siblings: its file, or its group's directory, or its kind and label.
 function localKey(node) {
