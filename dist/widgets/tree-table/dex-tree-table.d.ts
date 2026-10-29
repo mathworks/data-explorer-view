@@ -84,9 +84,34 @@ export declare class DexTreeTable extends LitElement {
     canAdd: boolean;
     addClasses: readonly string[] | null;
     rowDrag: boolean;
+    readonly: boolean;
+    private get _addsEntries();
+    private get _dragsRows();
+    storageKey: string | null;
     get selectedRowId(): string;
     set selectedRowId(id: string);
     private _expandedIds;
+    /**
+     * The rows shown open, by id: a copy, the caller's to keep.
+     *
+     * Set it to open exactly these rows — an expansion the app saved, or the one it read before
+     * giving the table new rows (nextExpandedIds keeps those that still exist). An id with no row is
+     * kept, and opens its row if one comes. Setting it fetches nothing; expand() is the twisty's
+     * click, which asks for children the payload held back.
+     */
+    get expandedIds(): Set<string>;
+    set expandedIds(ids: Iterable<string>);
+    /**
+     * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
+     * closed, and a row whose children the payload held back (`_lazy`) asks for them once
+     * (dex-request-children). Read off `rows` as they are now, so it may follow an assignment of
+     * them directly.
+     */
+    expand(ids: Iterable<string>): void;
+    /** Closes these rows. */
+    collapse(ids: Iterable<string>): void;
+    expandTopLevel: boolean;
+    private _shownRows;
     private _filterText;
     private _filterParseCache;
     private _stickyRowIds;
@@ -154,6 +179,7 @@ export declare class DexTreeTable extends LitElement {
     private _boundOnWindowBlur;
     private _onWindowBlur;
     private _onDocumentClick;
+    private _loadedStorageKey;
     private _loadPersistedState;
     private _readKnownColumns;
     private _persistOrder;
@@ -252,6 +278,7 @@ export declare class DexTreeTable extends LitElement {
      */
     private _canExpand;
     private _toggleExpand;
+    private _requestChildren;
     private _expandAncestors;
     private _onContainerContextMenu;
     private _onRowContextMenu;

@@ -63,6 +63,7 @@ defineVariableEditor();
 | `data-explorer-view/error-dialog` | `<dex-error-dialog>` |
 | `data-explorer-view/project-page` | a project's page, as HTML and the stylesheet it is drawn with |
 | `data-explorer-view/icon` | `<dex-icon>` and `setIconBase` |
+| `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
 | `data-explorer-view/theme.css` | the colour, font and size tokens |
 | `data-explorer-view/icons/<id>.svg` | the icons |
 
@@ -97,6 +98,19 @@ import { defineTreeTable } from 'data-explorer-view/tree-table';
 defineTreeTable(); // <dex-tree-table>; or defineTreeTable('my-table')
 ```
 
+Every widget honours the `hidden` attribute, and sets its inline styles
+through the CSSOM, so it draws on a page whose Content-Security-Policy has no
+`style-src 'unsafe-inline'`. The tree table's defaults are a full editor; an
+app turns parts of it off or over:
+
+| Property (attribute) | Default | |
+|---|---|---|
+| `readonly` (`readonly`) | `false` | no cell editor, no `+ Add`, no row drag or drop |
+| `canAdd`, `rowDrag` | `false`, `true` | the `+ Add` button; dragging rows |
+| `expandTopLevel` (`expand-top-level`) | `false` | open the top level of the first rows, then keep what the user opened |
+| `expandedIds`, `expand(ids)`, `collapse(ids)` | | which rows are open |
+| `storageKey` (`storage-key`) | `'dex'` | the prefix of the localStorage keys the column choices are kept under; `null` keeps them out of storage |
+
 **`icons/`** holds the SVG files the widgets draw
 (`data-explorer-view/icons/<id>.svg`): every icon a row, an Add gallery tile or
 a button can ask for. By default a widget loads them from the package's own
@@ -111,6 +125,23 @@ import { setIconBase } from 'data-explorer-view/icon';
 
 setIconBase('./icons/'); // a folder URL; relative ones resolve against the page
 ```
+
+Or let the bundler copy them. `data-explorer-view/icon-assets` names each icon
+as `new URL('…/<id>.svg', import.meta.url)`, which bundlers that follow that
+form (Vite, webpack 5, Parcel) copy into the build, and `useIconAssets()` draws
+every icon from there, in place of `setIconBase`:
+
+```js
+import { useIconAssets } from 'data-explorer-view/icon-assets';
+
+useIconAssets(); // before the first icon renders
+```
+
+In Vite's dev server, leave the package out of dependency pre-bundling
+(`optimizeDeps: { exclude: ['data-explorer-view'] }`): a pre-bundled copy of
+the module is no longer beside the icons. Vite turns icons smaller than its
+`build.assetsInlineLimit` into `data:` URLs, so a Content-Security-Policy needs
+`img-src data:` unless that limit is 0.
 
 **`theme.css`** holds every colour, font and size token the widgets read: light
 defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets

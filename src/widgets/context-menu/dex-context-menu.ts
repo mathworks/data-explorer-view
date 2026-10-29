@@ -3,6 +3,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
 
 export interface ContextMenuItem {
@@ -37,7 +38,7 @@ export interface ContextMenuItem {
 }
 
 export class DexContextMenu extends LitElement {
-  static override styles = [menuitemFocusRingStyles, css`
+  static override styles = [hiddenStyles, menuitemFocusRingStyles, css`
     :host {
       position: fixed;
       z-index: 10000;

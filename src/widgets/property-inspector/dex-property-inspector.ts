@@ -4,6 +4,7 @@ import { LitElement, html, css } from 'lit';
 import { property } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 
@@ -30,7 +31,7 @@ export interface PropertyRow {
 }
 
 export class DexPropertyInspector extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: flex;
       flex-direction: column;
@@ -133,7 +134,7 @@ export class DexPropertyInspector extends LitElement {
       font-size: 11px;
       color: var(--dex-color-text-secondary, #555);
     }
-  `;
+  `];
 
   @property({ type: Array }) groups: PropertyGroup[] = [];
 

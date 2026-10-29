@@ -6,7 +6,7 @@ export interface MatrixOpenDetail {
     rowId?: string;
 }
 export declare class DexMatrixOpen extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     matrix: MatrixDescriptor | null;
     rowId?: string;
     focus(options?: FocusOptions): void;

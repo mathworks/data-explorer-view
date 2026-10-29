@@ -9,13 +9,14 @@ import { LitElement, html, css } from 'lit';
 import { property } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 export class DexPropertyInspector extends LitElement {
     constructor() {
         super(...arguments);
         this.groups = [];
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: flex;
       flex-direction: column;
@@ -118,7 +119,7 @@ export class DexPropertyInspector extends LitElement {
       font-size: 11px;
       color: var(--dex-color-text-secondary, #555);
     }
-  `; }
+  `]; }
     _onPropertyChange(propName, newValue, oldValue) {
         this.dispatchEvent(new CustomEvent('dex-property-changed', {
             detail: { propName, newValue, oldValue },

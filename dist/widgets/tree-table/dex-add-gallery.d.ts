@@ -1,6 +1,6 @@
 import { LitElement } from 'lit';
 export declare class DexAddGallery extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     /**
      * Whether an add keeps the popover open.
      *

@@ -14,7 +14,7 @@ export interface PropertyRow {
     matrix?: MatrixDescriptor;
 }
 export declare class DexPropertyInspector extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     groups: PropertyGroup[];
     private _onPropertyChange;
     private _onLinkClick;

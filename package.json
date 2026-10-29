@@ -53,6 +53,10 @@
       "types": "./dist/widgets/icon/index.d.ts",
       "default": "./dist/widgets/icon/index.js"
     },
+    "./icon-assets": {
+      "types": "./dist/widgets/icon-assets/index.d.ts",
+      "default": "./dist/widgets/icon-assets/index.js"
+    },
     "./theme.css": "./src/theme/tokens.css",
     "./icons/*": "./icons/*",
     "./model/*.js": {
@@ -66,7 +70,7 @@
     "./theme/*.css": "./src/theme/*.css"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/gen-icon-assets.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.model.json",
     "check:boundary": "node scripts/check-boundary.mjs",
     "check:leak": "node scripts/leak-check.mjs",

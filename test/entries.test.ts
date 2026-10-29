@@ -85,6 +85,7 @@ describe('every entry in package.json exports', () => {
       './error-dialog',
       './project-page',
       './icon',
+      './icon-assets',
       './theme.css',
     ]);
     expect(PATTERNS).toEqual(['./icons/*', './model/*.js', './widgets/*.js', './theme/*.css']);

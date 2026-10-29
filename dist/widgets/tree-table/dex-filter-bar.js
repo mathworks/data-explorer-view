@@ -18,6 +18,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { removeToken } from '../../model/filter/rowFilter.js';
 import { OP_GLYPHS } from './dex-column-filter.js';
 const GLYPH = new Map(OP_GLYPHS.map(([op, glyph]) => [op, glyph]));
@@ -37,7 +38,7 @@ export class DexFilterBar extends LitElement {
         /** The uncommitted tail. The one piece of state that is the bar's alone. */
         this._tail = '';
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: flex;
       flex: 1 1 auto;
@@ -188,7 +189,7 @@ export class DexFilterBar extends LitElement {
         outline: 2px solid Highlight !important;
       }
     }
-  `; }
+  `]; }
     /** Focus (and select) the tail — the Ctrl+F entry point, forwarded by the table. */
     focusInput() {
         this._input?.focus();

@@ -27,6 +27,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
+import { styleProps } from '../shared/styleProps.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 
 // Mirror of the host's MatrixDescriptor / MatrixPayload pair. Declared here rather
@@ -88,7 +90,7 @@ const DEFAULT_COL_WIDTH = 64;
 const DEFAULT_ROWHEADER_WIDTH = 36;
 
 export class DexMatrixGrid extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       display: block;
       /* The containing block for the probes below. They must NOT be inside
@@ -245,7 +247,7 @@ export class DexMatrixGrid extends LitElement {
 
     .pager button[disabled] { opacity: 0.4; cursor: default; }
     .pager select { font: inherit; }
-  `;
+  `];
 
   @property({ attribute: false }) matrix: MatrixPayload | null = null;
 
@@ -635,44 +637,44 @@ export class DexMatrixGrid extends LitElement {
     const cols = Array.from({ length: colWin.count }, (_, i) => colWin.start + i);
     // The row-number column plus the whole column axis, padding included, so the
     // scrollbar measures the matrix rather than the window.
-    const gridW = `width: ${headerW + colWin.span}px;`;
-    const cellW = `width: ${colW}px;`;
+    const gridW = { width: `${headerW + colWin.span}px` };
+    const cellW = { width: `${colW}px` };
     // A tooltip only where one says something. Cells clip only when the widest of them
     // wanted more than the cap, which numbers never do — so titling every cell would
     // put a one-second hover delay and a second copy of the number on a grid where
     // nothing is hidden.
     const clips = colW >= MAX_COL_WIDTH;
-    const padLeft = html`<div class="pad-cell pad-left" role="presentation" style="width: ${colWin.before}px"></div>`;
-    const padRight = html`<div class="pad-cell pad-right" role="presentation" style="width: ${colWin.after}px"></div>`;
+    const padLeft = html`<div class="pad-cell pad-left" role="presentation" ${styleProps({ width: `${colWin.before}px` })}></div>`;
+    const padRight = html`<div class="pad-cell pad-right" role="presentation" ${styleProps({ width: `${colWin.after}px` })}></div>`;
     return html`
       <div class="scroll" @scroll=${this._onScroll}>
         <div
           class="grid"
           role="grid"
-          style=${gridW}
+          ${styleProps(gridW)}
           aria-label=${this.matrix.name}
           aria-rowcount=${this._rows}
           aria-colcount=${this._cols}
           @keydown=${this._onKeydown}
         >
-          <div role="row" style="height: ${rowH}px">
-            <div role="columnheader" class="corner" style="width: ${headerW}px"></div>
+          <div role="row" ${styleProps({ height: `${rowH}px` })}>
+            <div role="columnheader" class="corner" ${styleProps({ width: `${headerW}px` })}></div>
             ${padLeft}
-            ${cols.map((c) => html`<div role="columnheader" aria-colindex=${c + 1} style=${cellW}>${c + 1}</div>`)}
+            ${cols.map((c) => html`<div role="columnheader" aria-colindex=${c + 1} ${styleProps(cellW)}>${c + 1}</div>`)}
             ${padRight}
           </div>
           <div class="pad-row" role="presentation">
-            <div class="pad-cell pad-top" role="presentation" style="height: ${rowWin.before}px"></div>
+            <div class="pad-cell pad-top" role="presentation" ${styleProps({ height: `${rowWin.before}px` })}></div>
           </div>
           ${rows.map((r) => html`
-            <div role="row" style="height: ${rowH}px">
-              <div role="rowheader" style="width: ${headerW}px">${r + 1}</div>
+            <div role="row" ${styleProps({ height: `${rowH}px` })}>
+              <div role="rowheader" ${styleProps({ width: `${headerW}px` })}>${r + 1}</div>
               ${padLeft}
               ${cols.map((c) => html`
                 <div
                   role="gridcell"
                   class=${num ? 'num' : ''}
-                  style=${cellW}
+                  ${styleProps(cellW)}
                   aria-rowindex=${r + 1}
                   aria-colindex=${c + 1}
                   aria-label=${this._cellLabel(r, c)}
@@ -685,7 +687,7 @@ export class DexMatrixGrid extends LitElement {
             </div>
           `)}
           <div class="pad-row" role="presentation">
-            <div class="pad-cell pad-bottom" role="presentation" style="height: ${rowWin.after}px"></div>
+            <div class="pad-cell pad-bottom" role="presentation" ${styleProps({ height: `${rowWin.after}px` })}></div>
           </div>
         </div>
       </div>

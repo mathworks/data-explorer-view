@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 export class DexErrorDialog extends LitElement {
     constructor() {
         super(...arguments);
@@ -39,7 +40,7 @@ export class DexErrorDialog extends LitElement {
             }
         };
     }
-    static { this.styles = css `
+    static { this.styles = [hiddenStyles, css `
     :host {
       display: none;
     }
@@ -159,7 +160,7 @@ export class DexErrorDialog extends LitElement {
       color: var(--dex-color-error, #d32f2f);
       border-color: var(--dex-color-error, #d32f2f);
     }
-  `; }
+  `]; }
     show(opts) {
         this._returnFocusTo = opts.returnFocusTo || this._findActiveElement();
         this.dialogTitle = opts.title || 'Invalid Value';

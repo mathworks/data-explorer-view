@@ -18,6 +18,7 @@
 import { LitElement, html, css } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineIcon } from '../shared/dex-icon.js';
 import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '../../model/ids/addCatalog.js';
 import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js';
@@ -54,7 +55,7 @@ import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js
 const ICON_SIZE = 24;
 
 export class DexAddGallery extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     /* No position and no z-index here. WHERE this goes is the table's business, because the
        anchor is the table's search bar and the width comes off the editor tab — see the
        dex-add-gallery rule in dex-tree-table.ts, which hangs this box under the bar in CSS
@@ -438,7 +439,7 @@ export class DexAddGallery extends LitElement {
         outline-offset: 1px !important;
       }
     }
-  `;
+  `];
 
   /**
    * Whether an add keeps the popover open.

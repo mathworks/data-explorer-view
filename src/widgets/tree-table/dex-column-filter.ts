@@ -10,6 +10,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { property, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { formatToken, type FilterOp } from '../../model/filter/rowFilter.js';
 
 // Glyph per operator: chips and radios must agree, and `≠ ≥ ≤` read faster than
@@ -25,7 +26,7 @@ export const OP_GLYPHS: ReadonlyArray<readonly [FilterOp, string, string]> = [
 ];
 
 export class DexColumnFilter extends LitElement {
-  static override styles = css`
+  static override styles = [hiddenStyles, css`
     :host {
       position: fixed;
       z-index: 1001;
@@ -155,7 +156,7 @@ export class DexColumnFilter extends LitElement {
         outline-offset: 1px !important;
       }
     }
-  `;
+  `];
 
   /** Column key the condition is about. */
   @property({ type: String }) column = '';

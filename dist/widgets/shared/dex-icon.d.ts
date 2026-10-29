@@ -12,8 +12,14 @@ import { LitElement } from 'lit';
  * nothing redraws the icons already on the page.
  */
 export declare function setIconBase(url: string): void;
+/**
+ * Tells every `<dex-icon>` drawn after it the URL of each icon by its id, in place of a folder; an
+ * id the table does not name is still `<base><id>.svg`. What useIconAssets calls with the URLs a
+ * bundler made; a later setIconBase goes back to the folder. Not on the `./icon` entry.
+ */
+export declare function setIconUrls(urls: Readonly<Record<string, string>> | null): void;
 export declare class DexIcon extends LitElement {
-    static styles: import("lit").CSSResult;
+    static styles: import("lit").CSSResult[];
     iconId: string;
     size: number;
     render(): import("lit-html").TemplateResult<1>;

@@ -8,11 +8,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { hiddenStyles } from '../shared/hidden.styles.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
+import { styleProps } from '../shared/styleProps.js';
 import { dragModeFromModifiers } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
 import { filterRows, formatToken, parseFilterExpression, removeToken, } from '../../model/filter/rowFilter.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import { nextExpandedIds } from '../../model/actions/rowUpdates.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 import { defineAddGallery } from './dex-add-gallery.js';
 import { defineColumnFilter } from './dex-column-filter.js';
@@ -108,8 +111,9 @@ const DEFAULT_HIDDEN_COLUMNS = ['Kind', 'Class', 'dimensions', 'dimensionsMode',
 // The built-in columns (DEFAULT_COLUMN_ORDER) as they were when the column state was
 // last saved. A saved hidden set says nothing about a column that did not exist yet, so
 // on load a default-hidden column missing from this record gets its default, hidden.
-// See _loadPersistedState.
-const KNOWN_COLUMNS_KEY = 'dex-known-columns';
+// See _loadPersistedState. Kept beside the order and the hidden set, under the table's
+// storageKey: `dex-known-columns` by default.
+const KNOWN_COLUMNS_KEY = 'known-columns';
 // The columns where an empty read-only cell means "this property does not exist for this
 // kind of object" rather than "this property is unset". Only these get the not-applicable
 // wash; see _cellStateClass for the measurement that picked them, and issue #26.
@@ -250,7 +254,34 @@ export class DexTreeTable extends LitElement {
         // read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
         // another table draws no drop target here, on a row or on the empty body.
         this.rowDrag = true;
+        // A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
+        // No cell editor opens — not on a double-click, not on Enter, not for beginRename or
+        // openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
+        // whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
+        // the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
+        // dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+        // what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
+        // False, the default, is the table as it always was, each cell's own flags deciding.
+        this.readonly = false;
+        // Where the user's column choices (which are shown, and their order) are kept: the page's
+        // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
+        // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
+        // so a layout saved before this existed carries over — and every table on the page that keeps
+        // the default shares one layout. An app gives each kind of table a key of its own, or null
+        // (or '') to keep the choices for this element's life only, with localStorage never touched.
+        // They are read when the table is connected, so a key set before then is the only one read; one
+        // set later reads again, from that key.
+        this.storageKey = 'dex';
         this._expandedIds = new Set();
+        // The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
+        // (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
+        // sections, a MAT-file's variables, though not one whose children were held back, whose first
+        // click fetches — and from then on the rows the user opened stay open while they exist, and
+        // what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
+        // was, to the app (expandedIds).
+        this.expandTopLevel = false;
+        // Whether rows with any in them have arrived: until then there is no expansion of the user's.
+        this._shownRows = false;
         this._filterText = '';
         // Not @state: derived from _filterText, and keyed by it so it cannot go stale.
         this._filterParseCache = null;
@@ -355,6 +386,9 @@ export class DexTreeTable extends LitElement {
         this._lastRowsRef = null;
         this._boundOnDocClick = null;
         this._boundOnWindowBlur = null;
+        // The storageKey the column choices were last read under, so a key set after the element was
+        // connected (an app that appends first and configures after) reads them again, from that key.
+        this._loadedStorageKey = undefined;
         // Keep _viewportHeight in sync with the actual container height. It can't be
         // measured reliably in firstUpdated: the first paint is often the empty-state
         // template (no `.table-container`) or a zero-height panel, so the height would
@@ -400,6 +434,7 @@ export class DexTreeTable extends LitElement {
         this._pendingFlashId = null;
     }
     static { this.styles = [
+        hiddenStyles,
         highContrastStyles,
         css `
       :host {
@@ -1497,11 +1532,67 @@ export class DexTreeTable extends LitElement {
       }
     `,
     ]; }
+    // Whether the `+ Add` button is drawn and the gallery can open.
+    get _addsEntries() {
+        return this.canAdd && !this.readonly;
+    }
+    // Whether a row can be dragged, or a dragged row let go over one (rowDrag, above).
+    get _dragsRows() {
+        return this.rowDrag && !this.readonly;
+    }
     get selectedRowId() {
         return this.selectedRowIds[this.selectedRowIds.length - 1] || '';
     }
     set selectedRowId(id) {
         this.selectedRowIds = id ? [id] : [];
+    }
+    /**
+     * The rows shown open, by id: a copy, the caller's to keep.
+     *
+     * Set it to open exactly these rows — an expansion the app saved, or the one it read before
+     * giving the table new rows (nextExpandedIds keeps those that still exist). An id with no row is
+     * kept, and opens its row if one comes. Setting it fetches nothing; expand() is the twisty's
+     * click, which asks for children the payload held back.
+     */
+    get expandedIds() {
+        return new Set(this._expandedIds);
+    }
+    set expandedIds(ids) {
+        this._expandedIds = new Set(ids);
+    }
+    /**
+     * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
+     * closed, and a row whose children the payload held back (`_lazy`) asks for them once
+     * (dex-request-children). Read off `rows` as they are now, so it may follow an assignment of
+     * them directly.
+     */
+    expand(ids) {
+        const parents = new Set();
+        const lazy = new Set();
+        for (const r of this.rows) {
+            if (r.parent !== null)
+                parents.add(r.parent);
+            if (r._lazy)
+                lazy.add(r.ID);
+        }
+        const next = new Set(this._expandedIds);
+        for (const id of ids) {
+            if (next.has(id) || (!parents.has(id) && !lazy.has(id)))
+                continue;
+            next.add(id);
+            if (!parents.has(id))
+                this._requestChildren(id);
+        }
+        this._expandedIds = next;
+        this._visibleRowsCache = null;
+    }
+    /** Closes these rows. */
+    collapse(ids) {
+        const next = new Set(this._expandedIds);
+        for (const id of ids)
+            next.delete(id);
+        this._expandedIds = next;
+        this._visibleRowsCache = null;
     }
     get _rowH() {
         const v = getComputedStyle(this).getPropertyValue('--dex-row-height');
@@ -1566,8 +1657,12 @@ export class DexTreeTable extends LitElement {
         }
     }
     _loadPersistedState() {
+        const key = this.storageKey;
+        this._loadedStorageKey = key;
+        if (!key)
+            return;
         try {
-            const orderJson = localStorage.getItem('dex-column-order');
+            const orderJson = localStorage.getItem(`${key}-column-order`);
             if (orderJson) {
                 const arr = JSON.parse(orderJson);
                 if (Array.isArray(arr) && arr.length > 0) {
@@ -1579,7 +1674,7 @@ export class DexTreeTable extends LitElement {
             /* ignore */
         }
         try {
-            const hiddenJson = localStorage.getItem('dex-hidden-columns');
+            const hiddenJson = localStorage.getItem(`${key}-hidden-columns`);
             if (hiddenJson) {
                 const arr = JSON.parse(hiddenJson);
                 if (Array.isArray(arr)) {
@@ -1590,7 +1685,7 @@ export class DexTreeTable extends LitElement {
                     // existed is left exactly as it is, because a current user may have chosen to
                     // keep the columns that leaked into view then. Reset columns is how such a user
                     // gets today's defaults back.
-                    const known = this._readKnownColumns();
+                    const known = this._readKnownColumns(key);
                     if (known) {
                         for (const c of DEFAULT_HIDDEN_COLUMNS) {
                             if (!known.has(c))
@@ -1615,23 +1710,30 @@ export class DexTreeTable extends LitElement {
     // no record (state saved before it existed) or the record cannot be read. Its own
     // try/catch, so an unreadable record is treated as absent rather than discarding the
     // saved hidden set with it.
-    _readKnownColumns() {
+    _readKnownColumns(key) {
         try {
-            const arr = JSON.parse(localStorage.getItem(KNOWN_COLUMNS_KEY) ?? 'null');
+            const arr = JSON.parse(localStorage.getItem(`${key}-${KNOWN_COLUMNS_KEY}`) ?? 'null');
             return Array.isArray(arr) ? new Set(arr.filter((c) => typeof c === 'string')) : null;
         }
         catch {
             return null;
         }
     }
-    // Both writers also record the built-in columns this state was saved against.
+    // Both writers also record the built-in columns this state was saved against. Neither
+    // writes anything for a table whose choices are not kept (storageKey null or '').
     _persistOrder() {
-        localStorage.setItem('dex-column-order', JSON.stringify(this._columnOrder));
-        localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+        const key = this.storageKey;
+        if (!key)
+            return;
+        localStorage.setItem(`${key}-column-order`, JSON.stringify(this._columnOrder));
+        localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
     }
     _persistHidden() {
-        localStorage.setItem('dex-hidden-columns', JSON.stringify([...this._hiddenColumns]));
-        localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+        const key = this.storageKey;
+        if (!key)
+            return;
+        localStorage.setItem(`${key}-hidden-columns`, JSON.stringify([...this._hiddenColumns]));
+        localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
     }
     // The set of columns this document supports. When the host provides `columns`
     // that is authoritative; otherwise fall back to the built-in default order.
@@ -1904,7 +2006,7 @@ export class DexTreeTable extends LitElement {
             this._closeAddGallery();
             return;
         }
-        if (!this.canAdd)
+        if (!this._addsEntries)
             return;
         this._addGalleryOpen = true;
     }
@@ -1919,6 +2021,8 @@ export class DexTreeTable extends LitElement {
         // The gallery's own event is composed, so without this it would also reach the
         // host-facing module, which would see the same click twice under two names.
         e.stopPropagation();
+        if (this.readonly)
+            return;
         const detail = e.detail;
         // Whether the new row should open its name editor travels WITH the request, because it
         // is a fact about this gesture and nothing later can recover it: by the time the host
@@ -2536,17 +2640,22 @@ export class DexTreeTable extends LitElement {
             // Guarded on the delivered count, not on the ask: a row re-marked `_lazy` after
             // delivering a budget's worth of children has rows under it already, and asking
             // again would re-deliver the same first budget for ever.
-            if (this._lazyIds.has(rowId) && !this._childCounts.has(rowId) && !this._pendingChildren.has(rowId)) {
-                this._pendingChildren.add(rowId);
-                this.dispatchEvent(new CustomEvent('dex-request-children', {
-                    detail: { nodeId: rowId },
-                    bubbles: true,
-                    composed: true,
-                }));
-            }
+            if (this._lazyIds.has(rowId) && !this._childCounts.has(rowId))
+                this._requestChildren(rowId);
         }
         this._expandedIds = newSet;
         this._visibleRowsCache = null;
+    }
+    // Asks for a deferred row's children, unless it has been asked about since its rows arrived.
+    _requestChildren(rowId) {
+        if (this._pendingChildren.has(rowId))
+            return;
+        this._pendingChildren.add(rowId);
+        this.dispatchEvent(new CustomEvent('dex-request-children', {
+            detail: { nodeId: rowId },
+            bubbles: true,
+            composed: true,
+        }));
     }
     _expandAncestors(rowIds) {
         const rowById = new Map();
@@ -2662,7 +2771,7 @@ export class DexTreeTable extends LitElement {
         return dragModeFromModifiers(navigator.platform, { altKey: e.altKey, ctrlKey: e.ctrlKey });
     }
     _onRowDragStart(rowId, e) {
-        if (!this.rowDrag) {
+        if (!this._dragsRows) {
             e.preventDefault();
             return;
         }
@@ -2721,7 +2830,7 @@ export class DexTreeTable extends LitElement {
         this.dispatchEvent(new CustomEvent('dex-row-drag-end', { bubbles: true, composed: true }));
     }
     _onRowDragOver(rowId, e) {
-        if (!this.rowDrag) {
+        if (!this._dragsRows) {
             // Not accepted (no preventDefault), and nothing drawn: no row of this table takes a drop.
             if (e.dataTransfer)
                 e.dataTransfer.dropEffect = 'none';
@@ -2800,7 +2909,7 @@ export class DexTreeTable extends LitElement {
     _onBodyDragOver(e) {
         if (this._isRowOrHeaderEvent(e) || this._dragColId)
             return;
-        if (!this.rowDrag || !this.dropPredictor) {
+        if (!this._dragsRows || !this.dropPredictor) {
             if (e.dataTransfer)
                 e.dataTransfer.dropEffect = 'none';
             return;
@@ -2828,7 +2937,7 @@ export class DexTreeTable extends LitElement {
             return;
         e.preventDefault();
         const mode = this._lastDragMode;
-        const decision = this.rowDrag && this.dropPredictor ? this.dropPredictor('', mode) : null;
+        const decision = this._dragsRows && this.dropPredictor ? this.dropPredictor('', mode) : null;
         this._dragSourceId = null;
         this._dropTargetId = null;
         this._dropPosition = null;
@@ -2851,6 +2960,10 @@ export class DexTreeTable extends LitElement {
     _onRowDrop(targetRowId, e) {
         e.preventDefault();
         e.stopPropagation();
+        // Unreachable from a real drag, whose dragover a read-only table never accepts; said here too,
+        // since this is the handler that sends the drop.
+        if (this.readonly)
+            return;
         // Use the mode from the last dragover, not the drop event: Chromium/macOS
         // often reports the modifier as released on `drop`, which would silently
         // downgrade a Cmd-drag Copy to a Move. dragover tracked it correctly.
@@ -2885,6 +2998,10 @@ export class DexTreeTable extends LitElement {
      * rests on. treeTableCellStates.test.ts pins the two against each other.
      */
     _cellEditTarget(row, columnId) {
+        // Read-only: no cell has an editor, whatever its flags say. Here, so every reader of the
+        // question — the gestures, beginRename, the drawn state, an open editor — has the same answer.
+        if (this.readonly)
+            return null;
         if (columnId === 'Name') {
             return row.Name?.editable ? { text: row.Name?.label || '' } : null;
         }
@@ -3437,7 +3554,7 @@ export class DexTreeTable extends LitElement {
             if (isEditing) {
                 return html `
           <div class="name-cell">
-            <span class="indent" style="width: ${depth * 16}px"></span>
+            <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
             <span class="toggle empty"></span>
             ${this._renderEditor(label)}
           </div>
@@ -3446,7 +3563,7 @@ export class DexTreeTable extends LitElement {
             const iconId = row.Name?.iconId || '';
             return html `
         <div class="name-cell">
-          <span class="indent" style="width: ${depth * 16}px"></span>
+          <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
           <span
             class="toggle ${hasChildren ? '' : 'empty'} ${awaiting ? 'loading' : ''}"
             title=${awaiting ? 'Loading…' : nothing}
@@ -3605,13 +3722,26 @@ export class DexTreeTable extends LitElement {
         return html ``;
     }
     willUpdate(changedProps) {
+        // A new key is another layout: the defaults, then whatever that key holds.
+        if (changedProps.has('storageKey') && this.storageKey !== this._loadedStorageKey) {
+            this._columnOrder = [...DEFAULT_COLUMN_ORDER];
+            this._hiddenColumns = new Set(DEFAULT_HIDDEN_COLUMNS);
+            this._loadPersistedState();
+        }
         if (changedProps.has('rows')) {
+            if (this.expandTopLevel)
+                this._expandedIds = nextExpandedIds(this._shownRows ? this._expandedIds : null, this.rows);
+            if (this.rows.length > 0)
+                this._shownRows = true;
             this._invalidateCache();
             this._buildCaches();
         }
-        if (changedProps.has('rows') || changedProps.has('columns')) {
+        if (changedProps.has('rows') || changedProps.has('columns') || changedProps.has('readonly')) {
             this._closeEditorIfCellNoLongerEditable();
         }
+        // Made read-only with the gallery open: nothing in it may be added any more.
+        if (changedProps.has('readonly') && this.readonly)
+            this._addGalleryOpen = false;
         if (changedProps.has('_expandedIds') || changedProps.has('_filterText') || changedProps.has('_sortState')) {
             this._visibleRowsCache = null;
         }
@@ -3777,18 +3907,19 @@ export class DexTreeTable extends LitElement {
         aria-rowcount=${totalRows + 1}
         aria-colcount=${visibleCols.length}
         aria-label="Data entries"
+        aria-readonly=${this.readonly ? 'true' : nothing}
         tabindex="0"
-        style="--dex-table-min-width: ${this._minTableWidth}px"
+        ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
         @keydown=${this._onTableKeyDown}
         @contextmenu=${this._onContainerContextMenu}
         @dragover=${this._onBodyDragOver}
         @drop=${this._onBodyDrop}
       >
-        <div class="virtual-spacer" style="height: ${totalHeight + headerHeight}px;">
+        <div class="virtual-spacer" ${styleProps({ height: `${totalHeight + headerHeight}px` })}>
           <table>
             <colgroup>
-              ${visibleCols.map((col) => html `<col style="width: ${this._getColWidth(col)}" />`)}
+              ${visibleCols.map((col) => html `<col ${styleProps({ width: this._getColWidth(col) })} />`)}
             </colgroup>
             <thead>
               <tr role="row">
@@ -3824,13 +3955,13 @@ export class DexTreeTable extends LitElement {
             </thead>
           </table>
           ${totalRows === 0 && this._filterText
-            ? html `<div class="no-match-state" style="top: ${headerHeight}px">
+            ? html `<div class="no-match-state" ${styleProps({ top: `${headerHeight}px` })}>
                 ${this._noMatchMessage()}
               </div>`
             : nothing}
-          <table class="rows-table" style="top: ${offsetTop}px;">
+          <table class="rows-table" ${styleProps({ top: `${offsetTop}px` })}>
             <colgroup>
-              ${visibleCols.map((col) => html `<col style="width: ${this._getColWidth(col)}" />`)}
+              ${visibleCols.map((col) => html `<col ${styleProps({ width: this._getColWidth(col) })} />`)}
             </colgroup>
             <tbody>
               ${sliceRows.map((row, ri) => {
@@ -3860,7 +3991,7 @@ export class DexTreeTable extends LitElement {
                     : 'drop-target-on'
                 : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''}"
                     data-row-id="${row.ID}"
-                    draggable=${this.rowDrag ? 'true' : 'false'}
+                    draggable=${this._dragsRows ? 'true' : 'false'}
                     @contextmenu=${(e) => this._onRowContextMenu(row.ID, e)}
                     @dragstart=${(e) => this._onRowDragStart(row.ID, e)}
                     @dragend=${(e) => this._onRowDragEnd(e)}
@@ -3910,7 +4041,7 @@ export class DexTreeTable extends LitElement {
         const countSuffix = this._dragCount > 1 ? ` (+${this._dragCount - 1})` : '';
         return html `<div
       class="drop-tooltip ${this._dropForbidden ? 'forbidden' : ''}"
-      style="left:${this._dropTooltipX + 14}px; top:${this._dropTooltipY + 16}px"
+      ${styleProps({ left: `${this._dropTooltipX + 14}px`, top: `${this._dropTooltipY + 16}px` })}
     >
       ${this._dropForbidden ? html `<span class="drop-tooltip-icon">⊘</span>` : ''}${this._dragIconId
             ? html `<dex-icon class="drop-tooltip-row-icon" .iconId=${this._dragIconId} .size=${14}></dex-icon>`
@@ -3921,7 +4052,7 @@ export class DexTreeTable extends LitElement {
     </div>`;
     }
     _renderAddButton() {
-        if (!this.canAdd)
+        if (!this._addsEntries)
             return nothing;
         return html `
       <button
@@ -3989,7 +4120,7 @@ export class DexTreeTable extends LitElement {
         const existing = this._tokenForColumn(col);
         return html `
       <dex-column-filter
-        style="left: ${this._filterPopupX}px; top: ${this._filterPopupY}px;"
+        ${styleProps({ left: `${this._filterPopupX}px`, top: `${this._filterPopupY}px` })}
         .column=${col}
         .columnLabel=${this.columnLabels?.[col] || col}
         .op=${existing?.op ?? 'contains'}
@@ -4007,7 +4138,7 @@ export class DexTreeTable extends LitElement {
         if (!this._columnMenuOpen)
             return nothing;
         return html `
-      <div class="column-menu" style="right: ${this._columnMenuX}px; top: ${this._columnMenuY}px;">
+      <div class="column-menu" ${styleProps({ right: `${this._columnMenuX}px`, top: `${this._columnMenuY}px` })}>
         ${(() => {
             let lastGroup = null;
             return this._orderedColumns.map((col) => {
@@ -4102,8 +4233,17 @@ __decorate([
     property({ type: Boolean })
 ], DexTreeTable.prototype, "rowDrag", void 0);
 __decorate([
+    property({ type: Boolean, reflect: true })
+], DexTreeTable.prototype, "readonly", void 0);
+__decorate([
+    property({ type: String, attribute: 'storage-key' })
+], DexTreeTable.prototype, "storageKey", void 0);
+__decorate([
     state()
 ], DexTreeTable.prototype, "_expandedIds", void 0);
+__decorate([
+    property({ type: Boolean, attribute: 'expand-top-level' })
+], DexTreeTable.prototype, "expandTopLevel", void 0);
 __decorate([
     state()
 ], DexTreeTable.prototype, "_filterText", void 0);
