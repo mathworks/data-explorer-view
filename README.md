@@ -94,50 +94,44 @@ document.addEventListener('dex-matrix-open', (e) => {
 ## Show a file in a table (preview)
 
 A workspace opens files in the page, with core, and gives each one a table
-source: what the table shows, and the answers it asks for as the user opens
-rows, values and the inspector.
+source; `connectTable` and `connectInspector` wire the widgets to it.
 
 ```js
 import { createWorkspace } from 'data-explorer-view/model';
+import { connectTable } from 'data-explorer-view/tree-table';
+import { connectInspector } from 'data-explorer-view/property-inspector';
 
-const ws = createWorkspace();
-const doc = await ws.open(await file.arrayBuffer(), file.name); // a File, from an <input> or a drop
-const view = await doc.table.open(); // rows, columns, headings and banners
+const doc = await createWorkspace().open(await file.arrayBuffer(), file.name); // a File, from an <input> or a drop
+const handle = connectTable(table, doc.table);
+connectInspector(inspector, handle); // follows the table's selection
 ```
 
-`connectTable` and `connectInspector`, coming next, will wire a table and an
-inspector to a source in one line each. Until then the widgets take the answers
-as they are, with no conversion:
+The table then shows the file and its banners (what the read could not read,
+what was held back), fetches the rows under a row as it is opened, opens the
+variable editor on a matrix and fills it, keeps what the user opened and
+selected when the file changes, selects the row a Data Type link names, and has
+a read-only context menu (Copy Name, Copy Value) and Ctrl+F. The rest is the
+app's, on the handle: `handle.on('navigate', ({ link }) => …)` for a link to
+another document or a file, `handle.on('select', (rowIds) => …)`,
+`handle.selectByName(name)` for a link that arrives from another table, and
+`menuItems` for the app's own menu items. The table's `readonly` stays the
+app's to set.
 
-```js
-import { mergeChildRows } from 'data-explorer-view/model';
-
-table.readonly = true;
-Object.assign(table, { rows: view.rows, columns: view.columns, columnLabels: view.columnLabels, columnGroups: view.columnGroups });
-table.addEventListener('dex-request-children', async (e) => {
-  const { nodeId, rows } = await doc.table.children(e.detail.nodeId); // the rows under a `_lazy` row
-  table.rows = mergeChildRows(table.rows, nodeId, rows) ?? table.rows;
-});
-table.addEventListener('dex-row-selected', async (e) => {
-  inspector.groups = (await doc.table.inspect(e.detail.rowIds)).groups; // the first row's properties
-});
-document.body.addEventListener('dex-matrix-open', async (e) => {
-  editor.show(e.detail.anchorEl, e.detail.matrix);
-  editor.deliver(await doc.table.matrix(e.detail.matrix.nodeId)); // the cells, or why there are none
-});
-```
-
-`view.notice` and `view.warnings` are the banners to show above the table, and
-`doc.table.open()` rejects, with the banner's words, for a file that cannot be
-read. When the file changes, `doc.reload(bytes)` reads it again and tells
-`doc.table.subscribe(listener)` the new view (`replaceAll`), or why it could
-not (`error`). A document's uri is its identity, in every row id: by default
+When the file changes, `doc.reload(bytes)` reads it again and the table
+repaints. A document's uri is its identity, in every row id: by default
 `file:///<name>`; to open two files that share a name, pass each one's
 `sourceUri(path)` as the third argument, which spells a path as VS Code does.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
 what the VS Code extension shows for the same file, read-only; editing comes in
 a later release, and so does the page a project (`doc.kind === 'project'`)
 opens on.
+
+A source can also be across a message channel, to a worker or another
+process holding the documents: `serveTable(doc.table, port)` on the side that
+holds them, and `connectTable(table, messageSource(port))` on the page's side,
+where `port` is any `{ postMessage, onMessage }` (`TablePort`). The messages
+are the extension's own table protocol (`TableHostMessage`,
+`TableClientMessage`), and the table behaves as it does beside its source.
 
 ## What is in it
 

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
-// The tree table alone: each kind of file in a table, the file picker, the read-only switch,
-// the selection it reports, and moving the selection with the arrow keys.
+// The tree table alone, fed by connectTable: each kind of file in a table, the file picker, the
+// read-only switch, the selection it reports, moving the selection with the arrow keys, the rows
+// a paint held back, the read-only menu and Ctrl+F.
 import { expect, row, test } from './gallery';
 
 const FILES = [
@@ -59,4 +60,38 @@ test('the read-only switch reaches the table', async ({ page }) => {
   await page.getByLabel('Read-only', { exact: true }).uncheck();
   await expect(grid).not.toHaveAttribute('aria-readonly', 'true');
   await expect(page.locator('dex-tree-table')).not.toHaveAttribute('readonly');
+});
+
+test('a row the paint held back opens onto its rows, under the banner that says so', async ({ page }) => {
+  await page.goto('tree-table.html?fixture=sldd-text&budget=5');
+  await expect(page.locator('dex-tree-table .banner-warning')).toContainText('This file is too large to load at once');
+  const rows = page.locator('dex-tree-table tr[role="row"][data-row-id]');
+  const before = await rows.count();
+  await row(page, 'Array').locator('.toggle').click();
+  await expect(row(page, 'Array')).toHaveAttribute('aria-expanded', 'true');
+  await expect.poll(() => rows.count()).toBeGreaterThan(before);
+  await expect(page.locator('#event-log li').filter({ hasText: 'dex-request-children' })).toHaveCount(1);
+});
+
+test('a right-click on a row opens the read-only menu', async ({ page }) => {
+  await page.goto('tree-table.html');
+  await row(page, 'Matrix').locator('td.col-Name').click({ button: 'right' });
+  const menu = page.locator('dex-context-menu');
+  await expect(menu).toHaveAttribute('open', '');
+  await expect(menu.locator('.item-label')).toHaveText(['Copy Name', 'Copy Value']);
+  await page.keyboard.press('Escape');
+  await expect(menu).not.toHaveAttribute('open', '');
+});
+
+test('Ctrl+F (Cmd+F) puts the caret in the search box', async ({ page }) => {
+  await page.goto('tree-table.html');
+  await row(page, 'Matrix').locator('td.col-Name').click();
+  await page.keyboard.press('ControlOrMeta+f');
+  const focused = () =>
+    page.evaluate(() => {
+      let el: Element | null = document.activeElement;
+      while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+      return el?.tagName ?? '';
+    });
+  await expect.poll(focused).toBe('INPUT');
 });

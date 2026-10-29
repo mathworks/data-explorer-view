@@ -6,6 +6,7 @@ import numericJson from '../../test/fixtures/numeric_json.sldd?url';
 import objectPropsBinary from '../../test/fixtures/object_props_binary.sldd?url';
 import ndNumeric from '../../test/fixtures/nd_numeric.mat?url';
 import sharedGain from '../../test/fixtures/shared_gain.slx?url';
+import type { Doc, Workspace } from 'data-explorer-view/model';
 import { labelled } from './shell';
 
 export interface Fixture {
@@ -31,6 +32,16 @@ export function fixtureById(id: string | null): Fixture {
 /** The fixture `?fixture=` names, or the first. */
 export function askedFixture(): Fixture {
   return fixtureById(new URLSearchParams(location.search).get('fixture'));
+}
+
+/**
+ * Open `fixture` in `ws` as an app opens a file the user picked: its bytes, its name, and a uri
+ * of its own (every row id begins with it).
+ */
+export async function openFixture(ws: Workspace, fixture: Fixture): Promise<Doc> {
+  const response = await fetch(fixture.url);
+  if (!response.ok) throw new Error(`${fixture.name}: ${response.status} ${response.statusText}`);
+  return ws.open(await response.arrayBuffer(), fixture.name, `file:///fixtures/${fixture.name}`);
 }
 
 /** A labelled <select> of the fixtures, on `fixture`. */
