@@ -15,6 +15,7 @@ import { createUsageRepostBus, repostsUsageOn } from './usageRepost.js';
 /** A repost hub over the app's watch. */
 export function createUsageRepostHub(options) {
     let live = null;
+    let stopped = false;
     const start = () => {
         const bus = createUsageRepostBus(options.delayMs, options.timers);
         const watch = options.watch((path) => {
@@ -29,6 +30,8 @@ export function createUsageRepostHub(options) {
     };
     return {
         subscribe(repost, busy) {
+            if (stopped)
+                return { dispose() { } };
             live ??= start();
             const owner = live;
             owner.tables++;
@@ -48,6 +51,12 @@ export function createUsageRepostHub(options) {
                     }
                 },
             };
+        },
+        dispose() {
+            stopped = true;
+            live?.bus.dispose();
+            live?.watch.dispose();
+            live = null;
         },
     };
 }

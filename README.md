@@ -275,6 +275,45 @@ window.addEventListener('message', (e) => {
 
 Debouncing the watcher's bursts is the app's: each `changed()` is one message.
 
+## Show a folder with Usage and search (preview)
+
+An app that shows a folder's tree, fills its tables' Usage column from it and
+searches its names makes one `FolderSession`: the hierarchy, the usage graphs,
+the name index and the repost hub, over one listing of the folder and one
+cache, so a file is read once whichever of them asks first.
+
+```js
+import { createFolderSession, createWorkspace, searchEntries, sortNameRecords, sourceUri } from 'data-explorer-view/model';
+import { connectHierarchy } from 'data-explorer-view/hierarchy';
+
+const folder = createFolderSession({
+  files: { list: async () => files }, // the folder's SourceFiles, in a stable order
+  reader: (files) => readerFor(files), // versions, bytes, project stores (and dirtyBytes in an editor)
+  watch: (changed) => {
+    // Any watch that says which files changed, or a FolderReader's onChange as it is.
+    const on = (event, path) => changed([sourceUri(path)]);
+    watcher.on('all', on);
+    return () => watcher.off('all', on);
+  },
+});
+connectHierarchy(tree, folder.hierarchy).on('open', openTab);
+const ws = createWorkspace({ usage: folder.usage, usageReposts: folder.reposts });
+const records = sortNameRecords(await folder.names.list());
+const matches = searchEntries(records, 'Gain');
+```
+
+`folder.changed(uris?)`, which the watch calls, says the folder changed; the
+uris, when known, are the files that did. The session lists the folder once,
+compares the listing with the last, and brings each part up to date: the usage
+graphs are dropped, a deleted file's names removed and a new or saved file's
+read again, the hierarchy rebuilt, and each open dictionary's and MAT-file's
+table repainted once a burst when a model was created or deleted. A change
+asked for while one runs is taken with the others as one more listing. A
+workspace that outlives a folder takes the next one's with `ws.setUsage(usage,
+usageReposts)`, which repaints every open table it shows (dictionaries, MAT-files
+and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
+[the folder session's page](docs/folder-session.md).
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's

@@ -40,11 +40,14 @@ export interface UsageRepostHub {
    * answers true the repost waits another window (see usageRepost.ts). Dispose it with the table.
    */
   subscribe(repost: () => void, busy?: () => boolean): { dispose(): void };
+  /** Stop: the watch is let go and a pending repost dropped, and a later subscription hears nothing. */
+  dispose(): void;
 }
 
 /** A repost hub over the app's watch. */
 export function createUsageRepostHub(options: UsageRepostHubOptions): UsageRepostHub {
   let live: { bus: ReturnType<typeof createUsageRepostBus>; watch: { dispose(): void }; tables: number } | null = null;
+  let stopped = false;
 
   const start = () => {
     const bus = createUsageRepostBus(options.delayMs, options.timers);
@@ -60,6 +63,7 @@ export function createUsageRepostHub(options: UsageRepostHubOptions): UsageRepos
 
   return {
     subscribe(repost, busy) {
+      if (stopped) return { dispose() {} };
       live ??= start();
       const owner = live;
       owner.tables++;
@@ -78,6 +82,12 @@ export function createUsageRepostHub(options: UsageRepostHubOptions): UsageRepos
           }
         },
       };
+    },
+    dispose() {
+      stopped = true;
+      live?.bus.dispose();
+      live?.watch.dispose();
+      live = null;
     },
   };
 }

@@ -4,16 +4,18 @@
 // connectTable feeding the table from it, and connectInspector following the table's selection.
 // The matrix glyph (in a Value cell or the inspector's Value row) opens the one variable editor.
 //
-// The workspace fills the Usage column over the same folders (its `usage`), so a dictionary entry
-// names the blocks that use it in either model of usageorder; a click on one opens that model on
-// the block, resolved by the rule the hierarchy draws with (resolveNavSource). The search box
-// above the folder finds an entry, a variable or a block by name (a NameIndex over the folders),
-// and opens its file on it.
+// The folders are one session (createFolderSession): the tree, the Usage column and the search
+// all read them through one listing and one cache. The workspace fills the Usage column from the
+// session (its `usage` and `usageReposts`), so a dictionary entry names the blocks that use it in
+// either model of usageorder; a click on one opens that model on the block, resolved by the rule
+// the hierarchy draws with (resolveNavSource). The search box above the folder finds an entry, a
+// variable or a block by name (the session's names), and opens its file on it.
 import { connectHierarchy, defineHierarchy, type DexHierarchy } from 'data-explorer-view/hierarchy';
 // For <dex-icon>'s element type: defineHierarchy defines it.
 import type {} from 'data-explorer-view/icon';
 import {
   basename,
+  createFolderSession,
   createWorkspace,
   resolveNavSource,
   searchEntries,
@@ -27,7 +29,7 @@ import { connectInspector, definePropertyInspector, type DexPropertyInspector } 
 import { connectTable, defineTreeTable, type TableHandle } from 'data-explorer-view/tree-table';
 import { defineVariableEditor, type DexVariableEditor } from 'data-explorer-view/variable-editor';
 import { askedFixture, FIXTURES, fixturePicker, openFixture, type Fixture } from '../fixtures';
-import { FIXTURE_FOLDER, folderHierarchy, folderNames, folderUsage, readingOf, uriOf, USAGE_ORDER } from '../folders';
+import { FIXTURE_FOLDER, readingOf, uriOf, USAGE_ORDER } from '../folders';
 import { byId, startPage } from '../shell';
 
 startPage();
@@ -55,11 +57,12 @@ const FILES: readonly Fixture[] = [
 const uriOfFixture = (f: Fixture): string => f.uri ?? uriOf(`${FIXTURE_FOLDER.path}/${f.name}`);
 
 const reading = readingOf(FIXTURE_FOLDER, USAGE_ORDER);
-const hierarchy = folderHierarchy(reading);
+const folders = createFolderSession({ files: { list: async () => reading.files }, reader: reading.reader });
+const { hierarchy } = folders;
 const stage = byId('stage');
 const editor = byId<DexVariableEditor>('editor');
 const inspector = byId<DexPropertyInspector>('inspector');
-const ws = createWorkspace({ usage: folderUsage(reading) });
+const ws = createWorkspace({ usage: folders.usage, usageReposts: folders.reposts });
 let shown: { doc: Doc; table: TableHandle; dispose(): void } | null = null;
 let asked = 0;
 
@@ -125,7 +128,7 @@ folder.on('open', (uri) => {
 });
 
 // The search: the folders' names, read once on the first keystroke, filtered as the user types.
-const names = folderNames(reading);
+const { names } = folders;
 const search = byId<HTMLInputElement>('search');
 const results = byId('search-results');
 let records: NameRecord[] | null = null;

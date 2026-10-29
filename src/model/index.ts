@@ -127,6 +127,11 @@ export type { UsageRepostBus, UsageRepostTimers } from './usage/usageRepost.js';
 export { createUsageRepostHub } from './usage/usageRepostHub.js';
 export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usage/usageRepostHub.js';
 
+// A folder, read once for all of it: its hierarchy, its Usage graphs, its names and its reposts,
+// over one listing and one cache, kept up to date by one change.
+export { createFolderSession } from './folder/folderSession.js';
+export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
+
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, and what a search over them shows.
 export { NameIndex } from './search/nameIndex.js';

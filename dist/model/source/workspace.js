@@ -45,8 +45,7 @@ class InPageDoc {
         this.read(bytes);
         // A data file's Usage names blocks in the models around it, which come and go; a model's names
         // its own blocks and its own workspace, which no other model changes.
-        if (kind === 'dictionary' || kind === 'mat')
-            this.reposts = shared.usageReposts?.subscribe(() => void this.repostUsage());
+        this.subscribeReposts();
         this.table = {
             open: async () => this.open(),
             children: (rowId) => this.children(rowId),
@@ -64,21 +63,38 @@ class InPageDoc {
         this.read(arrayBufferOf(bytes));
         if (this.kind === 'project')
             return;
-        await this.repaint();
+        await this.emitPaint();
+    }
+    async repaint() {
+        if (this.disposed || this.kind === 'project')
+            return;
+        this.painted = undefined;
+        await this.emitPaint();
+    }
+    // A data file's Usage names blocks in the models around it, which come and go; a model's names
+    // its own blocks and its own workspace, which no other model changes.
+    get repostsUsage() {
+        return this.kind === 'dictionary' || this.kind === 'mat';
+    }
+    /** Take out the repost subscription the workspace's hub owes this document, in place of any held. */
+    subscribeReposts() {
+        this.reposts?.dispose();
+        this.reposts = this.repostsUsage && !this.disposed ? this.shared.usageReposts?.subscribe(() => void this.refillUsage()) : undefined;
     }
     /**
-     * The folder changed under the Usage column: paint again from the same read, refilled, for a
-     * table that is showing it. With none subscribed, the next `open()` paints afresh.
+     * The Usage column changed under the table (a repost, or a new usage source): paint again from
+     * the same read, refilled, for a table that is showing it. With none subscribed, the next
+     * `open()` paints afresh.
      */
-    async repostUsage() {
+    async refillUsage() {
         if (this.disposed || !this.reading)
             return;
         this.painted = undefined;
         if (this.listeners.size > 0)
-            await this.repaint();
+            await this.emitPaint();
     }
     /** Tell every subscriber the paint there is now: a `replaceAll`, or the `error` it failed with. */
-    async repaint() {
+    async emitPaint() {
         let change;
         try {
             change = { kind: 'replaceAll', view: await this.open() };
@@ -258,6 +274,16 @@ export function createWorkspace(options = {}) {
             return doc;
         },
         get: (uri) => docs.get(uri),
+        async setUsage(usage, usageReposts) {
+            if (disposed)
+                return;
+            shared.usage = usage;
+            shared.usageReposts = usageReposts;
+            const open = [...docs.values()];
+            for (const doc of open)
+                doc.subscribeReposts();
+            await Promise.all(open.map((doc) => doc.refillUsage()));
+        },
         dispose() {
             if (disposed)
                 return;
