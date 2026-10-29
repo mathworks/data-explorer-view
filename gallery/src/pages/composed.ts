@@ -6,14 +6,28 @@
 //
 // The workspace fills the Usage column over the same folders (its `usage`), so a dictionary entry
 // names the blocks that use it in either model of usageorder; a click on one opens that model on
-// the block, resolved by the rule the hierarchy draws with (resolveNavSource).
+// the block, resolved by the rule the hierarchy draws with (resolveNavSource). The search box
+// above the folder finds an entry, a variable or a block by name (a NameIndex over the folders),
+// and opens its file on it.
 import { connectHierarchy, defineHierarchy, type DexHierarchy } from 'data-explorer-view/hierarchy';
-import { basename, createWorkspace, resolveNavSource, srcIdToUriString, type Doc, type LinkTarget } from 'data-explorer-view/model';
+// For <dex-icon>'s element type: defineHierarchy defines it.
+import type {} from 'data-explorer-view/icon';
+import {
+  basename,
+  createWorkspace,
+  resolveNavSource,
+  searchEntries,
+  sortNameRecords,
+  srcIdToUriString,
+  type Doc,
+  type LinkTarget,
+  type NameRecord,
+} from 'data-explorer-view/model';
 import { connectInspector, definePropertyInspector, type DexPropertyInspector } from 'data-explorer-view/property-inspector';
 import { connectTable, defineTreeTable, type TableHandle } from 'data-explorer-view/tree-table';
 import { defineVariableEditor, type DexVariableEditor } from 'data-explorer-view/variable-editor';
 import { askedFixture, FIXTURES, fixturePicker, openFixture, type Fixture } from '../fixtures';
-import { FIXTURE_FOLDER, folderHierarchy, folderUsage, readingOf, uriOf, USAGE_ORDER } from '../folders';
+import { FIXTURE_FOLDER, folderHierarchy, folderNames, folderUsage, readingOf, uriOf, USAGE_ORDER } from '../folders';
 import { byId, startPage } from '../shell';
 
 startPage();
@@ -109,3 +123,39 @@ folder.on('open', (uri) => {
   const fixture = FILES.find((f) => uriOfFixture(f) === uri);
   if (fixture) void show(fixture);
 });
+
+// The search: the folders' names, read once on the first keystroke, filtered as the user types.
+const names = folderNames(reading);
+const search = byId<HTMLInputElement>('search');
+const results = byId('search-results');
+let records: NameRecord[] | null = null;
+
+async function showResults(): Promise<void> {
+  records ??= sortNameRecords(await names.list());
+  results.replaceChildren(
+    ...searchEntries(records, search.value, 50).map((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      const icon = document.createElement('dex-icon');
+      icon.iconId = item.iconId;
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      const where = document.createElement('span');
+      where.className = 'where';
+      where.textContent = item.description;
+      button.append(icon, label, where);
+      button.addEventListener('click', () => void reveal(item.entry.sourceUri, item.revealName));
+      const li = document.createElement('li');
+      li.append(button);
+      return li;
+    }),
+  );
+}
+
+async function reveal(uri: string, name: string): Promise<void> {
+  const fixture = FILES.find((f) => uriOfFixture(f) === uri);
+  if (!fixture) return;
+  (await show(fixture))?.selectByName(name);
+}
+
+search.addEventListener('input', () => void showResults());

@@ -55,6 +55,13 @@ export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTa
 export { UsageGraphs } from './usage/usageGraphs.js';
 export { USAGE_REPOST_DEBOUNCE_MS, USAGE_REPOST_MAX_WAITS, createUsageRepostBus, repostsUsageOn, } from './usage/usageRepost.js';
 export { createUsageRepostHub } from './usage/usageRepostHub.js';
+// Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
+// blocks), read once over core's source cache, and what a search over them shows.
+export { NameIndex } from './search/nameIndex.js';
+export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
+export { namesOfFile } from './search/nameScan.js';
+export { filterEntries } from './search/searchFilter.js';
+export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
 // between them.

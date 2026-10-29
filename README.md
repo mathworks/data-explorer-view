@@ -218,6 +218,20 @@ scoped: hierarchy.resolveReference, firstMatch })` names the file to open, by
 the rule the hierarchy draws with, and `selectByName` the row (a block by its
 key). `parseNavTarget` reads a link target on its own.
 
+A search over a folder's entry names (dictionary and MAT-file variables,
+model-workspace variables, blocks) is a `NameIndex`: read once through the same
+cache, a file reindexed (`reindex`, from an editor's unsaved bytes when the
+reader's `dirtyBytes` has them) or removed at a time. `searchEntries(records,
+query)` is what a result list shows, the extension's search text: each match's
+name, where it is, its icon, and the name `selectByName` reveals it by (a
+block's key).
+
+```js
+const names = new NameIndex({ files, reader: (files) => ({ ...readerFor(files), dirtyBytes: () => null }), cache });
+const records = sortNameRecords(await names.list());
+for (const item of searchEntries(records, 'Gain')) list.append(rowFor(item.label, item.description, item.iconId));
+```
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's

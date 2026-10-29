@@ -143,6 +143,62 @@ main.split.three {
   border-right: 1px solid var(--dex-border-color);
 }
 
+/* The composed page's search over the folders' entry names, above the hierarchy. */
+.search {
+  flex: none;
+  padding: 0 8px 8px;
+}
+
+.search input {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  color: var(--dex-input-fg);
+  background: var(--dex-input-bg);
+  border: 1px solid var(--dex-input-border);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+
+.search input::placeholder {
+  color: var(--dex-input-placeholder-fg);
+}
+
+#search-results {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 12em;
+  overflow: auto;
+}
+
+#search-results button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#search-results button:hover,
+#search-results button:focus-visible {
+  background: var(--dex-bg-hover);
+}
+
+#search-results .where {
+  color: var(--dex-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pane h2 {
   margin: 0;
   padding: 8px 12px;
