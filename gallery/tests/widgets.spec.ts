@@ -107,3 +107,21 @@ test("the project page draws a project and follows a reference to another", asyn
   await expect(title).toHaveText('LibProj');
   await expect(page.getByLabel('Project', { exact: true })).toHaveValue('LibProj');
 });
+
+test('the project page draws in its own shadow root, with its stylesheet adopted', async ({ page }) => {
+  await page.goto('project-page.html');
+  await expect(page.locator('#project h1')).toHaveText('MyProj');
+  const drawn = await page.locator('dex-project-page').evaluate((el) => ({
+    adopted: el.shadowRoot!.adoptedStyleSheets.length,
+    styleElements: el.shadowRoot!.querySelectorAll('style').length,
+    inDocument: document.querySelectorAll('.dex-page').length,
+    // A page rule reaches nothing in it: the document's own `.row`, were there one, is not the page's.
+    width: getComputedStyle(el.shadowRoot!.querySelector('.dex-page')!).maxWidth,
+  }));
+  expect(drawn).toEqual({ adopted: expect.any(Number), styleElements: 0, inDocument: 0, width: '860px' });
+  expect(drawn.adopted).toBeGreaterThan(0);
+  // Enter on a focused link follows it, as a click does.
+  await page.locator('#project [data-open="startup.m"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#event-log li').first()).toHaveText('startup.m');
+});
