@@ -22,7 +22,7 @@ notes before you move the pin.
 
 ```json
 "dependencies": {
-  "data-explorer-view": "github:mathworks/data-explorer-view#v0.3.0",
+  "data-explorer-view": "github:mathworks/data-explorer-view#v0.3.1",
   "data-explorer-core": "github:mathworks/data-explorer-core#v1.48.0",
   "lit": "^3.2.0"
 }
