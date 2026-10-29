@@ -53,6 +53,8 @@ export declare class DexMatrixGrid extends LitElement {
     private _renderPager;
     render(): import("lit-html").TemplateResult<1> | typeof nothing;
 }
+/** Registers the widget as `<dex-matrix-grid>`, or under `tag`. */
+export declare function defineMatrixGrid(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-matrix-grid': DexMatrixGrid;

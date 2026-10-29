@@ -11,7 +11,8 @@
 // table has no use for.
 
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { removeToken, type FilterToken, type FilterOp } from '../../model/filter/rowFilter.js';
 import { OP_GLYPHS } from './dex-column-filter.js';
 
@@ -23,7 +24,6 @@ const WARNING_TEXT: Record<NonNullable<FilterToken['warning']>, string> = {
   'non-numeric-bound': 'The bound is not a number, so this condition is ignored.',
 };
 
-@customElement('dex-filter-bar')
 export class DexFilterBar extends LitElement {
   static override styles = css`
     :host {
@@ -327,6 +327,11 @@ export class DexFilterBar extends LitElement {
         : nothing}
     `;
   }
+}
+
+/** Registers the widget as `<dex-filter-bar>`, or under `tag`. */
+export function defineFilterBar(tag = 'dex-filter-bar'): void {
+  defineElement(tag, DexFilterBar);
 }
 
 declare global {

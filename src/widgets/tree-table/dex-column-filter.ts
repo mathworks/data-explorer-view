@@ -8,7 +8,8 @@
 // Apply, so the teaching line cannot lie.
 
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, query } from 'lit/decorators.js';
+import { property, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { formatToken, type FilterOp } from '../../model/filter/rowFilter.js';
 
 // Glyph per operator: chips and radios must agree, and `≠ ≥ ≤` read faster than
@@ -23,7 +24,6 @@ export const OP_GLYPHS: ReadonlyArray<readonly [FilterOp, string, string]> = [
   ['<=', '≤', 'less than or equal to'],
 ];
 
-@customElement('dex-column-filter')
 export class DexColumnFilter extends LitElement {
   static override styles = css`
     :host {
@@ -268,6 +268,11 @@ export class DexColumnFilter extends LitElement {
       </div>
     `;
   }
+}
+
+/** Registers the widget as `<dex-column-filter>`, or under `tag`. */
+export function defineColumnFilter(tag = 'dex-column-filter'): void {
+  defineElement(tag, DexColumnFilter);
 }
 
 declare global {

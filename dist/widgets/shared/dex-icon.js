@@ -6,7 +6,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { defineElement } from './define.js';
 const ALIASES = {
     struct: 'typeStruct',
     cell: 'wsBrackets',
@@ -31,7 +32,7 @@ const ALIASES = {
 function resolveId(iconId) {
     return ALIASES[iconId] || iconId;
 }
-let DexIcon = class DexIcon extends LitElement {
+export class DexIcon extends LitElement {
     constructor() {
         super(...arguments);
         this.iconId = '';
@@ -65,14 +66,14 @@ let DexIcon = class DexIcon extends LitElement {
       />
     `;
     }
-};
+}
 __decorate([
     property({ type: String })
 ], DexIcon.prototype, "iconId", void 0);
 __decorate([
     property({ type: Number })
 ], DexIcon.prototype, "size", void 0);
-DexIcon = __decorate([
-    customElement('dex-icon')
-], DexIcon);
-export { DexIcon };
+/** Registers the widget as `<dex-icon>`, or under `tag`. */
+export function defineIcon(tag = 'dex-icon') {
+    defineElement(tag, DexIcon);
+}

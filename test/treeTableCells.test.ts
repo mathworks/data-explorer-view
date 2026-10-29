@@ -9,7 +9,9 @@
 // `_getCellText` is the same text sorting and searching read, so a shape that
 // returns undefined there breaks both.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 const HOST_COLUMNS = ['Name', 'Value', 'DataType', 'UsedBy', 'Status', 'Kind', 'Class', 'storageClass', 'Description'];
 

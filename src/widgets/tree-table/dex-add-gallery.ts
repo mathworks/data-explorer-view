@@ -16,8 +16,9 @@
 // them is a run of single clicks.
 
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import '../shared/dex-icon.js';
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
+import { defineIcon } from '../shared/dex-icon.js';
 import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '../../model/ids/addCatalog.js';
 import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js';
 
@@ -52,7 +53,6 @@ import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js
  */
 const ICON_SIZE = 24;
 
-@customElement('dex-add-gallery')
 export class DexAddGallery extends LitElement {
   static override styles = css`
     /* No position and no z-index here. WHERE this goes is the table's business, because the
@@ -687,6 +687,12 @@ export class DexAddGallery extends LitElement {
       </button>
     `;
   }
+}
+
+/** Registers the widget as `<dex-add-gallery>`, or under `tag`, after the icon its tiles draw. */
+export function defineAddGallery(tag = 'dex-add-gallery'): void {
+  defineIcon();
+  defineElement(tag, DexAddGallery);
 }
 
 declare global {

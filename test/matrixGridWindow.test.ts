@@ -26,8 +26,10 @@
 // worker's heap — taking the readable failure down with it. 40x40 fails an
 // assertion instead.
 import { describe, it, expect, beforeEach } from 'vitest';
-import '../src/widgets/variable-editor/dex-matrix-grid.js';
+import { defineMatrixGrid } from '../src/widgets/variable-editor/dex-matrix-grid.js';
 import type { DexMatrixGrid, MatrixPayload } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+
+defineMatrixGrid();
 
 const ROW_H = 20;
 const COL_W = 50;

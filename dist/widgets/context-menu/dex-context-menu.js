@@ -6,9 +6,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
-let DexContextMenu = class DexContextMenu extends LitElement {
+export class DexContextMenu extends LitElement {
     constructor() {
         super(...arguments);
         this._open = false;
@@ -346,7 +347,7 @@ let DexContextMenu = class DexContextMenu extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     state()
 ], DexContextMenu.prototype, "_open", void 0);
@@ -362,7 +363,7 @@ __decorate([
 __decorate([
     state()
 ], DexContextMenu.prototype, "_focusedIndex", void 0);
-DexContextMenu = __decorate([
-    customElement('dex-context-menu')
-], DexContextMenu);
-export { DexContextMenu };
+/** Registers the widget as `<dex-context-menu>`, or under `tag`. */
+export function defineContextMenu(tag = 'dex-context-menu') {
+    defineElement(tag, DexContextMenu);
+}

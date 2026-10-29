@@ -1,9 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 
-@customElement('dex-error-dialog')
 export class DexErrorDialog extends LitElement {
   static override styles = css`
     :host {
@@ -273,6 +273,11 @@ export class DexErrorDialog extends LitElement {
       </div>
     `;
   }
+}
+
+/** Registers the widget as `<dex-error-dialog>`, or under `tag`. */
+export function defineErrorDialog(tag = 'dex-error-dialog'): void {
+  defineElement(tag, DexErrorDialog);
 }
 
 declare global {

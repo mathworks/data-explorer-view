@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { defineElement } from './define.js';
 
 const ALIASES: Record<string, string> = {
   struct: 'typeStruct',
@@ -29,7 +30,6 @@ function resolveId(iconId: string): string {
   return ALIASES[iconId] || iconId;
 }
 
-@customElement('dex-icon')
 export class DexIcon extends LitElement {
   static override styles = css`
     :host {
@@ -64,6 +64,11 @@ export class DexIcon extends LitElement {
       />
     `;
   }
+}
+
+/** Registers the widget as `<dex-icon>`, or under `tag`. */
+export function defineIcon(tag = 'dex-icon'): void {
+  defineElement(tag, DexIcon);
 }
 
 declare global {

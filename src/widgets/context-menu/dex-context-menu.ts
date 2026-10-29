@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
 
 export interface ContextMenuItem {
@@ -35,7 +36,6 @@ export interface ContextMenuItem {
   title?: string;
 }
 
-@customElement('dex-context-menu')
 export class DexContextMenu extends LitElement {
   static override styles = [menuitemFocusRingStyles, css`
     :host {
@@ -380,6 +380,11 @@ export class DexContextMenu extends LitElement {
       </div>
     `;
   }
+}
+
+/** Registers the widget as `<dex-context-menu>`, or under `tag`. */
+export function defineContextMenu(tag = 'dex-context-menu'): void {
+  defineElement(tag, DexContextMenu);
 }
 
 declare global {

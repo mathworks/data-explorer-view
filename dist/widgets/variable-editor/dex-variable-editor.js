@@ -12,8 +12,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 // same problems (fixed positioning, viewport clamping, document-level dismissal)
 // and whose listener lifecycle is copied deliberately rather than re-derived.
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
-import './dex-matrix-grid.js';
+import { state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
+import { defineMatrixGrid } from './dex-matrix-grid.js';
 // Shown while the fetch is in flight. On the 1000x1000 entry this exists for a
 // perceptible moment, which is the whole reason the panel opens before its data.
 const WAITING = 'Loading…';
@@ -21,7 +22,7 @@ const WAITING = 'Loading…';
 // edge. Same 8px margin dex-context-menu uses, so the two agree on screen.
 const OFFSET = 4;
 const MARGIN = 8;
-let DexVariableEditor = class DexVariableEditor extends LitElement {
+export class DexVariableEditor extends LitElement {
     constructor() {
         super(...arguments);
         this._open = false;
@@ -255,7 +256,7 @@ let DexVariableEditor = class DexVariableEditor extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     state()
 ], DexVariableEditor.prototype, "_open", void 0);
@@ -268,7 +269,8 @@ __decorate([
 __decorate([
     state()
 ], DexVariableEditor.prototype, "_message", void 0);
-DexVariableEditor = __decorate([
-    customElement('dex-variable-editor')
-], DexVariableEditor);
-export { DexVariableEditor };
+/** Registers the widget as `<dex-variable-editor>`, or under `tag`, after the grid it shows. */
+export function defineVariableEditor(tag = 'dex-variable-editor') {
+    defineMatrixGrid();
+    defineElement(tag, DexVariableEditor);
+}

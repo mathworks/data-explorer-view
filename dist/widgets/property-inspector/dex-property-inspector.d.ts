@@ -1,5 +1,4 @@
 import { LitElement } from 'lit';
-import '../shared/dex-matrix-open.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 export interface PropertyGroup {
     title: string;
@@ -22,6 +21,11 @@ export declare class DexPropertyInspector extends LitElement {
     private _renderPropertyValue;
     render(): import("lit-html").TemplateResult<1>;
 }
+/**
+ * Registers the widget as `<dex-property-inspector>`, or under `tag`, after the matrix glyph a
+ * matrix-valued row draws (under its default name).
+ */
+export declare function definePropertyInspector(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-property-inspector': DexPropertyInspector;

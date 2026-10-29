@@ -10,8 +10,9 @@
 // descriptor and itself; matrixOpen.ts turns that into a show() on the one editor
 // instance the webview owns, plus the `requestMatrix` that fetches the cells.
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import './dex-icon.js';
+import { property } from 'lit/decorators.js';
+import { defineElement } from './define.js';
+import { defineIcon } from './dex-icon.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 
 export interface MatrixOpenDetail {
@@ -25,7 +26,6 @@ export interface MatrixOpenDetail {
   rowId?: string;
 }
 
-@customElement('dex-matrix-open')
 export class DexMatrixOpen extends LitElement {
   static override styles = css`
     :host {
@@ -108,6 +108,12 @@ export class DexMatrixOpen extends LitElement {
       @keydown=${this._onKeydown}
     ><dex-icon .iconId=${'wsTable'} .size=${14}></dex-icon></a>`;
   }
+}
+
+/** Registers the widget as `<dex-matrix-open>`, or under `tag`, after the icon it draws. */
+export function defineMatrixOpen(tag = 'dex-matrix-open'): void {
+  defineIcon();
+  defineElement(tag, DexMatrixOpen);
 }
 
 declare global {

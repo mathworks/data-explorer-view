@@ -1,5 +1,4 @@
 import { LitElement, nothing } from 'lit';
-import './dex-matrix-grid.js';
 import type { MatrixDescriptor, MatrixPayload } from './dex-matrix-grid.js';
 export interface MatrixCellsAnswer {
     nodeId: string;
@@ -35,6 +34,8 @@ export declare class DexVariableEditor extends LitElement {
     reposition(): void;
     render(): import("lit-html").TemplateResult<1> | typeof nothing;
 }
+/** Registers the widget as `<dex-variable-editor>`, or under `tag`, after the grid it shows. */
+export declare function defineVariableEditor(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-variable-editor': DexVariableEditor;

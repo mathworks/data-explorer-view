@@ -10,7 +10,9 @@
 // measured value explicitly and check the arithmetic around it. Genuine pointer
 // hit-testing against painted geometry needs a real browser.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 const HOST_COLUMNS = ['Name', 'Value', 'DataType', 'UsedBy', 'Status', 'Kind', 'Class'];
 
