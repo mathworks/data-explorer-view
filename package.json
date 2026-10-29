@@ -17,7 +17,44 @@
     "icons",
     "src/theme"
   ],
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
+    "./model": {
+      "types": "./dist/model/index.d.ts",
+      "default": "./dist/model/index.js"
+    },
+    "./tree-table": {
+      "types": "./dist/widgets/tree-table/index.d.ts",
+      "default": "./dist/widgets/tree-table/index.js"
+    },
+    "./property-inspector": {
+      "types": "./dist/widgets/property-inspector/index.d.ts",
+      "default": "./dist/widgets/property-inspector/index.js"
+    },
+    "./variable-editor": {
+      "types": "./dist/widgets/variable-editor/index.d.ts",
+      "default": "./dist/widgets/variable-editor/index.js"
+    },
+    "./context-menu": {
+      "types": "./dist/widgets/context-menu/index.d.ts",
+      "default": "./dist/widgets/context-menu/index.js"
+    },
+    "./error-dialog": {
+      "types": "./dist/widgets/error-dialog/index.d.ts",
+      "default": "./dist/widgets/error-dialog/index.js"
+    },
+    "./project-page": {
+      "types": "./dist/widgets/project-page/index.d.ts",
+      "default": "./dist/widgets/project-page/index.js"
+    },
+    "./icon": {
+      "types": "./dist/widgets/icon/index.d.ts",
+      "default": "./dist/widgets/icon/index.js"
+    },
+    "./theme.css": "./src/theme/tokens.css",
+    "./icons/*": "./icons/*",
     "./model/*.js": {
       "types": "./dist/model/*.d.ts",
       "default": "./dist/model/*.js"
@@ -26,9 +63,7 @@
       "types": "./dist/widgets/*.d.ts",
       "default": "./dist/widgets/*.js"
     },
-    "./theme.css": "./src/theme/tokens.css",
-    "./theme/*.css": "./src/theme/*.css",
-    "./icons/*": "./icons/*"
+    "./theme/*.css": "./src/theme/*.css"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
