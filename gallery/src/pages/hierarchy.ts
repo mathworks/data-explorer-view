@@ -5,14 +5,14 @@
 // file as having unsaved changes (refresh() redraws the mark); the button reads the folder again
 // (rebuild()).
 import { connectHierarchy, defineHierarchy, type DexHierarchy } from 'data-explorer-view/hierarchy';
-import { folderHierarchy, uriOf, WORKSPACE } from '../folders';
+import { folderHierarchy, readingOf, uriOf, WORKSPACE } from '../folders';
 import { byId, startPage } from '../shell';
 
 startPage();
 defineHierarchy();
 
 const dirty = new Set<string>();
-const hierarchy = folderHierarchy(WORKSPACE, (uri) => dirty.has(uri));
+const hierarchy = folderHierarchy(readingOf(WORKSPACE), (uri) => dirty.has(uri));
 const handle = connectHierarchy(byId<DexHierarchy>('tree'), hierarchy);
 
 const log = byId('event-log');
