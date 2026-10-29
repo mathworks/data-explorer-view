@@ -87,6 +87,12 @@ export class DexProjectPage extends LitElement {
   @property({ attribute: false }) payload: ProjectPagePayload | null = null;
   /** Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`. */
   @property({ type: String }) error = '';
+  /**
+   * The place a Locations link to a folder reveals it in, as the link's tooltip names it:
+   * "Reveals `cache` in the Explorer". An app says where its own `dex-project-open` shows a
+   * folder: `'Finder'`, `'the file manager'`. Default `'the Explorer'`. Attribute `reveal-in`.
+   */
+  @property({ attribute: 'reveal-in' }) revealIn = 'the Explorer';
 
   // Each section's filter and Show all, held outside the payload: they survive a repaint of the
   // same project on purpose, because a user who narrowed a section while working is not asking
@@ -109,7 +115,7 @@ export class DexProjectPage extends LitElement {
     if (!page) return;
     // The page's markup is the renderer's escaped HTML (projectPage.ts), drawn whole each time:
     // every row is rebuilt, so the listeners are delegated, on the page.
-    page.innerHTML = this.payload ? renderProjectPage(this.payload, this._state) : '';
+    page.innerHTML = this.payload ? renderProjectPage(this.payload, this._state, { revealIn: this.revealIn }) : '';
     const caret = this._caret;
     this._caret = null;
     if (!caret) return;

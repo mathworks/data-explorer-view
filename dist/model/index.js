@@ -10,8 +10,9 @@
 // signatures name, so an app can write down what it is handed. What only this package's own
 // tests and widgets reach (the filter grammar, the row stamps, the catalog's bookkeeping) stays
 // out: it can change without a consumer noticing. What only a host serving the wire format uses
-// (the module-level document registry, the webview-posting answers, the inspector's page) is
-// data-explorer-view/host's; the last block below still exports it here, deprecated, until 1.0.
+// (the module-level document registry, the webview-posting answers, the inspector's page, the
+// binary editor's srcId and the tree's file decorations) is data-explorer-view/host's; the last
+// block below still exports it here, deprecated, until 1.0.
 //
 // Nothing here runs on import, and nothing here reaches a widget or lit (test/entries.test.ts),
 // so a bundler keeps only what an app uses and a worker or a terminal can load all of it.
@@ -35,7 +36,7 @@ export { insertEntryRows, mergeChildRows, nextExpandedIds, nextStickyIds, pendin
 // Ids: section rows, sources, paths, the Add gallery's catalog, and a project's MSP roles and how
 // a project is found to be one.
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
-export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
+export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
@@ -43,7 +44,6 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 // The hierarchy: the graph of which file references which, and the health marks on it; a
 // folder's files read into it over core's source cache; and the folder as a tree's rows.
 export { RelGraph } from './hierarchy/graphModel.js';
-export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export { createWorkspace } from './source/workspace.js';
@@ -138,3 +138,15 @@ rowCapBanner, } from './rows/rowCap.js';
 export { 
 /** @deprecated A host's inspector page: import it from data-explorer-view/host. */
 InspectorPage, } from './inspector/inspectorPage.js';
+export { 
+/** @deprecated The srcId of a host's editable byte-backed tree: import it from data-explorer-view/host. */
+binaryEditSrcId, } from './ids/srcId.js';
+export { 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+DECORATIONS, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+HEALTH_QUERY, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+decode, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+encode, } from './hierarchy/health.js';

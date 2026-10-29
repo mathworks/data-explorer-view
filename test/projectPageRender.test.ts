@@ -180,6 +180,25 @@ describe('what the page offers to open', () => {
     expect(html).toContain('title="Reveals work/cache in the Explorer"');
   });
 
+  it('names the place a folder is revealed in as the app says it, and only that', () => {
+    const payload = {
+      page: page({
+        locations: [
+          { key: 'DependencyCacheFile', label: 'Dependency cache', ref: 'work/deps.mat' },
+          { key: 'SimulinkCacheFolder', label: 'Simulation cache', ref: 'work/cache' },
+        ],
+      }),
+      root: '/work/Monophonic',
+    };
+    const explorer = renderProjectPage(payload, {});
+    const finder = renderProjectPage(payload, {}, { revealIn: 'Finder' });
+    expect(finder).toContain('title="Reveals work/cache in Finder"');
+    expect(finder).toContain('title="Opens work/deps.mat"');
+    // Nothing else on the page changes; and no option is the wording there always was.
+    expect(finder.replace(' in Finder"', ' in the Explorer"')).toBe(explorer);
+    expect(renderProjectPage(payload, {}, {})).toBe(explorer);
+  });
+
   it('offers no link for a reference the store gave no path for', () => {
     // The reference's id is a UUID. Linking it would offer to open a path that cannot
     // exist, so such a reference is shown by name alone — see core's ProjectPage.ts.

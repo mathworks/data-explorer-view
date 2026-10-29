@@ -72,5 +72,14 @@ export interface ProjectPagePayload {
     /** What the parse could not read; absent after a clean read. */
     warnings?: WarningBanner;
 }
+/** How the page words what it says of the app around it. */
+export interface ProjectPageOptions {
+    /**
+     * The place a Locations link to a folder reveals it in, as its tooltip names it: "Reveals
+     * `cache` in the Explorer". Default `'the Explorer'`; an app says `'Finder'` or `'the file
+     * manager'`.
+     */
+    revealIn?: string;
+}
 /** The whole page. */
-export declare function renderProjectPage(payload: ProjectPagePayload, state: PageState): string;
+export declare function renderProjectPage(payload: ProjectPagePayload, state: PageState, options?: ProjectPageOptions): string;

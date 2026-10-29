@@ -194,6 +194,77 @@ describe('a folder session', () => {
     expect(lists).toBe(3);
   });
 
+  it('says when the folder is first listed: from the one listing, and without reading a file', async () => {
+    const s = session();
+    // Asked first, it lists the folder, and reads none of its files: the listing, not the hierarchy.
+    await s.listed();
+    expect(s.has(DICT)).toBe(true);
+    expect(lists).toBe(1);
+    expect(reads).toEqual([]);
+    // The hierarchy asking meanwhile shares that listing.
+    const t = session();
+    await Promise.all([t.listed(), t.hierarchy.roots()]);
+    expect(lists).toBe(2);
+    // Once listed, it answers at once and lists nothing itself, across a change too.
+    put('copyA.slx', disk('ctrlA.slx'));
+    await t.changed([file('copyA.slx').uriString]);
+    await t.listed();
+    expect(t.has(file('copyA.slx').uriString)).toBe(true);
+    expect(lists).toBe(3);
+  });
+
+  it('a first listing that fails is told, and the next call lists again', async () => {
+    let fail = true;
+    let asked = 0;
+    let answer: (files: SourceFile[]) => void = () => {};
+    const s = createFolderSession({
+      files: {
+        list: () => {
+          asked++;
+          if (fail) return Promise.reject(new Error('the folder is gone'));
+          return new Promise<SourceFile[]>((done) => (answer = done));
+        },
+      },
+      reader,
+    });
+    sessions.push(s);
+    await expect(s.listed()).rejects.toThrow('the folder is gone');
+    expect(s.has(DICT)).toBe(false);
+    fail = false;
+    // A change asked for while a listing is under way replaces it: listed() waits for the newer one.
+    const first = s.listed();
+    const change = s.changed();
+    answer([file('sharedParams.sldd')]);
+    await change;
+    await first;
+    expect(s.has(DICT)).toBe(true);
+    expect(asked).toBe(3);
+    // Disposed before any listing, a session says so rather than wait for one.
+    const t = createFolderSession({ files: { list: () => new Promise<SourceFile[]>(() => {}) }, reader });
+    t.dispose();
+    await expect(t.listed()).rejects.toThrow('disposed before the folder was listed');
+  });
+
+  it("names a folder's project, across a project created and then deleted", async () => {
+    const s = session();
+    expect(await s.projectIn('file:///w')).toBeUndefined();
+    put('Plant.prj', new Uint8Array(readFileSync(resolve(import.meta.dirname, 'parity/artifacts/project/MyProj/MyProj.prj'))));
+    put('tool/matlab.toml', disk('../tomlproject/matlab.toml'));
+    await s.changed([file('Plant.prj').uriString, file('tool/matlab.toml').uriString]);
+    const plant = await s.projectIn('file:///w');
+    expect(plant).toMatchObject({ kind: 'group', groupKind: 'project', id: file('Plant.prj').uriString, label: 'Plant' });
+    // The row the hierarchy draws for it, with or without a trailing slash.
+    expect((await s.hierarchy.roots()).find((r) => r.id === plant!.id)?.key).toBe(plant!.key);
+    expect((await s.projectIn('file:///w/'))?.id).toBe(plant!.id);
+    // A project in a folder of its own is that folder's, not its parent's; a folder with none has none.
+    expect((await s.projectIn('file:///w/tool'))?.id).toBe(file('tool/matlab.toml').uriString);
+    expect(await s.projectIn('file:///w/models')).toBeUndefined();
+    folder.delete('Plant.prj');
+    await s.changed([file('Plant.prj').uriString]);
+    expect(await s.projectIn('file:///w')).toBeUndefined();
+    expect((await s.projectIn('file:///w/tool'))?.id).toBe(file('tool/matlab.toml').uriString);
+  });
+
   it('owes a data table one repost for a model deleted, and none for a dictionary saved', async () => {
     const s = session();
     await Promise.all([tree(s), users(s)]);

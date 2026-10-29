@@ -580,9 +580,20 @@ export interface ProjectPagePayload {
   warnings?: WarningBanner;
 }
 
+/** How the page words what it says of the app around it. */
+export interface ProjectPageOptions {
+  /**
+   * The place a Locations link to a folder reveals it in, as its tooltip names it: "Reveals
+   * `cache` in the Explorer". Default `'the Explorer'`; an app says `'Finder'` or `'the file
+   * manager'`.
+   */
+  revealIn?: string;
+}
+
 /** The whole page. */
-export function renderProjectPage(payload: ProjectPagePayload, state: PageState): string {
+export function renderProjectPage(payload: ProjectPagePayload, state: PageState, options: ProjectPageOptions = {}): string {
   const { page, root, msp } = payload;
+  const revealIn = options.revealIn ?? 'the Explorer';
   const meta = [
     'MATLAB Project',
     // Second, right after what it IS: an MSP is a MATLAB Project first, and the role is
@@ -670,12 +681,12 @@ export function renderProjectPage(payload: ProjectPagePayload, state: PageState)
         search: w.label + ' ' + w.ref,
         group: '',
         // Most of these name a FOLDER, which cannot be opened as an editor and is
-        // revealed in the Explorer instead: two different host actions behind rows
-        // that look the same, so the tooltip has to say which. MATLAB's own key
-        // naming is what distinguishes them — DependencyCacheFile names a file, the
-        // *Folder keys name folders — and the suffix generalizes to a key this
-        // release has never seen. A wrong guess costs only the tooltip's wording:
-        // the ACTION is chosen by the host after it stats the target.
+        // revealed in the app's file manager instead (`revealIn`): two different host
+        // actions behind rows that look the same, so the tooltip has to say which.
+        // MATLAB's own key naming is what distinguishes them — DependencyCacheFile
+        // names a file, the *Folder keys name folders — and the suffix generalizes to
+        // a key this release has never seen. A wrong guess costs only the tooltip's
+        // wording: the ACTION is chosen by the host after it stats the target.
         html: (terms) =>
           nameTargetRow(
             w.label,
@@ -683,7 +694,7 @@ export function renderProjectPage(payload: ProjectPagePayload, state: PageState)
             terms,
             w.key.endsWith('File')
               ? 'Opens ' + w.ref
-              : 'Reveals ' + w.ref + ' in the Explorer',
+              : 'Reveals ' + w.ref + ' in ' + revealIn,
           ),
       })),
       state,
