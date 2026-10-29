@@ -14,11 +14,12 @@
 // row's `_blockKey` (see connectTable's selectByName). <source> is a full uriString (when the
 // emitter knows it) or a bare basename.
 //
-// ONE READING of the grammar: the table's own (parseLinkTarget, ids/linkTarget.ts), which splits
-// at the FIRST `@`, as core does. The extension's copy of this split at the last, which agreed
-// only because VS Code's `Uri.toString()` percent-encodes an `@`: an app naming files by their
-// raw paths (`file:///u/me@corp/x.sldd`) would have had the link opened in a document whose name
-// begins after the user name. A name never holds an `@`; a uri may.
+// ONE READING of the grammar: the table's own (parseLinkTarget, ids/linkTarget.ts). An entry or a
+// workspace target splits at the first `@` (its name is a MATLAB identifier), as core's resolver
+// does; a block target at the first `@` a uri follows, else at the last, since a pre-SID block's
+// name may hold one (`blocks:Gain@1@…`). The extension's copy of this split at the last `@`, which
+// agrees on every target the extension writes (VS Code's `Uri.toString()` spells an `@` as `%40`);
+// an app naming files by their raw paths (`file:///u/me@corp/x.sldd`) needs the `@` before the uri.
 import { parseLinkTarget } from '../ids/linkTarget.js';
 // Parse a target into { name, source }, or null when malformed.
 export function parseNavTarget(target) {

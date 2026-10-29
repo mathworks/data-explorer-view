@@ -18,14 +18,29 @@ describe('parseNavTarget — Usage-link target grammar', () => {
     expect(parseNavTarget('workspace:Ts@model.slx')).toEqual({ name: 'Ts', source: 'model.slx' });
   });
 
-  it('splits on the FIRST @, as the table reads a link, so a source holding one survives', () => {
-    expect(parseNavTarget('blocks:Sum@file:///path/to/my.slx')).toEqual({
-      name: 'Sum',
-      source: 'file:///path/to/my.slx',
-    });
-    // A raw path's uri may hold an `@` (VS Code's percent-encodes it); a name never does.
-    expect(parseNavTarget('blocks:65@file:///u/me@corp/x.slx')).toEqual({ name: '65', source: 'file:///u/me@corp/x.slx' });
-    expect(parseNavTarget('Kp@file:///u/me@corp/d.sldd')).toEqual({ name: 'Kp', source: 'file:///u/me@corp/d.sldd' });
+  // Both halves may hold an `@`: a raw path's uri (VS Code's spells it `%40`), and a block's name
+  // in a model older than SIDs. A block target splits at the first `@` a uri follows, else at the
+  // last; an entry or workspace target, whose name is a MATLAB identifier, at the first, as core's
+  // resolver does.
+  it.each([
+    ['blocks:Gain@1@file:///w/m.mdl', 'Gain@1', 'file:///w/m.mdl'],
+    ['blocks:65@file:///u/me@corp/x.sldd', '65', 'file:///u/me@corp/x.sldd'],
+    ['Uo@file:///w/p.sldd', 'Uo', 'file:///w/p.sldd'],
+    ['workspace:Kp@file:///w/m.slx', 'Kp', 'file:///w/m.slx'],
+    ['SharedGain@sharedParams.sldd', 'SharedGain', 'sharedParams.sldd'],
+    ['blocks:A@B@x.sldd', 'A@B', 'x.sldd'],
+    ['blocks:Gain@1@vscode-file://vscode-app/w/m.slx', 'Gain@1', 'vscode-file://vscode-app/w/m.slx'],
+    ['blocks:Gain@1@untitled:Untitled-1', 'Gain@1', 'untitled:Untitled-1'],
+    ['Kp@binedit:file:///w/d.sldd', 'Kp', 'binedit:file:///w/d.sldd'],
+    ['blocks:Gain@1@binedit:file:///u/me@corp/d.sldd', 'Gain@1', 'binedit:file:///u/me@corp/d.sldd'],
+    ['blocks:Sum@file:///path/to/my.slx', 'Sum', 'file:///path/to/my.slx'],
+    ['Kp@file:///u/me@corp/d.sldd', 'Kp', 'file:///u/me@corp/d.sldd'],
+    // An entry's name holds no `@`: what follows the first is all source, uri or not.
+    ['Kp@my@dict.sldd', 'Kp', 'my@dict.sldd'],
+    ['a@b@file:///w/Controller.sldd', 'a', 'b@file:///w/Controller.sldd'],
+    ['workspace:Ts@file:///u/me@corp/m.slx', 'Ts', 'file:///u/me@corp/m.slx'],
+  ])('reads %s as the name %s in %s', (target, name, source) => {
+    expect(parseNavTarget(target)).toEqual({ name, source });
   });
 
   it('returns null when there is no @ separator', () => {
