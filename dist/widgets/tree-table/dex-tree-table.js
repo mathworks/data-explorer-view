@@ -244,21 +244,14 @@ export class DexTreeTable extends LitElement {
          * siblings show in the order given until the user sorts. What the model's planner makes of a
          * document, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the
          * children of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.
-         * Attribute `rows` (JSON); set the property.
+         * Property only.
          */
         this.rows = [];
         /**
          * The ids of the selected rows. The table changes it as the user selects, and says so with
-         * `dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
+         * `dex-row-selected`; setting it sends nothing. Default none. Property only.
          */
         this.selectedRowIds = [];
-        /**
-         * The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no
-         * `--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px
-         * without one, so to change the height set the token, which both read. Default 28. Attribute
-         * `rowheight`.
-         */
-        this.rowHeight = DEFAULT_ROW_HEIGHT;
         /**
          * `normal`, the default, rules every cell; `light` drops the lines between columns and keeps a
          * faint one between rows. Reflected to the attribute `table-style`.
@@ -267,18 +260,17 @@ export class DexTreeTable extends LitElement {
         /**
          * Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
          * search may qualify a term with (`"Data Type":double`); a column with none shows its key.
-         * Default null. Attribute `columnlabels` (JSON).
+         * Default null. Property only.
          */
         this.columnLabels = null;
         /**
          * The group heading each column sits under in the Columns menu, by column key. Default null:
-         * no headings. Attribute `columngroups` (JSON).
+         * no headings. Property only.
          */
         this.columnGroups = null;
         /**
          * The column keys this document has, which the Columns menu offers; the user's saved order and
-         * choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
-         * (JSON).
+         * choice of hidden ones apply within them. Default null: the built-in set. Property only.
          */
         this.columns = null;
         /**
@@ -307,7 +299,7 @@ export class DexTreeTable extends LitElement {
         // disabled button invites a click and explains nothing.
         /**
          * Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
-         * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+         * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.
          */
         this.canAdd = false;
         /**
@@ -319,7 +311,7 @@ export class DexTreeTable extends LitElement {
         /**
          * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
          * document cannot be changed: no row is draggable, and a drag from another table draws no drop
-         * target here, on a row or on the empty body. Default true. Attribute `rowdrag`.
+         * target here, on a row or on the empty body. Default true. Attribute `row-drag`.
          */
         this.rowDrag = true;
         /**
@@ -1729,9 +1721,10 @@ export class DexTreeTable extends LitElement {
         this._stickyRowIds = nextStickyIds(this._filterText, prevVisible, rows, keep);
         this._visibleRowsCache = null;
     }
+    // The height rows are laid out at: the one they are drawn at, from the same token.
     get _rowH() {
         const v = getComputedStyle(this).getPropertyValue('--dex-row-height');
-        return v ? parseInt(v, 10) : this.rowHeight;
+        return v ? parseInt(v, 10) : DEFAULT_ROW_HEIGHT;
     }
     connectedCallback() {
         super.connectedCallback();
@@ -4359,25 +4352,22 @@ export class DexTreeTable extends LitElement {
     }
 }
 __decorate([
-    property({ type: Array })
+    property({ attribute: false })
 ], DexTreeTable.prototype, "rows", void 0);
 __decorate([
-    property({ type: Array })
+    property({ attribute: false })
 ], DexTreeTable.prototype, "selectedRowIds", void 0);
-__decorate([
-    property({ type: Number })
-], DexTreeTable.prototype, "rowHeight", void 0);
 __decorate([
     property({ type: String, reflect: true, attribute: 'table-style' })
 ], DexTreeTable.prototype, "tableStyle", void 0);
 __decorate([
-    property({ type: Object })
+    property({ attribute: false })
 ], DexTreeTable.prototype, "columnLabels", void 0);
 __decorate([
-    property({ type: Object })
+    property({ attribute: false })
 ], DexTreeTable.prototype, "columnGroups", void 0);
 __decorate([
-    property({ type: Array })
+    property({ attribute: false })
 ], DexTreeTable.prototype, "columns", void 0);
 __decorate([
     property({ attribute: false })
@@ -4386,13 +4376,13 @@ __decorate([
     property({ type: Boolean })
 ], DexTreeTable.prototype, "loading", void 0);
 __decorate([
-    property({ type: Boolean })
+    property({ type: Boolean, attribute: 'can-add' })
 ], DexTreeTable.prototype, "canAdd", void 0);
 __decorate([
     property({ attribute: false })
 ], DexTreeTable.prototype, "addClasses", void 0);
 __decorate([
-    property({ type: Boolean })
+    property({ type: Boolean, attribute: 'row-drag' })
 ], DexTreeTable.prototype, "rowDrag", void 0);
 __decorate([
     property({ type: Boolean, reflect: true })

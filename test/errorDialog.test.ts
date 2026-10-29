@@ -45,9 +45,9 @@ function text(el: DexErrorDialog, sel: string): string | undefined {
 }
 
 afterEach(() => {
-  // hide() detaches the document-level key listener show() installed; skipping it
+  // close() detaches the document-level key listener show() installed; skipping it
   // would leak a live Tab/Escape handler into the next test.
-  dialog?.hide();
+  dialog?.close();
   dialog?.remove();
   dialog = null;
 });
@@ -114,7 +114,7 @@ describe('what the dialog tells the user', () => {
 
   it('renders nothing at all while closed', async () => {
     const el = await makeDialog({ reason: 'x' });
-    el.hide();
+    el.close();
     await el.updateComplete;
     expect(el.hasAttribute('open')).toBe(false);
     expect(el.shadowRoot!.querySelector('.dialog')).toBeNull();
@@ -138,7 +138,7 @@ describe('what the dialog tells the user', () => {
     // table-main.ts holds one long-lived instance, so a second rejection must
     // not leave the first error's values on screen.
     const el = await makeDialog({ reason: 'first', invalidValue: 'a', validValue: 'b', detail: 'd' });
-    el.hide();
+    el.close();
     el.show({ reason: 'second' });
     await el.updateComplete;
     expect(text(el, '.message')).toBe('second');
@@ -217,7 +217,7 @@ describe('dismissing the dialog', () => {
 
   it('ignores Escape once already closed', async () => {
     const el = await makeDialog({ reason: 'x' });
-    el.hide();
+    el.close();
     expect(() => key('Escape')).not.toThrow();
     expect(el.hasAttribute('open')).toBe(false);
   });
@@ -318,7 +318,7 @@ describe('keyboard focus', () => {
     const cell = document.createElement('input');
     document.body.appendChild(cell);
     const el = await makeDialog({ reason: 'x', returnFocusTo: cell });
-    el.hide();
+    el.close();
     expect(document.activeElement).toBe(cell);
     cell.remove();
   });
@@ -328,7 +328,7 @@ describe('keyboard focus', () => {
     document.body.appendChild(cell);
     cell.focus();
     const el = await makeDialog({ reason: 'x' });
-    el.hide();
+    el.close();
     expect(document.activeElement).toBe(cell);
     cell.remove();
   });
@@ -345,7 +345,7 @@ describe('keyboard focus', () => {
     document.body.appendChild(wrapper);
     inner.focus();
     const el = await makeDialog({ reason: 'x' });
-    el.hide();
+    el.close();
     expect(wrapper.shadowRoot!.activeElement).toBe(inner);
     wrapper.remove();
   });
@@ -357,7 +357,7 @@ describe('keyboard focus', () => {
     document.body.appendChild(cell);
     const el = await makeDialog({ reason: 'x', returnFocusTo: cell });
     cell.remove();
-    expect(() => el.hide()).not.toThrow();
+    expect(() => el.close()).not.toThrow();
     expect(el.hasAttribute('open')).toBe(false);
   });
 
@@ -365,7 +365,7 @@ describe('keyboard focus', () => {
     // A closed dialog that still swallowed Tab would break navigation in the
     // table for the rest of the session.
     const el = await makeDialog({ reason: 'x', showRevert: true });
-    el.hide();
+    el.close();
     const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
     document.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(false);

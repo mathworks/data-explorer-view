@@ -158,7 +158,7 @@ describe('choosing a row', () => {
   it('a click selects it, says which file it opens, and opens or closes it', async () => {
     const el = await tree();
     const heard: HierarchySelectDetail[] = [];
-    document.body.addEventListener('dex-hierarchy-select', (e) => heard.push(e.detail));
+    document.body.addEventListener('dex-hierarchy-selected', (e) => heard.push(e.detail));
     rowOf(el, 'w').click();
     await settle(el);
     expect(heard.map((d) => [d.uri, d.key])).toEqual([[null, '/w']]);
@@ -178,7 +178,7 @@ describe('choosing a row', () => {
   it('the twisty opens and closes, and chooses nothing', async () => {
     const el = await tree();
     let heard = 0;
-    el.addEventListener('dex-hierarchy-select', () => heard++);
+    el.addEventListener('dex-hierarchy-selected', () => heard++);
     rowOf(el, 'w').querySelector<HTMLElement>('.twisty')!.click();
     await settle(el);
     expect(labels(el)).toEqual(['w', 'm.slx', 'd.sldd']);
@@ -189,7 +189,7 @@ describe('choosing a row', () => {
   it('setting selectedKey sends nothing', async () => {
     const el = await tree();
     let heard = 0;
-    el.addEventListener('dex-hierarchy-select', () => heard++);
+    el.addEventListener('dex-hierarchy-selected', () => heard++);
     el.selectedKey = '/w';
     await settle(el);
     expect(heard).toBe(0);
@@ -240,7 +240,7 @@ describe('the keyboard', () => {
   it('chooses with Enter', async () => {
     const el = await tree();
     const heard: (string | null)[] = [];
-    el.addEventListener('dex-hierarchy-select', (e) => heard.push(e.detail.uri));
+    el.addEventListener('dex-hierarchy-selected', (e) => heard.push(e.detail.uri));
     rows(el)[0]!.focus();
     press(el, 'ArrowRight');
     await settle(el);
@@ -312,7 +312,7 @@ describe('revealRow', () => {
   it('opens the rows above, selects the row and scrolls it into view once drawn, and sends nothing', async () => {
     const el = await tree();
     const sent: unknown[] = [];
-    el.addEventListener('dex-hierarchy-select', (e) => sent.push(e.detail));
+    el.addEventListener('dex-hierarchy-selected', (e) => sent.push(e.detail));
     const scrolled: string[] = [];
     const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
       scrolled.push(this.dataset.key ?? '');
@@ -337,10 +337,10 @@ describe('revealRow', () => {
     }
   });
 
-  it('sends dex-hierarchy-select for the row when asked to choose it, and opens or closes nothing', async () => {
+  it('sends dex-hierarchy-selected for the row when asked to choose it, and opens or closes nothing', async () => {
     const el = await tree();
     const sent: HierarchySelectDetail[] = [];
-    el.addEventListener('dex-hierarchy-select', (e) => sent.push(e.detail));
+    el.addEventListener('dex-hierarchy-selected', (e) => sent.push(e.detail));
     el.revealRow([FOLDER, MODEL], { choose: true });
     await settle(el);
     expect(sent).toEqual([{ uri: 'file:///w/m.slx', key: '/w/m', item: MODEL }]);

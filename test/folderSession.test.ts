@@ -13,7 +13,6 @@ import {
   createFolderSession,
   createWorkspace,
   folderReader,
-  serveFolder,
   type FolderSession,
   type GraphReader,
   type HierarchyItem,
@@ -21,6 +20,7 @@ import {
   type TreeTableRow,
   type WatchFolder,
 } from '../src/model/index.js';
+import { serveFolder } from '../src/serve/index.js';
 
 import { channel } from './goldens/channel.js';
 

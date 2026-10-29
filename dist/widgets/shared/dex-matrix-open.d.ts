@@ -21,7 +21,7 @@ export declare class DexMatrixOpen extends LitElement {
      * draws nothing. Property only.
      */
     matrix: MatrixDescriptor | null;
-    /** The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`. */
+    /** The row it sits in, sent on with the event; unset in the inspector. Attribute `row-id`. */
     rowId?: string;
     /** Focuses the glyph's button, where the variable editor returns focus when it closes. */
     focus(options?: FocusOptions): void;

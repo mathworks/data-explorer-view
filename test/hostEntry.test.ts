@@ -1,15 +1,14 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// data-explorer-view/host: what only a host serving the wire format uses, out of the app's model
-// entry (D30). Three things hold it.
+// data-explorer-view/host: what only the VS Code extension's host uses, out of the app's model
+// entry (D30). Two things hold it.
 //
 // - Which names it is: the list below, so a name added to or dropped from the entry is a decision
 //   someone makes here rather than a change no one sees.
-// - Until 1.0, ./model exports each of them too, as the SAME value, so nothing importing one from
-//   ./model breaks during 0.x.
-// - There, each is deprecated in a way an editor shows: imported from ./model, TypeScript reports
-//   it as deprecated (diagnostic 6385/6387), and imported from ./host it does not. Read from the
-//   built declarations, through the package's exports, as an app's editor reads them.
+// - They are ./host's alone since 1.0: ./model exports none of them, and an app that imports one
+//   from there is told so by TypeScript (no exported member), while one that imports it from
+//   ./host compiles clean, with nothing deprecated. Read from the built declarations, through the
+//   package's exports, as an app's editor reads them.
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import ts from 'typescript';
@@ -53,16 +52,16 @@ describe('data-explorer-view/host', () => {
     expect(Object.keys(host).sort()).toEqual(VALUES);
   });
 
-  it('is still ./model, value for value, until 1.0', () => {
-    for (const name of VALUES) expect((model as Record<string, unknown>)[name], name).toBe((host as Record<string, unknown>)[name]);
+  it('is not on ./model', () => {
+    for (const name of VALUES) expect(Object.hasOwn(model, name), name).toBe(false);
   });
 
-  it('is deprecated where ./model exports it, and nowhere else', () => {
+  it('compiles clean from ./host, and not at all from ./model', () => {
     const consumer = join(ROOT, 'test', '__host-consumer__.ts');
     const names = [...VALUES, ...TYPES.map((t) => `type ${t}`)].join(', ');
     const use = [...VALUES, ...TYPES].map((n, i) => (TYPES.includes(n) ? `let t${i}: ${n} | undefined;\nvoid t${i};` : `void ${n};`)).join('\n');
     const text = (from: string) => `import { ${names} } from 'data-explorer-view/${from}';\n${use}\n`;
-    const deprecated = (from: string): string[] => {
+    const compile = (from: string): { errors: string[]; deprecated: string[] } => {
       const source = text(from);
       const options: ts.CompilerOptions = {
         strict: true,
@@ -84,14 +83,20 @@ describe('data-explorer-view/host', () => {
         fileExists: (f) => f === consumer || ts.sys.fileExists(f),
         readFile: (f) => (f === consumer ? source : ts.sys.readFile(f)),
       });
-      expect(service.getSemanticDiagnostics(consumer).map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' ')), from).toEqual([]);
-      const flagged = service
+      // The names TypeScript says the entry does not export (2305, or 2724 with a suggestion).
+      const errors = service
+        .getSemanticDiagnostics(consumer)
+        .filter((d) => d.code === 2305 || d.code === 2724)
+        .map((d) => source.slice(d.start!, d.start! + d.length!).replace(/^type /, ''));
+      const others = service.getSemanticDiagnostics(consumer).filter((d) => d.code !== 2305 && d.code !== 2724);
+      if (from === 'host') expect(others.map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '))).toEqual([]);
+      const deprecated = service
         .getSuggestionDiagnostics(consumer)
         .filter((d) => d.code === 6385 || d.code === 6387)
         .map((d) => source.slice(d.start!, d.start! + d.length!).replace(/^type /, ''));
-      return [...new Set(flagged)].sort();
+      return { errors: [...new Set(errors)].sort(), deprecated: [...new Set(deprecated)].sort() };
     };
-    expect(deprecated('model')).toEqual([...VALUES, ...TYPES].sort());
-    expect(deprecated('host')).toEqual([]);
+    expect(compile('host')).toEqual({ errors: [], deprecated: [] });
+    expect(compile('model').errors).toEqual([...VALUES, ...TYPES].sort());
   }, 120_000);
 });

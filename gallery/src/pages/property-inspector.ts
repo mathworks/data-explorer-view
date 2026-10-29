@@ -11,7 +11,7 @@ startPage();
 definePropertyInspector(); // <dex-property-inspector>, and the matrix glyph its Value rows draw
 
 const entries = byId<HTMLSelectElement>('entries');
-logEvents(byId('stage'), ['dex-matrix-open', 'dex-pi-navigate', 'dex-property-changed'], byId('event-log'));
+logEvents(byId('stage'), ['dex-matrix-open', 'dex-property-navigate', 'dex-property-changed'], byId('event-log'));
 
 const ws = createWorkspace();
 let doc: Doc | null = null;

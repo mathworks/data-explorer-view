@@ -182,8 +182,8 @@ export class DexColumnFilter extends LitElement {
 
   /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
   @property({ type: String }) column = '';
-  /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
-  @property({ type: String }) columnLabel = '';
+  /** Header label; also the prefix the written text uses. Default ''. Attribute `column-label`. */
+  @property({ type: String, attribute: 'column-label' }) columnLabel = '';
   /**
    * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
    * `op`.
@@ -193,9 +193,9 @@ export class DexColumnFilter extends LitElement {
   @property({ type: String }) value = '';
   /**
    * True when the table already has a condition for this column, which offers Clear. Default
-   * false. Attribute `hasexisting`.
+   * false. Attribute `has-existing`.
    */
-  @property({ type: Boolean }) hasExisting = false;
+  @property({ type: Boolean, attribute: 'has-existing' }) hasExisting = false;
 
   @query('.popup-value') private _valueInput?: HTMLInputElement;
 

@@ -67,7 +67,7 @@ export function connectInspector(inspector, feed, options = {}) {
                 listener(target);
     };
     inspector.addEventListener('dex-matrix-open', onOpen);
-    inspector.addEventListener('dex-pi-navigate', onNavigate);
+    inspector.addEventListener('dex-property-navigate', onNavigate);
     const show = (page) => {
         // Each page replaces every row a grid opened from here was anchored to.
         if (openedHere)
@@ -105,7 +105,7 @@ export function connectInspector(inspector, feed, options = {}) {
             disposed = true;
             stop();
             inspector.removeEventListener('dex-matrix-open', onOpen);
-            inspector.removeEventListener('dex-pi-navigate', onNavigate);
+            inspector.removeEventListener('dex-property-navigate', onNavigate);
             navigate.clear();
             made?.remove();
         },

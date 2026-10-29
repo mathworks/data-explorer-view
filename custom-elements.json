@@ -206,7 +206,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A modal dialog that says why something the user did was refused: a title, the reason, the\nvalue entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click\noutside it closes it, and focus goes back where it was. With `showRevert`, a Revert button\nsends `dex-revert` first. Tab stays inside the dialog while it is open.",
+          "description": "A modal dialog that says why something the user did was refused: a title, the reason, the\nvalue entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click\noutside it closes it (as close() does), and focus goes back where it was. With show()'s\n`showRevert`, a Revert button sends `dex-revert` first. Tab stays inside the dialog while it is\nopen.",
           "name": "DexErrorDialog",
           "members": [
             {
@@ -229,7 +229,7 @@
             },
             {
               "kind": "method",
-              "name": "hide",
+              "name": "close",
               "return": {
                 "type": {
                   "text": "void"
@@ -420,7 +420,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, a file's mark a badge (a circular\nreference, unsaved changes), and a notice (a folder of which only the first files are shown) an\ninformation mark.\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,\nand a row with rows under it opens or closes. The arrow keys move through the rows (Right opens\na row or goes into it, Left closes it or goes to its parent), Home and End go to the first and\nthe last. `revealRow` shows a row the app names (the file it has open), and `expandTopLevel`\nopens the folder's own row on first show. connectHierarchy wires one to a FolderHierarchy.",
+          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, a file's mark a badge (a circular\nreference, unsaved changes), and a notice (a folder of which only the first files are shown) an\ninformation mark.\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it\nopens, and a row with rows under it opens or closes. The arrow keys move through the rows\n(Right opens a row or goes into it, Left closes it or goes to its parent), Home and End go to\nthe first and the last. `revealRow` shows a row the app names (the file it has open), and\n`expandTopLevel` opens the folder's own row on first show. connectHierarchy wires one to a\nFolderHierarchy.",
           "name": "DexHierarchy",
           "members": [
             {
@@ -502,12 +502,12 @@
                   }
                 }
               ],
-              "description": "Show a row: open each row of `path` but the last (the rows from a top-level row down to it,\nas FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as\nit is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,\nand a choice of the user's before the row is drawn leaves the scroll undone.\n\nSends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on\nit sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a\nfile's row."
+              "description": "Show a row: open each row of `path` but the last (the rows from a top-level row down to it,\nas FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as\nit is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,\nand a choice of the user's before the row is drawn leaves the scroll undone.\n\nSends nothing, unless `options.choose`: then `dex-hierarchy-selected` for the row, as a click\non it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to\na file's row."
             }
           ],
           "events": [
             {
-              "name": "dex-hierarchy-select",
+              "name": "dex-hierarchy-selected",
               "type": {
                 "text": "CustomEvent<HierarchySelectDetail>"
               },
@@ -1281,7 +1281,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a change sends `dex-property-changed`), a link (on its name, or on its value; a click\nsends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
+          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a change sends `dex-property-changed`), a link (on its name, or on its value; a click\nsends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
           "name": "DexPropertyInspector",
           "members": [
             {
@@ -1291,8 +1291,7 @@
                 "text": "PropertyGroup[]"
               },
               "default": "[]",
-              "description": "The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON).",
-              "attribute": "groups"
+              "description": "The groups shown, in order; none, the default, draws an empty panel. Property only."
             }
           ],
           "events": [
@@ -1304,22 +1303,11 @@
               "description": "An editable row's field was changed and committed (its change event)."
             },
             {
-              "name": "dex-pi-navigate",
+              "name": "dex-property-navigate",
               "type": {
                 "text": "CustomEvent<PiNavigateDetail>"
               },
               "description": "A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a\nvalue link (its `valueLink`)."
-            }
-          ],
-          "attributes": [
-            {
-              "name": "groups",
-              "type": {
-                "text": "PropertyGroup[]"
-              },
-              "default": "[]",
-              "description": "The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON).",
-              "fieldName": "groups"
             }
           ],
           "superclass": {
@@ -1625,8 +1613,8 @@
                 "text": "string"
               },
               "default": "''",
-              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.",
-              "attribute": "iconid"
+              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.",
+              "attribute": "icon-id"
             },
             {
               "kind": "field",
@@ -1641,12 +1629,12 @@
           ],
           "attributes": [
             {
-              "name": "iconid",
+              "name": "icon-id",
               "type": {
                 "text": "string"
               },
               "default": "''",
-              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.",
+              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.",
               "fieldName": "iconId"
             },
             {
@@ -1749,8 +1737,8 @@
               "type": {
                 "text": "string | undefined"
               },
-              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`.",
-              "attribute": "rowid"
+              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `row-id`.",
+              "attribute": "row-id"
             },
             {
               "kind": "method",
@@ -1783,11 +1771,11 @@
           ],
           "attributes": [
             {
-              "name": "rowid",
+              "name": "row-id",
               "type": {
                 "text": "string | undefined"
               },
-              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`.",
+              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `row-id`.",
               "fieldName": "rowId"
             }
           ],
@@ -2379,8 +2367,8 @@
                 "text": "string"
               },
               "default": "''",
-              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`.",
-              "attribute": "columnlabel"
+              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `column-label`.",
+              "attribute": "column-label"
             },
             {
               "kind": "field",
@@ -2409,8 +2397,8 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `hasexisting`.",
-              "attribute": "hasexisting"
+              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `has-existing`.",
+              "attribute": "has-existing"
             },
             {
               "kind": "method",
@@ -2457,12 +2445,12 @@
               "fieldName": "column"
             },
             {
-              "name": "columnlabel",
+              "name": "column-label",
               "type": {
                 "text": "string"
               },
               "default": "''",
-              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`.",
+              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `column-label`.",
               "fieldName": "columnLabel"
             },
             {
@@ -2484,12 +2472,12 @@
               "fieldName": "value"
             },
             {
-              "name": "hasexisting",
+              "name": "has-existing",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `hasexisting`.",
+              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `has-existing`.",
               "fieldName": "hasExisting"
             }
           ],
@@ -2753,8 +2741,7 @@
                 "text": "TreeTableRow[]"
               },
               "default": "[]",
-              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's planner makes of a\ndocument, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the\nchildren of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.\nAttribute `rows` (JSON); set the property.",
-              "attribute": "rows"
+              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's planner makes of a\ndocument, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the\nchildren of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.\nProperty only."
             },
             {
               "kind": "field",
@@ -2763,18 +2750,7 @@
                 "text": "string[]"
               },
               "default": "[]",
-              "description": "The ids of the selected rows. The table changes it as the user selects, and says so with\n`dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).",
-              "attribute": "selectedrowids"
-            },
-            {
-              "kind": "field",
-              "name": "rowHeight",
-              "default": "28",
-              "description": "The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no\n`--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px\nwithout one, so to change the height set the token, which both read. Default 28. Attribute\n`rowheight`.",
-              "attribute": "rowheight",
-              "type": {
-                "text": "number"
-              }
+              "description": "The ids of the selected rows. The table changes it as the user selects, and says so with\n`dex-row-selected`; setting it sends nothing. Default none. Property only."
             },
             {
               "kind": "field",
@@ -2794,8 +2770,7 @@
                 "text": "Record<string, string> | null"
               },
               "default": "null",
-              "description": "Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a\nsearch may qualify a term with (`\"Data Type\":double`); a column with none shows its key.\nDefault null. Attribute `columnlabels` (JSON).",
-              "attribute": "columnlabels"
+              "description": "Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a\nsearch may qualify a term with (`\"Data Type\":double`); a column with none shows its key.\nDefault null. Property only."
             },
             {
               "kind": "field",
@@ -2804,8 +2779,7 @@
                 "text": "Record<string, string> | null"
               },
               "default": "null",
-              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Attribute `columngroups` (JSON).",
-              "attribute": "columngroups"
+              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Property only."
             },
             {
               "kind": "field",
@@ -2814,8 +2788,7 @@
                 "text": "string[] | null"
               },
               "default": "null",
-              "description": "The column keys this document has, which the Columns menu offers; the user's saved order and\nchoice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`\n(JSON).",
-              "attribute": "columns"
+              "description": "The column keys this document has, which the Columns menu offers; the user's saved order and\nchoice of hidden ones apply within them. Default null: the built-in set. Property only."
             },
             {
               "kind": "field",
@@ -2843,8 +2816,8 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.",
-              "attribute": "canadd"
+              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.",
+              "attribute": "can-add"
             },
             {
               "kind": "field",
@@ -2862,8 +2835,8 @@
                 "text": "boolean"
               },
               "default": "true",
-              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `rowdrag`.",
-              "attribute": "rowdrag"
+              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `row-drag`.",
+              "attribute": "row-drag"
             },
             {
               "kind": "field",
@@ -3052,7 +3025,7 @@
               "type": {
                 "text": "CustomEvent<RequestChildrenDetail>"
               },
-              "description": "A row whose children the payload held back (`_lazy`) was opened: answer with its rows,\nmerged into `rows` under it (the model's childRowsMessage builds them with the file's\nplanner, and mergeChildRows puts them in place). Asked once until its rows arrive."
+              "description": "A row whose children the payload held back (`_lazy`) was opened: answer with its rows,\nmerged into `rows` under it (connectTable asks its source's `children` and merges them in\nplace). Asked once until its rows arrive."
             },
             {
               "name": "dex-table-context-menu",
@@ -3113,30 +3086,6 @@
           ],
           "attributes": [
             {
-              "name": "rows",
-              "type": {
-                "text": "TreeTableRow[]"
-              },
-              "default": "[]",
-              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's planner makes of a\ndocument, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the\nchildren of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.\nAttribute `rows` (JSON); set the property.",
-              "fieldName": "rows"
-            },
-            {
-              "name": "selectedrowids",
-              "type": {
-                "text": "string[]"
-              },
-              "default": "[]",
-              "description": "The ids of the selected rows. The table changes it as the user selects, and says so with\n`dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).",
-              "fieldName": "selectedRowIds"
-            },
-            {
-              "name": "rowheight",
-              "default": "DEFAULT_ROW_HEIGHT",
-              "description": "The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no\n`--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px\nwithout one, so to change the height set the token, which both read. Default 28. Attribute\n`rowheight`.",
-              "fieldName": "rowHeight"
-            },
-            {
               "name": "table-style",
               "type": {
                 "text": "'normal' | 'light'"
@@ -3144,33 +3093,6 @@
               "default": "'normal'",
               "description": "`normal`, the default, rules every cell; `light` drops the lines between columns and keeps a\nfaint one between rows. Reflected to the attribute `table-style`.",
               "fieldName": "tableStyle"
-            },
-            {
-              "name": "columnlabels",
-              "type": {
-                "text": "Record<string, string> | null"
-              },
-              "default": "null",
-              "description": "Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a\nsearch may qualify a term with (`\"Data Type\":double`); a column with none shows its key.\nDefault null. Attribute `columnlabels` (JSON).",
-              "fieldName": "columnLabels"
-            },
-            {
-              "name": "columngroups",
-              "type": {
-                "text": "Record<string, string> | null"
-              },
-              "default": "null",
-              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Attribute `columngroups` (JSON).",
-              "fieldName": "columnGroups"
-            },
-            {
-              "name": "columns",
-              "type": {
-                "text": "string[] | null"
-              },
-              "default": "null",
-              "description": "The column keys this document has, which the Columns menu offers; the user's saved order and\nchoice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`\n(JSON).",
-              "fieldName": "columns"
             },
             {
               "name": "loading",
@@ -3182,21 +3104,21 @@
               "fieldName": "loading"
             },
             {
-              "name": "canadd",
+              "name": "can-add",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.",
+              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.",
               "fieldName": "canAdd"
             },
             {
-              "name": "rowdrag",
+              "name": "row-drag",
               "type": {
                 "text": "boolean"
               },
               "default": "true",
-              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `rowdrag`.",
+              "description": "Whether a row can be dragged, or a dragged row let go over one. Set it false where the\ndocument cannot be changed: no row is draggable, and a drag from another table draws no drop\ntarget here, on a row or on the empty body. Default true. Attribute `row-drag`.",
               "fieldName": "rowDrag"
             },
             {
@@ -3498,14 +3420,6 @@
           "name": "AddEntryDetail",
           "declaration": {
             "name": "AddEntryDetail",
-            "module": "./dex-tree-table.js"
-          }
-        },
-        {
-          "kind": "js",
-          "name": "BlockLinkGroup",
-          "declaration": {
-            "name": "BlockLinkGroup",
             "module": "./dex-tree-table.js"
           }
         },

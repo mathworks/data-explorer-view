@@ -4,7 +4,7 @@
 // The Properties side panel. The host builds grouped name/value rows from the
 // selected node (piBuilder.ts) and pushes them in as `groups`; this component
 // renders them and reports back two things the host acts on: an edited value
-// (`dex-property-changed`) and a clicked cross-reference (`dex-pi-navigate`).
+// (`dex-property-changed`) and a clicked cross-reference (`dex-property-navigate`).
 import { describe, it, expect, afterEach } from 'vitest';
 import { DexPropertyInspector, definePropertyInspector, type PropertyGroup } from '../src/widgets/property-inspector/dex-property-inspector.js';
 
@@ -128,7 +128,7 @@ describe('cross-reference links', () => {
     // detail.sourceId is what the host resolves.
     const el = await makeInspector(GROUPS);
     const seen: unknown[] = [];
-    el.addEventListener('dex-pi-navigate', (e) => seen.push((e as CustomEvent).detail));
+    el.addEventListener('dex-property-navigate', (e) => seen.push((e as CustomEvent).detail));
     (el.shadowRoot!.querySelector('.prop-link') as HTMLElement).click();
     expect(seen).toEqual([{ sourceId: 'slx:controller' }]);
   });
@@ -136,7 +136,7 @@ describe('cross-reference links', () => {
   it('the navigate event escapes the shadow root to reach the host', async () => {
     const el = await makeInspector(GROUPS);
     const seen: unknown[] = [];
-    document.addEventListener('dex-pi-navigate', (e) => seen.push((e as CustomEvent).detail));
+    document.addEventListener('dex-property-navigate', (e) => seen.push((e as CustomEvent).detail));
     (el.shadowRoot!.querySelector('.prop-link') as HTMLElement).click();
     expect(seen).toEqual([{ sourceId: 'slx:controller' }]);
   });
@@ -148,7 +148,7 @@ describe('cross-reference links', () => {
       { title: 'G', properties: [{ name: 'controller.slx', value: 'Model', type: 'link' }] },
     ]);
     const seen: unknown[] = [];
-    el.addEventListener('dex-pi-navigate', (e) => seen.push((e as CustomEvent).detail));
+    el.addEventListener('dex-property-navigate', (e) => seen.push((e as CustomEvent).detail));
     (el.shadowRoot!.querySelector('.prop-link') as HTMLElement).click();
     expect(seen).toEqual([{ sourceId: 'controller.slx' }]);
   });
@@ -213,7 +213,7 @@ describe('cross-reference links', () => {
       },
     ]);
     const seen: unknown[] = [];
-    el.addEventListener('dex-pi-navigate', (e) => seen.push((e as CustomEvent).detail));
+    el.addEventListener('dex-property-navigate', (e) => seen.push((e as CustomEvent).detail));
     const links = el.shadowRoot!.querySelectorAll<HTMLElement>('.prop-link');
     links[1].click();
     links[0].click();
@@ -430,7 +430,7 @@ describe('a Data Type value that names another entry is a link', () => {
   it('reports the target and does not follow the href', async () => {
     const el = await makeInspector(LINKED);
     const seen: string[] = [];
-    el.addEventListener('dex-pi-navigate', (e) => seen.push((e as CustomEvent).detail.sourceId));
+    el.addEventListener('dex-property-navigate', (e) => seen.push((e as CustomEvent).detail.sourceId));
     const link = el.shadowRoot!.querySelectorAll('.prop-row')[1].querySelector('.prop-value a') as HTMLElement;
     const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
     link.dispatchEvent(ev);

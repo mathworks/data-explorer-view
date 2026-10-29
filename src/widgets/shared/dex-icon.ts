@@ -119,9 +119,9 @@ export class DexIcon extends LitElement {
 
   /**
    * The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
-   * kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+   * kind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.
    */
-  @property({ type: String }) iconId = '';
+  @property({ type: String, attribute: 'icon-id' }) iconId = '';
   /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
   @property({ type: Number }) size = 16;
 

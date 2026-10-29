@@ -74,8 +74,8 @@ export class DexMatrixOpen extends LitElement {
    * draws nothing. Property only.
    */
   @property({ attribute: false }) matrix: MatrixDescriptor | null = null;
-  /** The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`. */
-  @property({ type: String }) rowId?: string;
+  /** The row it sits in, sent on with the event; unset in the inspector. Attribute `row-id`. */
+  @property({ type: String, attribute: 'row-id' }) rowId?: string;
 
   // The host element is not focusable, so a bare focus() would land on <body>.
   // dex-variable-editor.close() calls anchorEl.focus() to return focus here.

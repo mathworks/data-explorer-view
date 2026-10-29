@@ -117,7 +117,7 @@ __decorate([
     property({ attribute: false })
 ], DexMatrixOpen.prototype, "matrix", void 0);
 __decorate([
-    property({ type: String })
+    property({ type: String, attribute: 'row-id' })
 ], DexMatrixOpen.prototype, "rowId", void 0);
 /** Registers the widget as `<dex-matrix-open>`, or under `tag`, after the icon it draws. */
 export function defineMatrixOpen(tag = 'dex-matrix-open') {

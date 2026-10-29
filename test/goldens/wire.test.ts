@@ -17,10 +17,10 @@ import {
   createWorkspace,
   isSectionRowId,
   messageSource,
-  serveTable,
   type TableChange,
   type TableSource,
 } from '../../src/model/index.js';
+import { serveTable } from '../../src/serve/index.js';
 import { channel } from './channel.js';
 
 const REPO = resolve(import.meta.dirname, '../..');

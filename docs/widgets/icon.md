@@ -14,7 +14,7 @@ import { defineIcon, setIconBase } from 'data-explorer-view/icon';
 
 setIconBase('./icons/');
 defineIcon();
-document.body.insertAdjacentHTML('beforeend', '<dex-icon iconid="typeBus" size="24"></dex-icon>');
+document.body.insertAdjacentHTML('beforeend', '<dex-icon icon-id="typeBus" size="24"></dex-icon>');
 ```
 
 A data-model kind (`bus`, `struct`, `signal`, …) is drawn as the icon that stands for it; an id
@@ -32,10 +32,10 @@ with no file draws a broken image, and an empty one draws nothing.
 
 ### `iconId`
 
-type `string` · default `''` · attribute `iconid`
+type `string` · default `''` · attribute `icon-id`
 
 The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
-kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+kind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.
 
 ### `size`
 

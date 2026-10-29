@@ -32,9 +32,9 @@ Column key the condition is about (`DataType`). Default ''. Attribute `column`.
 
 ### `columnLabel`
 
-type `string` · default `''` · attribute `columnlabel`
+type `string` · default `''` · attribute `column-label`
 
-Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`.
+Header label; also the prefix the written text uses. Default ''. Attribute `column-label`.
 
 ### `op`
 
@@ -51,10 +51,10 @@ The value compared with. Default ''. Attribute `value`.
 
 ### `hasExisting`
 
-type `boolean` · default `false` · attribute `hasexisting`
+type `boolean` · default `false` · attribute `has-existing`
 
 True when the table already has a condition for this column, which offers Clear. Default
-false. Attribute `hasexisting`.
+false. Attribute `has-existing`.
 
 ## Methods
 

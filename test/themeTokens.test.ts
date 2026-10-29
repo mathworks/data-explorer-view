@@ -13,7 +13,7 @@
 // the tokens onto its theme in its own vscode-theme.css, which is the worked example of mapping
 // a design system onto --dex-*.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ROOT,
@@ -21,7 +21,6 @@ import {
   THEME_SETS,
   block,
   chain,
-  declarations,
   hasColour,
   normalise,
   stripComments,
@@ -176,11 +175,8 @@ describe('the theme is exported', () => {
     expect(pkg.files).toContain('src/theme');
   });
 
-  it('and theme/global.css still carries the same tokens during 0.x', () => {
-    expect(pkg.exports['./theme/*.css']).toBe('./src/theme/*.css');
-    const global = readFileSync(join(ROOT, 'src', 'theme', 'global.css'), 'utf8');
-    expect(stripComments(global)).toMatch(/@import\s+['"]\.\/tokens\.css['"]\s*;/);
-    // Nothing of its own: a token declared here would be one theme.css lacks.
-    expect([...declarations(global).keys()]).toEqual([]);
+  it('and nothing else: the 0.x theme/global.css is gone, and no stylesheet but theme.css is exported', () => {
+    expect(existsSync(join(ROOT, 'src', 'theme', 'global.css'))).toBe(false);
+    expect(Object.keys(pkg.exports).filter((key) => key.endsWith('.css') || key.includes('theme'))).toEqual(['./theme.css']);
   });
 });

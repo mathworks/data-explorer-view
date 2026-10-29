@@ -15,13 +15,11 @@ import {
   FolderHierarchy,
   folderFileList,
   folderReader,
-  listedFiles,
-  serveFolder,
   sourceUri,
-  type FolderReads,
   type GraphReader,
   type TablePort,
 } from '../src/model/index.js';
+import { listedFiles, serveFolder, type FolderReads } from '../src/serve/index.js';
 import { channel } from './goldens/channel.js';
 
 const file = (name: string): SourceFile => ({ uriString: `file:///w/${name}`, path: `/w/${name}` });

@@ -140,8 +140,8 @@ describe('custom-elements.json', () => {
   });
 });
 
-// What each widget class observes, by Lit's own reckoning: its static observedAttributes, less
-// the attributes of properties its JSDoc marks internal (the error dialog's, which show() fills).
+// What each widget class observes, by Lit's own reckoning: its static observedAttributes. Every
+// one is in the manifest: no attribute is observed that the API does not name.
 let customElementsObserved: Map<string, string[]>;
 beforeAll(async () => {
   const { execFileSync } = await import('node:child_process');
@@ -158,16 +158,13 @@ beforeAll(async () => {
     }
     console.log(JSON.stringify(out));`;
   const byClass: Record<string, string[]> = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8' }));
-  const internal: Record<string, string[]> = {
-    DexErrorDialog: ['dialogtitle', 'message', 'detail', 'invalidvalue', 'validvalue', 'showrevert'],
-  };
   customElementsObserved = new Map();
   for (const mod of MANIFEST.modules) {
     for (const d of mod.declarations ?? []) {
       if (!d.customElement) continue;
       const all = byClass[d.name];
       if (!all) throw new Error(`${d.name} is on no widget entry`);
-      customElementsObserved.set(d.tagName, all.filter((a) => !(internal[d.name] ?? []).includes(a)));
+      customElementsObserved.set(d.tagName, all);
     }
   }
 }, 120_000);
@@ -187,14 +184,15 @@ describe('an app written in TypeScript, against the built package', () => {
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
     import { rowPlannerFor, buildPropertyGroups } from 'data-explorer-view/model';
     import { childRowsMessage } from 'data-explorer-view/host';
-    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
+    import { createWorkspace, inspectorFeed, messageSource, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
     import { projectPageMessage, readProjectPage, type SetProjectMessage } from 'data-explorer-view/model';
     import { createFolderSession, type FolderSession, type WatchFolder } from 'data-explorer-view/model';
-    import { folderReader, serveFolder, type FolderReader, type FolderReads, type FolderServer, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
+    import { folderReader, type FolderReader, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
+    import { serveFolder, serveTable, type FolderReads, type FolderServer } from 'data-explorer-view/serve';
     import { folderFileList, portFromMessagePort, type FolderFileList } from 'data-explorer-view/model';
     import * as serve from 'data-explorer-view/serve';
-    import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
+    import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
 
@@ -233,11 +231,11 @@ describe('an app written in TypeScript, against the built package', () => {
     gallery.addEventListener('dex-add-pin-changed', (e) => b(e.detail.pinned));
     gallery.addEventListener('dex-add-closed', (e) => none(e.detail));
     inspector.addEventListener('dex-property-changed', (e) => { s(e.detail.propName); s(e.detail.newValue); s(e.detail.oldValue); });
-    inspector.addEventListener('dex-pi-navigate', (e) => s(e.detail.sourceId));
+    inspector.addEventListener('dex-property-navigate', (e) => s(e.detail.sourceId));
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
     menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
-    tree.addEventListener('dex-hierarchy-select', (e) => { const d: HierarchySelectDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
+    tree.addEventListener('dex-hierarchy-selected', (e) => { const d: HierarchySelectDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
     project.addEventListener('dex-project-open', (e) => { const d: ProjectOpenDetail = e.detail; s(d.path); b(d.preferProject ?? false); });
     {
       const message: SetProjectMessage = projectPageMessage({}, '/w/P/P.prj', '/w/P');
@@ -246,7 +244,7 @@ describe('an app written in TypeScript, against the built package', () => {
       void readProjectPage('/w/P/P.prj', { readText: async () => '', list: async () => [] }).then((m) => (project.payload = m));
     }
     // @ts-expect-error a select's uri may be null: a row that is no file
-    tree.addEventListener('dex-hierarchy-select', (e) => s(e.detail.uri));
+    tree.addEventListener('dex-hierarchy-selected', (e) => s(e.detail.uri));
     // They bubble and are composed, so the document and the window hear them, typed.
     document.addEventListener('dex-matrix-open', (e) => s(e.detail.matrix.nodeId));
     document.addEventListener('dex-row-selected', (e) => e.detail.rowIds.map(s));
@@ -277,7 +275,7 @@ describe('an app written in TypeScript, against the built package', () => {
     const rowsOfModel: ModelRow[] = table.rows;
     void rowsOfModel;
     inspector.groups = buildPropertyGroups(null);
-    const groupsOfModel: PIPropertyGroup[] = inspector.groups;
+    const groupsOfModel: ModelGroup[] = inspector.groups;
     const inspectorGroups: InspectorGroup[] = groupsOfModel;
     const modelGroups: ModelGroup[] = inspectorGroups;
     const rowOf: InspectorRow | undefined = modelGroups[0]?.properties[0];
@@ -490,7 +488,6 @@ describe('an app written in TypeScript, against the built package', () => {
     expect(declarationOf('TableRow')).toBe(declarationOf('ModelRow'));
     expect(declarationOf('ModelRow')).toContain('dist/model/rows/tableRow.d.ts');
     expect(declarationOf('InspectorGroup')).toBe(declarationOf('ModelGroup'));
-    expect(declarationOf('PIPropertyGroup')).toBe(declarationOf('ModelGroup'));
     expect(declarationOf('InspectorRow')).toBe(declarationOf('ModelPropertyRow'));
     expect(declarationOf('ModelGroup')).toContain('dist/model/inspector/piBuilder.d.ts');
   });

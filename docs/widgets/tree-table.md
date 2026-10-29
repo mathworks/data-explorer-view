@@ -76,29 +76,20 @@ See also the [context menu](context-menu.md) (its items for a selection come fro
 
 ### `rows`
 
-type `TreeTableRow[]` · default `[]` · attribute `rows`
+type `TreeTableRow[]` · default `[]` · property only
 
 The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and
 siblings show in the order given until the user sorts. What the model's planner makes of a
 document, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the
 children of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.
-Attribute `rows` (JSON); set the property.
+Property only.
 
 ### `selectedRowIds`
 
-type `string[]` · default `[]` · attribute `selectedrowids`
+type `string[]` · default `[]` · property only
 
 The ids of the selected rows. The table changes it as the user selects, and says so with
-`dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
-
-### `rowHeight`
-
-type `number` · default `28` · attribute `rowheight`
-
-The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no
-`--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px
-without one, so to change the height set the token, which both read. Default 28. Attribute
-`rowheight`.
+`dex-row-selected`; setting it sends nothing. Default none. Property only.
 
 ### `tableStyle`
 
@@ -109,26 +100,25 @@ faint one between rows. Reflected to the attribute `table-style`.
 
 ### `columnLabels`
 
-type `Record<string, string> | null` · default `null` · attribute `columnlabels`
+type `Record<string, string> | null` · default `null` · property only
 
 Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
 search may qualify a term with (`"Data Type":double`); a column with none shows its key.
-Default null. Attribute `columnlabels` (JSON).
+Default null. Property only.
 
 ### `columnGroups`
 
-type `Record<string, string> | null` · default `null` · attribute `columngroups`
+type `Record<string, string> | null` · default `null` · property only
 
 The group heading each column sits under in the Columns menu, by column key. Default null:
-no headings. Attribute `columngroups` (JSON).
+no headings. Property only.
 
 ### `columns`
 
-type `string[] | null` · default `null` · attribute `columns`
+type `string[] | null` · default `null` · property only
 
 The column keys this document has, which the Columns menu offers; the user's saved order and
-choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
-(JSON).
+choice of hidden ones apply within them. Default null: the built-in set. Property only.
 
 ### `banners`
 
@@ -148,10 +138,10 @@ read. Default false. Attribute `loading`.
 
 ### `canAdd`
 
-type `boolean` · default `false` · attribute `canadd`
+type `boolean` · default `false` · attribute `can-add`
 
 Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
-whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.
 
 ### `addClasses`
 
@@ -163,11 +153,11 @@ tiles of these classes only (the model's matCatalog). Property only.
 
 ### `rowDrag`
 
-type `boolean` · default `true` · attribute `rowdrag`
+type `boolean` · default `true` · attribute `row-drag`
 
 Whether a row can be dragged, or a dragged row let go over one. Set it false where the
 document cannot be changed: no row is draggable, and a drag from another table draws no drop
-target here, on a row or on the empty body. Default true. Attribute `rowdrag`.
+target here, on a row or on the empty body. Default true. Attribute `row-drag`.
 
 ### `readonly`
 
@@ -310,8 +300,8 @@ export interface AddTileDetail {
 ### `dex-request-children`
 
 A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
-merged into `rows` under it (the model's childRowsMessage builds them with the file's
-planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
+merged into `rows` under it (connectTable asks its source's `children` and merges them in
+place). Asked once until its rows arrive.
 
 `detail` is a `RequestChildrenDetail`:
 

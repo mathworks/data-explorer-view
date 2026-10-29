@@ -100,7 +100,7 @@ export class DexIcon extends LitElement {
         super(...arguments);
         /**
          * The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
-         * kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+         * kind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.
          */
         this.iconId = '';
         /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
@@ -139,7 +139,7 @@ export class DexIcon extends LitElement {
     }
 }
 __decorate([
-    property({ type: String })
+    property({ type: String, attribute: 'icon-id' })
 ], DexIcon.prototype, "iconId", void 0);
 __decorate([
     property({ type: Number })

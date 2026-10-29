@@ -7,13 +7,8 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import type { SourceFile } from 'data-explorer-core';
-import {
-  folderReader,
-  portFromMainPort,
-  portFromMessagePort,
-  serveFolder,
-  type MainPort,
-} from '../src/model/index.js';
+import { folderReader, portFromMessagePort } from '../src/model/index.js';
+import { portFromMainPort, serveFolder, type MainPort } from '../src/serve/index.js';
 
 const A: SourceFile = { uriString: 'file:///w/a.sldd', path: '/w/a.sldd' };
 

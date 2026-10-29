@@ -1,6 +1,6 @@
 {
   "name": "data-explorer-view",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "description": "Widgets and view model for Simulink data files, built on data-explorer-core",
   "license": "BSD-3-Clause",
   "type": "module",
@@ -73,16 +73,7 @@
       "default": "./dist/widgets/icon-assets/index.js"
     },
     "./theme.css": "./src/theme/tokens.css",
-    "./icons/*": "./icons/*",
-    "./model/*.js": {
-      "types": "./dist/model/*.d.ts",
-      "default": "./dist/model/*.js"
-    },
-    "./widgets/*.js": {
-      "types": "./dist/widgets/*.d.ts",
-      "default": "./dist/widgets/*.js"
-    },
-    "./theme/*.css": "./src/theme/*.css"
+    "./icons/*": "./icons/*"
   },
   "scripts": {
     "build": "node scripts/gen-icon-assets.mjs && tsc -p tsconfig.build.json && npm run build:api",

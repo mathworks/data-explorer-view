@@ -200,8 +200,8 @@ describe('with no theme sheet, rows are laid out at the height they are drawn', 
     expect(theme).toMatch(new RegExp(`--dex-row-height:\\s*${ROW_H}px;`));
   });
 
-  it('lays rows out at that height when nothing sets the token', async () => {
-    expect(new DexTreeTable().rowHeight).toBe(ROW_H);
+  it('lays rows out at that height when nothing sets the token, which is the only way to change it', async () => {
+    expect('rowHeight' in new DexTreeTable()).toBe(false);
     const table = await mountLarge(100);
     expect(getComputedStyle(table).getPropertyValue('--dex-row-height')).toBe('');
     const spacer = table.shadowRoot!.querySelector('.virtual-spacer') as HTMLElement;

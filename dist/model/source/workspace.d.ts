@@ -47,7 +47,9 @@ export interface UsageSource {
     /** The graph that answers for the document opened under `uri`. A rejection leaves the cells as the file has them. */
     graphFor(uri: string): Promise<UsageGraph>;
 }
-/** One open document. */
+/**
+ * One open document. An app is handed one and does not implement it, so a release may add to it.
+ */
 export interface Doc {
     /** The uri it was opened under: its identity in the workspace, and its table's `docUri`. */
     readonly uri: string;
@@ -76,7 +78,10 @@ export interface Doc {
     /** Close it: its tree leaves the session, and its table answers nothing more. */
     dispose(): void;
 }
-/** The documents a page has open. */
+/**
+ * The documents a page has open. An app is handed one and does not implement it, so a release may
+ * add to it.
+ */
 export interface Workspace {
     /**
      * Open the file `name`, whose content is `bytes` (which the workspace keeps: do not write to

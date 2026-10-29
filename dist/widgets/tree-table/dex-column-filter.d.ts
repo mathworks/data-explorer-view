@@ -25,7 +25,7 @@ export declare class DexColumnFilter extends LitElement {
     static styles: import("lit").CSSResult[];
     /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
     column: string;
-    /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
+    /** Header label; also the prefix the written text uses. Default ''. Attribute `column-label`. */
     columnLabel: string;
     /**
      * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
@@ -36,7 +36,7 @@ export declare class DexColumnFilter extends LitElement {
     value: string;
     /**
      * True when the table already has a condition for this column, which offers Clear. Default
-     * false. Attribute `hasexisting`.
+     * false. Attribute `has-existing`.
      */
     hasExisting: boolean;
     private _valueInput?;

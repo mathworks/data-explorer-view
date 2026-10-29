@@ -34,7 +34,10 @@ export interface FolderSessionOptions {
     repostDelayMs?: number;
     repostTimers?: UsageRepostTimers;
 }
-/** A folder, read once for its hierarchy, its Usage and its names. */
+/**
+ * A folder, read once for its hierarchy, its Usage and its names. An app is handed one and does not
+ * implement it, so a release may add to it.
+ */
 export interface FolderSession {
     /** The folder's hierarchy, for a tree (connectHierarchy) and for resolving a link by its rule. */
     readonly hierarchy: FolderHierarchy;

@@ -11,9 +11,12 @@
 //
 // An app does not need any of it. It opens files with createWorkspace and wires its widgets with
 // connectTable and connectInspector, and an app whose documents live elsewhere serves them with
-// serveTable (data-explorer-view/model), which answers the same messages from any TableSource.
+// serveTable (data-explorer-view/serve), which answers the same messages from any TableSource.
 //
-// Until 1.0, ./model exports these too, marked deprecated; they leave it at 1.0.
+// It is the VS Code extension's, and it is outside the package's semver promise: its shapes
+// follow that host (a webview's postMessage, tab sources, a module-level session), and they may
+// change in any minor release, in step with the extension, which pins this package by commit or
+// tag. The API check reports a change here and does not fail on it. Every other entry is covered.
 //
 // DOM-free, like the model: a host runs in Node, a worker or a page.
 

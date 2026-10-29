@@ -16,7 +16,6 @@ export type {
 } from './connectTable.js';
 export type {
   AddEntryDetail,
-  BlockLinkGroup,
   EditCompletedDetail,
   EditTextRequestDetail,
   LinkClickedDetail,

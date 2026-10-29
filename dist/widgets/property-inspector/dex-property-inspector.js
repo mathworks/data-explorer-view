@@ -14,7 +14,7 @@ import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 /**
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
  * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
- * sends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable
+ * sends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
  * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
@@ -23,7 +23,7 @@ import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 export class DexPropertyInspector extends LitElement {
     constructor() {
         super(...arguments);
-        /** The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON). */
+        /** The groups shown, in order; none, the default, draws an empty panel. Property only. */
         this.groups = [];
     }
     static { this.styles = [hiddenStyles, css `
@@ -139,7 +139,7 @@ export class DexPropertyInspector extends LitElement {
     }
     _onLinkClick(e, target) {
         e.preventDefault();
-        this.dispatchEvent(new CustomEvent('dex-pi-navigate', {
+        this.dispatchEvent(new CustomEvent('dex-property-navigate', {
             detail: { sourceId: target },
             bubbles: true,
             composed: true,
@@ -205,7 +205,7 @@ export class DexPropertyInspector extends LitElement {
     }
 }
 __decorate([
-    property({ type: Array })
+    property({ attribute: false })
 ], DexPropertyInspector.prototype, "groups", void 0);
 /**
  * Registers the widget as `<dex-property-inspector>`, or under `tag`, after the matrix glyph a

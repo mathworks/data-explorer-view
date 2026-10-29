@@ -154,7 +154,7 @@ describe('following another feed', () => {
     inspector.follow(a.handle);
     await settle();
     expect(pi.groups).toEqual((await a.doc.table.inspect(uo.ID)).groups);
-    pi.dispatchEvent(new CustomEvent('dex-pi-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
+    pi.dispatchEvent(new CustomEvent('dex-property-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
     expect(targets).toEqual(['Kp@file:///w/x.sldd']);
   });
 
@@ -269,8 +269,8 @@ describe("across a channel, from a host's pages", () => {
 
     const targets: string[] = [];
     inspector.on('navigate', (t) => targets.push(t));
-    pi.dispatchEvent(new CustomEvent('dex-pi-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
-    pi.dispatchEvent(new CustomEvent('dex-pi-navigate', { detail: { sourceId: '' }, bubbles: true }));
+    pi.dispatchEvent(new CustomEvent('dex-property-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
+    pi.dispatchEvent(new CustomEvent('dex-property-navigate', { detail: { sourceId: '' }, bubbles: true }));
     expect(targets).toEqual(['Kp@file:///w/x.sldd']);
   });
 });

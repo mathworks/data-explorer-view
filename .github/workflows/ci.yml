@@ -65,9 +65,10 @@ jobs:
           git diff --exit-code --stat -- dist custom-elements.json docs/widgets
           test -z "$(git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets)"
 
-      # The public API against the latest v* tag: a widget, property, method, attribute or
-      # event that is gone or renamed fails unless package.json's version is a major bump
-      # over the tag's (a minor one while 0.x). See scripts/check-api.mjs.
+      # The public API against the latest v* tag: an export, a widget's member, attribute or
+      # event, a detail's or a wire message's field, a token or an icon that is gone (a detail
+      # or a message changed) fails unless package.json's version is a major bump over the
+      # tag's. See scripts/check-api.mjs.
       - name: API against the last release
         run: npm run check:api
 

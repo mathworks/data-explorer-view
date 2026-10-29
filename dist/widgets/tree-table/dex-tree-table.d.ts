@@ -84,14 +84,6 @@ export interface TableBanners {
     /** What the read could not read, and what the paint held back (TableView.warnings). */
     warnings?: WarningBanner;
 }
-export interface BlockLinkGroup {
-    modelName: string;
-    blocks: {
-        blockName: string;
-        blockPath: string;
-        linkTarget: string;
-    }[];
-}
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
  * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
@@ -110,21 +102,14 @@ export declare class DexTreeTable extends LitElement {
      * siblings show in the order given until the user sorts. What the model's planner makes of a
      * document, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the
      * children of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.
-     * Attribute `rows` (JSON); set the property.
+     * Property only.
      */
     rows: TreeTableRow[];
     /**
      * The ids of the selected rows. The table changes it as the user selects, and says so with
-     * `dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
+     * `dex-row-selected`; setting it sends nothing. Default none. Property only.
      */
     selectedRowIds: string[];
-    /**
-     * The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no
-     * `--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px
-     * without one, so to change the height set the token, which both read. Default 28. Attribute
-     * `rowheight`.
-     */
-    rowHeight: number;
     /**
      * `normal`, the default, rules every cell; `light` drops the lines between columns and keeps a
      * faint one between rows. Reflected to the attribute `table-style`.
@@ -133,18 +118,17 @@ export declare class DexTreeTable extends LitElement {
     /**
      * Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
      * search may qualify a term with (`"Data Type":double`); a column with none shows its key.
-     * Default null. Attribute `columnlabels` (JSON).
+     * Default null. Property only.
      */
     columnLabels: Record<string, string> | null;
     /**
      * The group heading each column sits under in the Columns menu, by column key. Default null:
-     * no headings. Attribute `columngroups` (JSON).
+     * no headings. Property only.
      */
     columnGroups: Record<string, string> | null;
     /**
      * The column keys this document has, which the Columns menu offers; the user's saved order and
-     * choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
-     * (JSON).
+     * choice of hidden ones apply within them. Default null: the built-in set. Property only.
      */
     columns: string[] | null;
     /**
@@ -161,7 +145,7 @@ export declare class DexTreeTable extends LitElement {
     loading: boolean;
     /**
      * Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
-     * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+     * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.
      */
     canAdd: boolean;
     /**
@@ -173,7 +157,7 @@ export declare class DexTreeTable extends LitElement {
     /**
      * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
      * document cannot be changed: no row is draggable, and a drag from another table draws no drop
-     * target here, on a row or on the empty body. Default true. Attribute `rowdrag`.
+     * target here, on a row or on the empty body. Default true. Attribute `row-drag`.
      */
     rowDrag: boolean;
     /**
@@ -544,8 +528,8 @@ export interface TreeTableEventMap {
     'dex-row-selected': CustomEvent<RowSelectedDetail>;
     /**
      * A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
-     * merged into `rows` under it (the model's childRowsMessage builds them with the file's
-     * planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
+     * merged into `rows` under it (connectTable asks its source's `children` and merges them in
+     * place). Asked once until its rows arrive.
      */
     'dex-request-children': CustomEvent<RequestChildrenDetail>;
     /**
