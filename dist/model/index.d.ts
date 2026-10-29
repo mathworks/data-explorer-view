@@ -58,6 +58,8 @@ export { USAGE_REPOST_DEBOUNCE_MS, USAGE_REPOST_MAX_WAITS, createUsageRepostBus,
 export type { UsageRepostBus, UsageRepostTimers } from './usage/usageRepost.js';
 export { createUsageRepostHub } from './usage/usageRepostHub.js';
 export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usage/usageRepostHub.js';
+export { createFolderSession } from './folder/folderSession.js';
+export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
 export { NameIndex } from './search/nameIndex.js';
 export type { NameIndexOptions } from './search/nameIndex.js';
 export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
