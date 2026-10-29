@@ -28,16 +28,33 @@ export const OP_GLYPHS = [
     ['>=', '≥', 'greater than or equal to'],
     ['<=', '≤', 'less than or equal to'],
 ];
+/**
+ * The popup a right-click on a column header opens: one condition on that column (an operator
+ * and a value), and the filter text it will write. It filters nothing: Apply sends the condition
+ * in `dex-column-filter-applied`, Clear (when the table has one for the column) sends
+ * `dex-column-filter-cleared`, and Escape `dex-column-filter-closed`; the table writes the
+ * condition into its search. The value box takes focus when it opens. `<dex-tree-table>` draws it.
+ *
+ * @tagname dex-column-filter
+ */
 export class DexColumnFilter extends LitElement {
     constructor() {
         super(...arguments);
-        /** Column key the condition is about. */
+        /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
         this.column = '';
-        /** Header label; also the prefix the written text uses. */
+        /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
         this.columnLabel = '';
+        /**
+         * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
+         * `op`.
+         */
         this.op = 'contains';
+        /** The value compared with. Default ''. Attribute `value`. */
         this.value = '';
-        /** True when the table already has a condition for this column. */
+        /**
+         * True when the table already has a condition for this column, which offers Clear. Default
+         * false. Attribute `hasexisting`.
+         */
         this.hasExisting = false;
     }
     static { this.styles = [hiddenStyles, css `
@@ -171,7 +188,7 @@ export class DexColumnFilter extends LitElement {
       }
     }
   `]; }
-    /** Focus the value box; the caller opens the popup for typing, not for reading. */
+    /** Focuses the value box; the caller opens the popup for typing, not for reading. */
     focusValue() {
         this._valueInput?.focus();
         this._valueInput?.select();

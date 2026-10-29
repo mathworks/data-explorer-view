@@ -5,6 +5,14 @@ import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 
+/**
+ * A modal dialog that says why something the user did was refused: a title, the reason, the
+ * value entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click
+ * outside it closes it, and focus goes back where it was. With `showRevert`, a Revert button
+ * sends `dex-revert` first. Tab stays inside the dialog while it is open.
+ *
+ * @tagname dex-error-dialog
+ */
 export class DexErrorDialog extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -128,16 +136,34 @@ export class DexErrorDialog extends LitElement {
     }
   `];
 
+  // What show() fills in. Declared as properties (each with its attribute) since before the API
+  // was written down, and nothing outside the dialog sets them: show() is how it is used. Marked
+  // internal rather than made state, because state would stop the attributes being read, which
+  // a page could depend on; they become state when the API next breaks.
+  /** @internal The title; show()'s `title`. */
   @property({ type: String }) dialogTitle = '';
+  /** @internal The reason; show()'s `reason`. */
   @property({ type: String }) message = '';
+  /** @internal The detail line; show()'s `detail`. */
   @property({ type: String }) detail = '';
+  /** @internal The value entered; show()'s `invalidValue`. */
   @property({ type: String }) invalidValue = '';
+  /** @internal The value kept; show()'s `validValue`. */
   @property({ type: String }) validValue = '';
+  /** @internal Whether Revert is offered; show()'s `showRevert`. */
   @property({ type: Boolean }) showRevert = false;
 
   @state() private _open = false;
   private _returnFocusTo: HTMLElement | null = null;
 
+  /**
+   * Opens the dialog, focused on OK (never on Revert, which discards the user's edit).
+   *
+   * `title` defaults to 'Invalid Value' and `reason` to 'The entered value is not valid.';
+   * `invalidValue` and `validValue` are shown as Entered and Previous, `detail` under them, and
+   * `showRevert` adds the Revert button. Focus returns to `returnFocusTo` when it closes, or to
+   * the element that had it when this was called.
+   */
   show(opts: {
     title?: string;
     reason?: string;
@@ -165,6 +191,7 @@ export class DexErrorDialog extends LitElement {
     });
   }
 
+  /** Closes the dialog and gives focus back, sending nothing. */
   hide(): void {
     this._open = false;
     this.removeAttribute('open');
@@ -189,7 +216,7 @@ export class DexErrorDialog extends LitElement {
   }
 
   private _onRevert(): void {
-    this.dispatchEvent(new CustomEvent('dex-revert', {
+    this.dispatchEvent(new CustomEvent<null>('dex-revert', {
       bubbles: true,
       composed: true,
     }));
@@ -284,5 +311,9 @@ export function defineErrorDialog(tag = 'dex-error-dialog'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-error-dialog': DexErrorDialog;
+  }
+  interface HTMLElementEventMap {
+    /** Revert was pressed: put back the value kept. The dialog closes. No detail. */
+    'dex-revert': CustomEvent<null>;
   }
 }

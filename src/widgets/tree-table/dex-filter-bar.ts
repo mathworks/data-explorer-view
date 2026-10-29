@@ -25,6 +25,20 @@ const WARNING_TEXT: Record<NonNullable<FilterToken['warning']>, string> = {
   'non-numeric-bound': 'The bound is not a number, so this condition is ignored.',
 };
 
+/** What `dex-filter-applied` carries: the whole filter text proposed in place of `text`. */
+export interface FilterAppliedDetail {
+  text: string;
+}
+
+/**
+ * The tree table's search bar: the applied filter as one chip per condition, and an input for
+ * what the user is still typing. It filters nothing and keeps no filter: each gesture — Enter on
+ * the input, a chip's ×, the clear button, a second Escape — proposes a replacement for the whole
+ * text in `dex-filter-applied`, and the table applies it and sets `text` and `tokens` back.
+ * `<dex-tree-table>` draws it.
+ *
+ * @tagname dex-filter-bar
+ */
 export class DexFilterBar extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -179,10 +193,17 @@ export class DexFilterBar extends LitElement {
     }
   `];
 
-  /** The applied filter text. The bar never mutates it; it proposes replacements. */
+  /**
+   * The applied filter text. The bar never mutates it; it proposes replacements. Default ''.
+   * Attribute `text`.
+   */
   @property({ type: String }) text = '';
-  /** Its parse, from the table's one `parseFilterExpression` call. */
+  /**
+   * Its parse, from the table's one `parseFilterExpression` call: one chip each. Default none.
+   * Property only.
+   */
   @property({ attribute: false }) tokens: FilterToken[] = [];
+  /** The input's placeholder. Default 'Search'. Attribute `placeholder`. */
   @property({ type: String }) placeholder = 'Search';
 
   /** The uncommitted tail. The one piece of state that is the bar's alone. */
@@ -190,7 +211,7 @@ export class DexFilterBar extends LitElement {
 
   @query('.filter-input') private _input?: HTMLInputElement;
 
-  /** Focus (and select) the tail — the Ctrl+F entry point, forwarded by the table. */
+  /** Focuses (and selects) the input — the Ctrl+F entry point, forwarded by the table's focusFilter. */
   focusInput(): void {
     this._input?.focus();
     this._input?.select();
@@ -198,7 +219,11 @@ export class DexFilterBar extends LitElement {
 
   private _propose(text: string): void {
     this.dispatchEvent(
-      new CustomEvent('dex-filter-applied', { detail: { text }, bubbles: true, composed: true }),
+      new CustomEvent<FilterAppliedDetail>('dex-filter-applied', {
+        detail: { text },
+        bubbles: true,
+        composed: true,
+      }),
     );
   }
 
@@ -338,5 +363,12 @@ export function defineFilterBar(tag = 'dex-filter-bar'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-filter-bar': DexFilterBar;
+  }
+  interface HTMLElementEventMap {
+    /**
+     * The user asked for this filter text: Enter on what they typed (added after the applied
+     * text), a chip removed, or the whole filter cleared. The table handles it and lets it on.
+     */
+    'dex-filter-applied': CustomEvent<FilterAppliedDetail>;
   }
 }

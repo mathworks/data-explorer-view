@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/dex-tree-table.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The tree table.",
+          "name": "DexTreeTable",
+          "members": [
+            { "kind": "field", "name": "rows", "type": { "text": "TreeTableRow[]" }, "default": "[]", "description": "The rows.", "attribute": "rows" },
+            { "kind": "field", "name": "storageKey", "type": { "text": "string | null" }, "default": "'dex'", "description": "Where.", "attribute": "storage-key" },
+            { "kind": "field", "name": "dropPredictor", "type": { "text": "DropPredictor | null" }, "default": "null", "description": "Predicts." },
+            { "kind": "method", "name": "expand", "parameters": [{ "name": "ids", "type": { "text": "Iterable<string>" } }], "return": { "type": { "text": "void" } }, "description": "Opens." },
+            { "kind": "field", "name": "_private", "privacy": "private", "type": { "text": "number" } }
+          ],
+          "events": [
+            { "name": "dex-row-selected", "type": { "text": "CustomEvent<RowSelectedDetail>" }, "description": "Selected." },
+            { "name": "dex-row-drag-end", "type": { "text": "CustomEvent<null>" }, "description": "Ended." }
+          ],
+          "attributes": [
+            { "name": "rows", "type": { "text": "TreeTableRow[]" }, "fieldName": "rows" },
+            { "name": "storage-key", "type": { "text": "string | null" }, "fieldName": "storageKey" }
+          ],
+          "superclass": { "name": "LitElement", "package": "lit" },
+          "tagName": "dex-tree-table",
+          "customElement": true
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/dex-icon.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "An icon.",
+          "name": "DexIcon",
+          "members": [
+            { "kind": "field", "name": "iconId", "type": { "text": "string" }, "default": "''", "description": "Its id.", "attribute": "iconid" }
+          ],
+          "attributes": [{ "name": "iconid", "type": { "text": "string" }, "fieldName": "iconId" }],
+          "superclass": { "name": "LitElement", "package": "lit" },
+          "tagName": "dex-icon",
+          "customElement": true
+        }
+      ]
+    }
+  ]
+}

@@ -221,15 +221,57 @@ const OP_WORD_TEXT = {
     '>=': 'at least',
     '<=': 'at most',
 };
+/**
+ * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
+ * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
+ * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
+ * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
+ * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
+ * document itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts
+ * of that off.
+ *
+ * @tagname dex-tree-table
+ */
 export class DexTreeTable extends LitElement {
     constructor() {
         super(...arguments);
+        /**
+         * The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and
+         * siblings show in the order given until the user sorts. What the model's buildRows (or
+         * buildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.
+         */
         this.rows = [];
+        /**
+         * The ids of the selected rows. The table changes it as the user selects, and says so with
+         * `dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
+         */
         this.selectedRowIds = [];
+        /**
+         * A row's height in CSS pixels, which virtual scrolling lays the rows out at: the
+         * `--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.
+         */
         this.rowHeight = DEFAULT_ROW_HEIGHT;
+        /**
+         * `normal`, the default, rules every cell; `light` drops the lines between columns and keeps a
+         * faint one between rows. Reflected to the attribute `table-style`.
+         */
         this.tableStyle = 'normal';
+        /**
+         * Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
+         * search may qualify a term with (`"Data Type":double`); a column with none shows its key.
+         * Default null. Attribute `columnlabels` (JSON).
+         */
         this.columnLabels = null;
+        /**
+         * The group heading each column sits under in the Columns menu, by column key. Default null:
+         * no headings. Attribute `columngroups` (JSON).
+         */
         this.columnGroups = null;
+        /**
+         * The column keys this document has, which the Columns menu offers; the user's saved order and
+         * choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
+         * (JSON).
+         */
         this.columns = null;
         // Waiting for the first payload — a DIFFERENT state from "the payload arrived
         // and it was empty", which is the one that reads "No data". The host parses
@@ -240,45 +282,65 @@ export class DexTreeTable extends LitElement {
         // Set by the host-facing module for exactly as long as that gap lasts, and it
         // suppresses only the TABLE — see .loading-state for why the search bar stays
         // put, and why nothing visible happens here on a fast open.
+        /**
+         * The rows are on their way: while there are none, the table says Loading… (with a spinner,
+         * after half a second) instead of "No data"; the search bar stays. Set it while a document is
+         * read. Default false. Attribute `loading`.
+         */
         this.loading = false;
-        // Whether this view can create entries, i.e. whether the `+ Add` button exists at all.
         // The host-facing module sets it from the same `editable` flag the context menu is
         // gated on; a read-only view gets no button rather than a disabled one, because a
         // disabled button invites a click and explains nothing.
+        /**
+         * Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
+         * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+         */
         this.canAdd = false;
-        // The classes a MAT-file's gallery offers, as its host says core lists them (setRows'
-        // `add: {classes}`), or null for a dictionary's gallery, which offers every tile. The gallery
-        // draws the tiles of these classes only (matCatalog).
+        /**
+         * The classes a MAT-file's gallery offers, as its host says core lists them (setRows'
+         * `add: {classes}`), or null, the default, for a dictionary's gallery, which offers every tile.
+         * The gallery draws the tiles of these classes only (matCatalog). Property only.
+         */
         this.addClasses = null;
-        // Whether a row can be dragged, or a dragged row let go over one. False where the document is
-        // read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
-        // another table draws no drop target here, on a row or on the empty body.
+        /**
+         * Whether a row can be dragged, or a dragged row let go over one. False where the document is
+         * read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
+         * another table draws no drop target here, on a row or on the empty body. Default true.
+         * Attribute `rowdrag`.
+         */
         this.rowDrag = true;
-        // A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
-        // No cell editor opens — not on a double-click, not on Enter, not for beginRename or
-        // openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-        // whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-        // the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-        // dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
-        // what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
-        // False, the default, is the table as it always was, each cell's own flags deciding.
+        /**
+         * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
+         * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
+         * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
+         * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
+         * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
+         * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+         * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
+         * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
+         * to the attribute `readonly`.
+         */
         this.readonly = false;
-        // Where the user's column choices (which are shown, and their order) are kept: the page's
-        // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
-        // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
-        // so a layout saved before this existed carries over — and every table on the page that keeps
-        // the default shares one layout. An app gives each kind of table a key of its own, or null
-        // (or '') to keep the choices for this element's life only, with localStorage never touched.
-        // They are read when the table is connected, so a key set before then is the only one read; one
-        // set later reads again, from that key.
+        /**
+         * Where the user's column choices (which are shown, and their order) are kept: the page's
+         * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
+         * `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
+         * so a layout saved before this existed carries over — and every table on the page that keeps
+         * the default shares one layout. An app gives each kind of table a key of its own, or null
+         * (or '') to keep the choices for this element's life only, with localStorage never touched.
+         * They are read when the table is connected, so a key set before then is the only one read; one
+         * set later reads again, from that key. Attribute `storage-key`.
+         */
         this.storageKey = 'dex';
         this._expandedIds = new Set();
-        // The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
-        // (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
-        // sections, a MAT-file's variables, though not one whose children were held back, whose first
-        // click fetches — and from then on the rows the user opened stay open while they exist, and
-        // what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
-        // was, to the app (expandedIds).
+        /**
+         * The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
+         * (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
+         * sections, a MAT-file's variables, though not one whose children were held back, whose first
+         * click fetches — and from then on the rows the user opened stay open while they exist, and
+         * what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
+         * was, to the app (expandedIds). Attribute `expand-top-level`.
+         */
         this.expandTopLevel = false;
         // Whether rows with any in them have arrived: until then there is no expansion of the user's.
         this._shownRows = false;
@@ -321,11 +383,15 @@ export class DexTreeTable extends LitElement {
         // correctly. So we stash it here on dragover and use it at drop time, keeping
         // the completed action in sync with the "Move"/"Copy" the tooltip showed.
         this._lastDragMode = 'move';
-        // Predicts a drop for the row under the cursor ('' for the empty body), injected by the
-        // host-side glue (table-main) and backed by the pure dropDecision. Returns null when it
-        // cannot predict — no drag it was told about, or a target with no rule — and null REFUSES:
-        // with glue present, "cannot say" is not "yes". Only a table with no predictor at all
-        // falls back to the built-in permissive drag behavior, so it is usable without the glue.
+        /**
+         * Predicts a drop for the row under the cursor ('' for the empty body), injected by the
+         * host-side glue (table-main) and backed by the pure dropDecision: whether it may drop, the
+         * cursor and the tooltip to show, and whether it would change nothing. Returns null when it
+         * cannot predict — no drag it was told about, or a target with no rule — and null REFUSES:
+         * with glue present, "cannot say" is not "yes". Only a table with no predictor at all, the
+         * default, falls back to the built-in permissive drag behavior, so it is usable without the
+         * glue. Property only.
+         */
         this.dropPredictor = null;
         // Whether the table is scrolled off its left edge, i.e. whether the frozen Name
         // column is actually holding anything back. Drives only its edge shadow.
@@ -1540,6 +1606,10 @@ export class DexTreeTable extends LitElement {
     get _dragsRows() {
         return this.rowDrag && !this.readonly;
     }
+    /**
+     * The last of `selectedRowIds`, or '' when nothing is selected; set, it selects that row alone
+     * ('' selects nothing). Sends nothing.
+     */
     get selectedRowId() {
         return this.selectedRowIds[this.selectedRowIds.length - 1] || '';
     }
@@ -2030,7 +2100,11 @@ export class DexTreeTable extends LitElement {
         // the popover closed. Unpinned means one add and then naming it; pinned means a batch,
         // where an editor opening under each tile click would fight the next one.
         const rename = !this._addPinned;
-        this.dispatchEvent(new CustomEvent('dex-add-entry', { detail: { ...detail, rename }, bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent('dex-add-entry', {
+            detail: { ...detail, rename },
+            bubbles: true,
+            composed: true,
+        }));
         if (rename) {
             this._closeAddGallery();
         }
@@ -3085,7 +3159,11 @@ export class DexTreeTable extends LitElement {
             return;
         if (target.fetch) {
             this._awaitedWholeValue = row.ID;
-            this.dispatchEvent(new CustomEvent('dex-edit-text-request', { detail: { rowId: row.ID }, bubbles: true, composed: true }));
+            this.dispatchEvent(new CustomEvent('dex-edit-text-request', {
+                detail: { rowId: row.ID },
+                bubbles: true,
+                composed: true,
+            }));
             return;
         }
         this._onCellDblClick(row.ID, columnId, target.text, target.editor, target.options);
@@ -3810,6 +3888,7 @@ export class DexTreeTable extends LitElement {
             });
         });
     }
+    /** Flashes a row's background once, on the next render, as a copy does; nothing if it is not drawn. */
     flashRow(rowId) {
         this._pendingFlashId = rowId;
         this.requestUpdate();

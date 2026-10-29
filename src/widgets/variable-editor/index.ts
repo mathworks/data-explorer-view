@@ -4,4 +4,5 @@
 export { DexVariableEditor, defineVariableEditor } from './dex-variable-editor.js';
 export type { MatrixCellsAnswer } from './dex-variable-editor.js';
 export { DexMatrixGrid, defineMatrixGrid } from './dex-matrix-grid.js';
-export type { MatrixDescriptor, MatrixPayload } from './dex-matrix-grid.js';
+// The model's own declaration, so this entry and data-explorer-view/model name the same type.
+export type { MatrixDescriptor, MatrixPayload } from '../../model/matrix/matrixPayload.js';

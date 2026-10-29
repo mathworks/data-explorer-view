@@ -4,14 +4,16 @@
 // Each widget's define registers the parts its template draws, then the widget. Nothing is
 // defined on import, so a part a define forgets never upgrades: the table would hold an inert
 // <dex-filter-bar>, and nothing would say so. The parts are read from each widget's source
-// (every `<dex-…` in it, and the parts of those parts), so a template that gains a part fails
-// here until its define gains it too.
+// (every `<dex-…` in its code, and the parts of those parts; its comments name other widgets
+// without drawing them), so a template that gains a part fails here until its define gains it
+// too.
 //
 // The registry is stubbed empty around each call: the real one is shared by the whole file, and
 // in it a part some earlier define registered would pass for one this define registered.
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { blankCommentsAndKeepLines } from './tools/moduleGraph.js';
 import { DexContextMenu, defineContextMenu } from '../src/widgets/context-menu/dex-context-menu.js';
 import { DexErrorDialog, defineErrorDialog } from '../src/widgets/error-dialog/dex-error-dialog.js';
 import { DexPropertyInspector, definePropertyInspector } from '../src/widgets/property-inspector/dex-property-inspector.js';
@@ -49,7 +51,7 @@ const byTag = new Map(WIDGETS.map((w) => [w.tag, w]));
 // import.meta.dirname, not a URL against import.meta.url: under happy-dom that URL resolves
 // against the document, not this file.
 const drawn = (w: Widget): string[] => {
-  const src = readFileSync(join(import.meta.dirname, '../src/widgets', w.file), 'utf8');
+  const src = blankCommentsAndKeepLines(readFileSync(join(import.meta.dirname, '../src/widgets', w.file), 'utf8'));
   return [...new Set([...src.matchAll(/<(dex-[a-z-]+)/g)].map((m) => m[1]!))].filter((t) => t !== w.tag);
 };
 

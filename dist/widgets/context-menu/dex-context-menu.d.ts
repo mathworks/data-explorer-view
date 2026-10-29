@@ -29,6 +29,19 @@ export interface ContextMenuItem {
      */
     title?: string;
 }
+/** What `dex-action` carries: the `id` of the item chosen. */
+export interface ActionDetail {
+    actionId: string;
+}
+/**
+ * A context menu of the items an app hands it, at a point of the viewport: show() opens it,
+ * a choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,
+ * or a scroll close it. Arrow keys move along the items, disabled ones included (their
+ * `reason` is their tooltip), and Enter chooses. The tree table's items for a selection are
+ * buildContextMenuItems' (`data-explorer-view/tree-table`).
+ *
+ * @tagname dex-context-menu
+ */
 export declare class DexContextMenu extends LitElement {
     static styles: import("lit").CSSResult[];
     private _open;
@@ -40,7 +53,13 @@ export declare class DexContextMenu extends LitElement {
     private _contextMenuHandler;
     private _keyHandler;
     private _scrollHandler;
+    /**
+     * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
+     * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
+     * open is replaced.
+     */
     show(x: number, y: number, items: ContextMenuItem[]): void;
+    /** Closes the menu, choosing nothing. */
     close(): void;
     private _clampPosition;
     private _getActionItems;
@@ -58,5 +77,9 @@ export declare function defineContextMenu(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-context-menu': DexContextMenu;
+    }
+    interface HTMLElementEventMap {
+        /** An item that is not disabled was chosen, by a click or Enter; the menu closes. */
+        'dex-action': CustomEvent<ActionDetail>;
     }
 }

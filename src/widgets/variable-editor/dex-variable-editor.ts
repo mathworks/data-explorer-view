@@ -10,10 +10,17 @@ import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixGrid } from './dex-matrix-grid.js';
-import type { DexMatrixGrid, MatrixDescriptor, MatrixPayload } from './dex-matrix-grid.js';
+import type { DexMatrixGrid } from './dex-matrix-grid.js';
+import type { MatrixDescriptor, MatrixPayload } from '../../model/matrix/matrixPayload.js';
 
 // The host's answer to `requestMatrix` (src/common/protocol.ts MatrixCellsMessage).
 // Exactly one of `matrix` / `message` is set.
+/**
+ * What deliver() takes: the cells of the matrix whose node is `nodeId`, or the reason there are
+ * none. Exactly one of `matrix` and `message` is set. The model's matrixCellsMessage builds it,
+ * though its type still says `matrix` may be null, which it never is: hand it over as
+ * `{ ...answer, matrix: answer.matrix ?? undefined }`.
+ */
 export interface MatrixCellsAnswer {
   nodeId: string;
   matrix?: MatrixPayload;
@@ -29,6 +36,15 @@ const WAITING = 'Loading…';
 const OFFSET = 4;
 const MARGIN = 8;
 
+/**
+ * The variable editor: a panel, anchored under the glyph that opened it, that shows a matrix's
+ * cells in a `<dex-matrix-grid>`. An app makes one and appends it to the page; show() opens it
+ * on a matrix's descriptor, with its title and a waiting line, and deliver() fills it in with
+ * the cells once the app has them. Escape, the close button, a click outside it or a scroll
+ * close it, and focus goes back to the glyph if the panel held it. It sends no events.
+ *
+ * @tagname dex-variable-editor
+ */
 export class DexVariableEditor extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -145,9 +161,10 @@ export class DexVariableEditor extends LitElement {
   }
 
   /**
-   * Open on what the row knew: name, class, shape, node id. The cells are not here
-   * yet — matrixOpen.ts posts a `requestMatrix` for `matrix.nodeId` and hands the
-   * answer to deliver(). Until then the panel shows its title and a waiting line.
+   * Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:
+   * name, class, shape, node id. The cells are not here yet — the app fetches them for
+   * `matrix.nodeId` (vscode's matrixOpen.ts posts a `requestMatrix`) and hands the answer to
+   * deliver(). Until then the panel shows its title and a waiting line.
    */
   show(anchorEl: HTMLElement, matrix: MatrixDescriptor): void {
     this._anchor = anchorEl;
@@ -208,6 +225,7 @@ export class DexVariableEditor extends LitElement {
     this._grid?.focusActiveCell();
   }
 
+  /** Closes the panel; focus goes back to the glyph that opened it, if the panel held it. */
   close(): void {
     const wasFocusInside =
       document.activeElement === this || this.contains(document.activeElement as Node | null);
@@ -230,10 +248,12 @@ export class DexVariableEditor extends LitElement {
     }
   }
 
-  // Below the anchor, left edges aligned; pulled in at the viewport edges and
-  // flipped above when there is no room below. Public because the tests drive it
-  // directly: happy-dom has no layout engine, so they stub the two rects and
-  // check the arithmetic.
+  // Public because the tests drive it directly: happy-dom has no layout engine, so they stub
+  // the two rects and check the arithmetic.
+  /**
+   * Places the panel again under its glyph, left edges aligned, pulled in at the viewport's
+   * edges and flipped above the glyph when there is no room below. show() and deliver() call it.
+   */
   reposition(): void {
     const panel = this.shadowRoot?.querySelector('.panel') as HTMLElement | null;
     if (!panel || !this._anchor) {

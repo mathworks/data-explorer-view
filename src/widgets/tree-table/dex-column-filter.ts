@@ -25,6 +25,28 @@ export const OP_GLYPHS: ReadonlyArray<readonly [FilterOp, string, string]> = [
   ['<=', '≤', 'less than or equal to'],
 ];
 
+/** What `dex-column-filter-applied` carries: the condition, and the filter text it writes. */
+export interface ColumnFilterAppliedDetail {
+  column: string;
+  op: FilterOp;
+  value: string;
+  text: string;
+}
+
+/** What `dex-column-filter-cleared` carries: the column whose condition goes. */
+export interface ColumnFilterClearedDetail {
+  column: string;
+}
+
+/**
+ * The popup a right-click on a column header opens: one condition on that column (an operator
+ * and a value), and the filter text it will write. It filters nothing: Apply sends the condition
+ * in `dex-column-filter-applied`, Clear (when the table has one for the column) sends
+ * `dex-column-filter-cleared`, and Escape `dex-column-filter-closed`; the table writes the
+ * condition into its search. The value box takes focus when it opens. `<dex-tree-table>` draws it.
+ *
+ * @tagname dex-column-filter
+ */
 export class DexColumnFilter extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -158,18 +180,26 @@ export class DexColumnFilter extends LitElement {
     }
   `];
 
-  /** Column key the condition is about. */
+  /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
   @property({ type: String }) column = '';
-  /** Header label; also the prefix the written text uses. */
+  /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
   @property({ type: String }) columnLabel = '';
+  /**
+   * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
+   * `op`.
+   */
   @property({ type: String }) op: FilterOp = 'contains';
+  /** The value compared with. Default ''. Attribute `value`. */
   @property({ type: String }) value = '';
-  /** True when the table already has a condition for this column. */
+  /**
+   * True when the table already has a condition for this column, which offers Clear. Default
+   * false. Attribute `hasexisting`.
+   */
   @property({ type: Boolean }) hasExisting = false;
 
   @query('.popup-value') private _valueInput?: HTMLInputElement;
 
-  /** Focus the value box; the caller opens the popup for typing, not for reading. */
+  /** Focuses the value box; the caller opens the popup for typing, not for reading. */
   focusValue(): void {
     this._valueInput?.focus();
     this._valueInput?.select();
@@ -189,7 +219,7 @@ export class DexColumnFilter extends LitElement {
 
   private _apply(): void {
     this.dispatchEvent(
-      new CustomEvent('dex-column-filter-applied', {
+      new CustomEvent<ColumnFilterAppliedDetail>('dex-column-filter-applied', {
         detail: { column: this.column, op: this.op, value: this.value, text: this._text },
         bubbles: true,
         composed: true,
@@ -198,12 +228,12 @@ export class DexColumnFilter extends LitElement {
   }
 
   private _close(): void {
-    this.dispatchEvent(new CustomEvent('dex-column-filter-closed', { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent<null>('dex-column-filter-closed', { bubbles: true, composed: true }));
   }
 
   private _clear(): void {
     this.dispatchEvent(
-      new CustomEvent('dex-column-filter-cleared', {
+      new CustomEvent<ColumnFilterClearedDetail>('dex-column-filter-cleared', {
         detail: { column: this.column },
         bubbles: true,
         composed: true,
@@ -279,5 +309,13 @@ export function defineColumnFilter(tag = 'dex-column-filter'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-column-filter': DexColumnFilter;
+  }
+  interface HTMLElementEventMap {
+    /** Apply, or Enter: put this condition in the filter, in place of the column's own if it has one. */
+    'dex-column-filter-applied': CustomEvent<ColumnFilterAppliedDetail>;
+    /** Clear: take the column's condition out of the filter. */
+    'dex-column-filter-cleared': CustomEvent<ColumnFilterClearedDetail>;
+    /** Escape: close the popup and change nothing. No detail. */
+    'dex-column-filter-closed': CustomEvent<null>;
   }
 }

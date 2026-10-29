@@ -18,9 +18,22 @@ export declare function setIconBase(url: string): void;
  * bundler made; a later setIconBase goes back to the folder. Not on the `./icon` entry.
  */
 export declare function setIconUrls(urls: Readonly<Record<string, string>> | null): void;
+/**
+ * One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see
+ * setIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is
+ * drawn as the icon that stands for it. Decorative: hidden from assistive technology, so the
+ * element beside it carries the name.
+ *
+ * @tagname dex-icon
+ */
 export declare class DexIcon extends LitElement {
     static styles: import("lit").CSSResult[];
+    /**
+     * The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
+     * kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+     */
     iconId: string;
+    /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
     size: number;
     render(): import("lit-html").TemplateResult<1>;
 }

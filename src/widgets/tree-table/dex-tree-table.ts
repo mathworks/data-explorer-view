@@ -16,12 +16,13 @@ import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { nextExpandedIds } from '../../model/actions/rowUpdates.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 import { defineAddGallery } from './dex-add-gallery.js';
+import type { AddTileDetail } from './dex-add-gallery.js';
 import { defineColumnFilter } from './dex-column-filter.js';
 import { defineFilterBar } from './dex-filter-bar.js';
 import type { DexFilterBar } from './dex-filter-bar.js';
 import { defineIcon } from '../shared/dex-icon.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
-import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
+import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
 // Type-only, so nothing from core enters the webview bundle: the import is erased
 // before vite ever resolves it. See the contract below TreeTableRow.
 import type { RowData } from 'data-explorer-core';
@@ -113,11 +114,63 @@ type _CoreRowContract = [
   AssertTrue<CoreCellFits<'_descriptionApplies'>>,
 ];
 
+/** What `dex-edit-completed` carries: the cell, the text it had and the text typed. */
 export interface EditCompletedDetail {
   rowId: string;
   columnId: string;
   oldValue: string;
   newValue: string;
+}
+
+/** What `dex-row-selected` carries: the selection, as `selectedRowIds` now holds it. */
+export interface RowSelectedDetail {
+  rowIds: string[];
+}
+
+/** What `dex-request-children` carries: the row whose children the payload held back. */
+export interface RequestChildrenDetail {
+  nodeId: string;
+}
+
+/**
+ * What `dex-table-context-menu` carries: where to open the menu (viewport pixels), the row
+ * right-clicked (null for the space under the rows), and, for a model's block row, the model the
+ * row's `_graphTarget` names.
+ */
+export interface TableContextMenuDetail {
+  x: number;
+  y: number;
+  rowId: string | null;
+  graphTarget?: string;
+}
+
+/**
+ * What `dex-row-drag-start` carries: the rows dragged — the selection when the row grabbed is in
+ * it, else that row alone — less any section header.
+ */
+export interface RowDragStartDetail {
+  rowIds: string[];
+}
+
+/** What `dex-row-drop` carries: the row let go on ('' for the space under the rows), and copy or move. */
+export interface RowDropDetail {
+  targetRowId: string;
+  mode: DragMode;
+}
+
+/** What `dex-edit-text-request` carries: the row whose whole Value text the editor needs. */
+export interface EditTextRequestDetail {
+  rowId: string;
+}
+
+/** What `dex-link-clicked` carries: the `linkTarget` of the link clicked. */
+export interface LinkClickedDetail {
+  target: string;
+}
+
+/** What `dex-add-entry` carries: the tile's class, section and label, and whether to rename the row. */
+export interface AddEntryDetail extends AddTileDetail {
+  rename: boolean;
 }
 
 interface SortEntry {
@@ -355,6 +408,17 @@ const OP_WORD_TEXT: Record<FilterOp, string> = {
   '<=': 'at most',
 };
 
+/**
+ * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
+ * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
+ * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
+ * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
+ * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
+ * document itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts
+ * of that off.
+ *
+ * @tagname dex-tree-table
+ */
 export class DexTreeTable extends LitElement {
   static override styles = [
     hiddenStyles,
@@ -1456,12 +1520,43 @@ export class DexTreeTable extends LitElement {
     `,
   ];
 
+  /**
+   * The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and
+   * siblings show in the order given until the user sorts. What the model's buildRows (or
+   * buildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.
+   */
   @property({ type: Array }) rows: TreeTableRow[] = [];
+  /**
+   * The ids of the selected rows. The table changes it as the user selects, and says so with
+   * `dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
+   */
   @property({ type: Array }) selectedRowIds: string[] = [];
+  /**
+   * A row's height in CSS pixels, which virtual scrolling lays the rows out at: the
+   * `--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.
+   */
   @property({ type: Number }) rowHeight = DEFAULT_ROW_HEIGHT;
+  /**
+   * `normal`, the default, rules every cell; `light` drops the lines between columns and keeps a
+   * faint one between rows. Reflected to the attribute `table-style`.
+   */
   @property({ type: String, reflect: true, attribute: 'table-style' }) tableStyle: 'normal' | 'light' = 'normal';
+  /**
+   * Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
+   * search may qualify a term with (`"Data Type":double`); a column with none shows its key.
+   * Default null. Attribute `columnlabels` (JSON).
+   */
   @property({ type: Object }) columnLabels: Record<string, string> | null = null;
+  /**
+   * The group heading each column sits under in the Columns menu, by column key. Default null:
+   * no headings. Attribute `columngroups` (JSON).
+   */
   @property({ type: Object }) columnGroups: Record<string, string> | null = null;
+  /**
+   * The column keys this document has, which the Columns menu offers; the user's saved order and
+   * choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
+   * (JSON).
+   */
   @property({ type: Array }) columns: string[] | null = null;
   // Waiting for the first payload — a DIFFERENT state from "the payload arrived
   // and it was empty", which is the one that reads "No data". The host parses
@@ -1472,32 +1567,48 @@ export class DexTreeTable extends LitElement {
   // Set by the host-facing module for exactly as long as that gap lasts, and it
   // suppresses only the TABLE — see .loading-state for why the search bar stays
   // put, and why nothing visible happens here on a fast open.
+  /**
+   * The rows are on their way: while there are none, the table says Loading… (with a spinner,
+   * after half a second) instead of "No data"; the search bar stays. Set it while a document is
+   * read. Default false. Attribute `loading`.
+   */
   @property({ type: Boolean }) loading = false;
 
-  // Whether this view can create entries, i.e. whether the `+ Add` button exists at all.
   // The host-facing module sets it from the same `editable` flag the context menu is
   // gated on; a read-only view gets no button rather than a disabled one, because a
   // disabled button invites a click and explains nothing.
+  /**
+   * Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
+   * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+   */
   @property({ type: Boolean }) canAdd = false;
 
-  // The classes a MAT-file's gallery offers, as its host says core lists them (setRows'
-  // `add: {classes}`), or null for a dictionary's gallery, which offers every tile. The gallery
-  // draws the tiles of these classes only (matCatalog).
+  /**
+   * The classes a MAT-file's gallery offers, as its host says core lists them (setRows'
+   * `add: {classes}`), or null, the default, for a dictionary's gallery, which offers every tile.
+   * The gallery draws the tiles of these classes only (matCatalog). Property only.
+   */
   @property({ attribute: false }) addClasses: readonly string[] | null = null;
 
-  // Whether a row can be dragged, or a dragged row let go over one. False where the document is
-  // read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
-  // another table draws no drop target here, on a row or on the empty body.
+  /**
+   * Whether a row can be dragged, or a dragged row let go over one. False where the document is
+   * read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
+   * another table draws no drop target here, on a row or on the empty body. Default true.
+   * Attribute `rowdrag`.
+   */
   @property({ type: Boolean }) rowDrag = true;
 
-  // A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
-  // No cell editor opens — not on a double-click, not on Enter, not for beginRename or
-  // openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-  // whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-  // the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-  // dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
-  // what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
-  // False, the default, is the table as it always was, each cell's own flags deciding.
+  /**
+   * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
+   * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
+   * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
+   * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
+   * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
+   * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+   * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
+   * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
+   * to the attribute `readonly`.
+   */
   @property({ type: Boolean, reflect: true }) readonly = false;
 
   // Whether the `+ Add` button is drawn and the gallery can open.
@@ -1510,16 +1621,22 @@ export class DexTreeTable extends LitElement {
     return this.rowDrag && !this.readonly;
   }
 
-  // Where the user's column choices (which are shown, and their order) are kept: the page's
-  // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
-  // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
-  // so a layout saved before this existed carries over — and every table on the page that keeps
-  // the default shares one layout. An app gives each kind of table a key of its own, or null
-  // (or '') to keep the choices for this element's life only, with localStorage never touched.
-  // They are read when the table is connected, so a key set before then is the only one read; one
-  // set later reads again, from that key.
+  /**
+   * Where the user's column choices (which are shown, and their order) are kept: the page's
+   * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
+   * `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
+   * so a layout saved before this existed carries over — and every table on the page that keeps
+   * the default shares one layout. An app gives each kind of table a key of its own, or null
+   * (or '') to keep the choices for this element's life only, with localStorage never touched.
+   * They are read when the table is connected, so a key set before then is the only one read; one
+   * set later reads again, from that key. Attribute `storage-key`.
+   */
   @property({ type: String, attribute: 'storage-key' }) storageKey: string | null = 'dex';
 
+  /**
+   * The last of `selectedRowIds`, or '' when nothing is selected; set, it selects that row alone
+   * ('' selects nothing). Sends nothing.
+   */
   get selectedRowId(): string {
     return this.selectedRowIds[this.selectedRowIds.length - 1] || '';
   }
@@ -1575,12 +1692,14 @@ export class DexTreeTable extends LitElement {
     this._visibleRowsCache = null;
   }
 
-  // The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
-  // (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
-  // sections, a MAT-file's variables, though not one whose children were held back, whose first
-  // click fetches — and from then on the rows the user opened stay open while they exist, and
-  // what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
-  // was, to the app (expandedIds).
+  /**
+   * The expansion an app otherwise keeps around every assignment of `rows`, kept by the table
+   * (nextExpandedIds): the first rows with any in them open their top level — a dictionary's
+   * sections, a MAT-file's variables, though not one whose children were held back, whose first
+   * click fetches — and from then on the rows the user opened stay open while they exist, and
+   * what they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it
+   * was, to the app (expandedIds). Attribute `expand-top-level`.
+   */
   @property({ type: Boolean, attribute: 'expand-top-level' }) expandTopLevel = false;
   // Whether rows with any in them have arrived: until then there is no expansion of the user's.
   private _shownRows = false;
@@ -1633,11 +1752,15 @@ export class DexTreeTable extends LitElement {
   // the completed action in sync with the "Move"/"Copy" the tooltip showed.
   private _lastDragMode: 'copy' | 'move' = 'move';
 
-  // Predicts a drop for the row under the cursor ('' for the empty body), injected by the
-  // host-side glue (table-main) and backed by the pure dropDecision. Returns null when it
-  // cannot predict — no drag it was told about, or a target with no rule — and null REFUSES:
-  // with glue present, "cannot say" is not "yes". Only a table with no predictor at all
-  // falls back to the built-in permissive drag behavior, so it is usable without the glue.
+  /**
+   * Predicts a drop for the row under the cursor ('' for the empty body), injected by the
+   * host-side glue (table-main) and backed by the pure dropDecision: whether it may drop, the
+   * cursor and the tooltip to show, and whether it would change nothing. Returns null when it
+   * cannot predict — no drag it was told about, or a target with no rule — and null REFUSES:
+   * with glue present, "cannot say" is not "yes". Only a table with no predictor at all, the
+   * default, falls back to the built-in permissive drag behavior, so it is usable without the
+   * glue. Property only.
+   */
   @property({ attribute: false }) dropPredictor:
     | ((
         targetRowId: string,
@@ -2178,7 +2301,11 @@ export class DexTreeTable extends LitElement {
     // where an editor opening under each tile click would fight the next one.
     const rename = !this._addPinned;
     this.dispatchEvent(
-      new CustomEvent('dex-add-entry', { detail: { ...detail, rename }, bubbles: true, composed: true }),
+      new CustomEvent<AddEntryDetail>('dex-add-entry', {
+        detail: { ...detail, rename },
+        bubbles: true,
+        composed: true,
+      }),
     );
     if (rename) {
       this._closeAddGallery();
@@ -2841,7 +2968,7 @@ export class DexTreeTable extends LitElement {
     if (this._pendingChildren.has(rowId)) return;
     this._pendingChildren.add(rowId);
     this.dispatchEvent(
-      new CustomEvent('dex-request-children', {
+      new CustomEvent<RequestChildrenDetail>('dex-request-children', {
         detail: { nodeId: rowId },
         bubbles: true,
         composed: true,
@@ -2886,7 +3013,7 @@ export class DexTreeTable extends LitElement {
   private _onContainerContextMenu(e: MouseEvent): void {
     e.preventDefault();
     this.dispatchEvent(
-      new CustomEvent('dex-table-context-menu', {
+      new CustomEvent<TableContextMenuDetail>('dex-table-context-menu', {
         detail: { x: e.clientX, y: e.clientY, rowId: null },
         bubbles: true,
         composed: true,
@@ -2901,7 +3028,7 @@ export class DexTreeTable extends LitElement {
       this.selectedRowIds = [rowId];
       this._lastClickedId = rowId;
       this.dispatchEvent(
-        new CustomEvent('dex-row-selected', {
+        new CustomEvent<RowSelectedDetail>('dex-row-selected', {
           detail: { rowIds: this.selectedRowIds },
           bubbles: true,
           composed: true,
@@ -2911,7 +3038,7 @@ export class DexTreeTable extends LitElement {
     const row = this._getVisibleRows().find((r) => r.ID === rowId);
     const graphTarget = row ? (row as any)._graphTarget : undefined;
     this.dispatchEvent(
-      new CustomEvent('dex-table-context-menu', {
+      new CustomEvent<TableContextMenuDetail>('dex-table-context-menu', {
         detail: { x: e.clientX, y: e.clientY, rowId, graphTarget },
         bubbles: true,
         composed: true,
@@ -2958,7 +3085,7 @@ export class DexTreeTable extends LitElement {
     }
 
     this.dispatchEvent(
-      new CustomEvent('dex-row-selected', {
+      new CustomEvent<RowSelectedDetail>('dex-row-selected', {
         detail: { rowIds: this.selectedRowIds },
         bubbles: true,
         composed: true,
@@ -3003,7 +3130,7 @@ export class DexTreeTable extends LitElement {
       this._setDragImage(e, rowId, rowIds.length);
     }
     this.dispatchEvent(
-      new CustomEvent('dex-row-drag-start', {
+      new CustomEvent<RowDragStartDetail>('dex-row-drag-start', {
         detail: { rowIds },
         bubbles: true,
         composed: true,
@@ -3040,7 +3167,7 @@ export class DexTreeTable extends LitElement {
     this._dragLabel = '';
     this._dragCount = 0;
     // Tell the host the drag is over so it can clear the register + broadcast.
-    this.dispatchEvent(new CustomEvent('dex-row-drag-end', { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent<null>('dex-row-drag-end', { bubbles: true, composed: true }));
   }
 
   private _onRowDragOver(rowId: string, e: DragEvent): void {
@@ -3155,7 +3282,7 @@ export class DexTreeTable extends LitElement {
     this._dropTooltip = '';
     if (!decision?.canDrop) return;
     this.dispatchEvent(
-      new CustomEvent('dex-row-drop', {
+      new CustomEvent<RowDropDetail>('dex-row-drop', {
         detail: { targetRowId: '', mode },
         bubbles: true,
         composed: true,
@@ -3197,7 +3324,7 @@ export class DexTreeTable extends LitElement {
     if (this.dropPredictor && !decision?.canDrop) return;
 
     this.dispatchEvent(
-      new CustomEvent('dex-row-drop', {
+      new CustomEvent<RowDropDetail>('dex-row-drop', {
         detail: { targetRowId, mode },
         bubbles: true,
         composed: true,
@@ -3301,7 +3428,11 @@ export class DexTreeTable extends LitElement {
     if (target.fetch) {
       this._awaitedWholeValue = row.ID;
       this.dispatchEvent(
-        new CustomEvent('dex-edit-text-request', { detail: { rowId: row.ID }, bubbles: true, composed: true }),
+        new CustomEvent<EditTextRequestDetail>('dex-edit-text-request', {
+          detail: { rowId: row.ID },
+          bubbles: true,
+          composed: true,
+        }),
       );
       return;
     }
@@ -3431,7 +3562,7 @@ export class DexTreeTable extends LitElement {
     if (visible.length === 0) return;
     this.selectedRowIds = visible.map((r) => r.ID);
     this.dispatchEvent(
-      new CustomEvent('dex-row-selected', {
+      new CustomEvent<RowSelectedDetail>('dex-row-selected', {
         detail: { rowIds: this.selectedRowIds },
         bubbles: true,
         composed: true,
@@ -3453,7 +3584,7 @@ export class DexTreeTable extends LitElement {
     this._focusedRowId = rowId;
     this._scrollToRow(rowIdx);
     this.dispatchEvent(
-      new CustomEvent('dex-row-selected', {
+      new CustomEvent<RowSelectedDetail>('dex-row-selected', {
         detail: { rowIds: this.selectedRowIds },
         bubbles: true,
         composed: true,
@@ -3473,7 +3604,7 @@ export class DexTreeTable extends LitElement {
     this._focusedRowId = rowId;
     this._scrollToRow(_rowIdx);
     this.dispatchEvent(
-      new CustomEvent('dex-row-selected', {
+      new CustomEvent<RowSelectedDetail>('dex-row-selected', {
         detail: { rowIds: this.selectedRowIds },
         bubbles: true,
         composed: true,
@@ -3660,7 +3791,7 @@ export class DexTreeTable extends LitElement {
     e.preventDefault();
     e.stopPropagation();
     this.dispatchEvent(
-      new CustomEvent('dex-link-clicked', {
+      new CustomEvent<LinkClickedDetail>('dex-link-clicked', {
         detail: { target },
         bubbles: true,
         composed: true,
@@ -4095,6 +4226,7 @@ export class DexTreeTable extends LitElement {
     });
   }
 
+  /** Flashes a row's background once, on the next render, as a copy does; nothing if it is not drawn. */
   flashRow(rowId: string): void {
     this._pendingFlashId = rowId;
     this.requestUpdate();
@@ -4517,5 +4649,42 @@ export function defineTreeTable(tag = 'dex-tree-table'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-tree-table': DexTreeTable;
+  }
+  interface HTMLElementEventMap {
+    /**
+     * The user changed the selection: a click, Ctrl/Cmd- or Shift-click, a key, select-all, or a
+     * right-click on a row not in it.
+     */
+    'dex-row-selected': CustomEvent<RowSelectedDetail>;
+    /**
+     * A row whose children the payload held back (`_lazy`) was opened: answer with its rows.
+     * Asked once until its rows arrive.
+     */
+    'dex-request-children': CustomEvent<RequestChildrenDetail>;
+    /**
+     * A right-click on a row (after selecting it) or on the space under the rows: open a context
+     * menu there.
+     */
+    'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
+    /** The user started dragging rows. */
+    'dex-row-drag-start': CustomEvent<RowDragStartDetail>;
+    /** A drag of this table's rows ended, dropped or not. No detail. */
+    'dex-row-drag-end': CustomEvent<null>;
+    /**
+     * Rows were let go over a row the dropPredictor accepts (any row, with no predictor), or over
+     * the space under the rows when it accepts that.
+     */
+    'dex-row-drop': CustomEvent<RowDropDetail>;
+    /** A Value editor is opening on a summary: send the whole text with openWholeValueEditor. */
+    'dex-edit-text-request': CustomEvent<EditTextRequestDetail>;
+    /** A cell edit was committed with a text that differs from the one it had. */
+    'dex-edit-completed': CustomEvent<EditCompletedDetail>;
+    /**
+     * A link in a cell was clicked: any cell whose text names its `linkTarget` (a Data Type, Used
+     * By, a block, a parameter).
+     */
+    'dex-link-clicked': CustomEvent<LinkClickedDetail>;
+    /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
+    'dex-add-entry': CustomEvent<AddEntryDetail>;
   }
 }
