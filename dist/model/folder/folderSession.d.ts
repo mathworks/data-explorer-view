@@ -53,6 +53,13 @@ export interface FolderSession {
      * listing. Resolves when everything is.
      */
     changed(uris?: readonly string[]): Promise<void>;
+    /**
+     * Whether the folder's last listing holds the file of `uri`: for an app deciding whether a
+     * document it has open is one of the folder's (and so whether its Usage column is filled from
+     * the folder). False before the folder has been listed; while a change is being listed, the
+     * listing before it.
+     */
+    has(uri: string): boolean;
     /** Stop: the watch is let go, reposts stop, and a later change does nothing. */
     dispose(): void;
 }
