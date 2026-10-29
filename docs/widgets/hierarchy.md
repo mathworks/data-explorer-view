@@ -192,6 +192,7 @@ null for a row that is no file. Sent again each time a row is chosen.
 `detail` is a `HierarchySelectDetail`:
 
 ```ts
+/** What `dex-hierarchy-select` carries: the row chosen. */
 export interface HierarchySelectDetail {
   /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
   uri: string | null;
@@ -201,6 +202,7 @@ export interface HierarchySelectDetail {
   item: HierarchyItem;
 }
 
+/** One row of a folder's hierarchy, as a tree draws it. */
 export interface HierarchyItem {
   /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
   label: string;

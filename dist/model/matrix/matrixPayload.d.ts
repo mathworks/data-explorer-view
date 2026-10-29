@@ -2,8 +2,8 @@
  * What a ROW carries: everything the glyph and the panel's title line need, and no
  * cells. Every griddable row in the table holds one of these, so it has to be
  * cheap — a 1000x1000 entry's cells are 4 MB, which is 4 MB per row stamped for a
- * panel the user may never open. `nodeId` is how the webview asks for the cells
- * when it does open one (see matrixRequest.ts).
+ * panel the user may never open. `nodeId` is how the table asks its source for the
+ * cells when one is opened (`TableSource.matrix`).
  */
 export interface MatrixDescriptor {
     /** Panel title name — 'Kp', or 'ParamMat.Value' when the matrix is a property. */

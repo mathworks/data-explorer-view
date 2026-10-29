@@ -65,6 +65,7 @@ text), a chip removed, or the whole filter cleared. The table handles it and let
 `detail` is a `FilterAppliedDetail`:
 
 ```ts
+/** What `dex-filter-applied` carries: the whole filter text proposed in place of `text`. */
 export interface FilterAppliedDetail {
   text: string;
 }

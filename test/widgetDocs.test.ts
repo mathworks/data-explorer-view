@@ -8,6 +8,8 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
+import { sourceFiles } from './tools/moduleGraph.js';
 
 const ROOT = process.cwd();
 const DOCS = join(ROOT, 'docs', 'widgets');
@@ -59,4 +61,37 @@ describe('docs/widgets', () => {
     }
     for (const [, target] of readme.matchAll(/\]\((docs\/widgets\/[\w-]+\.md)\)/g)) expect(existsSync(join(ROOT, target!)), target).toBe(true);
   });
+
+  // A type printed on a page is what an app reads to learn what a detail holds, so its doc comment
+  // goes with it: a declaration's own text leaves the comment out, and LinkClickedDetail's four
+  // target forms were then readable only in an editor's hover.
+  it('prints each type with the doc comment written above it', () => {
+    const documented = new Set<string>();
+    for (const dir of ['widgets', 'model']) {
+      for (const rel of sourceFiles(join(ROOT, 'src', dir))) {
+        const source = ts.createSourceFile(rel, readFileSync(join(ROOT, 'src', dir, rel), 'utf8'), ts.ScriptTarget.ES2022, true);
+        for (const st of source.statements) {
+          if ((ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st)) && ts.getJSDocCommentsAndTags(st).some((d) => d.kind === ts.SyntaxKind.JSDoc)) {
+            documented.add(st.name.text);
+          }
+        }
+      }
+    }
+    let printed = 0;
+    for (const tag of TAGS) {
+      const lines = readFileSync(join(DOCS, page(tag)), 'utf8').split('\n');
+      lines.forEach((line, i) => {
+        const name = /^export (?:interface|type) (\w+)/.exec(line)?.[1];
+        if (!name || !documented.has(name)) return;
+        printed++;
+        expect(lines[i - 1]?.endsWith('*/'), `${page(tag)}: ${name} is printed without its doc comment`).toBe(true);
+      });
+    }
+    expect(printed, 'documented types printed on the pages').toBeGreaterThan(20);
+    const table = readFileSync(join(DOCS, 'tree-table.md'), 'utf8');
+    for (const form of ['`<name>@<source>`', '`blocks:<block>@<source>`', '`workspace:<name>@<source>`', '`<file>`, with no `@`']) {
+      expect(table, form).toContain(form);
+    }
+  });
 });
+

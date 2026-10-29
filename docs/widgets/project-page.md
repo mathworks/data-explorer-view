@@ -70,6 +70,7 @@ A link to a file, a folder or a project was followed, by a click, Enter or Space
 `detail` is a `ProjectOpenDetail`:
 
 ```ts
+/** What `dex-project-open` carries: a link the page cannot follow itself. */
 export interface ProjectOpenDetail {
   /** The path the link names, relative to the project's folder (`models/plant.slx`, `../Lib/Lib.prj`). */
   path: string;
