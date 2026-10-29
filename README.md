@@ -71,9 +71,10 @@ Nothing runs on import, and the package says so (`sideEffects` in
 `package.json` names only the stylesheets), so a bundler keeps only the
 modules your app uses.
 
-Each widget's page (linked above) lists its properties and attributes, its
-methods, the events it sends with the shape of each `detail`, the parts it
-defines and the theme tokens it reads. The same is in `custom-elements.json`
+Each widget's page (linked above, and in the package under `docs/widgets/`)
+lists its properties and attributes, its methods, the events it sends with the
+shape of each `detail`, the parts it defines and the theme tokens it reads. The
+same is in `custom-elements.json`
 (the [Custom Elements Manifest](https://github.com/webcomponents/custom-elements-manifest),
 named by `customElements` in `package.json`) for editors and tools. In
 TypeScript the tags and events are typed: `document.createElement('dex-tree-table')`
@@ -94,7 +95,10 @@ acts on. It uses no DOM and no Node, so it runs in a page, a worker or a
 terminal UI.
 
 ```js
-import { buildRows, COLUMNS, COLUMN_LABELS } from 'data-explorer-view/model';
+import { getModelFromBytes, rowPlannerFor, LAZY_ROW_BUDGET } from 'data-explorer-view/model';
+
+const node = getModelFromBytes(uri, name, bytes); // core reads the file
+const { rows } = rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET); // the table's rows
 ```
 
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with

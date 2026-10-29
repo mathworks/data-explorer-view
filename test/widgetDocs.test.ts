@@ -36,6 +36,22 @@ describe('docs/widgets', () => {
     for (const [, target] of text.matchAll(/\]\(([\w-]+\.md)\)/g)) expect(existsSync(join(DOCS, target!)), target).toBe(true);
   });
 
+  it('ships in the package, beside the manifest it is written from', () => {
+    const files: string[] = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).files;
+    expect(files).toContain('docs/widgets');
+    expect(files).toContain('custom-elements.json');
+  });
+
+  // The JSDoc these pages are written from began as comments in VS Code's extension, and an app
+  // has none of its modules, messages or commands: the pages say what a widget does instead.
+  it("speaks of what the widgets do, not of VS Code's code", () => {
+    const vscode = /table-main|pi-main|setRows|requestMatrix|matrixOpen|Command Palette|dataExplorer\.|keybinding|openAddGallery|webview|host-side|\b_[a-z]\w*\(|_cellEditTarget/;
+    for (const tag of TAGS) {
+      const lines = readFileSync(join(DOCS, page(tag)), 'utf8').split('\n');
+      expect(lines.filter((l) => vscode.test(l)), page(tag)).toEqual([]);
+    }
+  });
+
   it("is linked from the README's table of entries, a page for each entry's widget", () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     for (const tag of ['dex-tree-table', 'dex-property-inspector', 'dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-icon']) {

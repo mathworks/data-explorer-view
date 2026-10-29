@@ -4,6 +4,7 @@ import { ModelBlockNode, RowCellPool, owningEntryOf, schemaColumnLabels } from '
 import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { planRows, type PlannedRow, type RowPlan } from './lazyRows.js';
 import { sharedIdTest, stampRow, type ClipMark, type EntryStamp } from './rowStamp.js';
+import type { TreeTableRow } from './tableRow.js';
 
 // Columns shown across the dictionary tree (union that fits all sections), in
 // display order: the ungrouped core columns first, then the grouped columns
@@ -80,7 +81,7 @@ export { clipMarkKey, splitClipMarkKey, type ClipMark } from './rowStamp.js';
 
 /** The rows for a sectioned tree, plus what the plan held back (for the banner). */
 export interface SectionedRows {
-  rows: any[];
+  rows: TreeTableRow[];
   plan: RowPlan;
 }
 
@@ -169,7 +170,7 @@ export function buildRowsPlanned(
 }
 
 /** The rows alone, unplanned — the signature every caller that cannot answer a fetch uses. */
-export function buildRows(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark): any[] {
+export function buildRows(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark): TreeTableRow[] {
   return buildRowsPlanned(sldd, modifiedNames, clipMark).rows;
 }
 
@@ -229,7 +230,7 @@ export function buildEntryRows(
   clipMark?: ClipMark,
   pool?: RowCellPool,
   budget: number = Infinity,
-): any[] {
+): TreeTableRow[] {
   const out: any[] = [];
   const plan = planRows([entry], budget);
   const shared = sharedIdTest()(entry);

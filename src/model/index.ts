@@ -16,6 +16,7 @@
 
 // Rows: what the tree table shows for a file, how much of it at once, and the banners above it.
 export { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS, buildEntryRows, buildRows } from './rows/rowBuilder.js';
+export type { TreeTableRow } from './rows/tableRow.js';
 export { buildMatRows, buildMatVariableRows } from './rows/matRowBuilder.js';
 export type { MatStampOptions, SavedStatus } from './rows/matRowBuilder.js';
 export { clipMarkKey, splitClipMarkKey } from './rows/rowStamp.js';
@@ -35,6 +36,7 @@ export type { PostTarget } from './rows/postPayload.js';
 
 // The property inspector's pages, and which row it shows.
 export { buildPropertyGroups } from './inspector/piBuilder.js';
+export type { PropertyGroup, PropertyRow } from './inspector/piBuilder.js';
 export type { PIPropertyGroup, PIPropertyRow } from './inspector/piBuilder.js';
 export { InspectorPage } from './inspector/inspectorPage.js';
 export { InspectorSelection } from './inspector/inspectorSelection.js';

@@ -22,97 +22,10 @@ import { defineFilterBar } from './dex-filter-bar.js';
 import type { DexFilterBar } from './dex-filter-bar.js';
 import { defineIcon } from '../shared/dex-icon.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
-import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
-// Type-only, so nothing from core enters the webview bundle: the import is erased
-// before vite ever resolves it. See the contract below TreeTableRow.
-import type { RowData } from 'data-explorer-core';
+import type { TreeTableRow } from '../../model/rows/tableRow.js';
 
-export interface TreeTableRow {
-  ID: string;
-  parent: string | null;
-  Name: { label: string; iconId?: string; editable?: boolean; element?: boolean; clipboardMode?: string };
-  Value:
-    | { text: string; editable?: boolean; clipboardMode?: string; linkTarget?: string; editor?: string; options?: string[] }
-    | string;
-  _valueEditable?: boolean;
-  // Whether a Description typed onto this row could be SAVED — its own flag, because
-  // it is its own question: a plain MATLAB variable has an editable Value and nowhere
-  // to keep a Description, an object with a summarized Value has a read-only Value and
-  // keeps one fine. Reading the Value flag for it was wrong in both directions.
-  _descriptionEditable?: boolean;
-  // Whether this row's object HAS a Description property at all — core's answer, beside the
-  // two above. false (a plain MATLAB variable, a value inside another) draws the cell not
-  // applicable: the wash a blank Value or Data Type gets, no text, no editor. Absent — a core
-  // older than the flag — is today's cell. Not the same question as `_descriptionEditable`:
-  // a Description this file cannot save is still the object's, shown and read-only.
-  _descriptionApplies?: boolean;
-  // Present only when this row's value is a griddable matrix (host: matrixPayload.ts).
-  // Its presence IS the decision — the cell renders the glyph and asks nothing else.
-  // A DESCRIPTOR: name, class, shape and the node to ask. The cells are fetched when
-  // a panel opens, so a row that is merely on screen costs four fields, not 4 MB.
-  _matrix?: MatrixDescriptor;
-  // Present only when this row's children were held back by the payload's row budget
-  // (host: lazyRows.ts). Its presence IS the decision, like `_matrix`: the row gets a
-  // twisty although no child row arrived with it, and opening it asks the host for the
-  // next level instead of revealing rows the table already holds.
-  _lazy?: boolean;
-  // `prefix` is core's: the qualifier of a value like `Bus: artFsAimCmd`, split off so the
-  // anchor can cover exactly the name the dictionary holds. Declared here because
-  // _CoreRowContract below compares this line against core's RowData, and a field core
-  // sends that this shape does not name is a build error rather than a lost qualifier.
-  DataType: { prefix?: string; text: string; clipboardMode?: string; linkTarget?: string } | string;
-  Class?: { text: string; clipboardMode?: string } | string;
-  Kind?: { text: string; clipboardMode?: string } | string;
-  Description: { text: string; clipboardMode?: string } | string;
-  Status: { text: string; clipboardMode?: string } | string;
-  UsedBy?: { text: string; linkTarget?: string } | { links: { text: string; linkTarget: string }[] } | string;
-  // Block rows only, straight from core's ModelBlockNode.toRow: the systems that
-  // enclose the block (`Controller/Inner`, empty for one in the root system) and the
-  // block's own path (those plus its label). The Name cell shows the first and hovers
-  // the second; nothing here computes either, so both spellings stay core's.
-  _systemPath?: string;
-  _blockPath?: string;
-}
-
-/**
- * The compile-time half of the row contract with core.
- *
- * TreeTableRow cannot simply extend core's RowData. The host layer normalizes a
- * row on its way here (src/model/rows/rowBuilder.ts, usageCells.ts, matrixPayload.ts):
- * it stringifies core's `Value: unknown`, and it adds cell shapes core has no name
- * for — `paramLinks`, `blockLinks`, `clipboardMode`, `_matrix`. So the two shapes
- * are declared separately, and were checked against each other nowhere.
- *
- * What must hold is narrower than equality: for every key core DOES own, the cell
- * core can emit has to be one this table declares. Break that — rename
- * `Name.label`, retype `Status`, add a third arm to `DataType` — and the cell does
- * not fail loudly, it goes blank: `_getCellText` reads exactly these keys, so the
- * row silently stops being searchable AND sortable, with nothing raising anywhere.
- * Each line below turns that into a build error instead. Core may omit any of them
- * (the host fills them in), hence the `| undefined`.
- *
- * `Value` is deliberately absent — the host owns that conversion. The runtime half
- * of the contract, that a cell reads for search exactly as it paints, is pinned in
- * test/treeTableCells.test.ts.
- */
-type AssertTrue<T extends true> = T;
-type CoreCellFits<K extends keyof TreeTableRow & keyof RowData> = RowData[K] extends TreeTableRow[K] | undefined
-  ? true
-  : false;
-type _CoreRowContract = [
-  AssertTrue<CoreCellFits<'ID'>>,
-  AssertTrue<CoreCellFits<'parent'>>,
-  AssertTrue<CoreCellFits<'Name'>>,
-  AssertTrue<CoreCellFits<'DataType'>>,
-  AssertTrue<CoreCellFits<'Class'>>,
-  AssertTrue<CoreCellFits<'Kind'>>,
-  AssertTrue<CoreCellFits<'Description'>>,
-  AssertTrue<CoreCellFits<'Status'>>,
-  AssertTrue<CoreCellFits<'UsedBy'>>,
-  AssertTrue<CoreCellFits<'_valueEditable'>>,
-  AssertTrue<CoreCellFits<'_descriptionEditable'>>,
-  AssertTrue<CoreCellFits<'_descriptionApplies'>>,
-];
+// The model's row type, which `rows` takes: re-exported for the tree-table entry.
+export type { TreeTableRow };
 
 /** What `dex-edit-completed` carries: the cell, the text it had and the text typed. */
 export interface EditCompletedDetail {
@@ -163,7 +76,23 @@ export interface EditTextRequestDetail {
   rowId: string;
 }
 
-/** What `dex-link-clicked` carries: the `linkTarget` of the link clicked. */
+/**
+ * What `dex-link-clicked` carries: the `linkTarget` of the link clicked, as core and the row
+ * builders write it. A target is one of:
+ *
+ * - `<name>@<source>`: the entry or variable `<name>` in the document `<source>`. A Data Type
+ *   link names one in the same document, a Used By link or a block's parameter link one
+ *   anywhere;
+ * - `blocks:<block>@<source>`: a block of the model `<source>` that uses this row's variable,
+ *   by its SID (by its name in a file older than SIDs);
+ * - `workspace:<name>@<source>`: a parameter in the model workspace of `<source>`;
+ * - `<file>`, with no `@`: a file to open (a Model Reference or External Data link), with no row
+ *   in it to select.
+ *
+ * Split at the first `@`, as core does: a source can contain one. `<source>` is a core source
+ * id, the file's URL (the model's srcIdToUriString turns any source id into one), or a bare file
+ * name where the file recorded only that.
+ */
 export interface LinkClickedDetail {
   target: string;
 }
@@ -178,7 +107,11 @@ interface SortEntry {
   direction: 'asc' | 'desc';
 }
 
-const DEFAULT_ROW_HEIGHT = 26;
+// The height a row is drawn at when the page sets no --dex-row-height: the fallback every
+// `var(--dex-row-height, 28px)` in the stylesheet below writes, and theme.css's value. Virtual
+// scrolling lays rows out at the same number, so a page with no theme sheet scrolls the rows it
+// draws (the two disagreed, 26 against 28, until 0.2).
+const DEFAULT_ROW_HEIGHT = 28;
 const BUFFER_ROWS = 10;
 
 // Default column widths as RELATIVE weights: only their ratio matters, because
@@ -1522,8 +1455,10 @@ export class DexTreeTable extends LitElement {
 
   /**
    * The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and
-   * siblings show in the order given until the user sorts. What the model's buildRows (or
-   * buildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.
+   * siblings show in the order given until the user sorts. What the model's planner makes of a
+   * document, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the
+   * children of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.
+   * Attribute `rows` (JSON); set the property.
    */
   @property({ type: Array }) rows: TreeTableRow[] = [];
   /**
@@ -1532,8 +1467,10 @@ export class DexTreeTable extends LitElement {
    */
   @property({ type: Array }) selectedRowIds: string[] = [];
   /**
-   * A row's height in CSS pixels, which virtual scrolling lays the rows out at: the
-   * `--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.
+   * The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no
+   * `--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px
+   * without one, so to change the height set the token, which both read. Default 28. Attribute
+   * `rowheight`.
    */
   @property({ type: Number }) rowHeight = DEFAULT_ROW_HEIGHT;
   /**
@@ -1584,17 +1521,16 @@ export class DexTreeTable extends LitElement {
   @property({ type: Boolean }) canAdd = false;
 
   /**
-   * The classes a MAT-file's gallery offers, as its host says core lists them (setRows'
-   * `add: {classes}`), or null, the default, for a dictionary's gallery, which offers every tile.
-   * The gallery draws the tiles of these classes only (matCatalog). Property only.
+   * The classes a MAT-file's gallery offers, as core lists the classes a MAT-file can hold, or
+   * null, the default, for a dictionary's gallery, which offers every tile. The gallery draws the
+   * tiles of these classes only (the model's matCatalog). Property only.
    */
   @property({ attribute: false }) addClasses: readonly string[] | null = null;
 
   /**
-   * Whether a row can be dragged, or a dragged row let go over one. False where the document is
-   * read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
-   * another table draws no drop target here, on a row or on the empty body. Default true.
-   * Attribute `rowdrag`.
+   * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
+   * document cannot be changed: no row is draggable, and a drag from another table draws no drop
+   * target here, on a row or on the empty body. Default true. Attribute `rowdrag`.
    */
   @property({ type: Boolean }) rowDrag = true;
 
@@ -1628,8 +1564,9 @@ export class DexTreeTable extends LitElement {
    * so a layout saved before this existed carries over — and every table on the page that keeps
    * the default shares one layout. An app gives each kind of table a key of its own, or null
    * (or '') to keep the choices for this element's life only, with localStorage never touched.
-   * They are read when the table is connected, so a key set before then is the only one read; one
-   * set later reads again, from that key. Attribute `storage-key`.
+   * They are read when the table is connected, so set it before the table goes into the page: a
+   * key set later reads them again, from that key, after the table has shown the ones under the
+   * key it had. Attribute `storage-key`.
    */
   @property({ type: String, attribute: 'storage-key' }) storageKey: string | null = 'dex';
 
@@ -1753,13 +1690,13 @@ export class DexTreeTable extends LitElement {
   private _lastDragMode: 'copy' | 'move' = 'move';
 
   /**
-   * Predicts a drop for the row under the cursor ('' for the empty body), injected by the
-   * host-side glue (table-main) and backed by the pure dropDecision: whether it may drop, the
-   * cursor and the tooltip to show, and whether it would change nothing. Returns null when it
-   * cannot predict — no drag it was told about, or a target with no rule — and null REFUSES:
-   * with glue present, "cannot say" is not "yes". Only a table with no predictor at all, the
-   * default, falls back to the built-in permissive drag behavior, so it is usable without the
-   * glue. Property only.
+   * Predicts a drop for the row under the cursor ('' for the space under the rows), as the
+   * dragover goes: whether it may drop, the cursor and the tooltip to show, and whether it would
+   * change nothing. The app sets it, from the model's dropDecision and what it knows is being
+   * dragged (a drag can come from another table). Returns null when it cannot predict — no drag
+   * it was told about, or a target with no rule — and null REFUSES: with a predictor, "cannot
+   * say" is not "yes". With none, the default, any row takes a drop and the space under the rows
+   * takes none. Property only.
    */
   @property({ attribute: false }) dropPredictor:
     | ((
@@ -2257,19 +2194,15 @@ export class DexTreeTable extends LitElement {
     this.toggleAddGallery();
   }
 
+  // Public because the keyboard's way in comes from outside this element: VS Code's
+  // `dataExplorer.addEntry` command, whose keybinding excludes a read-only view but whose
+  // Command Palette entry does not, so a no-op there is the right answer. It TOGGLES, so the
+  // accelerator behaves exactly as the button does. Opening is one flag because the popover is
+  // anchored in CSS, so both callers land on the same geometry without measuring anything.
   /**
-   * Open or close the Add gallery, anchored under the Add button.
-   *
-   * Public because the keyboard's way in comes from outside this element: the host's
-   * `dataExplorer.addEntry` command posts `openAddGallery`, and table-main calls this. It
-   * TOGGLES, so the accelerator behaves exactly as the button does rather than being a
-   * second, subtly different way to open the same popover.
-   *
-   * Opening is one flag because the popover is anchored in CSS, so both callers land on the
-   * same geometry without either of them measuring anything. A view that cannot add has no
-   * Add button and nothing to open — the command is a no-op there, which is the right answer
-   * for a read-only .slx: the keybinding's `when` clause already excludes that view, but the
-   * Command Palette does not have to.
+   * Opens the `+ Add` gallery under the Add button, or closes it if it is open, as a click on the
+   * button does: an app's keyboard shortcut for adding an entry. It opens nothing while the button
+   * is not drawn (`canAdd` false, or `readonly`).
    */
   public toggleAddGallery(): void {
     if (this._addGalleryOpen) {
@@ -2312,14 +2245,14 @@ export class DexTreeTable extends LitElement {
     }
   }
 
+  // The same path a double-click takes (_cellEditTarget, the one place that knows whether a
+  // cell may be edited), so a row whose Name cannot be changed gets no editor rather than one
+  // whose commit bounces.
   /**
-   * Open the inline name editor on a row, from outside the component.
-   *
-   * The host asks for this after creating an entry from the gallery (`beginRename`), and it
-   * goes through the very path a double-click takes — `_cellEditTarget`, which is the one
-   * place that knows whether a cell may be edited at all. So a row whose Name the host would
-   * refuse gets no editor rather than one whose commit bounces. Returns whether the editor
-   * opened, so a caller can keep holding a request whose row has not arrived yet.
+   * Opens the Name editor on a row, as a double-click on its Name does: what an app calls after
+   * adding an entry the user should name (`dex-add-entry`'s `rename`). The edit comes back as
+   * `dex-edit-completed`. Returns whether the editor opened: false when the row is not in `rows`
+   * yet, so an app can call again once it is, or when its Name cannot be edited.
    */
   beginRename(rowId: string): boolean {
     const row = ((this.rows ?? []) as TreeTableRow[]).find((r) => r.ID === rowId);
@@ -3440,12 +3373,12 @@ export class DexTreeTable extends LitElement {
   }
 
   /**
-   * Open the Value editor of `rowId` on `text`, the whole value its summary stands for, which the
-   * host sent in answer to this table's `dex-edit-text-request`. In the textarea, as the text is one
-   * long line of up to 200,000 characters; committed unchanged it posts nothing, and changed it
-   * posts the whole text. Only the answer to the last request opens an editor, and only while no
-   * other editor is open and the cell still takes this one: an answer that arrives after the user
-   * moved on opens nothing.
+   * The answer to `dex-edit-text-request`: opens the Value editor of `rowId` on `text`, the whole
+   * value the cell's summary stands for. In a textarea, as the text can be one long line of up to
+   * 200,000 characters; committed unchanged it sends nothing, and changed it sends
+   * `dex-edit-completed` with the whole text. Only the answer to the last request opens an
+   * editor, and only while no other editor is open and the cell still takes this one: an answer
+   * that arrives after the user moved on opens nothing.
    */
   openWholeValueEditor(rowId: string, text: string): void {
     if (this._awaitedWholeValue !== rowId) return;
@@ -3770,7 +3703,7 @@ export class DexTreeTable extends LitElement {
     }
   }
 
-  /** Focus (and select) the search input — e.g. for a Ctrl+F shortcut. */
+  /** Focuses (and selects) the search input: an app's Ctrl+F. */
   focusFilter(): void {
     // Forwarded rather than reached into: the input lives in the bar's shadow root,
     // and table-main.ts only knows about this method.
@@ -4657,8 +4590,9 @@ declare global {
      */
     'dex-row-selected': CustomEvent<RowSelectedDetail>;
     /**
-     * A row whose children the payload held back (`_lazy`) was opened: answer with its rows.
-     * Asked once until its rows arrive.
+     * A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
+     * merged into `rows` under it (the model's childRowsMessage builds them with the file's
+     * planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
      */
     'dex-request-children': CustomEvent<RequestChildrenDetail>;
     /**
@@ -4680,8 +4614,8 @@ declare global {
     /** A cell edit was committed with a text that differs from the one it had. */
     'dex-edit-completed': CustomEvent<EditCompletedDetail>;
     /**
-     * A link in a cell was clicked: any cell whose text names its `linkTarget` (a Data Type, Used
-     * By, a block, a parameter).
+     * A link in a cell was clicked: a Data Type, Used By, a block or a parameter. `target` says
+     * what it points at; see LinkClickedDetail for its forms.
      */
     'dex-link-clicked': CustomEvent<LinkClickedDetail>;
     /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */

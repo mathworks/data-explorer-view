@@ -1,8 +1,9 @@
 import { type RowPlan } from './lazyRows.js';
 import { type ClipMark } from './rowStamp.js';
+import type { TreeTableRow } from './tableRow.js';
 /** Rows for a .mat subtree, plus what the plan held back (for the banner). */
 export interface MatRows {
-    rows: any[];
+    rows: TreeTableRow[];
     plan: RowPlan;
 }
 /**
@@ -46,6 +47,6 @@ export declare function buildMatRowsPlanned(node: any, budget?: number, saved?: 
  * same walk as the payload's, from the variable instead of from the file, so a repainted
  * variable's rows are the rows the next whole payload would hold for it — given the same `opts`.
  */
-export declare function buildMatVariableRows(variable: any, budget?: number, saved?: SavedStatus, opts?: MatStampOptions): any[];
+export declare function buildMatVariableRows(variable: any, budget?: number, saved?: SavedStatus, opts?: MatStampOptions): TreeTableRow[];
 /** The rows alone, for every caller that cannot answer a fetch and so passes no budget. */
-export declare function buildMatRows(matNode: any, budget?: number): any[];
+export declare function buildMatRows(matNode: any, budget?: number): TreeTableRow[];

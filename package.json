@@ -16,7 +16,8 @@
     "dist",
     "icons",
     "src/theme",
-    "custom-elements.json"
+    "custom-elements.json",
+    "docs/widgets"
   ],
   "sideEffects": [
     "*.css"

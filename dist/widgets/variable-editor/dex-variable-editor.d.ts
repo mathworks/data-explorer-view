@@ -35,15 +35,15 @@ export declare class DexVariableEditor extends LitElement {
     /**
      * Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:
      * name, class, shape, node id. The cells are not here yet — the app fetches them for
-     * `matrix.nodeId` (vscode's matrixOpen.ts posts a `requestMatrix`) and hands the answer to
+     * `matrix.nodeId` (the model's matrixCellsMessage builds the answer) and hands it to
      * deliver(). Until then the panel shows its title and a waiting line.
      */
     show(anchorEl: HTMLElement, matrix: MatrixDescriptor): void;
     /**
-     * The host answered a `requestMatrix`. Fills the panel in, or says why it cannot
-     * be filled in. Ignores an answer that is not about what is currently on screen:
-     * open A, change your mind, open B, and A's reply can still be in flight — taking
-     * it would put A's numbers under B's title, which is worse than a slow panel.
+     * The cells the app fetched for the panel show() opened: fills the panel in, or says why it
+     * cannot be filled in (the answer's `message`). Ignores an answer that is not about what is
+     * currently on screen: open A, change your mind, open B, and A's reply can still be in flight —
+     * taking it would put A's numbers under B's title, which is worse than a slow panel.
      */
     deliver(answer: MatrixCellsAnswer | null | undefined): Promise<void>;
     /** Closes the panel; focus goes back to the glyph that opened it, if the panel held it. */

@@ -1,6 +1,7 @@
 import { type ClipMark } from './rowBuilder.js';
 import { type SavedStatus } from './matRowBuilder.js';
 import type { RowPlan } from './lazyRows.js';
+import type { TreeTableRow } from './tableRow.js';
 /** What the payload needs beyond the tree — the stamps only the host can answer. */
 export interface PlanOptions {
     /** Entry names that differ from the last save, for the Modified column. */
@@ -29,7 +30,7 @@ export interface RowPlanner {
      * can say what it held back (`lazyRowsBanner`).
      */
     payload(node: any, budget: number, opts?: PlanOptions): {
-        rows: any[];
+        rows: TreeTableRow[];
         plan: RowPlan;
     };
     /**
@@ -40,7 +41,7 @@ export interface RowPlanner {
      * were (a MAT-file's `canCopy`); the sectioned planner needs nothing from it.
      */
     children(node: any, budget: number, opts?: PlanOptions): {
-        rows: any[];
+        rows: TreeTableRow[];
         plan: RowPlan;
     };
 }

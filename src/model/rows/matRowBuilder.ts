@@ -11,10 +11,11 @@ import { RowCellPool, owningEntryOf } from 'data-explorer-core';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import { planRows, type RowPlan } from './lazyRows.js';
 import { sharedIdTest, stampRow, type ClipMark } from './rowStamp.js';
+import type { TreeTableRow } from './tableRow.js';
 
 /** Rows for a .mat subtree, plus what the plan held back (for the banner). */
 export interface MatRows {
-  rows: any[];
+  rows: TreeTableRow[];
   plan: RowPlan;
 }
 
@@ -74,7 +75,7 @@ export function buildMatVariableRows(
   budget: number = Infinity,
   saved?: SavedStatus,
   opts?: MatStampOptions,
-): any[] {
+): TreeTableRow[] {
   return plannedRows([variable], budget, saved, opts).rows;
 }
 
@@ -119,6 +120,6 @@ function plannedRows(roots: any[], budget: number, saved: SavedStatus | undefine
 }
 
 /** The rows alone, for every caller that cannot answer a fetch and so passes no budget. */
-export function buildMatRows(matNode: any, budget: number = Infinity): any[] {
+export function buildMatRows(matNode: any, budget: number = Infinity): TreeTableRow[] {
   return buildMatRowsPlanned(matNode, budget).rows;
 }

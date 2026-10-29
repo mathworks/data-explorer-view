@@ -25,14 +25,14 @@
 //    is seen only by comparing the cells. That costs what the panel's own fetch costs, and is
 //    paid only while the page may still show those cells: from the answer to a fetch until the
 //    next `showProps`, `empty` or page, each of which closes the panel.
-import { buildPropertyGroups, type PIPropertyGroup } from './piBuilder.js';
+import { buildPropertyGroups, type PropertyGroup } from './piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 
 export class InspectorPage {
   /** The current view's page has said `ready`, so a message posted now reaches it. */
   private ready = false;
   /** The rows the inspector shows, or null for the empty pane. */
-  private groups: PIPropertyGroup[] | null = null;
+  private groups: PropertyGroup[] | null = null;
   /** `groups` serialized, as they were posted: what the next node's rows are compared with. */
   private groupsSent: string | null = null;
   /** The cells the page's Variable Editor was sent for the rows on display, serialized. */

@@ -6,33 +6,10 @@ import { live } from 'lit/directives/live.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
-import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
+import type { PropertyGroup, PropertyRow } from '../../model/inspector/piBuilder.js';
 
-/** One titled group of the inspector's rows. */
-export interface PropertyGroup {
-  title: string;
-  properties: PropertyRow[];
-}
-
-/** One row of the inspector: a property's name and its value as text. */
-export interface PropertyRow {
-  name: string;
-  value: string;
-  /** The value is an input; a committed change sends `dex-property-changed`. */
-  editable?: boolean;
-  /** `link` anchors the NAME, and a click sends `dex-pi-navigate` with `linkTarget` (else the name). */
-  type?: 'text' | 'link';
-  linkTarget?: string;
-  // A link on the VALUE (piBuilder, from core's toPIObject): the Data Type of an entry
-  // whose type is another entry in the same dictionary. Separate from `type: 'link'`, whose
-  // template anchors the NAME.
-  valueLink?: string;
-  // Set by piBuilder for a matrix-valued Value row. Opens the same popover the
-  // table's Value cell opens, via the same dex-matrix-open glyph. The cells behind it
-  // are fetched on open — the inspector repaints on every selection change, so
-  // carrying them here cost ~240 ms and 4 MB per click on a big entry.
-  matrix?: MatrixDescriptor;
-}
+// The model's row types, which `groups` takes: re-exported for the property-inspector entry.
+export type { PropertyGroup, PropertyRow };
 
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
