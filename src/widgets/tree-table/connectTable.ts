@@ -444,11 +444,13 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
 
   // A Data Type link names a row of this table; every other target is for whoever opens
   // documents, and so is a local one whose row is not here after all. The app's resolveLink names
-  // the file of any other first: a link it resolves to this document is local too.
+  // the file of any other first: a link it resolves to this document is local too. One rule
+  // decides, asked of the target as it is or of its entry in the file resolveLink named.
+  const localName = (target: string, link: LinkTarget, uri: string | undefined): string | null =>
+    localLinkName(uri === undefined ? target : link.kind === 'entry' ? `${link.name}@${uri}` : '', docUri);
   const follow = (target: string, link: LinkTarget, uri: string | undefined): void => {
     const navigate = (): void => emit('navigate', { target, link, ...(uri === undefined ? {} : { uri }) });
-    const name =
-      uri === undefined ? localLinkName(target, docUri) : link.kind === 'entry' ? localLinkName(`${link.name}@${uri}`, docUri) : null;
+    const name = localName(target, link, uri);
     if (name === null) return navigate();
     pendingSelectName = name;
     applyPendingNameSelection();
@@ -463,7 +465,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     if (typeof target !== 'string') return;
     const link = parseLinkTarget(target);
     const resolveLink = options.resolveLink;
-    if (!resolveLink || localLinkName(target, docUri) !== null) return follow(target, link, undefined);
+    if (!resolveLink || localName(target, link, undefined) !== null) return follow(target, link, undefined);
     const from = docUri;
     Promise.resolve()
       .then(() => resolveLink(link, from))
