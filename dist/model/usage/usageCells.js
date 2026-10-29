@@ -1,0 +1,227 @@
+// Copyright 2026 The MathWorks, Inc.
+// The Usage column's cells: hand core's usage index the files an app read, and shape its
+// answers into the cell payloads the tree table renders. From the VS Code extension's
+// usageCells.ts, which the extension's Usage column and an in-page workspace's (usageFill.ts)
+// both fill through.
+//
+// The GRAPH is not ours. It used to be — this file held the summarising, the
+// workspace → sldd → mat shadowing, the transitive dictionary chase and the edge
+// build — and none of that is a presentation concern: it is a property of the parsed
+// data model, which is core's subject. A second front-end would have written it
+// again, and the copy would have drifted the way every other copy in this pair of
+// repos has (see fileTypes, identifiersIn, normalizeRefNames). So core owns it as of
+// v1.6.0 (`buildUsageIndex`), tested there against real MATLAB-written files, and
+// the view is one client of it.
+//
+// What remains here is genuinely the view's:
+//
+//   - a `RawSource` is what an app could read, keyed by uriString — core is handed
+//     bytes plus a filename and never learns what an app's uri is;
+//   - the LINK CHANNEL prefixes. Core emits `name@srcId`; `blocks:` and `workspace:`
+//     are the table's routing grammar (see navTarget.ts), and prefixing them is
+//     the only place either string is spelled;
+//   - the `(source)` label on a param link and the `(model)` qualifier on a block link:
+//     WHICH of them a cell has earned is a rendering decision, not a fact about the graph;
+//   - and `annotateVariableRows`, which decides which of two engines settles a cell.
+//
+// The extension's usageGraph.ts adds its file I/O in front of this and nothing else, as
+// usageFill.ts does for a page, so a test here drives the same path both run.
+import { blockLabel, buildUsageIndex, buildUsageIndexFromSummaries, } from 'data-explorer-core';
+import { uriBasename } from '../ids/pathUtil.js';
+/**
+ * Build the graph from files a caller has already read.
+ *
+ * The srcId core answers with is our uriString, so every link target below carries a
+ * FULL uri and a click resolves to an exact file even when two same-named files exist.
+ * The filename is the PATH, because that is what core dispatches the kind on — and it
+ * is the path rather than the uri because a uri can carry a `?query` that no test
+ * should have to know about.
+ */
+export function buildUsageGraph(files) {
+    return graphOver(buildUsageIndex(files.map((f) => ({ srcId: f.uriString, filename: f.path, bytes: f.bytes }))));
+}
+/**
+ * The same graph, over summaries a caller kept rather than bytes it just read.
+ *
+ * This is the path a document takes (core's `planSummaries`): summarising a file is what a usage
+ * index costs, so the source cache keeps each file's summary and rebuilds only the edge maps when
+ * its query scope changes. Core owns both halves — `summarizeFiles` and
+ * `buildUsageIndexFromSummaries` — so this is the same index by the same rules, entered a
+ * step later. The equality of the two entrances is pinned in usageEndToEnd.test.ts.
+ */
+export function buildUsageGraphFromSummaries(summaries) {
+    return graphOver(buildUsageIndexFromSummaries(summaries));
+}
+function graphOver(index) {
+    // Core names a usage's model by srcId; the CELL names it by model name. The lookup
+    // is built once here rather than derived per link from the uri, because the name is
+    // core's own reduction of the file name and re-deriving it is how the two come to
+    // disagree about a `.mdl`.
+    const modelNames = new Map(index.models.map((m) => [m.srcId, m.name]));
+    return {
+        blocksUsing: (sourceUri, varName) => index.usagesOf(sourceUri, varName).map((u) => toBlockLink(u, modelNames)),
+        paramLinks: (modelUri, blockKey) => index.paramsOf(modelUri, blockKey).map(toParamLink),
+    };
+}
+// --- Shaping the cells -------------------------------------------------------
+function toBlockLink(usage, modelNames) {
+    return {
+        blockName: usage.blockName,
+        // Core's own join of the block's label onto its enclosing systems (`NodeUsage
+        // .blockPath`), not a second spelling of it: the same string the model view's rows
+        // carry, so one block reads the same wherever it is named.
+        blockPath: usage.blockPath,
+        // A model in the graph always has a name; the fallback is for the answer that
+        // cannot happen — a usage whose model core did not summarise — where a basename
+        // is a better cell than `undefined`.
+        modelName: modelNames.get(usage.modelSrcId) ?? uriBasename(usage.modelSrcId),
+        modelUri: usage.modelSrcId,
+        // `blocks:` on core's own `block@model` target, not a second spelling of it.
+        linkTarget: `blocks:${usage.linkTarget}`,
+    };
+}
+function toParamLink(origin) {
+    // A mask parameter is the one origin that is not a file: `Gain = g1` inside a masked
+    // subsystem reads that subsystem's own `g1`, which lives in the model the block is
+    // already in. So the two fields both mean something else here.
+    //
+    // The SOURCE names the masked BLOCK (`Gain=g1 (MulAdd)`) rather than a basename,
+    // because a basename would be the open model's own name — the qualifier every other
+    // arm below deliberately drops as noise — while the block is the thing a reader
+    // cannot otherwise see. It earns a qualifier for the same reason a `.sldd` does: the
+    // value came from somewhere other than the one implicit scope.
+    //
+    // The TARGET is the `blocks:` channel, because core answers a mask origin with the
+    // masked block's KEY and not a name (see ParamOrigin.linkTarget). Which is also the
+    // more useful click: there is no row anywhere named `g1`, and the row the target does
+    // reach — MulAdd's — is the one whose own cell reads `g1=g1_param`. Two hops, the
+    // shape MATLAB gives the same chain.
+    if (origin.kind === 'mask' && origin.maskBlock) {
+        return {
+            property: origin.property,
+            paramName: origin.expression,
+            // The block's LABEL, through core's own rule, so a masked block Simulink recorded
+            // with no name reads `<SID: 65>` here exactly as it does in its own row.
+            source: blockLabel(origin.maskBlock.blockName, origin.maskBlock.sid),
+            linkTarget: `blocks:${origin.linkTarget}`,
+        };
+    }
+    // A param resolved to the block's OWN model workspace needs no source suffix — the
+    // value alone (e.g. `Gain=Kp`) is unambiguous in a model view. Only an EXTERNAL
+    // source (linked .sldd/.mat) gets a `(basename)` qualifier, since that is where
+    // disambiguation actually matters. An unresolved param is still distinguishable from
+    // a workspace one, which also shows no source, by its EMPTY linkTarget.
+    const workspace = origin.kind === 'workspace';
+    return {
+        property: origin.property,
+        paramName: origin.expression,
+        source: workspace || !origin.originSrcId ? '' : uriBasename(origin.originSrcId),
+        linkTarget: workspace ? `workspace:${origin.linkTarget}` : origin.linkTarget,
+    };
+}
+/**
+ * Fill the Usage cell of every variable row this workspace graph has an answer for.
+ * Shared by the data view (.sldd/.mat entries) and the model view's
+ * model-workspace-variable rows, so one engine settles the column in both.
+ *
+ * OVERWRITES a cell that is already there, which is the whole point and was the bug:
+ * a row arrives from `node.toRow()` carrying core's own `UsedBy`, and that answer comes
+ * from core's SESSION — the models whose editor tab happened to be resolved in this
+ * window — in a shape that names the block and not the model. So whether a dictionary
+ * entry read `AFRConst, AFRCheck` or
+ * `AFR(EngineLoop), AFRMonitor(EngineLoop), MixTarget(EngineLoop), AFRConst(FuelPath),
+ * AFRCheck(FuelPath)` depended on which models the user had opened — and merely
+ * CLICKING a Usage link registered the model it pointed at, degrading the very cell it
+ * was clicked from for as long as that model stayed registered. Two engines answering one
+ * column is the defect; this makes the workspace graph the one that does.
+ *
+ * A row the graph has nothing for is LEFT ALONE rather than emptied: absence here is not a
+ * claim that a variable is unused — the same rule core's `_usedByCell` applies. This used to
+ * keep one more answer than the graph has: a model opened from outside the workspace and
+ * since closed, which is neither found on disk nor an open tab, but whose registration the
+ * session kept for the life of the window. A closed tab now releases its registration
+ * (SlddModel's view count), so that credit goes when the model's tab does, and what the
+ * session can still add is what an open tab registered — which the graph reads as well.
+ */
+export function annotateVariableRows(sourceUri, rows, graph) {
+    let changed = false;
+    for (const row of rows) {
+        const name = row?.Name?.label ?? '';
+        if (!name)
+            continue;
+        const blockLinks = graph.blocksUsing(sourceUri, name);
+        if (blockLinks.length === 0)
+            continue;
+        row.UsedBy = { blockLinks: blockLinks.map((link) => withoutOwnModel(link, sourceUri)) };
+        changed = true;
+    }
+    return changed;
+}
+/**
+ * Drop the `(model)` qualifier from a usage inside the file the row itself belongs to.
+ *
+ * The qualifier is there because a variable can be SHARED: `DragCalc(Sedan)` and
+ * `DragCalc(Truck)` are two different blocks and the model is the only thing that
+ * separates them. A MODEL-WORKSPACE variable is shared with nobody — every block that can
+ * read it is in the model whose workspace holds it — so in a model view the qualifier
+ * repeated the name of the open file on every link and disambiguated nothing.
+ *
+ * Which is the rule `toParamLink` already applies to the same edge read the other way: a
+ * param resolved to the block's own model workspace reads `Gain=Kp`, not
+ * `Gain=Kp (shadow_ws)`. Now neither direction qualifies what the view already says.
+ *
+ * Blanked in the PAYLOAD rather than skipped while rendering, because the Usage column's
+ * text — what sorting, copying and the filter bar see — is built from `modelName` too
+ * (`_getCellText`). Hiding it in the template alone is how a cell comes to read `WsGain`
+ * and copy as `WsGain(shadow_ws)`.
+ *
+ * Keyed on the uri and not on "is this a model view", so it is inert where it should be: a
+ * data file's uri is never a model's, so a .sldd/.mat row keeps the qualifier on every
+ * link, and a usage from any OTHER model keeps it even in a model view.
+ */
+function withoutOwnModel(link, sourceUri) {
+    return link.modelUri === sourceUri ? { ...link, modelName: '' } : link;
+}
+/**
+ * Fill the Usage column of a MODEL view's rows: block rows take their resolved parameter
+ * links (`Gain=Kp (dict.sldd)`), and the model-workspace variable rows go through
+ * `annotateVariableRows` above, so a variable's usage reads the same everywhere — bar the
+ * `(model)` qualifier, which a usage inside the open model has no work for.
+ *
+ * Lives here, beside `annotateVariableRows`, because it is a policy worth testing over
+ * real bytes: whoever fills a table (the extension's usageGraph.ts, usageFill.ts) only awaits
+ * the graph and calls this.
+ *
+ * A block row is joined by its `_blockKey` — the block's SID, which core's
+ * `ModelBlockNode.toRow` publishes for exactly this purpose — and NEVER by the Name
+ * label. A label is unique only inside one system, so two `Gain` blocks in different
+ * subsystems would take each other's parameters; and a block Simulink recorded with no
+ * name at all (SID 65 of a shipped Simulink demo model, whose `Name` attribute is a
+ * lone line break) has the synthetic label `<SID: 65>`, which matches no block in core's
+ * index and left the cell empty. Unlike a variable row, a block row IS emptied when the
+ * graph has nothing for it: the row came from this same model's parse, so the graph has
+ * seen the block, and "no parameters resolved" is an answer about it rather than a gap in
+ * what was read.
+ */
+export function annotateModelViewRows(modelUri, rows, graph) {
+    let changed = false;
+    const varRows = [];
+    for (const row of rows) {
+        // Block rows carry a paramLinks-shaped Usage today (from the ModelBlockNode remap in
+        // rowBuilder); replace it with the cross-file-resolved links.
+        if (row._isBlockRow) {
+            const links = graph.paramLinks(modelUri, row._blockKey ?? '');
+            row.UsedBy = links.length > 0 ? { paramLinks: links } : '';
+            changed = true;
+            continue;
+        }
+        varRows.push(row);
+    }
+    // Model-workspace variable rows: blocks in THIS model that use them, which is every
+    // block that could. Same call as the data view — one engine settles the column in both —
+    // and the `(model)` qualifier falls off there rather than here, because the reason it
+    // falls off is the uri and not the caller (see `withoutOwnModel`).
+    if (annotateVariableRows(modelUri, varRows, graph))
+        changed = true;
+    return changed;
+}

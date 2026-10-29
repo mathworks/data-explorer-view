@@ -46,6 +46,10 @@ export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+// Usage: who uses each variable and where each block's parameters come from, as the Usage
+// column's cells (over core's usage index), and the grammar of the links in them.
+export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsageGraphFromSummaries, } from './usage/usageCells.js';
+export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
 // between them.

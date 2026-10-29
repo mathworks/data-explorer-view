@@ -23,7 +23,7 @@ npm run test:gallery    # the browser tests (see below)
 | `error-dialog.html` | `<dex-error-dialog>`: an error, and a refused edit with Revert |
 | `project-page.html` | a MATLAB project's page, from its project store |
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
-| `composed.html` | folder, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in the folder opens in the table, the selection fills the inspector, the matrix glyph opens the editor |
+| `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, the selection fills the inspector, the matrix glyph opens the editor |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -73,8 +73,11 @@ widgets to the document's table source:
   a list of fixture files and whose reader fetches them (`src/folders.ts`): a page has no
   filesystem, so a file's version is its URL and there is no project store to walk.
   `refresh()` redraws the unsaved-changes mark, `rebuild()` reads the folder again.
-- `composed.ts`: the same over the picker's files, beside the table; a file chosen there opens
-  as one picked.
+- `composed.ts`: the same over the picker's files and usageorder's (two models sharing a
+  dictionary), beside the table; a file chosen there opens as one picked. Its workspace's
+  `usage` is a graph over the same folders (`folderUsage`, core's `planSummaries`), so a
+  dictionary entry names the blocks that use it, and a click on one follows the link with
+  `resolveNavSource` and `selectByName`.
 
 The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
 the page in the document and handles its filters and links.

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // The composed page: the table's selection fills the inspector, and the matrix glyph, in a
 // Value cell or the inspector's Value row, opens the variable editor on the right cells.
+import type { Page } from '@playwright/test';
 import { expect, gridCells, property, row, test } from './gallery';
 
 test('selecting a row fills the inspector, and a section row empties it', async ({ page }) => {
@@ -62,17 +63,40 @@ test('another file: a MAT-file variable opens on its own cells', async ({ page }
   await expect(property(page, 'Name')).toHaveText('Nd');
 });
 
+const folderItem = (page: Page, name: string) =>
+  page
+    .locator('dex-hierarchy')
+    .getByRole('tree', { name: 'Folder' })
+    .getByRole('treeitem')
+    .filter({ has: page.locator(`.label:text-is("${name}")`) });
+
 test('a file chosen in the folder opens in the table, as one picked', async ({ page }) => {
   await page.goto('composed.html');
-  const folder = page.locator('dex-hierarchy').getByRole('tree', { name: 'Folder' });
-  await expect(folder.locator('.label')).toHaveText(['fixtures']);
-  await folder.getByRole('treeitem').first().click();
-  await expect(folder.locator('.label')).toHaveText([
-    'fixtures', 'nd_numeric.mat', 'numeric_json.sldd', 'object_props_binary.sldd', 'shared_gain.slx',
+  const labels = page.locator('dex-hierarchy').getByRole('tree', { name: 'Folder' }).locator('.label');
+  await expect(labels).toHaveText(['fixtures', 'usageorder']);
+  await folderItem(page, 'fixtures').click();
+  await expect(labels).toHaveText([
+    'fixtures', 'nd_numeric.mat', 'numeric_json.sldd', 'object_props_binary.sldd', 'shared_gain.slx', 'usageorder',
   ]);
-  await folder.getByRole('treeitem').filter({ has: page.locator('.label:text-is("nd_numeric.mat")') }).click();
+  await folderItem(page, 'nd_numeric.mat').click();
   await expect(row(page, 'Mat')).toBeVisible();
   await expect(page.getByLabel('File', { exact: true })).toHaveValue('mat');
   await row(page, 'Nd').locator('td.col-Name').click();
   await expect(property(page, 'Name')).toHaveText('Nd');
+});
+
+test("a dictionary's Usage names the blocks of both models, and a click opens the model on the block", async ({ page }) => {
+  await page.goto('composed.html');
+  // The dictionary is referenced by both models, so it is under each one's External Data.
+  await folderItem(page, 'usageorder').click();
+  await folderItem(page, 'ctrlA.slx').locator('.twisty').click();
+  await folderItem(page, 'External Data').click();
+  await folderItem(page, 'sharedParams.sldd').click();
+  await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-sharedParams.sldd');
+  const usage = row(page, 'SharedGain').locator('td.col-UsedBy');
+  await expect(usage).toHaveText('GainA, LimitA(ctrlA); GainB(plantB)');
+  // The first link: the column is narrow beside two panes, and clips the rest of the cell.
+  await usage.getByRole('link', { name: 'GainA' }).click();
+  await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-ctrlA.slx');
+  await expect(row(page, 'GainA')).toHaveAttribute('aria-selected', 'true');
 });
