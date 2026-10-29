@@ -1,0 +1,221 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// The documents a page has open, each read by core in the page, and the table each one shows.
+//
+// A workspace is one core session and one document registry over it (workspace/SlddModel.ts), so
+// a page's documents share what one session shares (a model's Usage counts the others), and two
+// workspaces share nothing. The module-level registry the VS Code extension uses is a different
+// one: a workspace neither reads nor writes it.
+//
+// What a document's table answers is what the extension's host sends its table for the same file,
+// built by the same functions from the same route (readDocument.ts), read-only.
+import { createSession } from 'data-explorer-core';
+import { binaryEditSrcId } from '../ids/srcId.js';
+import { InspectorSelection } from '../inspector/inspectorSelection.js';
+import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { matrixCellsMessage } from '../matrix/matrixRequest.js';
+import { childRowsMessage } from '../rows/childRequest.js';
+import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
+import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
+import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
+import { rowPlannerFor } from '../rows/rowPlanner.js';
+import { DocumentRegistry } from '../workspace/SlddModel.js';
+import { docKindOf, readDocument } from './readDocument.js';
+import { sourceUri } from './sourceUri.js';
+const messageOf = (err) => (err instanceof Error ? err.message : String(err));
+/** The bytes as core takes them: an ArrayBuffer holding exactly them. */
+function arrayBufferOf(bytes) {
+    if (!ArrayBuffer.isView(bytes))
+        return bytes;
+    const whole = bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength;
+    if (whole && bytes.buffer instanceof ArrayBuffer)
+        return bytes.buffer;
+    return new Uint8Array(bytes).buffer;
+}
+class InPageDoc {
+    constructor(shared, uri, name, kind, bytes) {
+        this.shared = shared;
+        this.uri = uri;
+        this.name = name;
+        this.kind = kind;
+        this.failure = '';
+        this.listeners = new Set();
+        this.disposed = false;
+        this.read(bytes);
+        this.table = {
+            open: async () => this.open(),
+            children: async (rowId) => this.children(rowId),
+            matrix: async (nodeId) => this.matrix(nodeId),
+            inspect: async (selection) => this.inspect(selection),
+            subscribe: (listener) => {
+                this.listeners.add(listener);
+                return () => void this.listeners.delete(listener);
+            },
+        };
+    }
+    async reload(bytes) {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        this.read(arrayBufferOf(bytes));
+        if (this.kind === 'project')
+            return;
+        let change;
+        try {
+            change = { kind: 'replaceAll', view: this.open() };
+        }
+        catch (err) {
+            change = { kind: 'error', message: messageOf(err) };
+        }
+        for (const listener of [...this.listeners]) {
+            try {
+                listener(change);
+            }
+            catch (err) {
+                // One listener's failure is its own: the others still hear the change.
+                queueMicrotask(() => {
+                    throw err;
+                });
+            }
+        }
+    }
+    dispose() {
+        if (this.disposed)
+            return;
+        this.disposed = true;
+        this.unload();
+        this.listeners.clear();
+        this.shared.closed(this);
+    }
+    read(bytes) {
+        this.unload();
+        this.failure = '';
+        if (this.kind === 'project') {
+            this.failure = `${this.name} is a project: it opens on a project page, not in a table.`;
+            return;
+        }
+        try {
+            this.reading = readDocument(this.shared.registry, this.kind, this.name, this.uri, bytes);
+        }
+        catch (err) {
+            this.failure = messageOf(err);
+            this.unload();
+        }
+    }
+    /** Take the current tree out of the session, whichever id a read registered it under. */
+    unload() {
+        this.reading = undefined;
+        this.painted = undefined;
+        this.shared.registry.release(this.uri);
+        this.shared.registry.release(binaryEditSrcId(this.uri));
+    }
+    open() {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        const r = this.reading;
+        if (!r)
+            throw new Error(this.failure);
+        if (!this.painted) {
+            try {
+                const planned = r.planner.payload(r.node, this.shared.budget, r.paint);
+                const notice = r.notice();
+                const warnings = r.banner(lazyRowsBanner(planned.plan, warningBanner(sourceWarnings(r.node))));
+                this.painted = {
+                    docUri: this.uri,
+                    rows: planned.rows,
+                    columns: [...COLUMNS],
+                    columnLabels: { ...COLUMN_LABELS },
+                    columnGroups: { ...COLUMN_GROUPS },
+                    editable: false,
+                    ...(notice === undefined ? {} : { notice }),
+                    ...(warnings === undefined ? {} : { warnings }),
+                };
+            }
+            catch (err) {
+                this.painted = new Error(r.paintFailed(err));
+            }
+        }
+        if (this.painted instanceof Error)
+            throw this.painted;
+        return this.painted;
+    }
+    /** The node a row id names in the current tree, or null. */
+    find(nodeId) {
+        const r = this.reading;
+        if (!r || typeof nodeId !== 'string' || nodeId === '')
+            return null;
+        try {
+            return this.shared.registry.findNode(r.srcId, nodeId);
+        }
+        catch {
+            return null;
+        }
+    }
+    children(rowId) {
+        const r = this.reading;
+        const { nodeId, rows, truncated } = childRowsMessage(rowId, this.find(rowId), r?.planner ?? rowPlannerFor(this.name), r?.fetch);
+        return { nodeId, rows, truncated };
+    }
+    matrix(nodeId) {
+        const { matrix, message } = matrixCellsMessage(nodeId, this.find(nodeId));
+        return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
+    }
+    inspect(selection) {
+        const rowIds = typeof selection === 'string' ? [selection] : selection;
+        let view = { groups: [] };
+        // The inspector's own rule for which row a selection shows (the first, unless it is a section
+        // heading), with this document's lookup.
+        const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
+        new InspectorSelection(show, (_uri, id) => this.find(id)).show(this.uri, rowIds);
+        return view;
+    }
+}
+/**
+ * A workspace: the documents of a page, read by core in the page.
+ *
+ * ```ts
+ * const ws = createWorkspace();
+ * const doc = await ws.open(bytes, 'plant.sldd');
+ * const view = await doc.table.open(); // rows, columns, banners
+ * ```
+ */
+export function createWorkspace(options = {}) {
+    const budget = options.rowBudget ?? LAZY_ROW_BUDGET;
+    if (!(budget >= 1))
+        throw new RangeError(`rowBudget must be at least 1, not ${String(options.rowBudget)}.`);
+    const session = createSession();
+    const docs = new Map();
+    const shared = {
+        registry: new DocumentRegistry(session),
+        budget,
+        closed: (doc) => {
+            if (docs.get(doc.uri) === doc)
+                docs.delete(doc.uri);
+        },
+    };
+    let disposed = false;
+    return {
+        async open(bytes, name, uri) {
+            if (disposed)
+                throw new Error('This workspace is closed.');
+            const id = uri ?? sourceUri(`/${name}`);
+            const kind = docKindOf(name);
+            if (!kind) {
+                throw new Error(`${name} is not a file this workspace opens: it opens data dictionaries (.sldd), models (.slx, .mdl), MAT-files (.mat) and projects.`);
+            }
+            if (docs.has(id))
+                throw new Error(`${id} is already open in this workspace.`);
+            const doc = new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
+            docs.set(id, doc);
+            return doc;
+        },
+        get: (uri) => docs.get(uri),
+        dispose() {
+            if (disposed)
+                return;
+            disposed = true;
+            for (const doc of [...docs.values()])
+                doc.dispose();
+            session.removeAll();
+        },
+    };
+}

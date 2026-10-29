@@ -79,6 +79,14 @@ export type { GraphNode, GraphSource, GroupKind, NodeKind, SourceType } from './
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
 export type { HealthDecoration, HealthState } from './hierarchy/health.js';
 
+// Sources: a document as a table shows it (the rows, the children of a row, a matrix's cells,
+// the inspector's page, and what changes after), and the workspace that opens documents in the
+// page.
+export type { ChildRows, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './source/tableSource.js';
+export { createWorkspace } from './source/workspace.js';
+export type { Doc, DocKind, Workspace, WorkspaceOptions } from './source/workspace.js';
+export { sourceUri } from './source/sourceUri.js';
+
 // The workspace: the documents open in core's session, and a dictionary's parts read off disk.
 export {
   findNode,

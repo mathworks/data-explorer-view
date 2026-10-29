@@ -44,6 +44,8 @@ export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 // The hierarchy: the graph of which file references which, and the health marks on it.
 export { RelGraph } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
+export { createWorkspace } from './source/workspace.js';
+export { sourceUri } from './source/sourceUri.js';
 // The workspace: the documents open in core's session, and a dictionary's parts read off disk.
 export { findNode, getModel, getModelForBinaryTab, getModelFromBytes, getModelFromParsed, invalidate, openSourceView, parseDetached, peekModel, releaseIfUnviewed, releaseSourceView, } from './workspace/SlddModel.js';
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
