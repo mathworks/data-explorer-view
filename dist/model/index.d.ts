@@ -43,8 +43,12 @@ export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js
 export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hierarchy/folderHierarchy.js';
 export type { ChildRows, InspectorFeed, InspectorView, MatrixPage, TableChange, TableSource, TableView, } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
-export type { Doc, DocKind, Workspace, WorkspaceOptions } from './source/workspace.js';
+export type { Doc, DocKind, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsageGraphFromSummaries, } from './usage/usageCells.js';
+export type { BlockLink, ParamLink, RawSource, UsageGraph } from './usage/usageCells.js';
+export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';
+export type { NavSourceLookups, ScopedResolve } from './usage/navTarget.js';
 export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { serveTable } from './source/serveTable.js';
 export type { ChildRowsMessage, EmptyMessage, ErrorMessage, FolderAnswerMessage, FolderAsk, FolderChangedMessage, FolderClientMessage, FolderHostMessage, FolderRequestMessage, InsertEntryRowsMessage, MatrixCellsMessage, ReadyMessage, RequestChildrenMessage, RequestMatrixMessage, SelectMessage, SetRowsMessage, ShowPropsMessage, TableClientMessage, TableHostMessage, TablePort, UpdateEntryRowsMessage, } from './source/wire.js';

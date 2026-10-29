@@ -25,12 +25,12 @@
 // there is no `hasTextView` (the JSON dictionary's "Location in Text"), no `add` (the MAT-file's
 // Add gallery), and none of the messages that only arm editing (`sectionRules`, the drop rules,
 // and `clipboardState`). Everything else, every row and banner and every id, compares as it is.
-import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DataModel } from 'data-explorer-core';
 import { createWorkspace, isSectionRowId, type TableSource, type TableView } from '../../src/model/index.js';
+import { digestRows, snapshotText } from './snapshotText.js';
 
 const REPO = resolve(import.meta.dirname, '../..');
 const SNAPSHOTS = join(import.meta.dirname, '__snapshots__');
@@ -49,30 +49,6 @@ const golden = (rel: string, kind: string): any => JSON.parse(readFileSync(snaps
 
 function bytesOf(rel: string): Uint8Array {
   return new Uint8Array(readFileSync(join(REPO, rel)));
-}
-
-// What the extension's goldens write (its test/goldens/fixtures.ts snapshotText), so an answer
-// too large to keep whole compares by its digest.
-const FULL_SNAPSHOT_LIMIT = 48 * 1024;
-const DIGEST_HEAD = 20;
-const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
-const digestRows = (rows: unknown[]) => ({
-  digested: true,
-  sha256: sha256(JSON.stringify(rows, null, 1)),
-  rowCount: rows.length,
-  firstRows: rows.slice(0, DIGEST_HEAD),
-});
-function snapshotText(value: unknown): string {
-  const full = JSON.stringify(value, null, 1);
-  if (full.length <= FULL_SNAPSHOT_LIMIT) return full + '\n';
-  const entries = Object.entries(value as Record<string, unknown>);
-  const digest = {
-    digested: true,
-    sha256: sha256(full),
-    entryCount: entries.length,
-    entries: Object.fromEntries(entries.map(([id, answer]) => [id, sha256(JSON.stringify(answer, null, 1)).slice(0, 16)])),
-  };
-  return JSON.stringify(digest, null, 1) + '\n';
 }
 
 /** A value as JSON carries it: an `undefined` field is absent, as across a message channel. */

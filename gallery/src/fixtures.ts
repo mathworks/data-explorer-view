@@ -16,6 +16,8 @@ export interface Fixture {
   name: string;
   label: string;
   url: string;
+  /** The uri it is opened under. Default `file:///fixtures/<name>`. */
+  uri?: string;
 }
 
 export const FIXTURES: readonly Fixture[] = [
@@ -25,13 +27,13 @@ export const FIXTURES: readonly Fixture[] = [
   { id: 'slx', name: 'shared_gain.slx', label: 'Model (.slx)', url: sharedGain },
 ];
 
-export function fixtureById(id: string | null): Fixture {
-  return FIXTURES.find((f) => f.id === id) ?? FIXTURES[0];
+export function fixtureById(id: string | null, fixtures: readonly Fixture[] = FIXTURES): Fixture {
+  return fixtures.find((f) => f.id === id) ?? fixtures[0];
 }
 
 /** The fixture `?fixture=` names, or the first. */
-export function askedFixture(): Fixture {
-  return fixtureById(new URLSearchParams(location.search).get('fixture'));
+export function askedFixture(fixtures: readonly Fixture[] = FIXTURES): Fixture {
+  return fixtureById(new URLSearchParams(location.search).get('fixture'), fixtures);
 }
 
 /**
@@ -41,13 +43,13 @@ export function askedFixture(): Fixture {
 export async function openFixture(ws: Workspace, fixture: Fixture): Promise<Doc> {
   const response = await fetch(fixture.url);
   if (!response.ok) throw new Error(`${fixture.name}: ${response.status} ${response.statusText}`);
-  return ws.open(await response.arrayBuffer(), fixture.name, `file:///fixtures/${fixture.name}`);
+  return ws.open(await response.arrayBuffer(), fixture.name, fixture.uri ?? `file:///fixtures/${fixture.name}`);
 }
 
-/** A labelled <select> of the fixtures, on `fixture`. */
-export function fixturePicker(fixture: Fixture, onPick: (f: Fixture) => void): HTMLElement {
+/** A labelled <select> of the fixtures (or of `fixtures`), on `fixture`. */
+export function fixturePicker(fixture: Fixture, onPick: (f: Fixture) => void, fixtures: readonly Fixture[] = FIXTURES): HTMLElement {
   const select = document.createElement('select');
-  for (const f of FIXTURES) select.append(new Option(`${f.label}: ${f.name}`, f.id, false, f === fixture));
-  select.addEventListener('change', () => onPick(fixtureById(select.value)));
+  for (const f of fixtures) select.append(new Option(`${f.label}: ${f.name}`, f.id, false, f === fixture));
+  select.addEventListener('change', () => onPick(fixtureById(select.value, fixtures)));
   return labelled('File', 'fixture', select);
 }

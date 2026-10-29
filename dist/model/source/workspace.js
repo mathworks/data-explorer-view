@@ -19,6 +19,7 @@ import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
+import { annotateModelViewRows, annotateVariableRows } from '../usage/usageCells.js';
 import { DocumentRegistry } from '../workspace/SlddModel.js';
 import { docKindOf, readDocument } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
@@ -44,7 +45,7 @@ class InPageDoc {
         this.read(bytes);
         this.table = {
             open: async () => this.open(),
-            children: async (rowId) => this.children(rowId),
+            children: (rowId) => this.children(rowId),
             matrix: async (nodeId) => this.matrix(nodeId),
             inspect: async (selection) => this.inspect(selection),
             subscribe: (listener) => {
@@ -61,7 +62,7 @@ class InPageDoc {
             return;
         let change;
         try {
-            change = { kind: 'replaceAll', view: this.open() };
+            change = { kind: 'replaceAll', view: await this.open() };
         }
         catch (err) {
             change = { kind: 'error', message: messageOf(err) };
@@ -110,33 +111,56 @@ class InPageDoc {
     }
     open() {
         if (this.disposed)
-            throw new Error(`${this.name} is closed.`);
+            return Promise.reject(new Error(`${this.name} is closed.`));
         const r = this.reading;
         if (!r)
-            throw new Error(this.failure);
-        if (!this.painted) {
-            try {
-                const planned = r.planner.payload(r.node, this.shared.budget, r.paint);
-                const notice = r.notice();
-                const warnings = r.banner(lazyRowsBanner(planned.plan, warningBanner(sourceWarnings(r.node))));
-                this.painted = {
-                    docUri: this.uri,
-                    rows: planned.rows,
-                    columns: [...COLUMNS],
-                    columnLabels: { ...COLUMN_LABELS },
-                    columnGroups: { ...COLUMN_GROUPS },
-                    editable: false,
-                    ...(notice === undefined ? {} : { notice }),
-                    ...(warnings === undefined ? {} : { warnings }),
-                };
-            }
-            catch (err) {
-                this.painted = new Error(r.paintFailed(err));
-            }
-        }
-        if (this.painted instanceof Error)
-            throw this.painted;
+            return Promise.reject(new Error(this.failure));
+        this.painted ??= this.paint(r);
         return this.painted;
+    }
+    async paint(r) {
+        let view;
+        try {
+            const planned = r.planner.payload(r.node, this.shared.budget, r.paint);
+            const notice = r.notice();
+            const warnings = r.banner(lazyRowsBanner(planned.plan, warningBanner(sourceWarnings(r.node))));
+            view = {
+                docUri: this.uri,
+                rows: planned.rows,
+                columns: [...COLUMNS],
+                columnLabels: { ...COLUMN_LABELS },
+                columnGroups: { ...COLUMN_GROUPS },
+                editable: false,
+                ...(notice === undefined ? {} : { notice }),
+                ...(warnings === undefined ? {} : { warnings }),
+            };
+        }
+        catch (err) {
+            throw new Error(r.paintFailed(err));
+        }
+        await this.fillUsage(view.rows);
+        return view;
+    }
+    /**
+     * The Usage column of `rows`, from the workspace's usage graph for this document: a model's
+     * block rows take their parameters' sources and its workspace variables their users; every
+     * other document's variables take theirs. The rule the extension fills its tables by
+     * (usageCells.ts). A graph that cannot be had leaves the cells as the file has them.
+     */
+    async fillUsage(rows) {
+        const usage = this.shared.usage;
+        if (!usage || rows.length === 0)
+            return;
+        try {
+            const graph = await usage.graphFor(this.uri);
+            if (this.kind === 'model')
+                annotateModelViewRows(this.uri, rows, graph);
+            else
+                annotateVariableRows(this.uri, rows, graph);
+        }
+        catch {
+            /* no graph: the cells keep what the read gave them */
+        }
     }
     /** The node a row id names in the current tree, or null. */
     find(nodeId) {
@@ -150,9 +174,10 @@ class InPageDoc {
             return null;
         }
     }
-    children(rowId) {
+    async children(rowId) {
         const r = this.reading;
         const { nodeId, rows, truncated } = childRowsMessage(rowId, this.find(rowId), r?.planner ?? rowPlannerFor(this.name), r?.fetch);
+        await this.fillUsage(rows);
         return { nodeId, rows, truncated };
     }
     matrix(nodeId) {
@@ -187,6 +212,7 @@ export function createWorkspace(options = {}) {
     const shared = {
         registry: new DocumentRegistry(session),
         budget,
+        usage: options.usage,
         closed: (doc) => {
             if (docs.get(doc.uri) === doc)
                 docs.delete(doc.uri);

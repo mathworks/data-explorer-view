@@ -1,3 +1,4 @@
+import { type UsageGraph } from '../usage/usageCells.js';
 import { type DocKind } from './readDocument.js';
 import type { TableSource } from './tableSource.js';
 export type { DocKind } from './readDocument.js';
@@ -10,6 +11,27 @@ export interface WorkspaceOptions {
      * this is, as the extension does.
      */
     rowBudget?: number;
+    /**
+     * Where the Usage column's answers come from: who uses each variable of a dictionary or a
+     * MAT-file, and where each parameter of a model's blocks comes from. Every paint and every
+     * `children()` answer is filled from the graph it gives for the document's uri, as the VS Code
+     * extension fills its tables from the folder around a file. Unset, a table's Usage column holds
+     * only what the file itself says (a model's blocks, by name).
+     */
+    usage?: UsageSource;
+}
+/**
+ * The usage graphs a workspace fills its tables' Usage column from: one that can answer for a
+ * document, given its uri.
+ *
+ * Over a folder, the graph for a document is core's `planSummaries(cache, reader, files, uri)` —
+ * the summaries of just the files that can reach it — through `buildUsageGraphFromSummaries`.
+ * The document must be open under the uri the folder lists it by (`sourceUri(path)`), since that
+ * is the uri the graph's answers name it by.
+ */
+export interface UsageSource {
+    /** The graph that answers for the document opened under `uri`. A rejection leaves the cells as the file has them. */
+    graphFor(uri: string): Promise<UsageGraph>;
 }
 /** One open document. */
 export interface Doc {
