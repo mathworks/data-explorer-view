@@ -32,6 +32,12 @@ const onDisk = (file: SourceFile): string => join(REPO, 'test-integration/fixtur
 
 let listed: readonly SourceFile[] = WORKSPACE;
 let failing = false;
+// The disk reads not yet answered: settle() waits for them, however long a loaded machine takes.
+let reading = 0;
+const read = <T>(answer: Promise<T>): Promise<T> => {
+  reading++;
+  return answer.finally(() => reading--);
+};
 function workspace(): FolderHierarchy {
   return new FolderHierarchy({
     files: {
@@ -40,7 +46,10 @@ function workspace(): FolderHierarchy {
         return listed;
       },
     },
-    reader: (files) => ({ ...nodeSourceReader(files, { pathOf: onDisk }), projectStore: async () => null }),
+    reader: (files) => {
+      const disk = nodeSourceReader(files, { pathOf: onDisk });
+      return { version: (f) => read(disk.version(f)), bytes: (f) => read(disk.bytes(f)), projectStore: async () => null };
+    },
   });
 }
 
@@ -52,10 +61,12 @@ afterEach(() => {
   failing = false;
 });
 
+/** Every read answered, and six tasks more for what follows from them, the tree drawn after each. */
 async function settle(el: DexHierarchy): Promise<void> {
-  for (let i = 0; i < 6; i++) {
+  for (let quiet = 0; quiet < 6; ) {
     await new Promise((done) => setTimeout(done, 0));
     await el.updateComplete;
+    quiet = reading === 0 ? quiet + 1 : 0;
   }
 }
 
