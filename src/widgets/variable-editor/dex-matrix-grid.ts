@@ -97,7 +97,7 @@ export class DexMatrixGrid extends LitElement {
          grid's own scrollbar by the width of a cell that is not in it. */
       position: relative;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-      font-size: var(--dex-font-size, 12px);
+      font-size: var(--dex-font-size, 13px);
       color: var(--dex-color-text, #333);
     }
 

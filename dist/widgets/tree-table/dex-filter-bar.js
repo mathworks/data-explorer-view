@@ -81,12 +81,12 @@ export class DexFilterBar extends LitElement {
       background: color-mix(in srgb, var(--dex-color-accent, #0078d4) 18%, transparent);
     }
     .chip.warning {
-      background: color-mix(in srgb, var(--dex-color-warning, #bf8803) 22%, transparent);
+      background: color-mix(in srgb, var(--dex-color-warning, #d83b01) 22%, transparent);
     }
     /* Quiet and small: the column is context for the value, not the point of it. */
     .chip-label {
       font-size: 11px;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -95,7 +95,7 @@ export class DexFilterBar extends LitElement {
     .chip-op {
       font-size: 12px;
       font-weight: 600;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
     }
     .chip-op.subtle {
       font-weight: 400;
@@ -112,7 +112,7 @@ export class DexFilterBar extends LitElement {
       border: none;
       border-radius: 2px;
       background: none;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
       font: inherit;
       line-height: 1;
       cursor: pointer;
@@ -120,7 +120,7 @@ export class DexFilterBar extends LitElement {
     }
     .chip-remove:hover {
       background: var(--dex-bg-hover, #e8e8e8);
-      color: var(--dex-color-text, inherit);
+      color: var(--dex-color-text, #333);
     }
     .chip-remove:focus-visible {
       outline: 1px solid var(--dex-color-accent, #0078d4);
@@ -147,7 +147,7 @@ export class DexFilterBar extends LitElement {
       border: none;
       border-radius: 2px;
       background: none;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
       font: inherit;
       font-size: 13px;
       line-height: 1;
@@ -156,7 +156,7 @@ export class DexFilterBar extends LitElement {
     }
     .clear-all:hover {
       background: var(--dex-bg-hover, #e8e8e8);
-      color: var(--dex-color-text, inherit);
+      color: var(--dex-color-text, #333);
     }
     .clear-all:focus-visible {
       outline: 1px solid var(--dex-color-accent, #0078d4);
@@ -166,7 +166,7 @@ export class DexFilterBar extends LitElement {
       flex: 0 0 auto;
       padding-right: 2px;
       font-size: 11px;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
       white-space: nowrap;
     }
     /* Forced colors drops every background above, so the three chip kinds — bare,

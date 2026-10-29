@@ -66,8 +66,9 @@ export class DexAddGallery extends LitElement {
          dex-add-gallery rule in dex-tree-table.ts). The floor behind it is what a gallery
          rendered on its OWN gets — 300px, two tile columns, a legible gallery rather than a good
          one: a default that keeps this component standalone-renderable, not a size anybody sees.
-         Both tokens come from vscode-theme.css, which is the only stylesheet this shadow root and
-         the table's can both read; the literal is for a webview whose theme file never loaded. */
+         The floor is a theme token (theme.css; vscode-theme.css in VS Code), because the theme
+         sheet is the only stylesheet this shadow root and the table's can both read; the literal
+         is for a page with no theme sheet at all. */
       width: var(--dex-add-gallery-width, var(--dex-add-gallery-min-width, 300px));
       /* ...but no wider than the tiles need, which is the maintainer's ask (F5 2026-09-29):
          "if the tab width is larger, the gallery should not follow, just show enough width to
@@ -104,7 +105,7 @@ export class DexAddGallery extends LitElement {
       overflow-y: auto;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: 12px;
-      color: var(--dex-color-text, inherit);
+      color: var(--dex-color-text, #333);
       /* Glass, on purpose (the maintainer's ask, F5 2026-09-29): the table stays visible
          through the popover as blurred shapes, which says "this is over your data, and it is
          temporary" in a way an opaque panel cannot.
@@ -140,7 +141,7 @@ export class DexAddGallery extends LitElement {
          .tile because the max-content above is 8 of these plus 7 gaps, so the panel's width and
          the tile's are one story and belong in one rule. It was a TS constant interpolated into
          .tile's flex basis, which is the maintainer's objection, twice: styling belongs in the
-         stylesheet. Unlike the two tokens in vscode-theme.css it has no reason to be
+         stylesheet. Unlike the two geometry tokens in the theme it has no reason to be
          document-level — nothing outside this shadow root needs it.
 
          The maintainer's call: the tiles are a fixed size and the gallery wraps them, rather
@@ -241,7 +242,7 @@ export class DexAddGallery extends LitElement {
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
@@ -266,7 +267,7 @@ export class DexAddGallery extends LitElement {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
     }
 
     /* Wrap fixed-size tiles; do not stretch them to fill the row (the maintainer's call).
@@ -400,8 +401,8 @@ export class DexAddGallery extends LitElement {
       border-radius: 8px;
       font-size: 10px;
       line-height: 14px;
-      color: var(--dex-color-text-secondary, #666);
-      background: var(--dex-bg-secondary, #f3f3f3);
+      color: var(--dex-color-text-secondary, #555);
+      background: var(--dex-bg-secondary, #f8f8f8);
     }
 
     /* Forced colors drops every background and border above, which would take the badge

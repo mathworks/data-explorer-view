@@ -67,7 +67,7 @@ export class DexContextMenu extends LitElement {
       padding: 4px;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: 13px;
-      color: var(--dex-color-text, #1a1a1a);
+      color: var(--dex-color-text, #333);
       animation: contextMenuIn 0.12s ease-out;
     }
 
@@ -127,7 +127,7 @@ export class DexContextMenu extends LitElement {
     }
 
     .item.disabled {
-      color: var(--dex-color-text-disabled, rgba(0, 0, 0, 0.36));
+      color: var(--dex-color-text-disabled, #999);
       cursor: default;
     }
 
@@ -165,7 +165,7 @@ export class DexContextMenu extends LitElement {
     /* Never the thing that gives way: an accelerator is four characters and unreadable
        clipped, so the label absorbs the shortfall. */
     .item-shortcut {
-      color: var(--dex-color-text-muted, rgba(0, 0, 0, 0.5));
+      color: var(--dex-color-text-muted, #666);
       font-size: 12px;
       margin-left: 24px;
       flex-shrink: 0;
@@ -174,7 +174,7 @@ export class DexContextMenu extends LitElement {
     }
 
     .item.disabled .item-shortcut {
-      color: var(--dex-color-text-disabled, rgba(0, 0, 0, 0.36));
+      color: var(--dex-color-text-disabled, #999);
     }
 
     .separator {

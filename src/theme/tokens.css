@@ -1,0 +1,228 @@
+/* Copyright 2026 The MathWorks, Inc. */
+
+/* The widgets' design tokens: every --dex-* custom property a widget reads, in three sets.
+
+   :root                          the light theme, and the default. Each widget writes the
+                                  value given here as the literal fallback of every var() it
+                                  reads, so a widget on a page with no theme sheet at all looks
+                                  as it does under this set.
+   [data-theme="dark"]            set the attribute on <html> or on any ancestor of the widgets.
+   [data-theme="high-contrast"]   a light high-contrast set: text and controls clear WCAG AA.
+
+   An app that maps the tokens onto its own design system declares them after this file
+   (data-explorer-vscode's vscode-theme.css maps every one onto VS Code's theme colours); a
+   token it leaves out keeps the value here.
+
+   The values are literals, and that is deliberate: a var() inside a custom property is resolved
+   where the property is DECLARED, so a token derived from another one on :root would keep its
+   light value under a [data-theme] set placed on a descendant. Every colour token is therefore
+   declared again, in full, in each of the other two sets. */
+
+:root {
+  --dex-color-text: #333;
+  --dex-color-text-secondary: #555;
+  --dex-color-text-muted: #666;
+  --dex-color-text-disabled: #999;
+  --dex-color-accent: #0078d4;
+  --dex-color-accent-hover: #005a9e;
+  --dex-color-accent-bg: #cde4f7;
+  --dex-color-error: #d32f2f;
+  --dex-color-warning: #d83b01;
+  --dex-bg-primary: #fff;
+  --dex-bg-secondary: #f8f8f8;
+  --dex-bg-tertiary: #f5f5f5;
+  --dex-bg-hover: #e8e8e8;
+  --dex-bg-active: #e0e0e0;
+  --dex-bg-badge: rgba(128, 128, 128, 0.18);
+  --dex-border-color: #d0d0d0;
+  --dex-border-color-light: #e0e0e0;
+  --dex-focus-ring: 0 0 0 2px rgba(0, 120, 212, 0.4);
+  --dex-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --dex-font-mono: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  --dex-font-size: 13px;
+  --dex-row-height: 28px;
+  /* Source-code syntax tokens (dex-code-viewer) — light / VS Code palette */
+  --dex-syntax-comment: #008000;
+  --dex-syntax-string: #a31515;
+  --dex-syntax-number: #098658;
+  --dex-syntax-keyword: #0451a5;
+  --dex-syntax-literal: #0451a5;
+  --dex-syntax-title: #795e26;
+  --dex-syntax-meta: #4e7ab5;
+
+  /* The ink on a selected row, whose surface is --dex-color-accent-bg. */
+  --dex-selection-fg: #333;
+  --dex-color-link: #005fb8;
+  /* The Status column's "Modified". */
+  --dex-color-modified: #b45309;
+  /* The table's loading spinner. */
+  --dex-color-progress: #0078d4;
+  /* The wash over a cell the column does not apply to. Translucent, so it stays visible over
+     a hovered or selected row. */
+  --dex-color-bg-na: rgba(127, 127, 127, 0.05);
+  /* A search match inside text. */
+  --dex-match-highlight-bg: rgba(234, 92, 0, 0.33);
+  --dex-border-color-ultralight: rgba(0, 0, 0, 0.05);
+  /* The border of a bar button whose popover is open (its surface is --dex-bg-active). */
+  --dex-border-color-active: #0078d4;
+  /* The shade the table's columns slide under once the frozen Name column holds content back:
+     one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the
+     blur so the shade stays a band to the right of the column. */
+  --dex-frozen-shade: 8px 0 6px -3px rgba(0, 0, 0, 0.28);
+
+  /* A text field (the project page's section filters). */
+  --dex-input-fg: #333;
+  --dex-input-bg: #fff;
+  --dex-input-border: #c8c8c8;
+  --dex-input-placeholder-fg: #767676;
+  /* A label on a row naming what kind of thing it is (the project page's "interface"). */
+  --dex-tag-fg: #333;
+  --dex-tag-bg: #e0e0e0;
+  /* A "this file did not read whole" notice. */
+  --dex-warning-fg: #333;
+  --dex-warning-bg: rgba(255, 190, 60, 0.12);
+  --dex-warning-border: #b89500;
+  /* The tooltip that follows the pointer while a row is dragged. */
+  --dex-tooltip-fg: #333;
+  --dex-tooltip-bg: #f8f8f8;
+  --dex-tooltip-border: #c8c8c8;
+
+  --dex-context-menu-bg: rgba(252, 252, 252, 0.96);
+  --dex-context-menu-border: rgba(0, 0, 0, 0.08);
+  --dex-context-menu-hover: rgba(0, 0, 0, 0.04);
+  --dex-context-menu-active: rgba(0, 0, 0, 0.06);
+  --dex-context-menu-separator: rgba(0, 0, 0, 0.08);
+
+  /* The Add gallery: its tiles, its sheet and its sticky header, and the two numbers the
+     table and the gallery both lay the popover out by. */
+  --dex-add-gallery-tint: #fff;
+  --dex-add-gallery-bg: #fff;
+  --dex-add-gallery-header-bg: #fff;
+  --dex-add-gallery-inset: 8px;
+  --dex-add-gallery-min-width: 300px;
+
+  /* The largest the variable editor's grid grows before it scrolls. */
+  --dex-matrix-max-height: 320px;
+  --dex-matrix-max-width: 640px;
+}
+
+[data-theme="dark"] {
+  --dex-color-text: #e0e0e0;
+  --dex-color-text-secondary: #b0b0b0;
+  --dex-color-text-muted: #888;
+  --dex-color-text-disabled: #666;
+  --dex-color-accent: #4ba3e3;
+  --dex-color-accent-hover: #6db8ed;
+  --dex-color-accent-bg: #1a3a52;
+  --dex-color-error: #ef5350;
+  --dex-color-warning: #ff8a50;
+  --dex-bg-primary: #1e1e1e;
+  --dex-bg-secondary: #252525;
+  --dex-bg-tertiary: #181818;
+  --dex-bg-hover: #333;
+  --dex-bg-active: #3a3a3a;
+  --dex-bg-activity-bar: #252525;
+  --dex-bg-badge: rgba(128, 128, 128, 0.18);
+  --dex-border-color: #3a3a3a;
+  --dex-border-color-light: #333;
+  --dex-focus-ring: 0 0 0 2px rgba(75, 163, 227, 0.4);
+  /* Source-code syntax tokens — dark / VS Code palette */
+  --dex-syntax-comment: #6a9955;
+  --dex-syntax-string: #ce9178;
+  --dex-syntax-number: #b5cea8;
+  --dex-syntax-keyword: #569cd6;
+  --dex-syntax-literal: #569cd6;
+  --dex-syntax-title: #dcdcaa;
+  --dex-syntax-meta: #9cdcfe;
+
+  --dex-selection-fg: #e0e0e0;
+  --dex-color-link: #4daafc;
+  --dex-color-modified: #e2c08d;
+  --dex-color-progress: #4ba3e3;
+  --dex-color-bg-na: rgba(127, 127, 127, 0.05);
+  --dex-match-highlight-bg: rgba(234, 92, 0, 0.33);
+  --dex-border-color-ultralight: rgba(255, 255, 255, 0.05);
+  --dex-border-color-active: #4ba3e3;
+  /* Heavier and wider than the light shade: black over a near-black background has little
+     room to darken it, so the band has to cover more ground to be seen. */
+  --dex-frozen-shade: 11px 0 8px -4px rgba(0, 0, 0, 0.7);
+
+  --dex-input-fg: #e0e0e0;
+  --dex-input-bg: #2a2a2a;
+  --dex-input-border: #4a4a4a;
+  --dex-input-placeholder-fg: #999;
+  --dex-tag-fg: #e0e0e0;
+  --dex-tag-bg: #3a3a3a;
+  --dex-warning-fg: #e0e0e0;
+  --dex-warning-bg: rgba(255, 190, 60, 0.12);
+  --dex-warning-border: #b89500;
+  --dex-tooltip-fg: #ccc;
+  --dex-tooltip-bg: #252526;
+  --dex-tooltip-border: #454545;
+
+  --dex-context-menu-bg: rgba(37, 37, 38, 0.96);
+  --dex-context-menu-border: rgba(255, 255, 255, 0.1);
+  --dex-context-menu-hover: rgba(255, 255, 255, 0.06);
+  --dex-context-menu-active: rgba(255, 255, 255, 0.1);
+  --dex-context-menu-separator: rgba(255, 255, 255, 0.1);
+
+  --dex-add-gallery-tint: #1e1e1e;
+  --dex-add-gallery-bg: #1e1e1e;
+  --dex-add-gallery-header-bg: #1e1e1e;
+}
+
+[data-theme="high-contrast"] {
+  --dex-color-text: #000;
+  --dex-color-text-secondary: #1a1a1a;
+  --dex-color-text-muted: #333;
+  --dex-color-text-disabled: #767676;
+  --dex-color-accent: #0050a0;
+  --dex-color-accent-hover: #003670;
+  --dex-color-accent-bg: #b8d4f0;
+  --dex-color-error: #b71c1c;
+  --dex-color-warning: #bf360c;
+  --dex-bg-primary: #fff;
+  --dex-bg-secondary: #f0f0f0;
+  --dex-bg-tertiary: #e8e8e8;
+  --dex-bg-hover: #d0d0d0;
+  --dex-bg-active: #c0c0c0;
+  --dex-bg-badge: rgba(128, 128, 128, 0.18);
+  --dex-border-color: #000;
+  --dex-border-color-light: #555;
+  --dex-focus-ring: 0 0 0 3px rgba(0, 80, 160, 0.6);
+
+  --dex-selection-fg: #000;
+  --dex-color-link: #0050a0;
+  --dex-color-modified: #7a4800;
+  --dex-color-progress: #0050a0;
+  --dex-color-bg-na: rgba(127, 127, 127, 0.05);
+  --dex-match-highlight-bg: rgba(234, 92, 0, 0.33);
+  --dex-border-color-ultralight: #767676;
+  --dex-border-color-active: #000;
+  /* No shade: a hard line is the high-contrast idiom. Still a whole layer, so the scrolled
+     and unscrolled values keep the same number of layers and transition into each other. */
+  --dex-frozen-shade: 0 0 0 0 transparent;
+
+  --dex-input-fg: #000;
+  --dex-input-bg: #fff;
+  --dex-input-border: #000;
+  --dex-input-placeholder-fg: #595959;
+  --dex-tag-fg: #fff;
+  --dex-tag-bg: #0050a0;
+  --dex-warning-fg: #000;
+  --dex-warning-bg: #fff;
+  --dex-warning-border: #000;
+  --dex-tooltip-fg: #000;
+  --dex-tooltip-bg: #fff;
+  --dex-tooltip-border: #000;
+
+  --dex-context-menu-bg: #fff;
+  --dex-context-menu-border: #000;
+  --dex-context-menu-hover: #d0d0d0;
+  --dex-context-menu-active: #c0c0c0;
+  --dex-context-menu-separator: #000;
+
+  --dex-add-gallery-tint: #fff;
+  --dex-add-gallery-bg: #fff;
+  --dex-add-gallery-header-bg: #fff;
+}
