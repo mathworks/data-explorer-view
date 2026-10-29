@@ -13,9 +13,10 @@ import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
 /**
  * A context menu of the items an app hands it, at a point of the viewport: show() opens it,
  * a choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,
- * or a scroll close it. Arrow keys move along the items, disabled ones included (their
- * `reason` is their tooltip), and Enter chooses. The tree table's items for a selection are
- * buildContextMenuItems' (`data-explorer-view/tree-table`).
+ * or a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move
+ * along the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.
+ * The tree table's items for a selection are buildContextMenuItems'
+ * (`data-explorer-view/tree-table`).
  *
  * @tagname dex-context-menu
  */
@@ -210,9 +211,11 @@ export class DexContextMenu extends LitElement {
     /**
      * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
      * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-     * open is replaced.
+     * open is replaced: it closes first, and says so (`dex-menu-closed`).
      */
     show(x, y, items) {
+        if (this._open)
+            this._sendClosed();
         this._x = x;
         this._y = y;
         this._items = items;
@@ -227,8 +230,9 @@ export class DexContextMenu extends LitElement {
             window.addEventListener('scroll', this._scrollHandler, true);
         });
     }
-    /** Closes the menu, choosing nothing. */
+    /** Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). */
     close() {
+        const wasOpen = this._open;
         this._open = false;
         this._focusedIndex = -1;
         this.removeAttribute('open');
@@ -236,6 +240,13 @@ export class DexContextMenu extends LitElement {
         document.removeEventListener('contextmenu', this._contextMenuHandler);
         document.removeEventListener('keydown', this._keyHandler);
         window.removeEventListener('scroll', this._scrollHandler, true);
+        if (wasOpen)
+            this._sendClosed();
+    }
+    // What every way of closing an open menu says, so that whoever filled it knows its items are
+    // gone: a choice, a dismissal, close() or a show() that replaced them.
+    _sendClosed() {
+        this.dispatchEvent(new CustomEvent('dex-menu-closed', { bubbles: true, composed: true }));
     }
     _clampPosition() {
         const menu = this.shadowRoot?.querySelector('.menu');

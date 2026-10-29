@@ -36,9 +36,10 @@ export interface ActionDetail {
 /**
  * A context menu of the items an app hands it, at a point of the viewport: show() opens it,
  * a choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,
- * or a scroll close it. Arrow keys move along the items, disabled ones included (their
- * `reason` is their tooltip), and Enter chooses. The tree table's items for a selection are
- * buildContextMenuItems' (`data-explorer-view/tree-table`).
+ * or a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move
+ * along the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.
+ * The tree table's items for a selection are buildContextMenuItems'
+ * (`data-explorer-view/tree-table`).
  *
  * @tagname dex-context-menu
  */
@@ -56,11 +57,12 @@ export declare class DexContextMenu extends LitElement {
     /**
      * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
      * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-     * open is replaced.
+     * open is replaced: it closes first, and says so (`dex-menu-closed`).
      */
     show(x: number, y: number, items: ContextMenuItem[]): void;
-    /** Closes the menu, choosing nothing. */
+    /** Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). */
     close(): void;
+    private _sendClosed;
     private _clampPosition;
     private _getActionItems;
     private _moveFocus;
@@ -82,6 +84,13 @@ export declare function defineContextMenu(tag?: string): void;
 export interface ContextMenuEventMap {
     /** An item that is not disabled was chosen, by a click or Enter; the menu closes. */
     'dex-action': CustomEvent<ActionDetail>;
+    /**
+     * The open menu closed, whichever way: after a choice (and its `dex-action`), on Escape, a
+     * click, a right-click or a scroll outside it, on close(), or as show() replaced its items.
+     * connectTable hears it, so that a menu several tables share forgets which one opened it. No
+     * detail.
+     */
+    'dex-menu-closed': CustomEvent<null>;
 }
 declare global {
     interface HTMLElementTagNameMap {

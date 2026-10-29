@@ -22,6 +22,9 @@ function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
+// The table each context menu was last opened for, by menu: every table connected to a shared
+// menu hears each of its choices, and the one that opened it is the one that acts.
+const menuOwners = new WeakMap();
 /** The text of a cell, as the table shows it. */
 function cellText(cell) {
     if (typeof cell === 'string')
@@ -282,18 +285,24 @@ export function connectTable(table, source, options = {}) {
     let contextMenu = options.contextMenu;
     let madeMenu = false;
     let menuListening = false;
-    // What the open menu is about, until one of its items is chosen.
+    // What the open menu is about, until it closes: a choice, a dismissal, or another table's (or
+    // the app's) show() in its place. A menu shared with other tables (`contextMenu`) acts for the
+    // one that opened it last, and only on its next choice.
     let menuContext = null;
+    const menuOwner = {};
     const onAction = (e) => {
         const context = menuContext;
-        if (!context)
-            return;
         menuContext = null;
+        if (!context || menuOwners.get(e.currentTarget) !== menuOwner)
+            return;
         const actionId = e.detail?.actionId;
         if (actionId === 'copyName' || actionId === 'copyValue')
             return void copyText(context, actionId);
         if (typeof actionId === 'string')
             emit('action', { actionId, rowId: context.rowId, rowIds: context.selectedRowIds });
+    };
+    const onMenuClosed = () => {
+        menuContext = null;
     };
     if (options.menu !== false) {
         listen(table, 'dex-table-context-menu', (e) => {
@@ -314,10 +323,13 @@ export function connectTable(table, source, options = {}) {
             }
             if (!menuListening) {
                 contextMenu.addEventListener('dex-action', onAction);
+                contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
                 menuListening = true;
             }
-            menuContext = context;
+            // After show(): a menu it replaces says it closed, which clears every table's context.
             contextMenu.show(x, y, items);
+            menuOwners.set(contextMenu, menuOwner);
+            menuContext = context;
         });
     }
     // --- The inspector's feed: this table's selection, inspected ----------------------------------
@@ -423,8 +435,10 @@ export function connectTable(table, source, options = {}) {
             cancelVanishedClear();
             for (const cleanup of cleanups.splice(0))
                 cleanup();
-            if (contextMenu && menuListening)
+            if (contextMenu && menuListening) {
                 contextMenu.removeEventListener('dex-action', onAction);
+                contextMenu.removeEventListener('dex-menu-closed', onMenuClosed);
+            }
             if (madeMenu)
                 contextMenu?.remove();
             if (madeEditor)

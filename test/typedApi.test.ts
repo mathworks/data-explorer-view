@@ -77,9 +77,9 @@ const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((f
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 22 events from 11 widgets: a parse that found none would pass everything below.
+    // 23 events from 11 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(22);
+    expect(new Set(names).size).toBe(23);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -224,6 +224,7 @@ describe('an app written in TypeScript, against the built package', () => {
     inspector.addEventListener('dex-property-changed', (e) => { s(e.detail.propName); s(e.detail.newValue); s(e.detail.oldValue); });
     inspector.addEventListener('dex-pi-navigate', (e) => s(e.detail.sourceId));
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
+    menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
     // They bubble and are composed, so the document and the window hear them, typed.
     document.addEventListener('dex-matrix-open', (e) => s(e.detail.matrix.nodeId));

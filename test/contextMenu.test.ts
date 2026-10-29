@@ -146,6 +146,73 @@ describe('showing and dismissing the menu', () => {
   });
 });
 
+describe('saying it closed', () => {
+  // Whoever filled the menu learns that its items are gone, however they went: a table that
+  // shares the menu with others must not act on a later choice made in another's items.
+  function recordEvents(el: DexContextMenu): string[] {
+    const heard: string[] = [];
+    el.addEventListener('dex-action', (e) => heard.push(`action ${e.detail.actionId}`));
+    el.addEventListener('dex-menu-closed', (e) => heard.push(`closed ${e.detail}`));
+    return heard;
+  }
+
+  it.each([
+    ['Escape', () => key('Escape')],
+    ['a mousedown outside', () => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }))],
+    ['a right-click outside', () => document.body.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true }))],
+    ['a scroll', () => window.dispatchEvent(new Event('scroll'))],
+    ['close()', () => menu!.close()],
+  ])('sends dex-menu-closed once on %s', async (_how, dismiss) => {
+    const el = await makeMenu(ITEMS);
+    const heard = recordEvents(el);
+    dismiss();
+    el.close();
+    expect(heard).toEqual(['closed null']);
+  });
+
+  it('sends it after the dex-action of a choice', async () => {
+    const el = await makeMenu(ITEMS);
+    const heard = recordEvents(el);
+    itemEls(el)[1].click();
+    expect(heard).toEqual(['action copy', 'closed null']);
+  });
+
+  it('sends it as show() replaces the items of an open menu, before the new ones are there', async () => {
+    const el = await makeMenu(ITEMS);
+    const shown: string[][] = [];
+    el.addEventListener('dex-menu-closed', () => shown.push(itemEls(el).map((i) => i.querySelector('.item-label')!.textContent!)));
+    el.show(5, 5, [{ id: 'undo', label: 'Undo' }]);
+    expect(shown).toEqual([['Cut', 'Copy', 'Paste', 'Delete']]);
+    expect(el.hasAttribute('open')).toBe(true);
+  });
+
+  it('says nothing for a menu that was not open, or a click that chose nothing', async () => {
+    const el = new DexContextMenu();
+    document.body.appendChild(el);
+    const heard = recordEvents(el);
+    el.close();
+    el.show(0, 0, ITEMS);
+    expect(heard).toEqual([]);
+    await frame();
+    await el.updateComplete;
+    itemEls(el)[2].click(); // Paste, disabled
+    itemEls(el)[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    expect(heard).toEqual([]);
+    el.close();
+    el.remove();
+  });
+
+  it('bubbles to the document', async () => {
+    const el = await makeMenu(ITEMS);
+    let heard = 0;
+    const listener = () => void heard++;
+    document.addEventListener('dex-menu-closed', listener);
+    el.close();
+    document.removeEventListener('dex-menu-closed', listener);
+    expect(heard).toBe(1);
+  });
+});
+
 describe('choosing an item', () => {
   it('a click dispatches dex-action with that item id and closes', async () => {
     // table-main.ts forwards detail.actionId verbatim as the host message type.

@@ -31,7 +31,12 @@ export interface ConnectTableOptions {
      * handle's `action`.
      */
     menuItems?: (context: TableMenuContext) => ContextMenuItem[];
-    /** The context menu to open. Default: one connectTable makes, in `<body>`, when it is first needed. */
+    /**
+     * The context menu to open. Default: one connectTable makes, in `<body>`, when it is first
+     * needed. One menu may serve several tables: a choice is acted on by the table that opened the
+     * menu, and a menu dismissed (or opened by another table, or by the app) leaves no table
+     * waiting for its next choice.
+     */
     contextMenu?: DexContextMenu;
     /**
      * Where the banners go. Default: the table's own strip, above its search bar (`table.banners`).

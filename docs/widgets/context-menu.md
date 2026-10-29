@@ -3,7 +3,8 @@
 A context menu: the items an app hands it, at a point of the viewport, with icons, shortcuts,
 separators and disabled items that say why (their `reason`, as a tooltip and to a screen
 reader). A choice sends `dex-action` with the item's id and closes the menu; Escape, a click
-elsewhere or a scroll close it. The keyboard moves along every item, disabled ones included.
+elsewhere or a scroll close it. However it closes, it sends `dex-menu-closed`, so whoever filled
+it knows its items are gone. The keyboard moves along every item, disabled ones included.
 
 The tree table asks for a menu with `dex-table-context-menu`; the items for its selection come
 from `buildContextMenuItems` (`data-explorer-view/tree-table`):
@@ -43,17 +44,26 @@ None.
 
 Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
 (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-open is replaced.
+open is replaced: it closes first, and says so (`dex-menu-closed`).
 
 ### `close(): void`
 
-Closes the menu, choosing nothing.
+Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`).
 
 ## Events
 
 Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
 `HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
 typed with no cast, on the element, the document or the window.
+
+### `dex-menu-closed`
+
+The open menu closed, whichever way: after a choice (and its `dex-action`), on Escape, a
+click, a right-click or a scroll outside it, on close(), or as show() replaced its items.
+connectTable hears it, so that a menu several tables share forgets which one opened it. No
+detail.
+
+`detail` is `null`.
 
 ### `dex-action`
 

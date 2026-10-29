@@ -57,7 +57,12 @@ export interface ConnectTableOptions {
    * handle's `action`.
    */
   menuItems?: (context: TableMenuContext) => ContextMenuItem[];
-  /** The context menu to open. Default: one connectTable makes, in `<body>`, when it is first needed. */
+  /**
+   * The context menu to open. Default: one connectTable makes, in `<body>`, when it is first
+   * needed. One menu may serve several tables: a choice is acted on by the table that opened the
+   * menu, and a menu dismissed (or opened by another table, or by the app) leaves no table
+   * waiting for its next choice.
+   */
   contextMenu?: DexContextMenu;
   /**
    * Where the banners go. Default: the table's own strip, above its search bar (`table.banners`).
@@ -129,6 +134,10 @@ function isRecord(x: unknown): x is Record<string, any> {
 }
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+// The table each context menu was last opened for, by menu: every table connected to a shared
+// menu hears each of its choices, and the one that opened it is the one that acts.
+const menuOwners = new WeakMap<object, object>();
 
 /** The text of a cell, as the table shows it. */
 function cellText(cell: unknown): string {
@@ -410,15 +419,21 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   let contextMenu = options.contextMenu;
   let madeMenu = false;
   let menuListening = false;
-  // What the open menu is about, until one of its items is chosen.
+  // What the open menu is about, until it closes: a choice, a dismissal, or another table's (or
+  // the app's) show() in its place. A menu shared with other tables (`contextMenu`) acts for the
+  // one that opened it last, and only on its next choice.
   let menuContext: TableMenuContext | null = null;
+  const menuOwner = {};
   const onAction = (e: Event): void => {
     const context = menuContext;
-    if (!context) return;
     menuContext = null;
+    if (!context || menuOwners.get(e.currentTarget as object) !== menuOwner) return;
     const actionId = (e as CustomEvent<{ actionId: string }>).detail?.actionId;
     if (actionId === 'copyName' || actionId === 'copyValue') return void copyText(context, actionId);
     if (typeof actionId === 'string') emit('action', { actionId, rowId: context.rowId, rowIds: context.selectedRowIds });
+  };
+  const onMenuClosed = (): void => {
+    menuContext = null;
   };
   if (options.menu !== false) {
     listen(table, 'dex-table-context-menu', (e) => {
@@ -437,10 +452,13 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       }
       if (!menuListening) {
         contextMenu.addEventListener('dex-action', onAction);
+        contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
         menuListening = true;
       }
-      menuContext = context;
+      // After show(): a menu it replaces says it closed, which clears every table's context.
       contextMenu.show(x, y, items);
+      menuOwners.set(contextMenu, menuOwner);
+      menuContext = context;
     });
   }
 
@@ -539,7 +557,10 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       unsubscribe();
       cancelVanishedClear();
       for (const cleanup of cleanups.splice(0)) cleanup();
-      if (contextMenu && menuListening) contextMenu.removeEventListener('dex-action', onAction);
+      if (contextMenu && menuListening) {
+        contextMenu.removeEventListener('dex-action', onAction);
+        contextMenu.removeEventListener('dex-menu-closed', onMenuClosed);
+      }
       if (madeMenu) contextMenu?.remove();
       if (madeEditor) variableEditor.remove();
       for (const set of Object.values(listeners)) set.clear();

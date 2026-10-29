@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectTable, defineTreeTable, type DexTreeTable, type TableHandle } from '../src/widgets/tree-table/index.js';
 import type { DexVariableEditor } from '../src/widgets/variable-editor/index.js';
-import type { DexContextMenu } from '../src/widgets/context-menu/index.js';
+import { defineContextMenu, type DexContextMenu } from '../src/widgets/context-menu/index.js';
 import { createWorkspace, messageSource, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
 
 defineTreeTable();
@@ -280,6 +280,101 @@ describe('the read-only context menu', () => {
     table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 3, y: 4, rowId: kp.ID }, bubbles: true }));
     menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId: 'reveal' } }));
     expect(actions).toEqual([{ actionId: 'reveal', rowId: kp.ID, rowIds: [kp.ID] }]);
+  });
+
+  it('acts for the table that opened a shared menu, and for none whose menu was dismissed', async () => {
+    defineContextMenu();
+    const menu = document.createElement('dex-context-menu');
+    document.body.append(menu);
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => void written.push(t) }, configurable: true });
+    const actions: string[] = [];
+    const open = async (file: Uint8Array, name: string, row: string) => {
+      const doc = await ws.open(file, name);
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const handle = connectTable(table, doc.table, {
+        variableEditor: fakeEditor().editor,
+        contextMenu: menu,
+        menuItems: () => [{ id: 'reveal', label: 'Reveal in Folder' }],
+      });
+      handles.push(handle);
+      handle.on('action', ({ rowIds }) => actions.push(`${name} ${rowIds.length}`));
+      await settle(table);
+      const id = table.rows.find((r) => r.Name.label === row)!.ID;
+      table.selectedRowIds = [id];
+      return () => table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 3, y: 4, rowId: id }, bubbles: true }));
+    };
+    const rightClickA = await open(PARAMS, 'params.sldd', 'Kp');
+    const rightClickB = await open(NUMERIC, 'numeric_json.sldd', 'Matrix');
+    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const choose = async (label: string) => {
+      await frame();
+      await menu.updateComplete;
+      [...menu.shadowRoot!.querySelectorAll<HTMLElement>('.item')].find((i) => i.textContent?.includes(label))!.click();
+    };
+
+    // Opened from A and dismissed with Escape; opened from B, whose Copy Name is chosen.
+    rightClickA();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(menu.hasAttribute('open')).toBe(false);
+    rightClickB();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix']);
+
+    // Opened from A and dismissed by a click elsewhere; B's own item is chosen.
+    rightClickA();
+    await frame();
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    rightClickB();
+    await choose('Reveal in Folder');
+    expect(actions).toEqual(['numeric_json.sldd 1']);
+
+    // Opened from A, then from B over it (no dismissal between, as the menu key does): B's.
+    rightClickA();
+    rightClickB();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix', 'Matrix']);
+    // And A's menu, chosen from, is A's.
+    rightClickA();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix', 'Matrix', 'Kp']);
+
+    // Opened from A and dismissed; the app then fills the same menu with an item of its own.
+    rightClickA();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    menu.show(0, 0, [{ id: 'reveal', label: 'Reveal in Folder' }]);
+    await choose('Reveal in Folder');
+    expect(actions).toEqual(['numeric_json.sldd 1']);
+  });
+
+  it('acts for the table that opened it last even in a menu that never says it closed', async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const { menu } = fakeMenu();
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => void written.push(t) }, configurable: true });
+    const rightClicks: (() => void)[] = [];
+    for (const [file, name, row] of [[PARAMS, 'params.sldd', 'Kp'], [NUMERIC, 'numeric_json.sldd', 'Matrix']] as const) {
+      const doc = await ws.open(file, name);
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      handles.push(connectTable(table, doc.table, { variableEditor: fakeEditor().editor, contextMenu: menu }));
+      await settle(table);
+      const id = table.rows.find((r) => r.Name.label === row)!.ID;
+      table.selectedRowIds = [id];
+      rightClicks.push(() => table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: id }, bubbles: true })));
+    }
+    rightClicks[0]();
+    rightClicks[1]();
+    menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId: 'copyName' } }));
+    // A's context went with that choice, made in B's menu: a second one finds no table's.
+    menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId: 'copyName' } }));
+    expect(written).toEqual(['Matrix']);
   });
 
   it('opens none when told not to, and none for a selection of section headings', async () => {
