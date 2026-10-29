@@ -29,10 +29,22 @@ export class NameIndex {
         this.index = null;
         this.building = null;
     }
-    /** Build the index if it is not built (once, however many ask at once). */
+    /**
+     * Build the index if it is not built (once, however many ask at once). Resolves once there is
+     * an index: a build an invalidate() dropped while it ran publishes nothing, so a caller that was
+     * waiting on it waits on the build after it.
+     */
     ensure() {
         if (!this.building) {
-            const building = this.build();
+            const building = this.build().then((map) => {
+                // Only if this build is still the current one, as UsageGraphs publishes: an invalidate()
+                // while it ran dropped it, and a map read from the folder as it was must neither
+                // overwrite the one a later build published nor take the reindex() meant for that one.
+                // Assigned on exactly ONE path, deliberately: `index` non-null is what marks the build as
+                // done. reindex() does nothing while it is null, and list() reads through it.
+                if (this.building === building)
+                    this.index = map;
+            });
             this.building = building;
             // A build that failed is not kept: the next ask builds again.
             building.catch(() => {
@@ -40,7 +52,7 @@ export class NameIndex {
                     this.building = null;
             });
         }
-        return this.building;
+        return this.building.then(() => (this.index ? undefined : this.ensure()));
     }
     /** Every name record of the folder, file by file, each occurrence its own. */
     async list() {
@@ -86,8 +98,6 @@ export class NameIndex {
             if (records.length > 0)
                 map.set(file.uriString, records);
         });
-        // Assigned on exactly ONE path, deliberately: `index` non-null is what marks the build as
-        // done. reindex() does nothing while it is null, and list() reads through it.
-        this.index = map;
+        return map;
     }
 }

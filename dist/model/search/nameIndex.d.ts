@@ -28,7 +28,11 @@ export declare class NameIndex {
     constructor(options: NameIndexOptions);
     /** Drop the whole index; the next query reads the folder again. For a change a targeted reindex does not cover. */
     invalidate(): void;
-    /** Build the index if it is not built (once, however many ask at once). */
+    /**
+     * Build the index if it is not built (once, however many ask at once). Resolves once there is
+     * an index: a build an invalidate() dropped while it ran publishes nothing, so a caller that was
+     * waiting on it waits on the build after it.
+     */
     ensure(): Promise<void>;
     /** Every name record of the folder, file by file, each occurrence its own. */
     list(): Promise<NameRecord[]>;
