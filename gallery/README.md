@@ -47,9 +47,11 @@ published declarations.
   `optimizeDeps.exclude: ['data-explorer-view']` and an `optimizeDeps.include` of
   what the package imports (`tests/devServer.spec.ts` holds both lists to `dist/`);
   and `build.assetsInlineLimit: 0`, which keeps the icons files (no `data:` URLs, so the
-  pages' Content-Security-Policy keeps `img-src 'self'`). Every page runs under a strict
-  policy (no inline styles, no other origins); the dev server alone also allows inline
-  styles, because it injects each stylesheet as a `<style>` element.
+  pages' Content-Security-Policy keeps `img-src 'self'`).
+- Every built page runs under a strict policy: `style-src 'self'` (no inline styles),
+  `img-src 'self'` (no `data:` images), nothing from other origins. Each page carries it
+  in a `<meta>`, and `vite preview` also sends it as a header. The dev server alone also
+  allows inline styles, because it injects each stylesheet as a `<style>` element.
 
 ## The wiring
 
@@ -71,7 +73,10 @@ exception or failed request, and every icon draws; each kind of file draws its r
 click and the arrow keys move the selection; the selection fills the inspector; the
 matrix glyph opens the editor on the right cells; the menu, the dialog and the project
 page answer the mouse and the keyboard; and the theme switch changes the colours of the
-page and of the widgets. They check behaviour, not pixels, so they hold across engines.
+page and of the widgets. `csp.spec.ts` checks that every built page has the strict
+policy, and that each engine refuses an inline style and a `data:` image under it, so
+any widget that needed either would fail the other tests on the refusal's console
+error. They check behaviour, not pixels, so they hold across engines.
 
 They run against the built gallery in Chromium, Firefox and WebKit, and against the dev
 server in Chromium (`chromium-dev`), each project on a port of its own (4791, 4792).

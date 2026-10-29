@@ -13,10 +13,13 @@ const pages = Object.fromEntries(
     .map((f) => [f.slice(0, -'.html'.length), resolve(root, f)]),
 );
 
-// Every page under a strict Content-Security-Policy, so a widget that writes an inline style or
-// loads from elsewhere shows up as a console error, which the tests fail on. The dev server
-// injects each stylesheet as a <style> element, so its pages alone also allow inline styles; a
-// build links them as files.
+// Every page under a strict Content-Security-Policy, the one a careful app ships: no inline
+// styles, no images but its own files. A widget that wrote an inline style or drew a data: URL
+// would show up as a console error, which the tests fail on (tests/csp.spec.ts checks the policy
+// is there and enforced). Each page carries it in a <meta>, so it holds wherever the build is
+// copied, and `vite preview` sends it as a header too, as a server would. The dev server injects
+// each stylesheet as a <style> element, so its pages alone also allow inline styles; a build
+// links them as files.
 const POLICY =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; " +
   "connect-src 'self'; base-uri 'none'; form-action 'none'";
@@ -55,12 +58,14 @@ export default defineConfig({
   build: {
     outDir: resolve(root, 'dist'),
     emptyOutDir: true,
-    // Every icon and fixture a file, none a data: URL: `img-src 'self'` holds, and the tests see
-    // each icon load.
+    // Every icon and fixture a file, none a data: URL, as view's README advises: `img-src 'self'`
+    // holds, and the tests see each icon load. (A function that answers false for the icons
+    // only would inline the small fixtures, which `connect-src 'self'` then refuses to fetch.)
     assetsInlineLimit: 0,
     // The fixtures and the project store make the pages bigger than Vite's warning threshold.
     chunkSizeWarningLimit: 2000,
     rolldownOptions: { input: pages },
   },
+  preview: { headers: { 'Content-Security-Policy': POLICY } },
   plugins: [contentSecurityPolicy()],
 });
