@@ -13,6 +13,9 @@ for (const path of PAGES) {
     await page.waitForLoadState('networkidle');
     const icons = page.locator('dex-icon img');
     if (WITH_ICONS.has(path)) await expect(icons.first()).toBeVisible();
+    // Files the build copied, never data: URLs (build.assetsInlineLimit: 0).
+    const sources = await icons.evaluateAll((imgs) => (imgs as HTMLImageElement[]).map((img) => img.src));
+    expect(sources.filter((src) => !/\.svg$/.test(src))).toEqual([]);
     // decode() rejects for an image that did not load, in every engine.
     const broken = await icons.evaluateAll((imgs) =>
       Promise.all(
