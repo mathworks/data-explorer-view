@@ -14,7 +14,7 @@ export interface PropertyRow {
    * sets it false.
    */
   editable?: boolean;
-  /** `link` anchors the NAME, and a click sends `dex-pi-navigate` with `linkTarget` (else the name). */
+  /** `link` anchors the NAME, and a click sends `dex-property-navigate` with `linkTarget` (else the name). */
   type?: 'text' | 'link';
   linkTarget?: string;
   // A link on the VALUE, set by core on the Data Type property when the type names another
@@ -34,11 +34,6 @@ export interface PropertyGroup {
   title: string;
   properties: PropertyRow[];
 }
-
-/** @deprecated PropertyRow, under the name it had when the model and the widget each declared one. */
-export type PIPropertyRow = PropertyRow;
-/** @deprecated PropertyGroup, under the name it had when the model and the widget each declared one. */
-export type PIPropertyGroup = PropertyGroup;
 
 // Replicates the vendored two-step transform (PIController.convertToPIObject +
 // LitRenderer.setPIContent). graphture/usedBy extras are intentionally omitted.

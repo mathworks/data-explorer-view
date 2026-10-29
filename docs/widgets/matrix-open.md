@@ -39,9 +39,9 @@ draws nothing. Property only.
 
 ### `rowId`
 
-type `string | undefined` · attribute `rowid`
+type `string | undefined` · attribute `row-id`
 
-The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`.
+The row it sits in, sent on with the event; unset in the inspector. Attribute `row-id`.
 
 ## Methods
 

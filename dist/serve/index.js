@@ -6,7 +6,8 @@
 //
 // Nothing here imports anything at run time but these few modules of the model, none of which
 // imports core (test/entries.test.ts holds the built entry to that), so a main process that
-// bundles it bundles a few kilobytes. `./model` exports the same names, for a page, until 1.0.
+// bundles it bundles a few kilobytes. `./model` has the names both ends of a channel use (the
+// wire's messages, `sourceUri` and `uriPath`, `portFromMessagePort`); the rest are here alone.
 //
 // Not `./host`: that entry is the VS Code extension's host plumbing for its webviews (the
 // document registry over core's module-level session, the answers posted to a webview), and it

@@ -79,6 +79,9 @@ interface TransferPort {
  *
  * The page is not trusted: what reaches the reader is only ever a file the folder listed, so a
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
+ * A project store is whatever the reader's `projectStore` answers for a listed file, which need
+ * not be a project's marker: a reader decides which files have a store, and one that reads the
+ * folder beside any file it is given lets the page read that much.
  *
  * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
  * listens on the port (a table's, for one).

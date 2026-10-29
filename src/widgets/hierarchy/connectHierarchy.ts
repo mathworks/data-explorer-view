@@ -30,7 +30,7 @@ export interface ConnectHierarchyOptions {
 /** How `reveal()` shows a file. */
 export interface RevealOptions {
   /**
-   * Also send `dex-hierarchy-select` for the row, as a click on it does (so the handle's `open`
+   * Also send `dex-hierarchy-selected` for the row, as a click on it does (so the handle's `open`
    * too), without opening or closing it. Default false: the row is shown and selected, and nothing
    * is sent.
    */
@@ -119,7 +119,7 @@ export function connectHierarchy(
 
   // The row last selected by a choice or a reveal, and its file.
   let selected: { key: string; uri: string | null } | null = null;
-  const onSelect = (e: HierarchyEventMap['dex-hierarchy-select']): void => {
+  const onSelect = (e: HierarchyEventMap['dex-hierarchy-selected']): void => {
     const uri = e.detail?.uri;
     if (typeof e.detail?.key === 'string') selected = { key: e.detail.key, uri: typeof uri === 'string' ? uri : null };
     if (typeof uri === 'string' && uri !== '') emit('open', uri);
@@ -148,7 +148,7 @@ export function connectHierarchy(
 
   element.loadChildren = (item) => hierarchy.children(item);
   if (options.expandTopLevel) element.expandTopLevel = true;
-  element.addEventListener('dex-hierarchy-select', onSelect);
+  element.addEventListener('dex-hierarchy-selected', onSelect);
   const stop = hierarchy.subscribe(() => void draw());
   void draw();
 
@@ -175,7 +175,7 @@ export function connectHierarchy(
       if (disposed) return;
       disposed = true;
       stop();
-      element.removeEventListener('dex-hierarchy-select', onSelect);
+      element.removeEventListener('dex-hierarchy-selected', onSelect);
       listeners.open.clear();
       listeners.error.clear();
     },

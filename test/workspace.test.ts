@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataModel } from 'data-explorer-core';
-import { createWorkspace, findNode, sourceUri, type TableChange } from '../src/model/index.js';
+import { createWorkspace, sourceUri, type TableChange } from '../src/model/index.js';
+import { findNode } from '../src/host/index.js';
 
 const fixture = (rel: string): Uint8Array => new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${rel}`, import.meta.url))));
 const text = (s: string): Uint8Array => new TextEncoder().encode(s);

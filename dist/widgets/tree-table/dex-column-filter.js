@@ -42,7 +42,7 @@ export class DexColumnFilter extends LitElement {
         super(...arguments);
         /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
         this.column = '';
-        /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
+        /** Header label; also the prefix the written text uses. Default ''. Attribute `column-label`. */
         this.columnLabel = '';
         /**
          * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
@@ -53,7 +53,7 @@ export class DexColumnFilter extends LitElement {
         this.value = '';
         /**
          * True when the table already has a condition for this column, which offers Clear. Default
-         * false. Attribute `hasexisting`.
+         * false. Attribute `has-existing`.
          */
         this.hasExisting = false;
     }
@@ -282,7 +282,7 @@ __decorate([
     property({ type: String })
 ], DexColumnFilter.prototype, "column", void 0);
 __decorate([
-    property({ type: String })
+    property({ type: String, attribute: 'column-label' })
 ], DexColumnFilter.prototype, "columnLabel", void 0);
 __decorate([
     property({ type: String })
@@ -291,7 +291,7 @@ __decorate([
     property({ type: String })
 ], DexColumnFilter.prototype, "value", void 0);
 __decorate([
-    property({ type: Boolean })
+    property({ type: Boolean, attribute: 'has-existing' })
 ], DexColumnFilter.prototype, "hasExisting", void 0);
 __decorate([
     query('.popup-value')

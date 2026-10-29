@@ -20,8 +20,8 @@ export interface ConnectInspectorOptions {
 /** A connected inspector: what connectInspector returns. */
 export interface InspectorHandle {
     /**
-     * Hear a clicked cross-reference (`dex-pi-navigate`'s target), until the returned function is
-     * called: a row of a document, to open.
+     * Hear a clicked cross-reference (`dex-property-navigate`'s target), until the returned function
+     * is called: a row of a document, to open.
      */
     on(type: 'navigate', listener: (target: string) => void): () => void;
     /**

@@ -18,15 +18,15 @@ export interface PropertyChangedDetail {
   oldValue: string;
 }
 
-/** What `dex-pi-navigate` carries: the target of the link clicked. */
-export interface PiNavigateDetail {
+/** What `dex-property-navigate` carries: the target of the link clicked. */
+export interface PropertyNavigateDetail {
   sourceId: string;
 }
 
 /**
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
  * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
- * sends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable
+ * sends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
  * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
@@ -138,8 +138,8 @@ export class DexPropertyInspector extends LitElement {
     }
   `];
 
-  /** The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON). */
-  @property({ type: Array }) groups: PropertyGroup[] = [];
+  /** The groups shown, in order; none, the default, draws an empty panel. Property only. */
+  @property({ attribute: false }) groups: PropertyGroup[] = [];
 
   private _onPropertyChange(propName: string, newValue: string, oldValue: string): void {
     this.dispatchEvent(new CustomEvent<PropertyChangedDetail>('dex-property-changed', {
@@ -151,7 +151,7 @@ export class DexPropertyInspector extends LitElement {
 
   private _onLinkClick(e: Event, target: string): void {
     e.preventDefault();
-    this.dispatchEvent(new CustomEvent<PiNavigateDetail>('dex-pi-navigate', {
+    this.dispatchEvent(new CustomEvent<PropertyNavigateDetail>('dex-property-navigate', {
       detail: { sourceId: target },
       bubbles: true,
       composed: true,
@@ -240,7 +240,7 @@ export interface PropertyInspectorEventMap {
    * A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
    * value link (its `valueLink`).
    */
-  'dex-pi-navigate': CustomEvent<PiNavigateDetail>;
+  'dex-property-navigate': CustomEvent<PropertyNavigateDetail>;
 }
 
 declare global {

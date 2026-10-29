@@ -2,8 +2,8 @@
 
 A modal dialog that says why something the user did was refused: a title, the reason, what was
 entered beside what was kept, and a detail line. It takes focus on OK (never on Revert), keeps
-Tab inside itself, and gives focus back when it closes. With `showRevert`, a Revert button
-sends `dex-revert` before it closes.
+Tab inside itself, and gives focus back when it closes, by OK, Escape, a click outside it or
+`close()`. With `showRevert`, a Revert button sends `dex-revert` before it closes.
 
 ```js
 import { defineErrorDialog } from 'data-explorer-view/error-dialog';
@@ -19,7 +19,7 @@ dialog.show({
 });
 ```
 
-Its properties are what show() fills in, and are internal: use show().
+It has no properties and observes no attributes: show() is how it is told what to say.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -52,7 +52,7 @@ Opens the dialog, focused on OK (never on Revert, which discards the user's edit
 `showRevert` adds the Revert button. Focus returns to `returnFocusTo` when it closes, or to
 the element that had it when this was called.
 
-### `hide(): void`
+### `close(): void`
 
 Closes the dialog and gives focus back, sending nothing.
 

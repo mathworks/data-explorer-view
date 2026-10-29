@@ -202,7 +202,7 @@ describe('reveal', () => {
     const opened: string[] = [];
     const chosen: (string | null)[] = [];
     handle.on('open', (uri) => opened.push(uri));
-    el.addEventListener('dex-hierarchy-select', (e) => chosen.push(e.detail.uri));
+    el.addEventListener('dex-hierarchy-selected', (e) => chosen.push(e.detail.uri));
     await settle(el);
     expect(await handle.reveal('file:///workspace/data.sldd', { choose: true })).toBe(true);
     expect(chosen).toEqual(['file:///workspace/data.sldd']);

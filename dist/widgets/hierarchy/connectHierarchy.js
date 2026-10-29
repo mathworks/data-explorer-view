@@ -79,7 +79,7 @@ export function connectHierarchy(element, hierarchy, options = {}) {
     element.loadChildren = (item) => hierarchy.children(item);
     if (options.expandTopLevel)
         element.expandTopLevel = true;
-    element.addEventListener('dex-hierarchy-select', onSelect);
+    element.addEventListener('dex-hierarchy-selected', onSelect);
     const stop = hierarchy.subscribe(() => void draw());
     void draw();
     return {
@@ -108,7 +108,7 @@ export function connectHierarchy(element, hierarchy, options = {}) {
                 return;
             disposed = true;
             stop();
-            element.removeEventListener('dex-hierarchy-select', onSelect);
+            element.removeEventListener('dex-hierarchy-selected', onSelect);
             listeners.open.clear();
             listeners.error.clear();
         },

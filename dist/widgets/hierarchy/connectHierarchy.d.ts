@@ -19,7 +19,7 @@ export interface ConnectHierarchyOptions {
 /** How `reveal()` shows a file. */
 export interface RevealOptions {
     /**
-     * Also send `dex-hierarchy-select` for the row, as a click on it does (so the handle's `open`
+     * Also send `dex-hierarchy-selected` for the row, as a click on it does (so the handle's `open`
      * too), without opening or closing it. Default false: the row is shown and selected, and nothing
      * is sent.
      */

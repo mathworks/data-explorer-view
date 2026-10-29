@@ -19,7 +19,7 @@
 // that they leave no element defined, and the model no global, behind.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
@@ -38,7 +38,9 @@ const file = (target: string): string => join(ROOT, target);
 
 const TAGS = ['dex-tree-table', 'dex-filter-bar', 'dex-column-filter', 'dex-add-gallery', 'dex-property-inspector',
   'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-matrix-open', 'dex-icon'];
-const OLD_PATHS = ['icons/wsTable.svg', 'model/rows/rowBuilder.js', 'widgets/tree-table/dex-tree-table.js', 'theme/global.css'];
+// An icon, through the one pattern; and the 0.x module paths, which 1.0 no longer exports.
+const ICON_PATH = 'icons/wsTable.svg';
+const OLD_PATHS = ['model/rows/rowBuilder.js', 'widgets/tree-table/dex-tree-table.js', 'theme/global.css', 'theme/tokens.css'];
 
 interface Loaded {
   /** What Node resolves each specifier to. */
@@ -57,8 +59,9 @@ interface Loaded {
 let loaded: Loaded;
 beforeAll(() => {
   const script = `
-    const specs = ${JSON.stringify([...ENTRIES, ...OLD_PATHS.map((p) => `./${p}`)].map(specifier))};
-    const resolved = Object.fromEntries(specs.map((s) => [s, import.meta.resolve(s)]));
+    const specs = ${JSON.stringify([...ENTRIES, `./${ICON_PATH}`, ...OLD_PATHS.map((p) => `./${p}`)].map(specifier))};
+    const at = (s) => { try { return import.meta.resolve(s); } catch (e) { return e.code; } };
+    const resolved = Object.fromEntries(specs.map((s) => [s, at(s)]));
     const before = new Set(Object.getOwnPropertyNames(globalThis));
     const out = { resolved, modelGlobals: [], exports: {}, defined: {} };
     for (const s of ${JSON.stringify(JS_ENTRIES.map(specifier))}) {
@@ -75,7 +78,7 @@ beforeAll(() => {
 }, 120_000);
 
 describe('every entry in package.json exports', () => {
-  it('names the designed entries, and the 0.x paths beside them', () => {
+  it('names the designed entries, and the icons beside them', () => {
     expect(ENTRIES).toEqual([
       './model',
       './host',
@@ -91,7 +94,7 @@ describe('every entry in package.json exports', () => {
       './icon-assets',
       './theme.css',
     ]);
-    expect(PATTERNS).toEqual(['./icons/*', './model/*.js', './widgets/*.js', './theme/*.css']);
+    expect(PATTERNS).toEqual(['./icons/*']);
   });
 
   it.each(ENTRIES)('%s points at files that exist', (key) => {
@@ -129,17 +132,12 @@ describe('every entry in package.json exports', () => {
     expect(blankCommentsAndKeepLines(readFileSync(file(target.default), 'utf8'))).not.toMatch(/export \*/);
   });
 
-  it('keeps the 0.x paths working until 1.0', () => {
-    for (const path of OLD_PATHS) {
-      const url = loaded.resolved[`${NAME}/${path}`]!;
-      expect(existsSync(new URL(url)), path).toBe(true);
-    }
-    // A wildcard entry's types are the .d.ts beside each .js, which tsc writes for every module.
-    const js = (dir: string): string[] =>
-      readdirSync(dir).flatMap((e) => (statSync(join(dir, e)).isDirectory() ? js(join(dir, e)) : e.endsWith('.js') ? [join(dir, e)] : []));
-    const modules = [...js(file('dist/model')), ...js(file('dist/widgets'))];
-    expect(modules.length).toBeGreaterThan(50);
-    expect(modules.filter((m) => !existsSync(m.replace(/\.js$/, '.d.ts')))).toEqual([]);
+  it('serves an icon by its file name', () => {
+    expect(existsSync(new URL(loaded.resolved[`${NAME}/${ICON_PATH}`]!)), ICON_PATH).toBe(true);
+  });
+
+  it('no longer exports the 0.x module paths, nor a stylesheet but theme.css', () => {
+    for (const path of OLD_PATHS) expect(loaded.resolved[`${NAME}/${path}`], path).toBe('ERR_PACKAGE_PATH_NOT_EXPORTED');
   });
 });
 
@@ -195,7 +193,7 @@ describe('the serve entry', () => {
     expect([...bare]).toEqual([]);
   });
 
-  it("exports nothing ./model does not, until 1.0: a page imports the same names from the model", () => {
+  it("shares with ./model only what both ends of a channel use, and keeps the host's end to itself", () => {
     const model = new Map(loaded.exports[specifier('./model')]);
     const serve = loaded.exports[specifier('./serve')]!;
     expect(serve.map(([name]) => name).sort()).toEqual([
@@ -207,7 +205,8 @@ describe('the serve entry', () => {
       'sourceUri',
       'uriPath',
     ]);
-    expect(serve.filter(([name, type]) => model.get(name) !== type)).toEqual([]);
+    expect(serve.filter(([name]) => model.has(name)).map(([name]) => name).sort()).toEqual(['portFromMessagePort', 'sourceUri', 'uriPath']);
+    expect(serve.filter(([name, type]) => model.has(name) && model.get(name) !== type)).toEqual([]);
   });
 
   it('loads in a Node with no DOM, and defines nothing', () => {
@@ -222,11 +221,11 @@ describe('the host entry', () => {
     expect([...bare]).toEqual(['data-explorer-core']);
   });
 
-  it("exports nothing ./model does not, until 1.0: a host's names are still the model's too", () => {
+  it("shares no name with ./model: the host's plumbing is its own", () => {
     const model = new Map(loaded.exports[specifier('./model')]);
     const host = loaded.exports[specifier('./host')]!;
     expect(host.length).toBeGreaterThan(10);
-    expect(host.filter(([name, type]) => model.get(name) !== type)).toEqual([]);
+    expect(host.filter(([name]) => model.has(name))).toEqual([]);
   });
 });
 

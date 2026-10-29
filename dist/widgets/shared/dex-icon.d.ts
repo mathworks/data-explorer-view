@@ -30,7 +30,7 @@ export declare class DexIcon extends LitElement {
     static styles: import("lit").CSSResult[];
     /**
      * The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
-     * kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+     * kind (`bus`). Empty, the default, draws nothing. Attribute `icon-id`.
      */
     iconId: string;
     /** Its width and height in CSS pixels. Default 16. Attribute `size`. */

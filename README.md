@@ -12,11 +12,14 @@ model into what they display.
 
 ## Status
 
-Version 0.x: the API will change. Import from the entry points below, one for
-the model and one per widget. The module paths of 0.1.0
-(`data-explorer-view/model/<path>.js`, `data-explorer-view/widgets/<path>.js`)
-still work during 0.x and go before 1.0.0. Pin a tag, and read the release
-notes before you move the pin.
+Version 1. Import from the entry points below, one for the model and one per
+widget; the package exports nothing else, and the files inside it (`dist/` and
+their names) are not part of its API. Semantic versioning covers every entry
+but `data-explorer-view/host`: what an app uses goes, or changes in a way that
+breaks it, only in a major release, and an API check in CI holds each release to
+that. `data-explorer-view/host` is the VS Code extension's, which moves with
+this package in step: it may change in any release. Pin a tag, and read the
+release notes before you move the pin.
 
 ## Using it
 
@@ -38,7 +41,9 @@ Releases are tags, and `dist/` is committed, so installing needs no build step.
 ## Using a widget
 
 Each widget has an entry of its own, which exports its class, its define
-function and the types of what it takes and sends:
+function and the types of what it takes and sends. What every widget does the
+same way (data in by properties, actions out by events, and how each is named)
+is in [docs/widget-conventions.md](docs/widget-conventions.md):
 
 ```js
 import 'data-explorer-view/theme.css';
@@ -56,8 +61,8 @@ defineVariableEditor();
 | Entry | What it holds |
 |---|---|
 | `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions, a folder's hierarchy |
-| `data-explorer-view/host` | for a host that serves the wire format, not for an app: the document registry over core's module-level session, the answers posted to a webview, the inspector's page (also in `/model` until 1.0, deprecated there) |
-| `data-explorer-view/serve` | for the process that holds the files and draws nothing (Electron's main, a worker): `serveFolder`, `serveTable`, `sourceUri`, `listedFiles` and the port adapters, loading nothing else (also in `/model`) |
+| `data-explorer-view/host` | the VS Code extension's host plumbing, not for an app, and outside semantic versioning: the document registry over core's module-level session, the answers posted to a webview, the inspector's page, the binary editor's srcId and the tree's file decorations |
+| `data-explorer-view/serve` | for the process that holds the files and draws nothing (Electron's main, a worker): `serveFolder`, `serveTable`, `sourceUri`, `listedFiles` and the port adapters, loading nothing else (`sourceUri`, `uriPath` and `portFromMessagePort` are in `/model` too, for the page's end) |
 | `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
 | `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
 | `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |
@@ -94,7 +99,7 @@ document.addEventListener('dex-matrix-open', (e) => {
 });
 ```
 
-## Show a file in a table (preview)
+## Show a file in a table
 
 A workspace opens files in the page, with core, and gives each one a table
 source; `connectTable` and `connectInspector` wire the widgets to it.
@@ -141,13 +146,14 @@ project page is sent, and says `dex-project-open` with the path of a link to
 follow.
 
 A source can also be across a message channel, to a worker or another
-process holding the documents: `serveTable(doc.table, port)` on the side that
-holds them, and `connectTable(table, messageSource(port))` on the page's side,
-where `port` is any `{ postMessage, onMessage }` (`TablePort`). The messages
+process holding the documents: `serveTable(doc.table, port)`
+(`data-explorer-view/serve`) on the side that holds them, and
+`connectTable(table, messageSource(port))` on the page's side, where `port` is
+any `{ postMessage, onMessage }` (`TablePort`). The messages
 are the extension's own table protocol (`TableHostMessage`,
 `TableClientMessage`), and the table behaves as it does beside its source.
 
-## Show a folder (preview)
+## Show a folder
 
 A `FolderHierarchy` reads a folder's files through core's source cache and
 answers its hierarchy as rows: each project and folder, the files in it, and
@@ -325,7 +331,7 @@ Electron notes, which the recipe above does not show:
   tab) must confine it to the folder as `serveFolder` does: a file the host listed, by its
   exact uri, never a path the page made up.
 
-## Show a folder with Usage and search (preview)
+## Show a folder with Usage and search
 
 An app that shows a folder's tree, fills its tables' Usage column from it and
 searches its names makes one `FolderSession`: the hierarchy, the usage graphs,
@@ -449,9 +455,6 @@ after this file, or map them onto your own design system's variables.
 import 'data-explorer-view/theme.css';
 ```
 
-`theme/global.css` still works during 0.x (the tokens plus a full-window page
-layout) and goes before 1.0.0.
-
 ## Icons with a bundler
 
 With `useIconAssets()` the bundler copies the icons, and two settings decide how
@@ -499,10 +502,14 @@ After changing `src/`, run `npm run build` and commit `dist/`,
 they are not the build of `src/`. A widget's page is written below its marker
 line from the manifest: change the widget's JSDoc, not the page.
 
-`npm run check:api` compares the manifest with the one in the latest release
-tag. A widget, property, method, attribute or event that is gone or renamed
-fails it, unless `package.json`'s version is a major bump (while 0.x, a minor
-one) over that tag's.
+`npm run check:api` compares the package with the one in the latest release
+tag: the export map, every entry's export names, each widget's properties,
+methods, attributes and events and the attributes it observes, the fields of
+each event's detail and of each message on the wire, the theme's tokens, the
+icon ids, `sideEffects` and the peer dependencies. One that is gone (or, for a
+detail or a message, changed) fails it, unless `package.json`'s version is a
+major bump over that tag's. What is added is reported, and so is anything on
+`data-explorer-view/host`.
 
 The gallery shows every widget on a page of its own, on small public files, and
 is what the browser tests run against, in Chromium, Firefox and WebKit. It is

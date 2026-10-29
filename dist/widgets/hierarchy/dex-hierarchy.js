@@ -21,11 +21,12 @@ import { DECORATIONS } from '../../model/hierarchy/health.js';
  * reference, unsaved changes), and a notice (a folder of which only the first files are shown) an
  * information mark.
  *
- * A click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,
- * and a row with rows under it opens or closes. The arrow keys move through the rows (Right opens
- * a row or goes into it, Left closes it or goes to its parent), Home and End go to the first and
- * the last. `revealRow` shows a row the app names (the file it has open), and `expandTopLevel`
- * opens the folder's own row on first show. connectHierarchy wires one to a FolderHierarchy.
+ * A click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it
+ * opens, and a row with rows under it opens or closes. The arrow keys move through the rows
+ * (Right opens a row or goes into it, Left closes it or goes to its parent), Home and End go to
+ * the first and the last. `revealRow` shows a row the app names (the file it has open), and
+ * `expandTopLevel` opens the folder's own row on first show. connectHierarchy wires one to a
+ * FolderHierarchy.
  *
  * @tagname dex-hierarchy
  */
@@ -222,9 +223,9 @@ export class DexHierarchy extends LitElement {
      * it is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,
      * and a choice of the user's before the row is drawn leaves the scroll undone.
      *
-     * Sends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on
-     * it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a
-     * file's row.
+     * Sends nothing, unless `options.choose`: then `dex-hierarchy-selected` for the row, as a click
+     * on it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to
+     * a file's row.
      */
     revealRow(path, options = {}) {
         const row = path[path.length - 1];
@@ -331,7 +332,7 @@ export class DexHierarchy extends LitElement {
         this._setOpen(item, !this._open.has(item.key));
     }
     _announce(item) {
-        this.dispatchEvent(new CustomEvent('dex-hierarchy-select', {
+        this.dispatchEvent(new CustomEvent('dex-hierarchy-selected', {
             detail: { uri: item.id ?? null, key: item.key, item },
             bubbles: true,
             composed: true,

@@ -33,8 +33,8 @@ export interface ConnectInspectorOptions {
 /** A connected inspector: what connectInspector returns. */
 export interface InspectorHandle {
   /**
-   * Hear a clicked cross-reference (`dex-pi-navigate`'s target), until the returned function is
-   * called: a row of a document, to open.
+   * Hear a clicked cross-reference (`dex-property-navigate`'s target), until the returned function
+   * is called: a row of a document, to open.
    */
   on(type: 'navigate', listener: (target: string) => void): () => void;
   /**
@@ -102,12 +102,12 @@ export function connectInspector(
     void following.matrix(nodeId).then((page) => void editor.deliver(page), () => {});
   };
   // A cross-reference: its row is in a table, which is for whoever opens documents.
-  const onNavigate = (e: HTMLElementEventMap['dex-pi-navigate']): void => {
+  const onNavigate = (e: HTMLElementEventMap['dex-property-navigate']): void => {
     const target = e.detail?.sourceId;
     if (typeof target === 'string' && target !== '') for (const listener of [...navigate]) listener(target);
   };
   inspector.addEventListener('dex-matrix-open', onOpen);
-  inspector.addEventListener('dex-pi-navigate', onNavigate);
+  inspector.addEventListener('dex-property-navigate', onNavigate);
 
   const show = (page: InspectorView): void => {
     // Each page replaces every row a grid opened from here was anchored to.
@@ -143,7 +143,7 @@ export function connectInspector(
       disposed = true;
       stop();
       inspector.removeEventListener('dex-matrix-open', onOpen);
-      inspector.removeEventListener('dex-pi-navigate', onNavigate);
+      inspector.removeEventListener('dex-property-navigate', onNavigate);
       navigate.clear();
       made?.remove();
     },

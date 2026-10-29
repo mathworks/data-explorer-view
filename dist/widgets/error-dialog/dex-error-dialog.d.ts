@@ -2,25 +2,20 @@ import { LitElement } from 'lit';
 /**
  * A modal dialog that says why something the user did was refused: a title, the reason, the
  * value entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click
- * outside it closes it, and focus goes back where it was. With `showRevert`, a Revert button
- * sends `dex-revert` first. Tab stays inside the dialog while it is open.
+ * outside it closes it (as close() does), and focus goes back where it was. With show()'s
+ * `showRevert`, a Revert button sends `dex-revert` first. Tab stays inside the dialog while it is
+ * open.
  *
  * @tagname dex-error-dialog
  */
 export declare class DexErrorDialog extends LitElement {
     static styles: import("lit").CSSResult[];
-    /** @internal The title; show()'s `title`. */
-    dialogTitle: string;
-    /** @internal The reason; show()'s `reason`. */
-    message: string;
-    /** @internal The detail line; show()'s `detail`. */
-    detail: string;
-    /** @internal The value entered; show()'s `invalidValue`. */
-    invalidValue: string;
-    /** @internal The value kept; show()'s `validValue`. */
-    validValue: string;
-    /** @internal Whether Revert is offered; show()'s `showRevert`. */
-    showRevert: boolean;
+    private _title;
+    private _reason;
+    private _detail;
+    private _invalidValue;
+    private _validValue;
+    private _showRevert;
     private _open;
     private _returnFocusTo;
     /**
@@ -41,7 +36,7 @@ export declare class DexErrorDialog extends LitElement {
         returnFocusTo?: HTMLElement;
     }): void;
     /** Closes the dialog and gives focus back, sending nothing. */
-    hide(): void;
+    close(): void;
     private _findActiveElement;
     private _onDismiss;
     private _onRevert;

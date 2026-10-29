@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// THE API CHECK (scripts/check-api.mjs): custom-elements.json against the one in the last release
-// tag. A widget, property, method, attribute or event that is gone — or renamed, which is gone
-// plus a new one — fails unless package.json's version says the API may break: a major bump, or a
-// minor one while the version is 0.x. Additions pass, and so does a tag with no manifest.
+// THE API CHECK (scripts/check-api.mjs), for the widgets' manifest: custom-elements.json against
+// the one in the last release tag. A widget, property, method, attribute or event that is gone —
+// or renamed, which is gone plus a new one — fails unless package.json's version says the API may
+// break: a major bump, or a minor one while the version is 0.x. Additions pass, and so does a tag
+// with no manifest. The rest of what the check pins is checkApiSurface.test.ts's.
 //
 // The rule is tested on a small manifest (test/fixtures/api/release.json) and edits of it; the
 // script itself is run on files, and on a throwaway repository whose tags it has to find.
@@ -95,6 +96,9 @@ describe('which versions may break the API', () => {
     ['0.2.0', '0.2.1', false],
     ['0.2.0', '0.3.0', true],
     ['0.2.0', '1.0.0', true],
+    ['1.0.0', '1.0.1', false],
+    ['1.0.0', '1.1.0', false],
+    ['1.0.0', '2.0.0', true],
     ['1.2.0', '1.2.5', false],
     ['1.2.0', '1.3.0', false],
     ['1.2.0', '2.0.0', true],

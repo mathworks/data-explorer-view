@@ -6,7 +6,8 @@
 // is split by, so a page and the extension give one file one identity. uriPath reads each one
 // back.
 import { describe, expect, it } from 'vitest';
-import { binaryEditSrcId, parseLinkTarget, sourceUri, srcIdToUriString, uriPath } from '../src/model/index.js';
+import { parseLinkTarget, sourceUri, srcIdToUriString, uriPath } from '../src/model/index.js';
+import { binaryEditSrcId } from '../src/host/index.js';
 import { uriPathPart } from '../src/model/source/sourceUri.js';
 
 const POSIX: [string, string][] = [

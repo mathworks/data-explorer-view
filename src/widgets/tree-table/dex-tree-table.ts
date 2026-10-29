@@ -280,7 +280,7 @@ function isCellObject(value: unknown): boolean {
   return value !== null && typeof value === 'object';
 }
 
-export interface BlockLinkGroup {
+interface BlockLinkGroup {
   modelName: string;
   blocks: { blockName: string; blockPath: string; linkTarget: string }[];
 }
@@ -1512,21 +1512,14 @@ export class DexTreeTable extends LitElement {
    * siblings show in the order given until the user sorts. What the model's planner makes of a
    * document, `rowPlannerFor(name).payload(node, LAZY_ROW_BUDGET).rows`, which holds back the
    * children of rows past the budget (`_lazy`) for `dex-request-children` to fetch. Default none.
-   * Attribute `rows` (JSON); set the property.
+   * Property only.
    */
-  @property({ type: Array }) rows: TreeTableRow[] = [];
+  @property({ attribute: false }) rows: TreeTableRow[] = [];
   /**
    * The ids of the selected rows. The table changes it as the user selects, and says so with
-   * `dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).
+   * `dex-row-selected`; setting it sends nothing. Default none. Property only.
    */
-  @property({ type: Array }) selectedRowIds: string[] = [];
-  /**
-   * The row height virtual scrolling lays rows out at, in CSS pixels, when the page sets no
-   * `--dex-row-height`; with the token set, the token's. Rows are drawn at the token, or 28px
-   * without one, so to change the height set the token, which both read. Default 28. Attribute
-   * `rowheight`.
-   */
-  @property({ type: Number }) rowHeight = DEFAULT_ROW_HEIGHT;
+  @property({ attribute: false }) selectedRowIds: string[] = [];
   /**
    * `normal`, the default, rules every cell; `light` drops the lines between columns and keeps a
    * faint one between rows. Reflected to the attribute `table-style`.
@@ -1535,20 +1528,19 @@ export class DexTreeTable extends LitElement {
   /**
    * Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a
    * search may qualify a term with (`"Data Type":double`); a column with none shows its key.
-   * Default null. Attribute `columnlabels` (JSON).
+   * Default null. Property only.
    */
-  @property({ type: Object }) columnLabels: Record<string, string> | null = null;
+  @property({ attribute: false }) columnLabels: Record<string, string> | null = null;
   /**
    * The group heading each column sits under in the Columns menu, by column key. Default null:
-   * no headings. Attribute `columngroups` (JSON).
+   * no headings. Property only.
    */
-  @property({ type: Object }) columnGroups: Record<string, string> | null = null;
+  @property({ attribute: false }) columnGroups: Record<string, string> | null = null;
   /**
    * The column keys this document has, which the Columns menu offers; the user's saved order and
-   * choice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`
-   * (JSON).
+   * choice of hidden ones apply within them. Default null: the built-in set. Property only.
    */
-  @property({ type: Array }) columns: string[] | null = null;
+  @property({ attribute: false }) columns: string[] | null = null;
   /**
    * The banners drawn above the search bar: an error, a notice, and what the document's read
    * could not read (TableBanners), each when present. connectTable sets it from what its source
@@ -1576,9 +1568,9 @@ export class DexTreeTable extends LitElement {
   // disabled button invites a click and explains nothing.
   /**
    * Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,
-   * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.
+   * whose tiles send `dex-add-entry`) exists at all. Default false. Attribute `can-add`.
    */
-  @property({ type: Boolean }) canAdd = false;
+  @property({ type: Boolean, attribute: 'can-add' }) canAdd = false;
 
   /**
    * The classes a MAT-file's gallery offers, as core lists the classes a MAT-file can hold, or
@@ -1590,9 +1582,9 @@ export class DexTreeTable extends LitElement {
   /**
    * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
    * document cannot be changed: no row is draggable, and a drag from another table draws no drop
-   * target here, on a row or on the empty body. Default true. Attribute `rowdrag`.
+   * target here, on a row or on the empty body. Default true. Attribute `row-drag`.
    */
-  @property({ type: Boolean }) rowDrag = true;
+  @property({ type: Boolean, attribute: 'row-drag' }) rowDrag = true;
 
   /**
    * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
@@ -1827,9 +1819,10 @@ export class DexTreeTable extends LitElement {
   @query('dex-filter-bar') private _filterBar?: DexFilterBar;
   @query('.table-container') private _container!: HTMLElement;
 
+  // The height rows are laid out at: the one they are drawn at, from the same token.
   private get _rowH(): number {
     const v = getComputedStyle(this).getPropertyValue('--dex-row-height');
-    return v ? parseInt(v, 10) : this.rowHeight;
+    return v ? parseInt(v, 10) : DEFAULT_ROW_HEIGHT;
   }
 
   private _visibleRowsCache: TreeTableRow[] | null = null;
@@ -4685,8 +4678,8 @@ export interface TreeTableEventMap {
   'dex-row-selected': CustomEvent<RowSelectedDetail>;
   /**
    * A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
-   * merged into `rows` under it (the model's childRowsMessage builds them with the file's
-   * planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
+   * merged into `rows` under it (connectTable asks its source's `children` and merges them in
+   * place). Asked once until its rows arrive.
    */
   'dex-request-children': CustomEvent<RequestChildrenDetail>;
   /**

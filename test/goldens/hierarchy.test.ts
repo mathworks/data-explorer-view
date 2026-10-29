@@ -24,7 +24,8 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isSupportedPath, type SourceFile } from 'data-explorer-core';
 import { nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node';
-import { FolderHierarchy, folderReader, serveFolder, type FolderReads, type HierarchyItem } from '../../src/model/index.js';
+import { FolderHierarchy, folderReader, type HierarchyItem } from '../../src/model/index.js';
+import { serveFolder, type FolderReads } from '../../src/serve/index.js';
 import { channel } from './channel.js';
 
 const REPO = resolve(import.meta.dirname, '../..');

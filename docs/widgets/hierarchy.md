@@ -40,7 +40,7 @@ hierarchy.rebuild();
 
 `handle.reveal(uri)` shows a file in the tree, as an editor's explorer follows the active
 editor: it opens the rows above the file's row, selects it and scrolls it into view, and sends
-nothing (`{ choose: true }` sends `dex-hierarchy-select`, and so `open`, as a click does). A file
+nothing (`{ choose: true }` sends `dex-hierarchy-selected`, and so `open`, as a click does). A file
 can be a row in several places, under each file that references it, so the rule is fixed: the
 selected row stays when it is already the file's (the user chose it there); otherwise the row is
 the shallowest, and of several at one depth the first from the top. `hierarchy.pathTo(uri)`
@@ -184,9 +184,9 @@ as FolderHierarchy's `pathTo` gives them), select the last, and scroll it into v
 it is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,
 and a choice of the user's before the row is drawn leaves the scroll undone.
 
-Sends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on
-it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a
-file's row.
+Sends nothing, unless `options.choose`: then `dex-hierarchy-selected` for the row, as a click
+on it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to
+a file's row.
 
 ## Events
 
@@ -194,16 +194,16 @@ Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root)
 `HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
 typed with no cast, on the element, the document or the window.
 
-### `dex-hierarchy-select`
+### `dex-hierarchy-selected`
 
 A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
 null for a row that is no file. Sent again each time a row is chosen.
 
-`detail` is a `HierarchySelectDetail`:
+`detail` is a `HierarchySelectedDetail`:
 
 ```ts
-/** What `dex-hierarchy-select` carries: the row chosen. */
-export interface HierarchySelectDetail {
+/** What `dex-hierarchy-selected` carries: the row chosen. */
+export interface HierarchySelectedDetail {
   /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
   uri: string | null;
   /** The row's key, as `selectedKey` now holds it. */

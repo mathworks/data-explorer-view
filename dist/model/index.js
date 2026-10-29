@@ -8,11 +8,13 @@
 //
 // The list is what the VS Code extension and the desktop app import, and the types their
 // signatures name, so an app can write down what it is handed. What only this package's own
-// tests and widgets reach (the filter grammar, the row stamps, the catalog's bookkeeping) stays
-// out: it can change without a consumer noticing. What only a host serving the wire format uses
-// (the module-level document registry, the webview-posting answers, the inspector's page, the
-// binary editor's srcId and the tree's file decorations) is data-explorer-view/host's; the last
-// block below still exports it here, deprecated, until 1.0.
+// tests and widgets reach (the filter grammar, the row stamps, the table's expansion and
+// selection bookkeeping, the repost bus the hub is made of) stays out: it can change without a
+// consumer noticing. What only the VS Code extension's host uses (the module-level document
+// registry, the webview-posting answers, the inspector's page, the binary editor's srcId and the
+// tree's file decorations) is data-explorer-view/host's; what only a process that serves a folder
+// or a table uses (serveFolder, serveTable, a listing from core's, Electron's main-process port)
+// is data-explorer-view/serve's.
 //
 // Nothing here runs on import, and nothing here reaches a widget or lit (test/entries.test.ts),
 // so a bundler keeps only what an app uses and a worker or a terminal can load all of it.
@@ -32,7 +34,7 @@ export { dropDecision, isNoopMove, rejectReason } from './actions/dropDecision.j
 export { dropFactsOf } from './actions/dropFacts.js';
 export { resolveOperands, sectionRowIdOf } from './actions/operands.js';
 export { sectionRules, wholeFileRules } from './actions/sectionRules.js';
-export { insertEntryRows, mergeChildRows, nextExpandedIds, nextStickyIds, pendingSelectionToApply, spliceEntryRows, } from './actions/rowUpdates.js';
+export { insertEntryRows, spliceEntryRows } from './actions/rowUpdates.js';
 // Ids: section rows, sources, paths, the Add gallery's catalog, and a project's MSP roles and how
 // a project is found to be one.
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
@@ -57,7 +59,7 @@ export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTa
 // The graphs those cells are filled from, one per file being viewed, kept until the folder
 // changes; and the reposts a data file's table is owed when a model appears or goes away.
 export { UsageGraphs } from './usage/usageGraphs.js';
-export { USAGE_REPOST_DEBOUNCE_MS, USAGE_REPOST_MAX_WAITS, createUsageRepostBus, repostsUsageOn, } from './usage/usageRepost.js';
+export { USAGE_REPOST_DEBOUNCE_MS } from './usage/usageRepost.js';
 export { createUsageRepostHub } from './usage/usageRepostHub.js';
 // A folder, read once for all of it: its hierarchy, its Usage graphs, its names and its reposts,
 // over one listing and one cache, kept up to date by one change.
@@ -70,83 +72,16 @@ export { namesOfFile } from './search/nameScan.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
-// inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
-// between them.
+// inspector whose host follows a table elsewhere), and the messages between it and the host's
+// end (serveTable, on data-explorer-view/serve).
 export { inspectorFeed, messageSource } from './source/messageSource.js';
-export { serveTable } from './source/serveTable.js';
-// A folder across a message channel, for a hierarchy where its files are not: the host's end
-// (serveFolder, where the files are), and the page's (folderReader), in the same wire format.
-export { serveFolder } from './source/serveFolder.js';
+// A folder across a message channel, for a hierarchy where its files are not: the page's end
+// (folderReader), in the same wire format as the host's (serveFolder, on data-explorer-view/serve).
 export { folderReader } from './source/folderReader.js';
-// A folder's files as a listing answers them, saying when it was cut short; and the ports a
-// channel comes in (a MessagePort, Electron's MessagePortMain). A host has these, serveFolder and
-// serveTable on data-explorer-view/serve too, which loads nothing else.
-export { folderFileList, listedFiles } from './hierarchy/folderList.js';
-export { portFromMainPort, portFromMessagePort } from './source/ports.js';
+// A folder's files as a listing answers them, saying when it was cut short; and a page's
+// MessagePort as a channel's port.
+export { folderFileList } from './hierarchy/folderList.js';
+export { portFromMessagePort } from './source/ports.js';
 // A dictionary's parts read off disk, under the read policy (a source that cannot be read is a
 // failure, not an empty dictionary).
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
-// DEPRECATED HERE: a host's plumbing, which is data-explorer-view/host's. Each name below is the
-// same export that entry has, kept here so that nothing importing it from ./model breaks during
-// 0.x; it leaves ./model at 1.0. An app needs none of it: it opens files with createWorkspace and
-// wires widgets with connectTable and connectInspector.
-export { 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-findNode, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-getModel, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-getModelForBinaryTab, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-getModelFromBytes, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-getModelFromParsed, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-invalidate, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-openSourceView, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-parseDetached, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-peekModel, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-releaseIfUnviewed, 
-/** @deprecated A host's document registry: import it from data-explorer-view/host. */
-releaseSourceView, } from './workspace/SlddModel.js';
-export { 
-/** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
-answerChildRequest, 
-/** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
-childRowsMessage, } from './rows/childRequest.js';
-export { 
-/** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
-answerMatrixRequest, 
-/** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
-matrixCellsMessage, } from './matrix/matrixRequest.js';
-export { 
-/** @deprecated A host's posting: import it from data-explorer-view/host. */
-postOrFallback, 
-/** @deprecated A host's posting: import it from data-explorer-view/host. */
-postOrReport, } from './rows/postPayload.js';
-export { 
-/** @deprecated A host's posting: import it from data-explorer-view/host. */
-MAX_TABLE_ROWS, 
-/** @deprecated A host's posting: import it from data-explorer-view/host. */
-capRows, 
-/** @deprecated A host's posting: import it from data-explorer-view/host. */
-rowCapBanner, } from './rows/rowCap.js';
-export { 
-/** @deprecated A host's inspector page: import it from data-explorer-view/host. */
-InspectorPage, } from './inspector/inspectorPage.js';
-export { 
-/** @deprecated The srcId of a host's editable byte-backed tree: import it from data-explorer-view/host. */
-binaryEditSrcId, } from './ids/srcId.js';
-export { 
-/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
-DECORATIONS, 
-/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
-HEALTH_QUERY, 
-/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
-decode, 
-/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
-encode, } from './hierarchy/health.js';

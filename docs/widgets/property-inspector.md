@@ -52,9 +52,9 @@ The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which op
 
 ### `groups`
 
-type `PropertyGroup[]` · default `[]` · attribute `groups`
+type `PropertyGroup[]` · default `[]` · property only
 
-The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON).
+The groups shown, in order; none, the default, draws an empty panel. Property only.
 
 ## Methods
 
@@ -81,16 +81,16 @@ export interface PropertyChangedDetail {
 }
 ```
 
-### `dex-pi-navigate`
+### `dex-property-navigate`
 
 A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
 value link (its `valueLink`).
 
-`detail` is a `PiNavigateDetail`:
+`detail` is a `PropertyNavigateDetail`:
 
 ```ts
-/** What `dex-pi-navigate` carries: the target of the link clicked. */
-export interface PiNavigateDetail {
+/** What `dex-property-navigate` carries: the target of the link clicked. */
+export interface PropertyNavigateDetail {
   sourceId: string;
 }
 ```

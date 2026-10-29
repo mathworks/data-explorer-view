@@ -74,7 +74,9 @@ export interface UsageSource {
   graphFor(uri: string): Promise<UsageGraph>;
 }
 
-/** One open document. */
+/**
+ * One open document. An app is handed one and does not implement it, so a release may add to it.
+ */
 export interface Doc {
   /** The uri it was opened under: its identity in the workspace, and its table's `docUri`. */
   readonly uri: string;
@@ -104,7 +106,10 @@ export interface Doc {
   dispose(): void;
 }
 
-/** The documents a page has open. */
+/**
+ * The documents a page has open. An app is handed one and does not implement it, so a release may
+ * add to it.
+ */
 export interface Workspace {
   /**
    * Open the file `name`, whose content is `bytes` (which the workspace keeps: do not write to
