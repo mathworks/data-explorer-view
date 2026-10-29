@@ -45,6 +45,19 @@ export interface WorkspaceOptions {
    * only what the file itself says (a model's blocks, by name).
    */
   usage?: UsageSource;
+  /**
+   * When a dictionary's or a MAT-file's Usage column is owed a repaint because a model appeared
+   * or went away in the folder: each such document subscribes while it is open, and repaints its
+   * table (a `replaceAll`, refilled from `usage`) when told to. A usage repost hub
+   * (createUsageRepostHub) over the app's watch on the folder. Unset, a column changes only when
+   * its own file does.
+   */
+  usageReposts?: UsageReposts;
+}
+
+/** What a workspace's data documents subscribe to for a Usage repaint: a usage repost hub. */
+export interface UsageReposts {
+  subscribe(repost: () => void): { dispose(): void };
 }
 
 /**
@@ -120,6 +133,7 @@ interface Shared {
   registry: DocumentRegistry;
   budget: number;
   usage: UsageSource | undefined;
+  usageReposts: UsageReposts | undefined;
   closed(doc: InPageDoc): void;
 }
 
@@ -132,6 +146,7 @@ class InPageDoc implements Doc {
   private painted: Promise<TableView> | undefined;
   private readonly listeners = new Set<(change: TableChange) => void>();
   private disposed = false;
+  private readonly reposts: { dispose(): void } | undefined;
 
   constructor(
     private readonly shared: Shared,
@@ -141,6 +156,9 @@ class InPageDoc implements Doc {
     bytes: ArrayBuffer,
   ) {
     this.read(bytes);
+    // A data file's Usage names blocks in the models around it, which come and go; a model's names
+    // its own blocks and its own workspace, which no other model changes.
+    if (kind === 'dictionary' || kind === 'mat') this.reposts = shared.usageReposts?.subscribe(() => void this.repostUsage());
     this.table = {
       open: async () => this.open(),
       children: (rowId) => this.children(rowId),
@@ -157,12 +175,28 @@ class InPageDoc implements Doc {
     if (this.disposed) throw new Error(`${this.name} is closed.`);
     this.read(arrayBufferOf(bytes));
     if (this.kind === 'project') return;
+    await this.repaint();
+  }
+
+  /**
+   * The folder changed under the Usage column: paint again from the same read, refilled, for a
+   * table that is showing it. With none subscribed, the next `open()` paints afresh.
+   */
+  private async repostUsage(): Promise<void> {
+    if (this.disposed || !this.reading) return;
+    this.painted = undefined;
+    if (this.listeners.size > 0) await this.repaint();
+  }
+
+  /** Tell every subscriber the paint there is now: a `replaceAll`, or the `error` it failed with. */
+  private async repaint(): Promise<void> {
     let change: TableChange;
     try {
       change = { kind: 'replaceAll', view: await this.open() };
     } catch (err) {
       change = { kind: 'error', message: messageOf(err) };
     }
+    if (this.disposed) return;
     for (const listener of [...this.listeners]) {
       try {
         listener(change);
@@ -178,6 +212,7 @@ class InPageDoc implements Doc {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.reposts?.dispose();
     this.unload();
     this.listeners.clear();
     this.shared.closed(this);
@@ -307,6 +342,7 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
     registry: new DocumentRegistry(session),
     budget,
     usage: options.usage,
+    usageReposts: options.usageReposts,
     closed: (doc) => {
       if (docs.get(doc.uri) === doc) docs.delete(doc.uri);
     },

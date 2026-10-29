@@ -76,7 +76,8 @@ export declare function healthOf(node: GraphNode, dirty: boolean): HealthState |
 export declare class FolderHierarchy {
     private readonly options;
     private graph;
-    private readonly cache;
+    /** The cache its reads go through: hand it to the app's other folder passes (UsageGraphs), to read the folder once. */
+    readonly cache: SourceCache;
     private readonly nodes;
     private readonly listeners;
     constructor(options: FolderHierarchyOptions);

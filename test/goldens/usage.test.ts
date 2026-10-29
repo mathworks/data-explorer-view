@@ -11,14 +11,14 @@
 // left out). `node scripts/copy-goldens.mjs <vscode checkout>` refreshes them. Here the folder is
 // listed as the extension's goldens list it — its supported files that a usage graph reads,
 // recursively, in code-point order, each under `file:///fx/<its path>` — read off disk by core's
-// node reader, and the graph handed to the workspace as its UsageSource, which is all an app
-// writes. Nothing is normalised.
+// node reader, through UsageGraphs as the workspace's UsageSource, which is all an app writes.
+// Nothing is normalised.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isGraphPath, isSupportedPath, newSourceCache, planSummaries, type SourceFile } from 'data-explorer-core';
+import { isGraphPath, isSupportedPath, type SourceFile } from 'data-explorer-core';
 import { nodeSourceReader } from 'data-explorer-core/node';
-import { buildUsageGraphFromSummaries, createWorkspace, type UsageSource } from '../../src/model/index.js';
+import { createWorkspace, UsageGraphs, type UsageSource } from '../../src/model/index.js';
 import { snapshotText } from './snapshotText.js';
 
 const REPO = resolve(import.meta.dirname, '../..');
@@ -59,9 +59,14 @@ function folderUsage(folder: string): UsageSource {
   if (!usage) {
     // The files a usage graph reads (core's isGraphPath): no projects, which define no variables.
     const files = filesUnder(folder).filter((rel) => isGraphPath(rel)).map(fakeFile);
-    const cache = newSourceCache();
-    const reader = nodeSourceReader(files, { pathOf: diskPath });
-    usage = { graphFor: async (uri) => buildUsageGraphFromSummaries(await planSummaries(cache, reader, files, uri)) };
+    usage = new UsageGraphs({
+      inputs: {
+        // A folder and nothing else: no editor's open files to key the graphs by.
+        inputsKey: () => '',
+        candidates: async () => files,
+        readerFor: (listed) => nodeSourceReader(listed, { pathOf: diskPath }),
+      },
+    });
     usageOf.set(folder, usage);
   }
   return usage;
