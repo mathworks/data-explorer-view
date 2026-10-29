@@ -8,23 +8,32 @@
 // with that id, whenever it comes. What is not a message of the wire is ignored; an answer in a
 // shape a reader cannot use is a file that cannot be read (null), or for a listing a failure; and
 // a question the host refused (a file it did not list) is answered null, as a reader answers for
-// a file it was not given.
+// a file it was not given. A listing the host says was cut short answers a FolderFileList that
+// says so (`truncated`).
 //
 // DOM-free: a port is anything that posts and listens (wire.ts TablePort).
 import type { SourceFile } from 'data-explorer-core';
 import type { FolderFiles } from '../hierarchy/folderHierarchy.js';
+import { folderFileList } from '../hierarchy/folderList.js';
 import type { GraphReader, ProjectStore } from '../hierarchy/graphSources.js';
 import type { FolderAsk, FolderRequestMessage, TablePort } from './wire.js';
 
 /** A folder read across a channel: what folderReader returns. */
 export interface FolderReader extends FolderFiles, GraphReader {
-  /** Hear the host say the folder changed (its FolderServer's `changed()`), until the returned function is called. */
-  onChange(listener: () => void): () => void;
+  /**
+   * Hear the host say the folder changed (its FolderServer's `changed()`), until the returned
+   * function is called. `uris`, when the host sent them, are the files the change touched, by
+   * their uriString as the listing has them: a hint, which does not say whether each was created,
+   * deleted or saved (list the folder again for that). Absent: something changed.
+   */
+  onChange(listener: (uris?: readonly string[]) => void): () => void;
   /** Stop listening, and reject what is still waiting. */
   dispose(): void;
 }
 
-type Pending = { resolve: (value: unknown) => void; reject: (err: Error) => void };
+/** An answer, as a question's promise has it: its value, and whether a listing was cut short. */
+type Answer = { value: unknown; truncated: boolean };
+type Pending = { resolve: (answer: Answer) => void; reject: (err: Error) => void };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
@@ -57,7 +66,7 @@ function storeOf(value: unknown): ProjectStore | null {
  * build of a hierarchy:
  *
  * ```ts
- * const folder = folderReader(port);
+ * const folder = folderReader(portFromMessagePort(port));
  * const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
  * folder.onChange(() => hierarchy.rebuild());
  * ```
@@ -68,12 +77,17 @@ export function folderReader(port: TablePort): FolderReader {
   let lastId = 0;
   let closed = false;
   const waiting = new Map<number, Pending>();
-  const listeners = new Set<() => void>();
+  const listeners = new Set<(uris?: readonly string[]) => void>();
 
   const stop = port.onMessage((m) => {
     if (!isRecord(m)) return;
     if (m.type === 'folderChanged') {
-      for (const listener of [...listeners]) listener();
+      // Uris that are not a list are no hint at all: read it all again.
+      const uris = Array.isArray(m.uris) ? m.uris.filter((u): u is string => typeof u === 'string') : undefined;
+      for (const listener of [...listeners]) {
+        if (uris) listener(uris);
+        else listener();
+      }
       return;
     }
     if (m.type !== 'folderAnswer' || typeof m.id !== 'number') return;
@@ -81,10 +95,10 @@ export function folderReader(port: TablePort): FolderReader {
     if (!pending) return;
     waiting.delete(m.id);
     if (typeof m.error === 'string') pending.reject(new Error(m.error));
-    else pending.resolve(typeof m.refused === 'string' ? null : m.value);
+    else pending.resolve({ value: typeof m.refused === 'string' ? null : m.value, truncated: m.truncated === true });
   });
 
-  const ask = (what: FolderAsk, file?: SourceFile): Promise<unknown> => {
+  const ask = (what: FolderAsk, file?: SourceFile): Promise<Answer> => {
     if (closed) return Promise.reject(new Error('This folder reader is closed.'));
     const id = ++lastId;
     const request: FolderRequestMessage = { type: 'folderRequest', id, ask: what, ...(file ? { uri: file.uriString } : {}) };
@@ -95,13 +109,16 @@ export function folderReader(port: TablePort): FolderReader {
   };
 
   return {
-    list: async () => filesOf(await ask('list')),
-    version: async (file) => {
-      const version = await ask('version', file);
-      return typeof version === 'string' ? version : null;
+    list: async () => {
+      const { value, truncated } = await ask('list');
+      return folderFileList(filesOf(value), truncated);
     },
-    bytes: async (file) => bytesOf(await ask('bytes', file)),
-    projectStore: async (file) => storeOf(await ask('projectStore', file)),
+    version: async (file) => {
+      const { value } = await ask('version', file);
+      return typeof value === 'string' ? value : null;
+    },
+    bytes: async (file) => bytesOf((await ask('bytes', file)).value),
+    projectStore: async (file) => storeOf((await ask('projectStore', file)).value),
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

@@ -31,7 +31,8 @@ function diff(before, after) {
 export function createFolderSession(options) {
     const cache = options.cache ?? newSourceCache();
     const reader = options.reader;
-    // The listing everything reads: asked once, when first needed, and again on each change.
+    // The listing everything reads: asked once, when first needed, and again on each change. Handed
+    // on as it came, not copied, so a listing cut short still says so to the hierarchy.
     let listing = null;
     // The last listing that answered, to diff the next one against.
     let listed = null;

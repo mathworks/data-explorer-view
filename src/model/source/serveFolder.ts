@@ -13,6 +13,7 @@
 // DOM-free, and with no import at run time, so a main process that bundles it bundles nothing else.
 import type { SourceFile } from 'data-explorer-core';
 import type { FolderHierarchyOptions } from '../hierarchy/folderHierarchy.js';
+import type { FolderFileList } from '../hierarchy/folderList.js';
 import type { GraphReader } from '../hierarchy/graphSources.js';
 import type { FolderHostMessage, TablePort } from './wire.js';
 
@@ -39,9 +40,12 @@ export interface ServeFolderOptions {
 export interface FolderServer {
   /**
    * Say the folder changed (a file created, deleted or saved): the page's folderReader tells its
-   * `onChange` listeners, for its hierarchy to read the folder again.
+   * `onChange` listeners, for its hierarchy to read the folder again. `uris`, when the host knows
+   * them, are the files the change touched, as the listing names them (`sourceUri(path)`): a hint
+   * that does not say how each changed (wire.ts FolderChangedMessage). Absent: something changed.
+   * Each call is one message, as it is made: debouncing a watcher's burst is the host's.
    */
-  changed(): void;
+  changed(uris?: readonly string[]): void;
   /** Stop answering. Reads still going are not answered. */
   dispose(): void;
 }
@@ -64,7 +68,7 @@ interface TransferPort {
  * Answer the page's end of `port` (folderReader) from `folder`, until `dispose()`:
  *
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
- *   `folder.reader(files)` its reader;
+ *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
@@ -75,21 +79,17 @@ interface TransferPort {
  * The page is not trusted: what reaches the reader is only ever a file the folder listed, so a
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  *
- * `changed()` says the folder changed. Any other message is left alone, for whatever else listens
- * on the port (a table's, for one).
+ * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
+ * listens on the port (a table's, for one).
  *
- * In Electron's main process, over a `MessageChannelMain` port given to the page:
+ * In Electron's main process, over a `MessageChannelMain` port given to the page (README, "Serve a
+ * folder from Electron's main process"):
  * ```ts
- * const served = serveFolder({ files, reader }, {
- *   postMessage: (message) => port.postMessage(message),
- *   onMessage: (listener) => {
- *     const hear = (e: Electron.MessageEvent) => listener(e.data);
- *     port.on('message', hear);
- *     port.start();
- *     return () => port.off('message', hear);
- *   },
- * });
- * watcher.on('change', () => served.changed());
+ * const served = serveFolder(
+ *   { files: { list: async () => listedFiles(await listFolder(root)) }, reader },
+ *   portFromMainPort(port1),
+ * );
+ * watch(root, { recursive: true }, (_event, name) => name && served.changed([sourceUri(join(root, name))]));
  * ```
  */
 export function serveFolder(folder: FolderReads, port: TablePort, options: ServeFolderOptions = {}): FolderServer {
@@ -105,28 +105,32 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
     if (bytes && options.transfer) (port as unknown as TransferPort).postMessage(message, [bytes]);
     else port.postMessage(message);
   };
-  const answer = (id: number, question: () => Promise<unknown>): void => {
+  // The fields a question's answer carries: its value, and for a listing cut short `truncated`.
+  const answer = (id: number, question: () => Promise<{ value: unknown; truncated?: true }>): void => {
     Promise.resolve()
       .then(question)
       .then(
-        (value) => {
-          const message = { type: 'folderAnswer', id, value: value ?? null } as FolderHostMessage;
+        ({ value, ...more }) => {
+          const message = { type: 'folderAnswer', id, value: value ?? null, ...more } as FolderHostMessage;
           post(message, value instanceof ArrayBuffer ? value : undefined);
         },
         (err) => post({ type: 'folderAnswer', id, error: messageOf(err) }),
       );
   };
 
-  const list = async (): Promise<SourceFile[]> => {
+  const list = async (): Promise<{ files: SourceFile[]; truncated: boolean }> => {
     const asked = ++listsAsked;
-    const files = [...(await folder.files.list())];
+    const listed: FolderFileList = await folder.files.list();
+    // Read before the copy, which does not keep it.
+    const truncated = listed.truncated === true;
+    const files = [...listed];
     const reader = folder.reader(files);
     if (asked > listKept) {
       listKept = asked;
       listing = { files: new Map(files.map((file) => [file.uriString, file])), reader };
     }
     // Just what the wire carries: a listing's own objects may hold more, and what cannot be cloned.
-    return files.map(({ uriString, path }) => ({ uriString, path }));
+    return { files: files.map(({ uriString, path }) => ({ uriString, path })), truncated };
   };
 
   const refuse = (id: number): void => post({ type: 'folderAnswer', id, refused: NOT_LISTED });
@@ -136,7 +140,10 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
     const { id, ask } = m;
     switch (ask) {
       case 'list':
-        return answer(id, list);
+        return answer(id, async () => {
+          const { files, truncated } = await list();
+          return truncated ? { value: files, truncated: true } : { value: files };
+        });
       case 'version':
       case 'bytes':
       case 'projectStore': {
@@ -144,7 +151,7 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
         const now = listing;
         const file = typeof m.uri === 'string' ? now?.files.get(m.uri) : undefined;
         if (!now || !file) return refuse(id);
-        return answer(id, () => now.reader[ask](file));
+        return answer(id, async () => ({ value: await now.reader[ask](file) }));
       }
       default:
         return refuse(id);
@@ -152,8 +159,8 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
   });
 
   return {
-    changed() {
-      post({ type: 'folderChanged' });
+    changed(uris) {
+      post(uris ? { type: 'folderChanged', uris: [...uris] } : { type: 'folderChanged' });
     },
     dispose() {
       stopped = true;

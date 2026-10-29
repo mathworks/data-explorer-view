@@ -76,6 +76,10 @@ export { serveFolder } from './source/serveFolder.js';
 export type { FolderReads, FolderServer, ServeFolderOptions } from './source/serveFolder.js';
 export { folderReader } from './source/folderReader.js';
 export type { FolderReader } from './source/folderReader.js';
+export { folderFileList, listedFiles } from './hierarchy/folderList.js';
+export type { FolderFileList } from './hierarchy/folderList.js';
+export { portFromMainPort, portFromMessagePort } from './source/ports.js';
+export type { MainPort } from './source/ports.js';
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
 export { 
 /** @deprecated A host's document registry: import it from data-explorer-view/host. */

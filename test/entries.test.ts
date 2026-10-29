@@ -79,6 +79,7 @@ describe('every entry in package.json exports', () => {
     expect(ENTRIES).toEqual([
       './model',
       './host',
+      './serve',
       './tree-table',
       './property-inspector',
       './variable-editor',
@@ -171,6 +172,46 @@ describe('the model entry', () => {
   it('loads in a Node with no DOM, and adds no global', () => {
     expect(loaded.exports[specifier('./model')]!.length).toBeGreaterThan(50);
     expect(loaded.modelGlobals).toEqual([]);
+  });
+});
+
+describe('the serve entry', () => {
+  // What a main process or a worker serving the wire loads: the host's ends and what they need,
+  // and NOTHING else, not core (which a serving process need not load: its folder reads are
+  // core's light `node/folder` entry), not the model's other modules. A module joining this set
+  // is a decision made here, not a bundle that grows; the size of a main bundle is the whole
+  // reason the entry exists.
+  it('loads its own few modules of the model, and no package at all', () => {
+    const { files, bare } = closure(file((EXPORTS['./serve'] as { default: string }).default));
+    expect(files.sort()).toEqual([
+      'dist/model/hierarchy/folderList.js',
+      'dist/model/ids/srcId.js',
+      'dist/model/source/ports.js',
+      'dist/model/source/serveFolder.js',
+      'dist/model/source/serveTable.js',
+      'dist/model/source/sourceUri.js',
+      'dist/serve/index.js',
+    ]);
+    expect([...bare]).toEqual([]);
+  });
+
+  it("exports nothing ./model does not, until 1.0: a page imports the same names from the model", () => {
+    const model = new Map(loaded.exports[specifier('./model')]);
+    const serve = loaded.exports[specifier('./serve')]!;
+    expect(serve.map(([name]) => name).sort()).toEqual([
+      'listedFiles',
+      'portFromMainPort',
+      'portFromMessagePort',
+      'serveFolder',
+      'serveTable',
+      'sourceUri',
+      'uriPath',
+    ]);
+    expect(serve.filter(([name, type]) => model.get(name) !== type)).toEqual([]);
+  });
+
+  it('loads in a Node with no DOM, and defines nothing', () => {
+    expect(loaded.defined[specifier('./serve')]).toEqual([]);
   });
 });
 

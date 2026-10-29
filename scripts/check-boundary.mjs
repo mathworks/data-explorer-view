@@ -6,9 +6,9 @@
 // Two rules, each one the package's edge:
 //   * a file in src imports only src, `data-explorer-core`, `lit` and `lit/…` — not a Node
 //     built-in, not any other package, and not core's Node-only entry;
-//   * a file in src/model or src/host imports neither src/widgets nor lit. The model is the
-//     DOM-free half, which a worker or a terminal UI can load without a browser page, and the
-//     host entry is the model's plumbing for a host, which runs in Node.
+//   * a file in src/model, src/host or src/serve imports neither src/widgets nor lit. The model
+//     is the DOM-free half, which a worker or a terminal UI can load without a browser page, and
+//     the host and serve entries are its ends for a host, which runs in Node.
 //
 // Type-only imports count. A consumer has to resolve them too, and `import type` is how a type
 // from elsewhere quietly becomes something the package cannot be built without.
@@ -22,8 +22,9 @@ const ROOT = join(import.meta.dirname, '..');
 const VIEW = 'src';
 const MODEL = 'src/model/';
 const HOST = 'src/host/';
+const SERVE = 'src/serve/';
 const WIDGETS = 'src/widgets/';
-const domFree = (file) => file.startsWith(MODEL) || file.startsWith(HOST);
+const domFree = (file) => file.startsWith(MODEL) || file.startsWith(HOST) || file.startsWith(SERVE);
 
 const toPosix = (p) => p.split(sep).join('/');
 const isLit = (spec) => spec === 'lit' || spec.startsWith('lit/');

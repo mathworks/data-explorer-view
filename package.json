@@ -32,6 +32,10 @@
       "types": "./dist/host/index.d.ts",
       "default": "./dist/host/index.js"
     },
+    "./serve": {
+      "types": "./dist/serve/index.d.ts",
+      "default": "./dist/serve/index.js"
+    },
     "./tree-table": {
       "types": "./dist/widgets/tree-table/index.d.ts",
       "default": "./dist/widgets/tree-table/index.js"

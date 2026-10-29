@@ -58,3 +58,18 @@ test('a link in the table opens the file the tree shows for its name, in another
   await expect(selected(page).locator('.label')).toHaveText('sharedParams.sldd');
   await expect(selected(page)).toHaveAttribute('aria-level', '2');
 });
+
+test('says when the folder was cut short: a last row, after every folder of the files listed', async ({ page }) => {
+  await page.goto('folder.html?limit=4');
+  const notice = item(page, 'Only the first 4 files are shown');
+  await expect(labels(page)).toHaveText([
+    'data', 'sharedParams.sldd', 'models', 'ctrlA.slx', 'plantB.slx', 'workspace', 'data.sldd', 'Only the first 4 files are shown',
+  ]);
+  await expect(notice).toHaveAttribute('aria-level', '1');
+  await expect(notice.locator('svg.info')).toBeVisible();
+  await expect(notice).toHaveAttribute('title', /holds more data files than the 4 listed/);
+  // The whole folder says nothing of the kind.
+  await page.goto('folder.html');
+  await expect(item(page, 'model.slx')).toBeVisible();
+  await expect(tree(page).locator('.notice')).toHaveCount(0);
+});

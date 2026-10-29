@@ -1,8 +1,8 @@
-// The view model (and the host entry over it) must compile where there is no DOM and no Node: a
-// worker's lib, nothing more.
+// The view model (and the host and serve entries over it) must compile where there is no DOM and
+// no Node: a worker's lib, nothing more.
 // `types: []` keeps every @types package out, so the model cannot name a Node or DOM type either.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "lib": ["ES2022", "WebWorker"], "types": [], "noEmit": true },
-  "include": ["src/model/**/*.ts", "src/host/**/*.ts"]
+  "include": ["src/model/**/*.ts", "src/host/**/*.ts", "src/serve/**/*.ts"]
 }

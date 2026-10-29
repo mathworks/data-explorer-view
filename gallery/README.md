@@ -24,7 +24,7 @@ npm run test:gallery    # the browser tests (see below)
 | `project-page.html` | `<dex-project-page>`: a MATLAB project's page, from its project store, its links followed |
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
 | `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, a search finds an entry by name, the selection fills the inspector, the matrix glyph opens the editor |
-| `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`) |
+| `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`); with `?limit=N`, a listing cut at N files, which the tree's last row says |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -33,7 +33,7 @@ Each page has the theme switch (light, dark, high contrast) in its header: it se
 
 The pages import `data-explorer-view` by its name and only through its public entries
 (`/model`, `/tree-table`, `/property-inspector`, `/variable-editor`, `/context-menu`,
-`/error-dialog`, `/project-page`, `/hierarchy`, `/icon-assets`, `/theme.css`). Inside this repository
+`/error-dialog`, `/project-page`, `/hierarchy`, `/icon-assets`, `/serve`, `/theme.css`). Inside this repository
 the name resolves to the repository itself, through `package.json`'s `exports` (a
 package may import itself by name), so the pages run the committed `dist/` as an app
 that installs the package does, and `gallery/tsconfig.json` checks them against the
@@ -82,10 +82,11 @@ widgets to the document's table source:
   the folders that match (`NameIndex`, `searchEntries`, `folderNames`), and opens the one picked
   in its file.
 - `folder.ts`: both ends of a folder across a `MessageChannel`, as an app whose page cannot read
-  files has them (the first in Electron's main process or a worker): `serveFolder` over a list of
-  fixture files whose reader fetches them, and in the page a `FolderHierarchy` over
-  `folderReader(port)`, through which the page reads the files it opens too. The table's
-  `resolveLink` is the hierarchy's, and each file it opens is revealed in the tree.
+  files has them (the first in Electron's main process or a worker, importing only
+  `data-explorer-view/serve`): `serveFolder` over a list of fixture files whose reader fetches
+  them (`listedFiles`, cut at `?limit=`), and in the page a `FolderHierarchy` over
+  `folderReader(portFromMessagePort(port))`, through which the page reads the files it opens too.
+  The table's `resolveLink` is the hierarchy's, and each file it opens is revealed in the tree.
 
 - `project-page.ts`: `<dex-project-page>`, given the message `projectPageMessage` builds from a
   project's store (`src/projects.ts` reads the fixture's XML files, bundled by Vite); its

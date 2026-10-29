@@ -17,8 +17,9 @@ import { DECORATIONS } from '../../model/hierarchy/health.js';
  * the files it references, opened a level at a time. The rows are HierarchyItems
  * (`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of
  * `loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its
- * file's name and kind, an unresolved reference a warning, and a file's mark a badge (a circular
- * reference, unsaved changes).
+ * file's name and kind, an unresolved reference a warning, a file's mark a badge (a circular
+ * reference, unsaved changes), and a notice (a folder of which only the first files are shown) an
+ * information mark.
  *
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,
  * and a row with rows under it opens or closes. The arrow keys move through the rows (Right opens
@@ -134,14 +135,28 @@ export class DexHierarchy extends LitElement {
     }
 
     dex-icon,
-    .warning {
+    .warning,
+    .info {
       flex-shrink: 0;
     }
 
-    .warning {
+    .warning,
+    .info {
       width: 16px;
       height: 16px;
+    }
+
+    .warning {
       fill: var(--dex-color-warning, #d83b01);
+    }
+
+    /* A row that says something of the folder (that only its first files are shown). */
+    .info {
+      fill: var(--dex-color-text-secondary, #555);
+    }
+
+    .notice .label {
+      color: var(--dex-color-text-muted, #666);
     }
 
     .label {
@@ -195,7 +210,8 @@ export class DexHierarchy extends LitElement {
         outline-offset: -2px;
       }
 
-      .warning {
+      .warning,
+      .info {
         fill: CanvasText;
       }
     }
@@ -373,6 +389,9 @@ export class DexHierarchy extends LitElement {
         this._setOpen(item, !this._open.has(item.key));
     }
     _icon(item) {
+        if (item.kind === 'notice') {
+            return html `<svg class="info" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.3a5.7 5.7 0 1 1 0 11.4A5.7 5.7 0 0 1 8 2.3zM7.3 7h1.4v4.5H7.3V7zM8 4.3a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7z"/></svg>`;
+        }
         if (item.kind === 'missing') {
             return html `<svg class="warning" viewBox="0 0 16 16" aria-hidden="true"><path d="M8.6 1.5a.7.7 0 0 0-1.2 0L.6 13.6a.7.7 0 0 0 .6 1h13.6a.7.7 0 0 0 .6-1L8.6 1.5zM7.3 5.5h1.4l-.2 5H7.5l-.2-5zM8 11.5a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z"/></svg>`;
         }
@@ -390,7 +409,7 @@ export class DexHierarchy extends LitElement {
         const twisty = item.collapsible === 'collapsed';
         return html `
       <div
-        class="row ${item.health ? `health-${item.health}` : ''}"
+        class="row ${item.health ? `health-${item.health}` : ''} ${item.kind === 'notice' ? 'notice' : ''}"
         role="treeitem"
         data-key=${item.key}
         aria-level=${level}

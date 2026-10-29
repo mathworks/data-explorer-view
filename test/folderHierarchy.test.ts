@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { newSourceCache, type SourceFile } from 'data-explorer-core';
-import { FolderHierarchy, type GraphReader, type HierarchyItem } from '../src/model/index.js';
+import { FolderHierarchy, folderFileList, type GraphReader, type HierarchyItem } from '../src/model/index.js';
 
 /** A compressed dictionary referencing `refs`, in the layout core reads. */
 function sldd(...refs: string[]): Uint8Array {
@@ -252,6 +252,35 @@ describe('a folder hierarchy', () => {
       path![0]!.key,
       ...(await Promise.all(path!.slice(0, -1).map(async (item, i) => (await h.children(item)).find((c) => c.key === path![i + 1]!.key)!.key))),
     ]);
+  });
+
+  it('ends a folder whose listing was cut short with a row that says so, and only then', async () => {
+    let cut = true;
+    const h = new FolderHierarchy({
+      files: { list: async () => folderFileList([...folder.keys()].sort().map(file), cut) },
+      reader,
+    });
+    const roots = await h.roots();
+    const notice = roots[roots.length - 1]!;
+    expect(notice).toEqual({
+      label: 'Only the first 3 files are shown',
+      kind: 'notice',
+      collapsible: 'none',
+      tooltip: 'This folder holds more data files than the 3 listed. Open a folder inside it to see the rest.',
+      key: '/notice%3Atruncated',
+    });
+    // It is no file and holds none: nothing opens it, nothing is under it, no path leads to it.
+    expect(await h.children(notice)).toEqual([]);
+    expect((await h.pathTo('file:///w/leaf.sldd'))?.map((i) => i.label)).toEqual(['w', 'top.sldd', 'mid.sldd', 'leaf.sldd']);
+    cut = false;
+    h.rebuild();
+    expect((await h.roots()).map((r) => r.kind)).toEqual(['group']);
+    // One file: the wording says one, and a count says where it was cut.
+    const one = new FolderHierarchy({ files: { list: async () => folderFileList([file('/w/top.sldd')], true) }, reader });
+    expect((await one.roots()).at(-1)!.label).toBe('Only the first file is shown');
+    expect(
+      (await new FolderHierarchy({ files: { list: async () => Object.assign(Array.from({ length: 12345 }, (_, i) => file(`/w/f${i}.sldd`)), { truncated: true }) }, reader }).roots()).at(-1)!.label,
+    ).toBe('Only the first 12,345 files are shown');
   });
 
   it('reads through the cache it is given, which another pass may already hold', async () => {

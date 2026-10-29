@@ -15,6 +15,7 @@
 // across a channel is both, and its onChange is a watch.
 import { isGraphPath, newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
 import { FolderHierarchy, type FolderFiles } from '../hierarchy/folderHierarchy.js';
+import type { FolderFileList } from '../hierarchy/folderList.js';
 import type { GraphReader } from '../hierarchy/graphSources.js';
 import { NameIndex } from '../search/nameIndex.js';
 import type { NameReader } from '../search/nameScan.js';
@@ -95,13 +96,14 @@ function diff(before: readonly SourceFile[], after: readonly SourceFile[]): Diff
 export function createFolderSession(options: FolderSessionOptions): FolderSession {
   const cache = options.cache ?? newSourceCache();
   const reader = options.reader;
-  // The listing everything reads: asked once, when first needed, and again on each change.
-  let listing: Promise<readonly SourceFile[]> | null = null;
+  // The listing everything reads: asked once, when first needed, and again on each change. Handed
+  // on as it came, not copied, so a listing cut short still says so to the hierarchy.
+  let listing: Promise<FolderFileList> | null = null;
   // The last listing that answered, to diff the next one against.
   let listed: readonly SourceFile[] | null = null;
   let disposed = false;
 
-  const current = (): Promise<readonly SourceFile[]> => {
+  const current = (): Promise<FolderFileList> => {
     if (!listing) {
       const asking = options.files.list();
       listing = asking;

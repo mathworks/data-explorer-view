@@ -289,3 +289,16 @@ describe('a workspace whose usage source comes later', () => {
     }
   });
 });
+
+describe('a folder whose listing was cut short', () => {
+  it('ends the hierarchy with the row that says so, through the session', async () => {
+    const s = createFolderSession({
+      files: { list: async () => Object.assign([...folder.keys()].sort().map(file), { truncated: true }) },
+      reader,
+    });
+    sessions.push(s);
+    const roots = await s.hierarchy.roots();
+    expect(roots.map((r) => r.kind)).toEqual(['group', 'notice']);
+    expect(roots.at(-1)!.label).toBe(`Only the first ${folder.size} files are shown`);
+  });
+});

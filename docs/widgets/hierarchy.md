@@ -75,8 +75,10 @@ folder read where the files are, across one message channel, in the wire format 
 table's (`data-explorer-view/model`'s `FolderRequestMessage`, `FolderAnswerMessage`,
 `FolderChangedMessage`). `serveFolder(folder, port)` answers from the same `files` and `reader`
 a hierarchy beside its files is given; `folderReader(port)` is both of them on the page's side.
-`serveFolder` imports nothing at run time, so a main process that bundles it bundles nothing
-else.
+The host's end is on `data-explorer-view/serve`, which loads nothing else, so a main process
+that bundles it bundles a few kilobytes. `portFromMainPort(port)` (Electron's `MessagePortMain`,
+by its shape) and `portFromMessagePort(port)` (a page's, a worker's) make the ports; the README
+shows the whole of it in Electron, main, preload and page.
 
 The page is not trusted, and the host reads only the files it listed. A question names its file
 by uri, which is matched exactly against the host's own last listing, and the file read is the
@@ -88,19 +90,26 @@ reader answers a refused question null, as core's readers answer for a file they
 
 ```js
 // Where the files are: Electron's main process, over a MessageChannelMain port given to the page.
-import { serveFolder } from 'data-explorer-view/model';
+import { listedFiles, portFromMainPort, serveFolder, sourceUri } from 'data-explorer-view/serve';
 
-const served = serveFolder({ files, reader }, port); // port: a TablePort, { postMessage, onMessage }
-watcher.on('change', () => served.changed());
+const files = { list: async () => listedFiles(await listFolder(root)) }; // core's node/folder listing
+const served = serveFolder({ files, reader }, portFromMainPort(port1));
+watcher.on('change', (path) => served.changed([sourceUri(path)])); // or changed(): something changed
 
 // The page.
-import { FolderHierarchy, folderReader } from 'data-explorer-view/model';
+import { FolderHierarchy, folderReader, portFromMessagePort } from 'data-explorer-view/model';
 
-const folder = folderReader(port);
+const folder = folderReader(portFromMessagePort(port2));
 const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
-folder.onChange(() => hierarchy.rebuild());
+folder.onChange((uris) => hierarchy.rebuild()); // uris: what the host saw change, when it knows
 const bytes = await folder.bytes(file); // the page reads the files it opens through it too
 ```
+
+The uris `changed` sends are a hint: they do not say whether a file was created, deleted or
+saved, which the page learns by listing the folder again, and each call is one message, so
+debouncing a watcher's bursts is the host's. A listing that stopped at its limit
+(`listedFiles` keeps core's `truncated`) reaches the page as one, and the tree ends with a row
+that says only the first files are shown.
 
 Over a worker's port, or a `MessagePort`, `serveFolder(folder, port, { transfer: true })` hands
 each file's bytes over rather than copying them.
@@ -195,8 +204,12 @@ export interface HierarchySelectDetail {
 export interface HierarchyItem {
   /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
   label: string;
-  /** A file's kind, `group` for a project, a folder or a model's External Data, or `missing` for a reference no file answers. */
-  kind: NodeKind;
+  /**
+   * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
+   * reference no file answers, or `notice` for the row that says something of the folder rather
+   * than being in it (that only its first files are shown).
+   */
+  kind: NodeKind | 'notice';
   /** What a group is (`kind` is `group`). */
   groupKind?: GroupKind;
   /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
