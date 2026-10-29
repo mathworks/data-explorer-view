@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Error dialog · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="demo" id="stage">
+        <p>
+          A modal dialog: <code>show(options)</code> opens it, OK or Escape closes it, and focus
+          goes back where it was. Revert, when offered, sends <code>dex-revert</code>.
+        </p>
+        <div class="buttons">
+          <button type="button" id="show-error">Show an error</button>
+          <button type="button" id="show-refused">Show a refused edit</button>
+        </div>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Events</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <dex-error-dialog id="dialog"></dex-error-dialog>
+    <script type="module" src="./src/pages/error-dialog.ts"></script>
+  </body>
+</html>

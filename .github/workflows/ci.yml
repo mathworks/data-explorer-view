@@ -1,7 +1,7 @@
 # Continuous integration: leak check, typecheck (the model also without a DOM), import
 # boundaries, that the committed dist/ is the build of src/, and the unit tests; and,
-# alongside, the VS Code extension's own checks run against this view. Runs on every
-# push to main and on pull requests.
+# alongside, the VS Code extension's own checks run against this view, and the widgets in
+# three browser engines. Runs on every push to main and on pull requests.
 name: CI
 
 on:
@@ -170,3 +170,52 @@ jobs:
         env:
           CI: '1'
         run: npx vitest run
+
+  # The widgets in real browsers. The gallery (gallery/) is a Vite app that imports this
+  # package as an app does, through its public entries; its tests load every page and use
+  # each widget with the mouse and the keyboard, in Chromium, Firefox and WebKit against the
+  # build, and in Chromium against Vite's dev server. They check behaviour, never pixels, so
+  # one expectation holds in every engine.
+  #
+  # Not a required check, like downstream-vscode: a new browser release can turn it red with
+  # no change here.
+  gallery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The committed dist/, not a fresh build of src/: dist/ is what an app installs, and
+      # build-and-test checks that it is the build of src/. The pages are typechecked against
+      # its declarations first.
+      - name: Build the gallery
+        run: npm run gallery:build
+
+      # The browsers of the Playwright version in the lockfile, and the system libraries
+      # they need.
+      - name: Install the browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Browser tests (Chromium, Firefox, WebKit)
+        run: npm run test:gallery
+
+      - name: Upload the test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gallery-report
+          path: |
+            gallery/playwright-report/
+            gallery/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

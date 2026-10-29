@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Variable editor · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="demo" id="stage">
+        <p>
+          The variable editor floats under what opened it: <code>show(anchor, descriptor)</code>
+          opens it on what a row knows (name, class, size), and <code>deliver(answer)</code> fills
+          in the cells once the app has them. The matrices of <code>nd_numeric.mat</code>:
+        </p>
+        <div class="buttons" id="matrices"></div>
+      </section>
+      <aside class="pane" aria-label="Calls">
+        <h2>Calls</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <dex-variable-editor id="editor"></dex-variable-editor>
+    <script type="module" src="./src/pages/variable-editor.ts"></script>
+  </body>
+</html>
