@@ -216,6 +216,44 @@ describe('a folder hierarchy', () => {
     expect(await h.resolveReference('nowhere.sldd', 'file:///w/top.sldd')).toBeUndefined();
   });
 
+  it('resolves a link that names its file by a bare name by the same rule, and leaves any other alone', async () => {
+    put('/a/shared.sldd', sldd());
+    put('/b/shared.sldd', sldd());
+    put('/b/user.sldd', sldd('shared.sldd'));
+    const h = hierarchy();
+    const from = 'file:///b/user.sldd';
+    expect(await h.resolveLink({ kind: 'file', file: 'shared.sldd' }, from)).toBe('file:///b/shared.sldd');
+    expect(await h.resolveLink({ kind: 'entry', name: 'Kp', source: 'SHARED.SLDD' }, from)).toBe('file:///b/shared.sldd');
+    expect(await h.resolveLink({ kind: 'block', block: '65', source: 'shared.sldd' }, 'file:///w/top.sldd')).toBe('file:///a/shared.sldd');
+    // A uri, a path or a Windows path names its file outright; a name no file has is no answer.
+    for (const source of ['file:///b/shared.sldd', 'binedit:file:///b/shared.sldd', '/b/shared.sldd', 'C:\\b\\shared.sldd']) {
+      expect(await h.resolveLink({ kind: 'entry', name: 'Kp', source }, from), source).toBeUndefined();
+    }
+    expect(await h.resolveLink({ kind: 'file', file: 'nowhere.sldd' }, from)).toBeUndefined();
+    expect(await h.resolveLink({ kind: 'file', file: '' }, from)).toBeUndefined();
+  });
+
+  it("finds the path to a file's row: the shallowest, and of one depth the first from the top", async () => {
+    const h = hierarchy();
+    const labelsTo = async (uri: string) => (await h.pathTo(uri))?.map((item) => item.label);
+    expect(await labelsTo('file:///w/leaf.sldd')).toEqual(['w', 'top.sldd', 'mid.sldd', 'leaf.sldd']);
+    expect(await labelsTo('file:///w/top.sldd')).toEqual(['w', 'top.sldd']);
+    expect(await labelsTo('file:///w/nowhere.sldd')).toBeUndefined();
+    // Two files that reference x.sldd, at one depth: the first. A shorter way to leaf.sldd wins.
+    put('/w/a.sldd', sldd('x.sldd'));
+    put('/w/b.sldd', sldd('x.sldd', 'leaf.sldd'));
+    put('/w/x.sldd', sldd());
+    h.rebuild();
+    expect(await labelsTo('file:///w/x.sldd')).toEqual(['w', 'a.sldd', 'x.sldd']);
+    expect(await labelsTo('file:///w/leaf.sldd')).toEqual(['w', 'b.sldd', 'leaf.sldd']);
+    const path = await h.pathTo('file:///w/x.sldd');
+    // The tree's own rows: each the child of the one before it.
+    expect(path!.map((item) => item.key)).toEqual([
+      path![0]!.key,
+      ...(await Promise.all(path!.slice(0, -1).map(async (item, i) => (await h.children(item)).find((c) => c.key === path![i + 1]!.key)!.key))),
+    ]);
+  });
+
   it('reads through the cache it is given, which another pass may already hold', async () => {
     const cache = newSourceCache();
     const h1 = new FolderHierarchy({ files: { list: async () => [...folder.keys()].map(file) }, reader, cache });

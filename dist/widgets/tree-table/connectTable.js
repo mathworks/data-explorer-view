@@ -265,13 +265,13 @@ export function connectTable(table, source, options = {}) {
         emit('select', e.detail?.rowIds ?? []);
     });
     // A Data Type link names a row of this table; every other target is for whoever opens
-    // documents, and so is a local one whose row is not here after all.
-    listen(table, 'dex-link-clicked', (e) => {
-        const target = e.detail?.target;
-        if (typeof target !== 'string')
-            return;
-        const navigate = () => emit('navigate', { target, link: parseLinkTarget(target) });
-        const name = localLinkName(target, docUri);
+    // documents, and so is a local one whose row is not here after all. The app's resolveLink names
+    // the file of any other first: a link it resolves to this document is local too. One rule
+    // decides, asked of the target as it is or of its entry in the file resolveLink named.
+    const localName = (target, link, uri) => localLinkName(uri === undefined ? target : link.kind === 'entry' ? `${link.name}@${uri}` : '', docUri);
+    const follow = (target, link, uri) => {
+        const navigate = () => emit('navigate', { target, link, ...(uri === undefined ? {} : { uri }) });
+        const name = localName(target, link, uri);
         if (name === null)
             return navigate();
         pendingSelectName = name;
@@ -281,6 +281,23 @@ export function connectTable(table, source, options = {}) {
             pendingSelectName = null;
             navigate();
         }
+    };
+    listen(table, 'dex-link-clicked', (e) => {
+        const target = e.detail?.target;
+        if (typeof target !== 'string')
+            return;
+        const link = parseLinkTarget(target);
+        const resolveLink = options.resolveLink;
+        if (!resolveLink || localName(target, link, undefined) !== null)
+            return follow(target, link, undefined);
+        const from = docUri;
+        Promise.resolve()
+            .then(() => resolveLink(link, from))
+            .catch(() => undefined)
+            .then((uri) => {
+            if (!disposed)
+                follow(target, link, typeof uri === 'string' && uri !== '' ? uri : undefined);
+        });
     });
     // Ctrl/Cmd+F: the search box. Not with modifiers the table does not own.
     listen(table, 'keydown', (ev) => {

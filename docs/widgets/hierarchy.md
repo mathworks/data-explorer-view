@@ -26,12 +26,84 @@ const hierarchy = new FolderHierarchy({
   // `readProjectStoreFromDisk(path)` (`data-explorer-core/node`).
   reader: (files) => ({ ...myReader(files), projectStore: async (file) => myProjectStore(file.path) }),
 });
-const handle = connectHierarchy(tree, hierarchy, { empty: document.querySelector('#no-files') });
+const handle = connectHierarchy(tree, hierarchy, {
+  empty: document.querySelector('#no-files'),
+  expandTopLevel: true, // the folder's own row open on first show; default closed
+});
 handle.on('open', (uri) => openTab(uri));
 
 // When a file in the folder is created, deleted or saved:
 hierarchy.rebuild();
 ```
+
+### Showing the file the app has open
+
+`handle.reveal(uri)` shows a file in the tree, as an editor's explorer follows the active
+editor: it opens the rows above the file's row, selects it and scrolls it into view, and sends
+nothing (`{ choose: true }` sends `dex-hierarchy-select`, and so `open`, as a click does). A file
+can be a row in several places, under each file that references it, so the rule is fixed: the
+selected row stays when it is already the file's (the user chose it there); otherwise the row is
+the shallowest, and of several at one depth the first from the top. `hierarchy.pathTo(uri)`
+answers that row's path, for a host that draws the rows in a tree of its own. `reveal` resolves
+false, and leaves the tree as it was, for a file that is no row.
+
+```js
+tabs.onActivate((tab) => handle.reveal(tab.uri));
+```
+
+### Links that open what the tree shows
+
+A model names the dictionaries and models it links by their file names alone. The tree resolves
+such a name by its own rule (the copy in the referrer's project or folder, else the first in the
+folder), and `hierarchy.resolveLink(link, fromUri)` answers by the same rule for a link, so a
+table beside the tree opens the file the tree shows: give it to `connectTable` as `resolveLink`,
+and a link's file arrives on `navigate` as `uri`.
+
+```js
+const table = connectTable(tableElement, doc.table, {
+  resolveLink: (link, fromUri) => hierarchy.resolveLink(link, fromUri),
+});
+table.on('navigate', ({ link, uri }) => openTab(uri ?? fileOf(link))); // uri: the file the tree shows
+```
+
+`resolveReference(name, referrerUri)` is the same rule for a bare name.
+
+### A folder read where the files are
+
+A page that cannot read files (a sandboxed Electron window, an embedded browser view) has its
+folder read where the files are, across one message channel, in the wire format beside the
+table's (`data-explorer-view/model`'s `FolderRequestMessage`, `FolderAnswerMessage`,
+`FolderChangedMessage`). `serveFolder(folder, port)` answers from the same `files` and `reader`
+a hierarchy beside its files is given; `folderReader(port)` is both of them on the page's side.
+`serveFolder` imports nothing at run time, so a main process that bundles it bundles nothing
+else.
+
+The page is not trusted, and the host reads only the files it listed. A question names its file
+by uri, which is matched exactly against the host's own last listing, and the file read is the
+listing's own, never a path the page sends. Any other uri is refused and nothing is read for it:
+one outside the folder, one with `..` in it, a prefix that looks like the folder's, another
+scheme, another spelling of a listed file (nothing is decoded, resolved or normalised), or one
+asked before the folder is listed. A project store is answered only for a listed file. The page's
+reader answers a refused question null, as core's readers answer for a file they were not given.
+
+```js
+// Where the files are: Electron's main process, over a MessageChannelMain port given to the page.
+import { serveFolder } from 'data-explorer-view/model';
+
+const served = serveFolder({ files, reader }, port); // port: a TablePort, { postMessage, onMessage }
+watcher.on('change', () => served.changed());
+
+// The page.
+import { FolderHierarchy, folderReader } from 'data-explorer-view/model';
+
+const folder = folderReader(port);
+const hierarchy = new FolderHierarchy({ files: folder, reader: () => folder });
+folder.onChange(() => hierarchy.rebuild());
+const bytes = await folder.bytes(file); // the page reads the files it opens through it too
+```
+
+Over a worker's port, or a `MessagePort`, `serveFolder(folder, port, { transfer: true })` hands
+each file's bytes over rather than copying them.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -75,9 +147,27 @@ type `string` · default `'Files'` · attribute `label`
 
 What a screen reader calls the tree. Default `Files`. Attribute `label`.
 
+### `expandTopLevel`
+
+type `boolean` · default `false` · attribute `expand-top-level`
+
+Open each top-level row (a folder's own row, each project's) the first time the tree shows it,
+by adding its key to `expandedKeys`, as a table opens its sections; after that the row stays
+as the user leaves it, through new `items` too. Another folder's rows are new rows, and open.
+Off, the default, a folder opens closed. Attribute `expand-top-level`.
+
 ## Methods
 
-None.
+### `revealRow(path: readonly HierarchyItem[], options?: { choose?: boolean }): void`
+
+Show a row: open each row of `path` but the last (the rows from a top-level row down to it,
+as FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as
+it is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,
+and a choice of the user's before the row is drawn leaves the scroll undone.
+
+Sends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on
+it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a
+file's row.
 
 ## Events
 

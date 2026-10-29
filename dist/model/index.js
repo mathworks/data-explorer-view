@@ -67,6 +67,10 @@ export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRe
 // between them.
 export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { serveTable } from './source/serveTable.js';
+// A folder across a message channel, for a hierarchy where its files are not: the host's end
+// (serveFolder, where the files are), and the page's (folderReader), in the same wire format.
+export { serveFolder } from './source/serveFolder.js';
+export { folderReader } from './source/folderReader.js';
 // A dictionary's parts read off disk, under the read policy (a source that cannot be read is a
 // failure, not an empty dictionary).
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';

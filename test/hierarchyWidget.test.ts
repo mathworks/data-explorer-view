@@ -5,7 +5,7 @@
 // time, and again after the items are replaced), what a click, the twisty and the keyboard do, and
 // what it tells the app. Over hand-made items, so each case shows the rows it is about; the rows a
 // real folder makes are FolderHierarchy's (folderHierarchy.test.ts, goldens/hierarchy.test.ts).
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defineHierarchy, type DexHierarchy, type HierarchyItem, type HierarchySelectDetail } from '../src/widgets/hierarchy/index.js';
 
 beforeAll(() => defineHierarchy());
@@ -248,6 +248,110 @@ describe('the keyboard', () => {
     press(el, 'ArrowDown');
     await settle(el);
     expect(rows(el).map((r) => r.getAttribute('tabindex'))).toEqual(['-1', '0', '-1']);
+  });
+});
+
+describe('expandTopLevel', () => {
+  it('opens each top-level row the first time it is shown, then keeps what the user does with it', async () => {
+    const el = document.createElement('dex-hierarchy');
+    el.expandTopLevel = true;
+    el.loadChildren = async (it) => CHILDREN[it.key] ?? [];
+    document.body.append(el);
+    // No rows yet: nothing of the user's to keep, nothing opened.
+    el.items = [];
+    await settle(el);
+    el.items = [FOLDER, DICT];
+    await settle(el);
+    expect(labels(el)).toEqual(['w', 'm.slx', 'd.sldd', 'd.sldd']);
+    expect(el.expandedKeys).toEqual(['/w']);
+    rowOf(el, 'w').querySelector<HTMLElement>('.twisty')!.click();
+    await settle(el);
+    el.items = [{ ...FOLDER }, DICT];
+    await settle(el);
+    expect(labels(el)).toEqual(['w', 'd.sldd']);
+    // Another folder's row is a row the tree has not shown: it opens.
+    const OTHER = { ...FOLDER, key: '/v', label: 'v' };
+    el.loadChildren = async (it) => (it.key === '/v' ? [DICT] : (CHILDREN[it.key] ?? []));
+    el.items = [OTHER];
+    await settle(el);
+    expect(labels(el)).toEqual(['v', 'd.sldd']);
+  });
+
+  it('is off by default: a folder opens closed', async () => {
+    const el = await tree();
+    expect(el.expandTopLevel).toBe(false);
+    expect(labels(el)).toEqual(['w']);
+  });
+
+  it('is the expand-top-level attribute', async () => {
+    const el = document.createElement('dex-hierarchy');
+    el.setAttribute('expand-top-level', '');
+    el.loadChildren = async (it) => CHILDREN[it.key] ?? [];
+    el.items = [FOLDER];
+    document.body.append(el);
+    await settle(el);
+    expect(labels(el)).toEqual(['w', 'm.slx', 'd.sldd']);
+  });
+});
+
+describe('revealRow', () => {
+  it('opens the rows above, selects the row and scrolls it into view once drawn, and sends nothing', async () => {
+    const el = await tree();
+    const sent: unknown[] = [];
+    el.addEventListener('dex-hierarchy-select', (e) => sent.push(e.detail));
+    const scrolled: string[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      scrolled.push(this.dataset.key ?? '');
+    });
+    try {
+      el.revealRow([FOLDER, MODEL, GONE]);
+      await settle(el);
+      expect(labels(el)).toEqual(['w', 'm.slx', 'gone.sldd', 'd.sldd']);
+      expect(el.selectedKey).toBe('/w/m/gone');
+      expect(rowOf(el, 'gone.sldd').getAttribute('aria-selected')).toBe('true');
+      expect(scrolled).toEqual(['/w/m/gone']);
+      // The keyboard goes on from it, and the focus stays where it was.
+      expect(rowOf(el, 'gone.sldd').tabIndex).toBe(0);
+      expect(el.shadowRoot!.activeElement).toBeNull();
+      expect(sent).toEqual([]);
+      // Scrolled once: a later draw leaves the view where the user puts it.
+      el.items = [{ ...FOLDER }];
+      await settle(el);
+      expect(scrolled).toEqual(['/w/m/gone']);
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it('sends dex-hierarchy-select for the row when asked to choose it, and opens or closes nothing', async () => {
+    const el = await tree();
+    const sent: HierarchySelectDetail[] = [];
+    el.addEventListener('dex-hierarchy-select', (e) => sent.push(e.detail));
+    el.revealRow([FOLDER, MODEL], { choose: true });
+    await settle(el);
+    expect(sent).toEqual([{ uri: 'file:///w/m.slx', key: '/w/m', item: MODEL }]);
+    expect(el.expandedKeys).toEqual(['/w']);
+    expect(el.selectedKey).toBe('/w/m');
+  });
+
+  it('keeps the rows the user opened, and leaves the scroll undone once the user chooses', async () => {
+    const el = await tree();
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      el.expandedKeys = ['/elsewhere'];
+      let release!: (items: HierarchyItem[]) => void;
+      el.loadChildren = (it) => (it.key === '/w/m' ? new Promise((done) => (release = done)) : Promise.resolve(CHILDREN[it.key] ?? []));
+      el.revealRow([FOLDER, MODEL, GONE]);
+      await settle(el);
+      expect(el.expandedKeys).toEqual(['/elsewhere', '/w', '/w/m']);
+      rowOf(el, 'd.sldd').click();
+      release([GONE]);
+      await settle(el);
+      expect(el.selectedKey).toBe('/w/d');
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      scroll.mockRestore();
+    }
   });
 });
 

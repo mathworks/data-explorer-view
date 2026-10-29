@@ -9,7 +9,13 @@
 // TableSource. The extension adds messages of its own beside these (editing, navigation); a side
 // that does not know a message ignores it.
 //
+// Below the table's are a folder's: the messages `serveFolder` and `folderReader` exchange to read
+// a folder for a FolderHierarchy across a channel, from where its files are (Electron's main
+// process, a worker) to where they are not (a sandboxed page).
+//
 // Types only.
+import type { SourceFile } from 'data-explorer-core';
+import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
@@ -151,3 +157,74 @@ export interface RequestMatrixMessage {
 
 /** Every message a table's (or an inspector's) end sends its host. */
 export type TableClientMessage = ReadyMessage | SelectMessage | RequestChildrenMessage | RequestMatrixMessage;
+
+// --- A folder across a channel -------------------------------------------------------------------
+//
+// The page asks (folderReader), the host answers (serveFolder): every question a `folderRequest`
+// with an `id`, and its answer the `folderAnswer` with the same `id`, in whatever order the reads
+// finish. Each is plain data (structured-clone safe; a file's bytes are an ArrayBuffer, which a
+// port that can transfer hands over rather than copies). A port may carry a table's messages beside
+// these, but one folder's.
+//
+// THE HOST READS ONLY WHAT IT LISTED. Core's readers answer only for the files they are given;
+// at this boundary that rule is the host's: a question names a file by uri, the uri is matched
+// exactly against the host's own last listing, and the file read is the host's SourceFile, never
+// a path the page sends. A uri that matches no listed file (outside the folder, holding `..`,
+// with a prefix that looks like the folder's, of another scheme, or another spelling of a listed
+// one: nothing is decoded, resolved or normalised) is refused, and nothing is read for it. A
+// project store is answered only for a listed file, from beside it, by the host's reader.
+
+/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
+export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
+
+/**
+ * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
+ * its `id`:
+ *
+ * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
+ *   host keeps this listing, and the questions below are about its files.
+ * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
+ *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
+ *   and nothing is read: a page can have the host read only the files the host listed. So is a
+ *   question asked before the host has listed the folder, and an `ask` of no other name.
+ */
+export interface FolderRequestMessage {
+  type: 'folderRequest';
+  /** Which answer is this question's: no other question of the same reader waiting has it. */
+  id: number;
+  ask: FolderAsk;
+  /** The file asked about, by its uriString. Not on a `list`. */
+  uri?: string;
+}
+
+/**
+ * The answer to the `folderRequest` with this `id`: a `value`, an `error`, or a refusal.
+ *
+ * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
+ * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
+ * `projectStore`, a ProjectStore or null.
+ */
+export interface FolderAnswerMessage {
+  type: 'folderAnswer';
+  id: number;
+  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
+  /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
+  error?: string;
+  /**
+   * Why the host did not answer: the question names no file of its last listing (or asks what the
+   * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
+   * was not given.
+   */
+  refused?: string;
+}
+
+/** The folder changed (a file created, deleted or saved): the page reads it again (FolderHierarchy.rebuild). */
+export interface FolderChangedMessage {
+  type: 'folderChanged';
+}
+
+/** Every message a folder's host sends the page's end. */
+export type FolderHostMessage = FolderAnswerMessage | FolderChangedMessage;
+
+/** Every message the page's end of a folder sends its host. */
+export type FolderClientMessage = FolderRequestMessage;

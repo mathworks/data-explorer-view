@@ -1,3 +1,5 @@
+import type { SourceFile } from 'data-explorer-core';
+import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
@@ -112,3 +114,52 @@ export interface RequestMatrixMessage {
 }
 /** Every message a table's (or an inspector's) end sends its host. */
 export type TableClientMessage = ReadyMessage | SelectMessage | RequestChildrenMessage | RequestMatrixMessage;
+/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
+export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
+/**
+ * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
+ * its `id`:
+ *
+ * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
+ *   host keeps this listing, and the questions below are about its files.
+ * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
+ *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
+ *   and nothing is read: a page can have the host read only the files the host listed. So is a
+ *   question asked before the host has listed the folder, and an `ask` of no other name.
+ */
+export interface FolderRequestMessage {
+    type: 'folderRequest';
+    /** Which answer is this question's: no other question of the same reader waiting has it. */
+    id: number;
+    ask: FolderAsk;
+    /** The file asked about, by its uriString. Not on a `list`. */
+    uri?: string;
+}
+/**
+ * The answer to the `folderRequest` with this `id`: a `value`, an `error`, or a refusal.
+ *
+ * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
+ * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
+ * `projectStore`, a ProjectStore or null.
+ */
+export interface FolderAnswerMessage {
+    type: 'folderAnswer';
+    id: number;
+    value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
+    /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
+    error?: string;
+    /**
+     * Why the host did not answer: the question names no file of its last listing (or asks what the
+     * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
+     * was not given.
+     */
+    refused?: string;
+}
+/** The folder changed (a file created, deleted or saved): the page reads it again (FolderHierarchy.rebuild). */
+export interface FolderChangedMessage {
+    type: 'folderChanged';
+}
+/** Every message a folder's host sends the page's end. */
+export type FolderHostMessage = FolderAnswerMessage | FolderChangedMessage;
+/** Every message the page's end of a folder sends its host. */
+export type FolderClientMessage = FolderRequestMessage;
