@@ -29,7 +29,7 @@ function isRecord(x) {
  *   { files: { list: async () => listedFiles(await listFolder(root)) }, reader },
  *   portFromMainPort(port1),
  * );
- * watch(root, { recursive: true }, (_event, name) => name && served.changed([sourceUri(join(root, name))]));
+ * watchFolder(root, (paths) => served.changed(paths?.map(sourceUri))); // core's node/folder
  * ```
  */
 export function serveFolder(folder, port, options = {}) {

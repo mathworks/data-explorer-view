@@ -43,7 +43,8 @@ export interface FolderServer {
    * `onChange` listeners, for its hierarchy to read the folder again. `uris`, when the host knows
    * them, are the files the change touched, as the listing names them (`sourceUri(path)`): a hint
    * that does not say how each changed (wire.ts FolderChangedMessage). Absent: something changed.
-   * Each call is one message, as it is made: debouncing a watcher's burst is the host's.
+   * Each call is one message, as it is made: a watcher's burst is the host's to gather (core's
+   * `watchFolder` reports one burst once).
    */
   changed(uris?: readonly string[]): void;
   /** Stop answering. Reads still going are not answered. */
@@ -89,7 +90,7 @@ interface TransferPort {
  *   { files: { list: async () => listedFiles(await listFolder(root)) }, reader },
  *   portFromMainPort(port1),
  * );
- * watch(root, { recursive: true }, (_event, name) => name && served.changed([sourceUri(join(root, name))]));
+ * watchFolder(root, (paths) => served.changed(paths?.map(sourceUri))); // core's node/folder
  * ```
  */
 export function serveFolder(folder: FolderReads, port: TablePort, options: ServeFolderOptions = {}): FolderServer {

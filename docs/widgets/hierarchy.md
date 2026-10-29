@@ -94,7 +94,7 @@ import { listedFiles, portFromMainPort, serveFolder, sourceUri } from 'data-expl
 
 const files = { list: async () => listedFiles(await listFolder(root)) }; // core's node/folder listing
 const served = serveFolder({ files, reader }, portFromMainPort(port1));
-watcher.on('change', (path) => served.changed([sourceUri(path)])); // or changed(): something changed
+watchFolder(root, (paths) => served.changed(paths?.map(sourceUri))); // core's node/folder; no paths: anything
 
 // The page.
 import { FolderHierarchy, folderReader, portFromMessagePort } from 'data-explorer-view/model';
@@ -106,8 +106,10 @@ const bytes = await folder.bytes(file); // the page reads the files it opens thr
 ```
 
 The uris `changed` sends are a hint: they do not say whether a file was created, deleted or
-saved, which the page learns by listing the folder again, and each call is one message, so
-debouncing a watcher's bursts is the host's. A listing that stopped at its limit
+saved, which the page learns by listing the folder again, and each call is one message. Core's
+`watchFolder` (`data-explorer-core/node/folder`, 1.50 or later) reports a burst of a watcher's
+events once, by the listing's rules, and says `watching: false`, with its `error`, for a folder
+it cannot follow. A listing that stopped at its limit
 (`listedFiles` keeps core's `truncated`) reaches the page as one, and the tree ends with a row
 that says only the first files are shown.
 

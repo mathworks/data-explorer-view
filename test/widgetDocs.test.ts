@@ -40,7 +40,7 @@ describe('docs/widgets', () => {
 
   it('ships in the package, beside the manifest it is written from', () => {
     const files: string[] = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).files;
-    expect(files).toContain('docs/widgets');
+    expect(files).toContain('docs');
     expect(files).toContain('custom-elements.json');
   });
 

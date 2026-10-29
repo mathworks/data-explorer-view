@@ -16,7 +16,21 @@ once per change) through **one reader** (`reader(files)`) and **one cache**, so 
 once whichever part asks first, and a change is one listing for all of them.
 
 `has(uri)` says whether the last listing holds a file: whether a document the app has open is the
-folder's, and so whether to fill its Usage column from the folder.
+folder's, and so whether to fill its Usage column from the folder. It is false until the first
+listing has answered (the session lists when a part first asks, or on `changed()`).
+
+The Usage column's id is `UsedBy`. A model's table fills it from the model itself; a dictionary's
+or a MAT-file's only from the folder's usage graphs, so for such a file opened from outside the
+folder nothing fills it. Leave the column out of that table with connectTable's `columns`:
+
+```js
+connectTable(table, doc.table, {
+  columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || folder.has(doc.uri),
+});
+```
+
+`columns` is asked again on every whole paint, so a file the folder comes to hold (once the first
+listing answers, or after a change) gets its column at its next paint.
 
 ## Options
 
