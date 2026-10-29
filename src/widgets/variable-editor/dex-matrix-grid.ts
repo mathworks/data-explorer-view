@@ -512,7 +512,7 @@ export class DexMatrixGrid extends LitElement {
       if (box.scrollTop !== pending.top) box.scrollTop = pending.top;
       if (box.scrollLeft !== pending.left) box.scrollLeft = pending.left;
     }
-    this._measure();
+    this._measureAfterUpdate();
     if (!this._resizeObserver && box && typeof ResizeObserver !== 'undefined') {
       // The panel is positioned after it opens and can be resized by the window, and
       // either one changes how many cells belong in the window.
@@ -523,6 +523,22 @@ export class DexMatrixGrid extends LitElement {
       this._refocus = false;
       this.focusActiveCell();
     }
+  }
+
+  // The render just made is measured once its update has finished, not inside it: a state set
+  // in updated() schedules an update from inside the one finishing, which Lit's dev mode warns
+  // about on every open (change-in-update). A microtask later is still before the browser
+  // paints, so the render the measurement asks for is the first one the user sees, as it was
+  // when updated() measured.
+  private _measureQueued = false;
+
+  private _measureAfterUpdate(): void {
+    if (this._measureQueued) return;
+    this._measureQueued = true;
+    void this.updateComplete.then(() => {
+      this._measureQueued = false;
+      if (this.isConnected) this._measure();
+    });
   }
 
   override disconnectedCallback(): void {

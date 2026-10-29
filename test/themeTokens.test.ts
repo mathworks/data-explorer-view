@@ -17,7 +17,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ROOT,
+  THEME_CSS,
   THEME_SETS,
+  block,
   chain,
   declarations,
   hasColour,
@@ -146,6 +148,23 @@ describe("the frozen column shade is the theme's, as one whole layer per theme",
 
   it('is no shade at all in high contrast, where a hard line is the idiom', () => {
     expect(THEME_SETS['high-contrast'].get('--dex-frozen-shade')).toBe('0 0 0 0 transparent');
+  });
+});
+
+describe("each set says which scheme it is, for the browser's own controls", () => {
+  // Scrollbars, a <select>'s list and a checkbox are drawn by the browser, from color-scheme, and
+  // no --dex-* token reaches them: without it a dark set draws light scrollbars on a dark table.
+  const scheme = (selector: string): string | null =>
+    /(?:^|;)\s*color-scheme\s*:\s*([^;]+);/.exec(block(THEME_CSS, selector))?.[1]?.trim() ?? null;
+
+  it('dark in the dark set, light in the light high-contrast one', () => {
+    expect(scheme('[data-theme="dark"]')).toBe('dark');
+    expect(scheme('[data-theme="high-contrast"]')).toBe('light');
+  });
+
+  it('nothing on :root, so a page that chooses no theme keeps its own (VS Code\'s webview does)', () => {
+    expect(scheme(':root')).toBeNull();
+    expect(stripComments(THEME_CSS).match(/color-scheme/g)?.length).toBe(2);
   });
 });
 

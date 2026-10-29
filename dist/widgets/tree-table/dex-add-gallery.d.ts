@@ -97,16 +97,27 @@ export declare class DexAddGallery extends LitElement {
 }
 /** Registers the widget as `<dex-add-gallery>`, or under `tag`, after the icon its tiles draw. */
 export declare function defineAddGallery(tag?: string): void;
+/**
+ * The events `<dex-add-gallery>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface AddGalleryEventMap {
+    /** A tile was clicked: add one entry of its class. The table stops it and sends `dex-add-entry`. */
+    'dex-add-tile': CustomEvent<AddTileDetail>;
+    /** Keep open was turned on or off; `pinned` has already changed. */
+    'dex-add-pin-changed': CustomEvent<AddPinChangedDetail>;
+    /** Escape: close the gallery. No detail. */
+    'dex-add-closed': CustomEvent<null>;
+}
 declare global {
     interface HTMLElementTagNameMap {
         'dex-add-gallery': DexAddGallery;
     }
-    interface HTMLElementEventMap {
-        /** A tile was clicked: add one entry of its class. The table stops it and sends `dex-add-entry`. */
-        'dex-add-tile': CustomEvent<AddTileDetail>;
-        /** Keep open was turned on or off; `pinned` has already changed. */
-        'dex-add-pin-changed': CustomEvent<AddPinChangedDetail>;
-        /** Escape: close the gallery. No detail. */
-        'dex-add-closed': CustomEvent<null>;
+    interface HTMLElementEventMap extends AddGalleryEventMap {
+    }
+    interface DocumentEventMap extends AddGalleryEventMap {
+    }
+    interface WindowEventMap extends AddGalleryEventMap {
     }
 }

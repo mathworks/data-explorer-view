@@ -177,6 +177,14 @@
         },
         {
           "kind": "js",
+          "name": "ContextMenuEventMap",
+          "declaration": {
+            "name": "ContextMenuEventMap",
+            "module": "./dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "ContextMenuItem",
           "declaration": {
             "name": "ContextMenuItem",
@@ -339,6 +347,14 @@
           "name": "defineErrorDialog",
           "declaration": {
             "name": "defineErrorDialog",
+            "module": "./dex-error-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ErrorDialogEventMap",
+          "declaration": {
+            "name": "ErrorDialogEventMap",
             "module": "./dex-error-dialog.js"
           }
         }
@@ -847,6 +863,14 @@
         },
         {
           "kind": "js",
+          "name": "PropertyInspectorEventMap",
+          "declaration": {
+            "name": "PropertyInspectorEventMap",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "PropertyRow",
           "declaration": {
             "name": "PropertyRow",
@@ -874,6 +898,14 @@
           "name": "MatrixOpenDetail",
           "declaration": {
             "name": "MatrixOpenDetail",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixOpenEventMap",
+          "declaration": {
+            "name": "MatrixOpenEventMap",
             "module": "../shared/dex-matrix-open.js"
           }
         }
@@ -2795,6 +2827,14 @@
         },
         {
           "kind": "js",
+          "name": "TreeTableEventMap",
+          "declaration": {
+            "name": "TreeTableEventMap",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "TreeTableRow",
           "declaration": {
             "name": "TreeTableRow",
@@ -2822,6 +2862,14 @@
           "name": "FilterAppliedDetail",
           "declaration": {
             "name": "FilterAppliedDetail",
+            "module": "./dex-filter-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FilterBarEventMap",
+          "declaration": {
+            "name": "FilterBarEventMap",
             "module": "./dex-filter-bar.js"
           }
         },
@@ -2859,6 +2907,14 @@
         },
         {
           "kind": "js",
+          "name": "ColumnFilterEventMap",
+          "declaration": {
+            "name": "ColumnFilterEventMap",
+            "module": "./dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "DexAddGallery",
           "declaration": {
             "name": "DexAddGallery",
@@ -2870,6 +2926,14 @@
           "name": "defineAddGallery",
           "declaration": {
             "name": "defineAddGallery",
+            "module": "./dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "AddGalleryEventMap",
+          "declaration": {
+            "name": "AddGalleryEventMap",
             "module": "./dex-add-gallery.js"
           }
         },
@@ -2910,6 +2974,14 @@
           "name": "MatrixOpenDetail",
           "declaration": {
             "name": "MatrixOpenDetail",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixOpenEventMap",
+          "declaration": {
+            "name": "MatrixOpenEventMap",
             "module": "../shared/dex-matrix-open.js"
           }
         },

@@ -308,12 +308,21 @@ export function defineErrorDialog(tag = 'dex-error-dialog'): void {
   defineElement(tag, DexErrorDialog);
 }
 
+/**
+ * The events `<dex-error-dialog>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface ErrorDialogEventMap {
+  /** Revert was pressed: put back the value kept. The dialog closes. No detail. */
+  'dex-revert': CustomEvent<null>;
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'dex-error-dialog': DexErrorDialog;
   }
-  interface HTMLElementEventMap {
-    /** Revert was pressed: put back the value kept. The dialog closes. No detail. */
-    'dex-revert': CustomEvent<null>;
-  }
+  interface HTMLElementEventMap extends ErrorDialogEventMap {}
+  interface DocumentEventMap extends ErrorDialogEventMap {}
+  interface WindowEventMap extends ErrorDialogEventMap {}
 }

@@ -228,17 +228,26 @@ export function definePropertyInspector(tag = 'dex-property-inspector'): void {
   defineElement(tag, DexPropertyInspector);
 }
 
+/**
+ * The events `<dex-property-inspector>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface PropertyInspectorEventMap {
+  /** An editable row's field was changed and committed (its change event). */
+  'dex-property-changed': CustomEvent<PropertyChangedDetail>;
+  /**
+   * A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
+   * value link (its `valueLink`).
+   */
+  'dex-pi-navigate': CustomEvent<PiNavigateDetail>;
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'dex-property-inspector': DexPropertyInspector;
   }
-  interface HTMLElementEventMap {
-    /** An editable row's field was changed and committed (its change event). */
-    'dex-property-changed': CustomEvent<PropertyChangedDetail>;
-    /**
-     * A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
-     * value link (its `valueLink`).
-     */
-    'dex-pi-navigate': CustomEvent<PiNavigateDetail>;
-  }
+  interface HTMLElementEventMap extends PropertyInspectorEventMap {}
+  interface DocumentEventMap extends PropertyInspectorEventMap {}
+  interface WindowEventMap extends PropertyInspectorEventMap {}
 }

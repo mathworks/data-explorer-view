@@ -2,13 +2,16 @@
 //
 // THE WIDGETS' TYPED API, as an app's TypeScript sees it.
 //
-// Every `dex-*` event a widget dispatches is declared on HTMLElementEventMap, in the widget's own
-// module, with the type of its detail, so `table.addEventListener('dex-row-selected', (e) => …)`
-// reads `e.detail.rowIds` with no cast. Two halves pin that:
+// Every `dex-*` event a widget dispatches is declared in the widget's own module, in an event map
+// (TreeTableEventMap, …) that HTMLElementEventMap, DocumentEventMap and WindowEventMap all extend,
+// with the type of its detail: the events bubble and are composed, so they reach the document and
+// the window, and `table.addEventListener('dex-row-selected', (e) => …)` or
+// `document.addEventListener(…)` reads `e.detail.rowIds` with no cast. Two halves pin that:
 //
 //   * the source: each `new CustomEvent<T>('dex-…')` names its detail type, which is what makes
 //     the compiler check the detail it sends, and the module's event map gives that name the same
-//     `CustomEvent<T>` — no event dispatched and not declared, none declared and not dispatched;
+//     `CustomEvent<T>` — no event dispatched and not declared, none declared and not dispatched —
+//     and the three global maps extend the same maps;
 //   * the build: a consumer file, compiled against dist/ through the package's own entries, listens
 //     to every event and reads its detail under `strict`, and a misspelt field is an error.
 //
@@ -28,14 +31,18 @@ const TAGS = ['dex-add-gallery', 'dex-column-filter', 'dex-context-menu', 'dex-e
 interface ModuleEvents {
   /** Event name → the type argument of each `new CustomEvent<…>` that dispatches it. */
   dispatched: Map<string, string[]>;
-  /** Event name → the type its HTMLElementEventMap entry declares. */
+  /** Event name → the type its entry declares, in the maps HTMLElementEventMap extends here. */
   declared: Map<string, string>;
+  /** Global event map → the maps it extends, as this module augments it. */
+  extended: Map<string, string[]>;
   untyped: string[];
 }
 
 function eventsOf(file: string): ModuleEvents {
   const source = ts.createSourceFile(file, readFileSync(join(ROOT, file), 'utf8'), ts.ScriptTarget.ES2022, true);
-  const out: ModuleEvents = { dispatched: new Map(), declared: new Map(), untyped: [] };
+  const out: ModuleEvents = { dispatched: new Map(), declared: new Map(), extended: new Map(), untyped: [] };
+  const interfaces = new Map<string, ts.InterfaceDeclaration>();
+  for (const statement of source.statements) if (ts.isInterfaceDeclaration(statement)) interfaces.set(statement.name.text, statement);
   const visit = (node: ts.Node): void => {
     if (ts.isNewExpression(node) && node.expression.getText(source) === 'CustomEvent') {
       const name = node.arguments?.[0];
@@ -46,9 +53,16 @@ function eventsOf(file: string): ModuleEvents {
     }
     if (ts.isModuleDeclaration(node) && node.name.getText(source) === 'global') {
       node.forEachChild(function inGlobal(child): void {
-        if (ts.isInterfaceDeclaration(child) && child.name.text === 'HTMLElementEventMap') {
-          for (const m of child.members) {
-            if (ts.isPropertySignature(m) && m.type && ts.isStringLiteral(m.name)) out.declared.set(m.name.text, m.type.getText(source));
+        if (ts.isInterfaceDeclaration(child) && /^(HTMLElement|Document|Window)EventMap$/.test(child.name.text)) {
+          // Each declares no event of its own; it extends the module's map.
+          if (child.members.length) out.untyped.push(`${file} ${child.name.text} declares events of its own`);
+          const names = (child.heritageClauses ?? []).flatMap((c) => c.types.map((t) => t.expression.getText(source)));
+          out.extended.set(child.name.text, names);
+          if (child.name.text !== 'HTMLElementEventMap') return;
+          for (const name of names) {
+            for (const m of interfaces.get(name)?.members ?? []) {
+              if (ts.isPropertySignature(m) && m.type && ts.isStringLiteral(m.name)) out.declared.set(m.name.text, m.type.getText(source));
+            }
           }
         } else child.forEachChild(inGlobal);
       });
@@ -75,6 +89,11 @@ describe('every dispatched event is declared, in its own module, with its detail
 
   it.each(MODULES.filter(([, m]) => m.dispatched.size || m.declared.size))('%s declares what it dispatches, no more', (_file, m) => {
     expect([...m.declared.keys()].sort()).toEqual([...m.dispatched.keys()].sort());
+    // On the document and the window as on an element: the same map, extended by all three.
+    const html = m.extended.get('HTMLElementEventMap');
+    expect(html?.length).toBe(1);
+    expect(m.extended.get('DocumentEventMap')).toEqual(html);
+    expect(m.extended.get('WindowEventMap')).toEqual(html);
     for (const [name, typeArgs] of m.dispatched) {
       for (const t of typeArgs) expect(m.declared.get(name), name).toBe(`CustomEvent<${t}>`);
     }
@@ -205,6 +224,11 @@ describe('an app written in TypeScript, against the built package', () => {
     inspector.addEventListener('dex-pi-navigate', (e) => s(e.detail.sourceId));
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
+    // They bubble and are composed, so the document and the window hear them, typed.
+    document.addEventListener('dex-matrix-open', (e) => s(e.detail.matrix.nodeId));
+    document.addEventListener('dex-row-selected', (e) => e.detail.rowIds.map(s));
+    window.addEventListener('dex-link-clicked', (e) => s(e.detail.target));
+    window.addEventListener('dex-action', (e) => s(e.detail.actionId));
     for (const source of [table, inspector, glyph]) {
       source.addEventListener('dex-matrix-open', (e) => {
         const d: MatrixOpenDetail = e.detail;
