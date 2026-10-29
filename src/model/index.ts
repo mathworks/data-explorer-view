@@ -93,7 +93,7 @@ export type {
   TableView,
 } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
-export type { Doc, DocKind, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 
 // Usage: who uses each variable and where each block's parameters come from, as the Usage
@@ -107,6 +107,19 @@ export {
 export type { BlockLink, ParamLink, RawSource, UsageGraph } from './usage/usageCells.js';
 export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';
 export type { NavSourceLookups, ScopedResolve } from './usage/navTarget.js';
+// The graphs those cells are filled from, one per file being viewed, kept until the folder
+// changes; and the reposts a data file's table is owed when a model appears or goes away.
+export { UsageGraphs } from './usage/usageGraphs.js';
+export type { UsageGraphsOptions, UsageInputs } from './usage/usageGraphs.js';
+export {
+  USAGE_REPOST_DEBOUNCE_MS,
+  USAGE_REPOST_MAX_WAITS,
+  createUsageRepostBus,
+  repostsUsageOn,
+} from './usage/usageRepost.js';
+export type { UsageRepostBus, UsageRepostTimers } from './usage/usageRepost.js';
+export { createUsageRepostHub } from './usage/usageRepostHub.js';
+export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usage/usageRepostHub.js';
 
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, and what a search over them shows.
