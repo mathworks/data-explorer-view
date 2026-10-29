@@ -28,27 +28,53 @@ const onDisk = (f: SourceFile): string => join(DIR, f.path.slice('/w/'.length));
 let listed: readonly SourceFile[];
 let lists: number;
 let reads: string[];
+let read: string[];
 let dirty: Map<string, ArrayBuffer>;
 let failList: boolean;
+// What a test holds open: the Nth listing, and the Nth reader's read of one file (one reader a pass).
+let heldLists: Map<number, Promise<void>>;
+let heldReads: Map<number, { path: string; until: Promise<void> }>;
+let readers: number;
 
 function index(): NameIndex {
   return new NameIndex({
     files: {
       list: async () => {
-        lists++;
+        const n = ++lists;
+        await heldLists.get(n);
         if (failList) throw new Error('no folder');
         return listed;
       },
     },
     reader: (files): NameReader => {
       const r = nodeSourceReader(files, { pathOf: onDisk });
+      const held = heldReads.get(++readers);
       return {
         version: r.version,
-        bytes: async (f) => (reads.push(f.path), r.bytes(f)),
+        bytes: async (f) => {
+          reads.push(f.path);
+          if (held?.path === f.path) await held.until;
+          const bytes = await r.bytes(f);
+          read.push(f.path);
+          return bytes;
+        },
         dirtyBytes: (f) => dirty.get(f.uriString) ?? null,
       };
     },
   });
+}
+
+/** A promise the test resolves when it lets go. */
+function hold(): { until: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const until = new Promise<void>((done) => (release = done));
+  return { until, release };
+}
+
+const tick = () => new Promise((done) => setTimeout(done, 0));
+async function until(test: () => boolean): Promise<void> {
+  for (let i = 0; i < 500 && !test(); i++) await tick();
+  expect(test()).toBe(true);
 }
 
 const of = (records: NameRecord[]): string[] => records.map((r) => `${r.kind}:${r.name}@${r.sourceLabel}`).sort();
@@ -57,8 +83,12 @@ beforeEach(() => {
   listed = FOLDER;
   lists = 0;
   reads = [];
+  read = [];
   dirty = new Map();
   failList = false;
+  heldLists = new Map();
+  heldReads = new Map();
+  readers = 0;
 });
 
 describe('a name index', () => {
@@ -123,6 +153,69 @@ describe('a name index', () => {
     await expect(names.list()).rejects.toThrow('no folder');
     failList = false;
     expect((await names.list()).length).toBe(5);
+  });
+});
+
+describe('a build an invalidate() dropped', () => {
+  // The folder as the first build lists it, then as the one after the invalidate() lists it.
+  const B2_FOLDER = FOLDER.filter((f) => !f.path.endsWith('ctrlA.slx'));
+  const B2_NAMES = ['block:GainB@plantB.slx', 'sldd:SharedGain@sharedParams.sldd', 'sldd:UnusedVar@sharedParams.sldd'];
+
+  /** A first build held open on its read of ctrlA.slx (its other reads done), then an invalidate(). */
+  async function heldThenInvalidated() {
+    const names = index();
+    const b1 = hold();
+    heldReads.set(1, { path: '/w/ctrlA.slx', until: b1.until });
+    const first = names.list();
+    await until(() => reads.includes('/w/ctrlA.slx') && read.length === 2);
+    names.invalidate();
+    listed = B2_FOLDER;
+    return { names, first, release: b1.release };
+  }
+
+  it('publishes nothing when it finishes after the next build: the index is the next one', async () => {
+    const { names, first, release } = await heldThenInvalidated();
+    expect(of(await names.list())).toEqual(B2_NAMES);
+    release();
+    await until(() => read.includes('/w/ctrlA.slx'));
+    // Its own caller is answered from the index there is, and so is every later one.
+    expect(of(await first)).toEqual(B2_NAMES);
+    expect(of(await names.list())).toEqual(B2_NAMES);
+    expect(lists).toBe(2);
+  });
+
+  it('publishes nothing when it finishes before the next build: its callers wait for that one', async () => {
+    const { names, first, release } = await heldThenInvalidated();
+    const b2 = hold();
+    heldLists.set(2, b2.until);
+    const second = names.list();
+    let firstAnswered = false;
+    void first.then(() => (firstAnswered = true));
+    release();
+    await until(() => read.includes('/w/ctrlA.slx'));
+    for (let i = 0; i < 20; i++) await tick();
+    // The first build is done, and published nothing: its caller is still waiting.
+    expect(firstAnswered).toBe(false);
+    b2.release();
+    expect(of(await second)).toEqual(B2_NAMES);
+    expect(of(await first)).toEqual(B2_NAMES);
+    expect(of(await names.list())).toEqual(B2_NAMES);
+  });
+
+  it('leaves a reindex() after the race to land in the live index', async () => {
+    const { names, first, release } = await heldThenInvalidated();
+    await names.list();
+    release();
+    await first;
+    const text = readFileSync(join(import.meta.dirname, 'fixtures/params.sldd'));
+    dirty.set(file('sharedParams.sldd').uriString, text.buffer.slice(text.byteOffset, text.byteOffset + text.byteLength) as ArrayBuffer);
+    await names.reindex(file('sharedParams.sldd'));
+    const now = of(await names.list());
+    // The reindexed file, in the index of the folder as it is now: no file of the dropped build.
+    expect(now).not.toContain('sldd:SharedGain@sharedParams.sldd');
+    expect(now.filter((n) => n.startsWith('sldd:')).length).toBeGreaterThan(1);
+    expect(now).toContain('block:GainB@plantB.slx');
+    expect(now.filter((n) => n.endsWith('@ctrlA.slx'))).toEqual([]);
   });
 });
 
