@@ -137,11 +137,21 @@ import { useIconAssets } from 'data-explorer-view/icon-assets';
 useIconAssets(); // before the first icon renders
 ```
 
-In Vite's dev server, leave the package out of dependency pre-bundling
-(`optimizeDeps: { exclude: ['data-explorer-view'] }`): a pre-bundled copy of
-the module is no longer beside the icons. Vite turns icons smaller than its
-`build.assetsInlineLimit` into `data:` URLs, so a Content-Security-Policy needs
-`img-src data:` unless that limit is 0.
+In Vite's dev server, leave the package out of dependency pre-bundling: a
+pre-bundled copy of the module is no longer beside the icons. Vite then does
+not look inside the package for what it imports either, so name those for
+pre-bundling. Otherwise the dev server finds them as the first page loads,
+and reloads that page:
+
+```js
+optimizeDeps: {
+  exclude: ['data-explorer-view'],
+  include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+},
+```
+
+Vite turns icons smaller than its `build.assetsInlineLimit` into `data:` URLs,
+so a Content-Security-Policy needs `img-src data:` unless that limit is 0.
 
 **`theme.css`** holds every colour, font and size token the widgets read: light
 defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets

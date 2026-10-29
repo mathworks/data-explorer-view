@@ -40,9 +40,10 @@ published declarations.
 - `src/shell.ts` is the part an app writes once: `theme.css`, then `useIconAssets()`
   before the first icon renders, so Vite copies every icon into the build.
 - Each page in `src/pages/` calls the define function of each widget it places.
-- `vite.config.ts` has what view's README asks of a Vite app:
-  `optimizeDeps.exclude: ['data-explorer-view']` for the dev server, and
-  `build.assetsInlineLimit: 0`, which keeps the icons files (no `data:` URLs, so the
+- `vite.config.ts` has what view's README asks of a Vite app: for the dev server,
+  `optimizeDeps.exclude: ['data-explorer-view']` and an `optimizeDeps.include` of
+  what the package imports (`tests/devServer.spec.ts` holds both lists to `dist/`);
+  and `build.assetsInlineLimit: 0`, which keeps the icons files (no `data:` URLs, so the
   pages' Content-Security-Policy keeps `img-src 'self'`). Every page runs under a strict
   policy (no inline styles, no other origins); the dev server alone also allows inline
   styles, because it injects each stylesheet as a `<style>` element.

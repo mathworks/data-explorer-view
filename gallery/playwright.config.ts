@@ -7,6 +7,8 @@ import { defineConfig, devices } from '@playwright/test';
 const BUILT = 'http://localhost:4791';
 const DEV = 'http://localhost:4792';
 const vite = 'npx vite --config vite.config.ts';
+// About the dev server's configuration, not a page: once is enough.
+const DEV_ONLY = /devServer\.spec\.ts$/;
 
 export default defineConfig({
   testDir: 'tests',
@@ -16,9 +18,9 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : 'list',
   use: { trace: 'retain-on-failure' },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'], baseURL: BUILT } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'], baseURL: BUILT } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'], baseURL: BUILT } },
+    { name: 'chromium', testIgnore: DEV_ONLY, use: { ...devices['Desktop Chrome'], baseURL: BUILT } },
+    { name: 'firefox', testIgnore: DEV_ONLY, use: { ...devices['Desktop Firefox'], baseURL: BUILT } },
+    { name: 'webkit', testIgnore: DEV_ONLY, use: { ...devices['Desktop Safari'], baseURL: BUILT } },
     { name: 'chromium-dev', use: { ...devices['Desktop Chrome'], baseURL: DEV } },
   ],
   webServer: [

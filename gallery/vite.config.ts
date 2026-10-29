@@ -42,10 +42,16 @@ export default defineConfig({
   appType: 'mpa',
   // Relative, so the built gallery works from any folder it is copied to.
   base: './',
-  // As view's README says: a pre-bundled copy of the package is no longer beside its icons.
-  // (Here the package resolves to this repository, outside node_modules, which Vite never
-  // pre-bundles; an app that installs it needs the line.)
-  optimizeDeps: { exclude: ['data-explorer-view'] },
+  optimizeDeps: {
+    // As view's README says: a pre-bundled copy of the package is no longer beside its icons.
+    // (Here the package resolves to this repository, outside node_modules, which Vite never
+    // pre-bundles; an app that installs it needs the line.)
+    exclude: ['data-explorer-view'],
+    // Left out, the package is not scanned for what it imports either. Without this list the
+    // dev server finds these as the first page asks for them, optimizes again and reloads the
+    // page. tests/devServer.spec.ts holds it to what dist/ imports.
+    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+  },
   build: {
     outDir: resolve(root, 'dist'),
     emptyOutDir: true,
