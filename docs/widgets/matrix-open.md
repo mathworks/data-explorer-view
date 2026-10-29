@@ -62,6 +62,7 @@ The glyph was clicked, or Enter or Space pressed on it: open this matrix.
 `detail` is a `MatrixOpenDetail`:
 
 ```ts
+/** What `dex-matrix-open` carries. */
 export interface MatrixOpenDetail {
   // The descriptor, not the payload: the glyph exists once per matrix-valued row,
   // so what it holds is what every such row costs. Its label and tooltip need the
@@ -73,6 +74,13 @@ export interface MatrixOpenDetail {
   rowId?: string;
 }
 
+/**
+ * What a ROW carries: everything the glyph and the panel's title line need, and no
+ * cells. Every griddable row in the table holds one of these, so it has to be
+ * cheap — a 1000x1000 entry's cells are 4 MB, which is 4 MB per row stamped for a
+ * panel the user may never open. `nodeId` is how the table asks its source for the
+ * cells when one is opened (`TableSource.matrix`).
+ */
 export interface MatrixDescriptor {
   /** Panel title name — 'Kp', or 'ParamMat.Value' when the matrix is a property. */
   name: string;

@@ -65,6 +65,7 @@ A tile was clicked: add one entry of its class. The table stops it and sends `de
 `detail` is a `AddTileDetail`:
 
 ```ts
+/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
 export interface AddTileDetail {
   className: string;
   section: string;
@@ -79,6 +80,7 @@ Keep open was turned on or off; `pinned` has already changed.
 `detail` is a `AddPinChangedDetail`:
 
 ```ts
+/** What `dex-add-pin-changed` carries: whether the gallery is now pinned. */
 export interface AddPinChangedDetail {
   pinned: boolean;
 }

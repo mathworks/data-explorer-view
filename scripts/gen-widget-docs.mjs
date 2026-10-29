@@ -27,8 +27,10 @@ function sourceFiles(dir) {
     .flatMap((e) => (statSync(join(ROOT, dir, e)).isDirectory() ? sourceFiles(`${dir}/${e}`) : e.endsWith('.ts') ? [`${dir}/${e}`] : []));
 }
 
-// Every exported interface and type alias of the widgets and the model, by name, as written:
-// what an event's detail is, and what that names in turn. A widget's own spelling first.
+// Every exported interface and type alias of the widgets and the model, by name, as written —
+// with the doc comment written above it, which is where a type says what its fields mean (the
+// four forms of a link target, for one), and which a declaration's own text leaves out: what an
+// event's detail is, and what that names in turn. A widget's own spelling first.
 const types = new Map();
 for (const file of [...sourceFiles('src/widgets'), ...sourceFiles('src/model')]) {
   const source = ts.createSourceFile(file, readFileSync(join(ROOT, file), 'utf8'), ts.ScriptTarget.ES2022, true);
@@ -43,8 +45,14 @@ for (const file of [...sourceFiles('src/widgets'), ...sourceFiles('src/model')])
       else if (ts.isExpressionWithTypeArguments(node)) names.add(node.expression.getText(source));
       node.forEachChild(walk);
     });
-    types.set(statement.name.text, { text: statement.getText(source), names: [...names] });
+    types.set(statement.name.text, { text: withDocComment(statement, source), names: [...names] });
   }
+}
+
+/** A declaration's text, from the `/** … *\/` comment right above it when it has one. */
+function withDocComment(statement, source) {
+  const doc = ts.getJSDocCommentsAndTags(statement).filter((d) => d.kind === ts.SyntaxKind.JSDoc).at(-1);
+  return source.text.slice(doc ? doc.getStart(source) : statement.getStart(source), statement.getEnd());
 }
 
 /** The declarations a type's text needs, itself first and each one once. */

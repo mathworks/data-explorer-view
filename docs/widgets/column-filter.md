@@ -75,6 +75,7 @@ Apply, or Enter: put this condition in the filter, in place of the column's own 
 `detail` is a `ColumnFilterAppliedDetail`:
 
 ```ts
+/** What `dex-column-filter-applied` carries: the condition, and the filter text it writes. */
 export interface ColumnFilterAppliedDetail {
   column: string;
   op: FilterOp;
@@ -82,6 +83,7 @@ export interface ColumnFilterAppliedDetail {
   text: string;
 }
 
+/** Every comparison the box understands. `~=` is normalized to `!=`. */
 export type FilterOp = 'contains' | '=' | '!=' | '>' | '<' | '>=' | '<=';
 ```
 
@@ -98,6 +100,7 @@ Clear: take the column's condition out of the filter.
 `detail` is a `ColumnFilterClearedDetail`:
 
 ```ts
+/** What `dex-column-filter-cleared` carries: the column whose condition goes. */
 export interface ColumnFilterClearedDetail {
   column: string;
 }

@@ -73,6 +73,7 @@ An editable row's field was changed and committed (its change event).
 `detail` is a `PropertyChangedDetail`:
 
 ```ts
+/** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
   propName: string;
   newValue: string;
@@ -88,6 +89,7 @@ value link (its `valueLink`).
 `detail` is a `PiNavigateDetail`:
 
 ```ts
+/** What `dex-pi-navigate` carries: the target of the link clicked. */
 export interface PiNavigateDetail {
   sourceId: string;
 }

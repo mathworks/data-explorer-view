@@ -72,6 +72,7 @@ An item that is not disabled was chosen, by a click or Enter; the menu closes.
 `detail` is a `ActionDetail`:
 
 ```ts
+/** What `dex-action` carries: the `id` of the item chosen. */
 export interface ActionDetail {
   actionId: string;
 }

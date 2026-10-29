@@ -294,10 +294,12 @@ A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming
 `detail` is a `AddEntryDetail`:
 
 ```ts
+/** What `dex-add-entry` carries: the tile's class, section and label, and whether to rename the row. */
 export interface AddEntryDetail extends AddTileDetail {
   rename: boolean;
 }
 
+/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
 export interface AddTileDetail {
   className: string;
   section: string;
@@ -314,6 +316,7 @@ planner, and mergeChildRows puts them in place). Asked once until its rows arriv
 `detail` is a `RequestChildrenDetail`:
 
 ```ts
+/** What `dex-request-children` carries: the row whose children the payload held back. */
 export interface RequestChildrenDetail {
   nodeId: string;
 }
@@ -327,6 +330,11 @@ menu there.
 `detail` is a `TableContextMenuDetail`:
 
 ```ts
+/**
+ * What `dex-table-context-menu` carries: where to open the menu (viewport pixels), the row
+ * right-clicked (null for the space under the rows), and, for a model's block row, the model the
+ * row's `_graphTarget` names.
+ */
 export interface TableContextMenuDetail {
   x: number;
   y: number;
@@ -343,6 +351,7 @@ right-click on a row not in it.
 `detail` is a `RowSelectedDetail`:
 
 ```ts
+/** What `dex-row-selected` carries: the selection, as `selectedRowIds` now holds it. */
 export interface RowSelectedDetail {
   rowIds: string[];
 }
@@ -355,6 +364,10 @@ The user started dragging rows.
 `detail` is a `RowDragStartDetail`:
 
 ```ts
+/**
+ * What `dex-row-drag-start` carries: the rows dragged — the selection when the row grabbed is in
+ * it, else that row alone — less any section header.
+ */
 export interface RowDragStartDetail {
   rowIds: string[];
 }
@@ -374,6 +387,7 @@ the space under the rows when it accepts that.
 `detail` is a `RowDropDetail`:
 
 ```ts
+/** What `dex-row-drop` carries: the row let go on ('' for the space under the rows), and copy or move. */
 export interface RowDropDetail {
   targetRowId: string;
   mode: DragMode;
@@ -389,6 +403,7 @@ A Value editor is opening on a summary: send the whole text with openWholeValueE
 `detail` is a `EditTextRequestDetail`:
 
 ```ts
+/** What `dex-edit-text-request` carries: the row whose whole Value text the editor needs. */
 export interface EditTextRequestDetail {
   rowId: string;
 }
@@ -401,6 +416,7 @@ A cell edit was committed with a text that differs from the one it had.
 `detail` is a `EditCompletedDetail`:
 
 ```ts
+/** What `dex-edit-completed` carries: the cell, the text it had and the text typed. */
 export interface EditCompletedDetail {
   rowId: string;
   columnId: string;
@@ -417,6 +433,23 @@ what it points at; see LinkClickedDetail for its forms.
 `detail` is a `LinkClickedDetail`:
 
 ```ts
+/**
+ * What `dex-link-clicked` carries: the `linkTarget` of the link clicked, as core and the row
+ * builders write it. A target is one of:
+ *
+ * - `<name>@<source>`: the entry or variable `<name>` in the document `<source>`. A Data Type
+ *   link names one in the same document, a Used By link or a block's parameter link one
+ *   anywhere;
+ * - `blocks:<block>@<source>`: a block of the model `<source>` that uses this row's variable,
+ *   by its SID (by its name in a file older than SIDs);
+ * - `workspace:<name>@<source>`: a parameter in the model workspace of `<source>`;
+ * - `<file>`, with no `@`: a file to open (a Model Reference or External Data link), with no row
+ *   in it to select.
+ *
+ * Split at the first `@`, as core does: a source can contain one. `<source>` is a core source
+ * id, the file's URL (the model's srcIdToUriString turns any source id into one), or a bare file
+ * name where the file recorded only that.
+ */
 export interface LinkClickedDetail {
   target: string;
 }
