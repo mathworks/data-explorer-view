@@ -8,3 +8,6 @@ export type { PostTarget } from '../model/rows/postPayload.js';
 export { MAX_TABLE_ROWS, capRows, rowCapBanner } from '../model/rows/rowCap.js';
 export type { CappedRows } from '../model/rows/rowCap.js';
 export { InspectorPage } from '../model/inspector/inspectorPage.js';
+export { binaryEditSrcId } from '../model/ids/srcId.js';
+export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/health.js';
+export type { HealthDecoration } from '../model/hierarchy/health.js';

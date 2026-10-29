@@ -29,6 +29,12 @@ export declare class DexProjectPage extends LitElement {
     payload: ProjectPagePayload | null;
     /** Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`. */
     error: string;
+    /**
+     * The place a Locations link to a folder reveals it in, as the link's tooltip names it:
+     * "Reveals `cache` in the Explorer". An app says where its own `dex-project-open` shows a
+     * folder: `'Finder'`, `'the file manager'`. Default `'the Explorer'`. Attribute `reveal-in`.
+     */
+    revealIn: string;
     private _state;
     private _root;
     private _caret;

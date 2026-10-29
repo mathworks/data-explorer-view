@@ -816,6 +816,16 @@
               "default": "''",
               "description": "Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`.",
               "attribute": "error"
+            },
+            {
+              "kind": "field",
+              "name": "revealIn",
+              "type": {
+                "text": "string"
+              },
+              "default": "'the Explorer'",
+              "description": "The place a Locations link to a folder reveals it in, as the link's tooltip names it:\n\"Reveals `cache` in the Explorer\". An app says where its own `dex-project-open` shows a\nfolder: `'Finder'`, `'the file manager'`. Default `'the Explorer'`. Attribute `reveal-in`.",
+              "attribute": "reveal-in"
             }
           ],
           "events": [
@@ -836,6 +846,15 @@
               "default": "''",
               "description": "Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`.",
               "fieldName": "error"
+            },
+            {
+              "name": "reveal-in",
+              "type": {
+                "text": "string"
+              },
+              "default": "'the Explorer'",
+              "description": "The place a Locations link to a folder reveals it in, as the link's tooltip names it:\n\"Reveals `cache` in the Explorer\". An app says where its own `dex-project-open` shows a\nfolder: `'Finder'`, `'the file manager'`. Default `'the Explorer'`. Attribute `reveal-in`.",
+              "fieldName": "revealIn"
             }
           ],
           "superclass": {
@@ -969,6 +988,14 @@
           "name": "PageState",
           "declaration": {
             "name": "PageState",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ProjectPageOptions",
+          "declaration": {
+            "name": "ProjectPageOptions",
             "module": "./projectPage.js"
           }
         },
@@ -1108,6 +1135,13 @@
               "name": "state",
               "type": {
                 "text": "PageState"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "ProjectPageOptions"
               }
             }
           ],

@@ -148,6 +148,19 @@ describe('clicking a hyperlink', () => {
     expect(opened).toEqual([{ path: 'work/cache' }, { path: '../Lib/Lib.prj' }]);
   });
 
+  it("names the place a folder is revealed in by its attribute or its property, and draws again", async () => {
+    await show({ locations: [{ key: 'SimulinkCacheFolder', label: 'Simulation cache', ref: 'work/cache' }] });
+    expect(el.revealIn).toBe('the Explorer');
+    expect(link('work/cache').title).toBe('Reveals work/cache in the Explorer');
+    el.setAttribute('reveal-in', 'Finder');
+    await el.updateComplete;
+    expect(el.revealIn).toBe('Finder');
+    expect(link('work/cache').title).toBe('Reveals work/cache in Finder');
+    el.revealIn = 'the file manager';
+    await el.updateComplete;
+    expect(link('work/cache').title).toBe('Reveals work/cache in the file manager');
+  });
+
   it('sends a bubbling, composed event the document hears', () => {
     const heard: string[] = [];
     document.addEventListener('dex-project-open', (e) => heard.push(e.detail.path), { once: true });

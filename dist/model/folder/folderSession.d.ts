@@ -1,5 +1,5 @@
 import { type SourceCache, type SourceFile } from 'data-explorer-core';
-import { FolderHierarchy, type FolderFiles } from '../hierarchy/folderHierarchy.js';
+import { FolderHierarchy, type FolderFiles, type HierarchyItem } from '../hierarchy/folderHierarchy.js';
 import type { GraphReader } from '../hierarchy/graphSources.js';
 import { NameIndex } from '../search/nameIndex.js';
 import type { NameReader } from '../search/nameScan.js';
@@ -56,10 +56,26 @@ export interface FolderSession {
     /**
      * Whether the folder's last listing holds the file of `uri`: for an app deciding whether a
      * document it has open is one of the folder's (and so whether its Usage column is filled from
-     * the folder). False before the folder has been listed; while a change is being listed, the
-     * listing before it.
+     * the folder). False before the folder has been listed (`listed()` resolves once it has); while
+     * a change is being listed, the listing before it.
      */
     has(uri: string): boolean;
+    /**
+     * Resolves once the folder has been listed, and `has()` answers from that listing: at once when
+     * it has been, else when the listing under way, or the one this asks for, answers. Rejects with
+     * the error of a listing that failed, and a later call lists again. After `dispose()`, rejects
+     * when the folder was never listed. For an app that needs the listing and not the whole
+     * hierarchy: a folder reader across a channel answers a project's store only for a file it listed.
+     */
+    listed(): Promise<void>;
+    /**
+     * The project row of the folder `folderUri`, as `hierarchy.roots()` draws it: its `id` is the
+     * uri of the project's marker (a `.prj`, or a `matlab.toml`), its `label` the project's name.
+     * Undefined when no project's marker is in that folder. `folderUri` is spelled as the folder's
+     * file uris are (`sourceUri`), with or without a trailing `/`. A folder holds one project; of
+     * two markers in one folder, the hierarchy's project is the first listed.
+     */
+    projectIn(folderUri: string): Promise<HierarchyItem | undefined>;
     /** Stop: the watch is let go, reposts stop, and a later change does nothing. */
     dispose(): void;
 }

@@ -5,8 +5,9 @@
 // channel, the way the VS Code extension's host answers its webviews. What is here is the
 // plumbing such a host is built from, shaped by that job: a document registry over core's
 // module-level session, the answers to a webview's requestChildren and requestMatrix posted on
-// the webview they came from, posting with a fallback for a payload too large to deliver, and
-// the property inspector's page as a ready/post cycle.
+// the webview they came from, posting with a fallback for a payload too large to deliver, the
+// property inspector's page as a ready/post cycle, the srcId an editable binary file registers
+// under, and a hierarchy row's health mark as file decorations carry it.
 //
 // An app does not need any of it. It opens files with createWorkspace and wires its widgets with
 // connectTable and connectInspector, and an app whose documents live elsewhere serves them with
@@ -30,3 +31,10 @@ export { MAX_TABLE_ROWS, capRows, rowCapBanner } from '../model/rows/rowCap.js';
 // The property inspector's page, for an inspector in another view than its table: what it shows
 // and was sent, sent again on every `ready`, and only when it changes.
 export { InspectorPage } from '../model/inspector/inspectorPage.js';
+// The srcId an editable tree of a byte-backed file (a .sldd or a .mat) is registered under, beside
+// the read-only tree of the same uri.
+export { binaryEditSrcId } from '../model/ids/srcId.js';
+// A hierarchy row's health mark as VS Code's file decorations carry it: in the row's resourceUri
+// query (`HEALTH_QUERY`, `encode`, `decode`), drawn as a badge, a theme colour id and a tooltip
+// (`DECORATIONS`).
+export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/health.js';

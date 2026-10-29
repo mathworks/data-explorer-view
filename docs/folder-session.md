@@ -17,7 +17,34 @@ once whichever part asks first, and a change is one listing for all of them.
 
 `has(uri)` says whether the last listing holds a file: whether a document the app has open is the
 folder's, and so whether to fill its Usage column from the folder. It is false until the first
-listing has answered (the session lists when a part first asks, or on `changed()`).
+listing has answered (the session lists when a part first asks, on `changed()`, or on `listed()`).
+
+`listed()` resolves once the folder has been listed: at once when it has been, else when the
+listing under way, or the one it asks for, answers. It reads no file, so an app that needs the
+listing and not the whole hierarchy waits on it: a folder reader across a channel answers a
+project's store only for a file the host listed. A first listing that fails rejects it with that
+listing's error, and the next call lists again. A session disposed before its folder was listed
+rejects it.
+
+```js
+await folder.listed();
+const store = (await reader.projectStore({ uriString: marker, path: uriPath(marker) })) ?? {}; // folderReader(port)
+```
+
+`projectIn(folderUri)` answers the project row of a folder, as the hierarchy draws it, or
+undefined when no project's marker is in that folder. The row's `id` is the uri of the project's
+marker (a `.prj`, or a `matlab.toml`) and its `label` the project's name. `folderUri` is spelled
+as the folder's file uris are (`sourceUri(path)`), with or without a trailing `/`. It is what a
+link that asks for the project in a folder needs (`dex-project-open` with `preferProject`):
+
+```js
+projectPage.addEventListener('dex-project-open', async (e) => {
+  const target = join(projectPage.payload.root, e.detail.path);
+  const project = e.detail.preferProject ? await folder.projectIn(sourceUri(target)) : undefined;
+  if (project) showProjectPage(project.id); // the marker's uri
+  else openPath(target);
+});
+```
 
 The Usage column's id is `UsedBy`. A model's table fills it from the model itself; a dictionary's
 or a MAT-file's only from the folder's usage graphs, so for such a file opened from outside the

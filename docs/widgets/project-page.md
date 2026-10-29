@@ -25,7 +25,8 @@ page.payload = await readProjectPage('/work/Plant/Plant.prj', nodeStoreFs);
 A page with no file system (a sandboxed Electron window, its folder served by `serveFolder`)
 has the store read where the files are: the folder reader's `projectStore(file)` answers it for
 a project marker the host listed (a `.prj`, or a `matlab.toml`: the uri a hierarchy's project
-row opens), once the folder has been listed. The page then builds the message itself:
+row opens), once the folder has been listed (a folder session's `listed()` resolves then). The
+page then builds the message itself:
 
 ```js
 import { isProjectFile } from 'data-explorer-core';
@@ -48,10 +49,16 @@ or a folder (a References row names the referenced project's folder, not its mar
 ```js
 page.addEventListener('dex-project-open', (e) => {
   const target = join(page.payload.root, e.detail.path);
-  if (e.detail.preferProject) openProjectIn(target);
+  if (e.detail.preferProject) openProjectIn(target); // a folder session's projectIn(sourceUri(target))
   else openPath(target);
 });
 ```
+
+Most Locations rows name a folder, which the app shows in its file manager rather than opening,
+and the link's tooltip says so: "Reveals `work/cache` in the Explorer". `reveal-in` (the
+`revealIn` property) names that place as the app does: `<dex-project-page reveal-in="Finder">`,
+or `'the file manager'`. A page that draws the HTML itself passes the same to
+`renderProjectPage(payload, state, { revealIn })`.
 
 The page is in the element's shadow root with its stylesheet adopted, so it draws under a
 Content-Security-Policy without `style-src 'unsafe-inline'`, and its class names reach nothing
@@ -80,6 +87,14 @@ same one keeps them. Setting it clears `error`.
 type `string` · default `''` · attribute `error`
 
 Why the project could not be shown, above the page; empty for nothing to say. Attribute `error`.
+
+### `revealIn`
+
+type `string` · default `'the Explorer'` · attribute `reveal-in`
+
+The place a Locations link to a folder reveals it in, as the link's tooltip names it:
+"Reveals `cache` in the Explorer". An app says where its own `dex-project-open` shows a
+folder: `'Finder'`, `'the file manager'`. Default `'the Explorer'`. Attribute `reveal-in`.
 
 ## Methods
 

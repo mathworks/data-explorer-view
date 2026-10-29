@@ -471,8 +471,9 @@ function warningsBlock(banner) {
         '</div>');
 }
 /** The whole page. */
-export function renderProjectPage(payload, state) {
+export function renderProjectPage(payload, state, options = {}) {
     const { page, root, msp } = payload;
+    const revealIn = options.revealIn ?? 'the Explorer';
     const meta = [
         'MATLAB Project',
         // Second, right after what it IS: an MSP is a MATLAB Project first, and the role is
@@ -529,15 +530,15 @@ export function renderProjectPage(payload, state) {
         search: w.label + ' ' + w.ref,
         group: '',
         // Most of these name a FOLDER, which cannot be opened as an editor and is
-        // revealed in the Explorer instead: two different host actions behind rows
-        // that look the same, so the tooltip has to say which. MATLAB's own key
-        // naming is what distinguishes them — DependencyCacheFile names a file, the
-        // *Folder keys name folders — and the suffix generalizes to a key this
-        // release has never seen. A wrong guess costs only the tooltip's wording:
-        // the ACTION is chosen by the host after it stats the target.
+        // revealed in the app's file manager instead (`revealIn`): two different host
+        // actions behind rows that look the same, so the tooltip has to say which.
+        // MATLAB's own key naming is what distinguishes them — DependencyCacheFile
+        // names a file, the *Folder keys name folders — and the suffix generalizes to
+        // a key this release has never seen. A wrong guess costs only the tooltip's
+        // wording: the ACTION is chosen by the host after it stats the target.
         html: (terms) => nameTargetRow(w.label, w.ref, terms, w.key.endsWith('File')
             ? 'Opens ' + w.ref
-            : 'Reveals ' + w.ref + ' in the Explorer'),
+            : 'Reveals ' + w.ref + ' in ' + revealIn),
     })), state, {
         empty: 'Defaults — cache, code generation and startup all use the project root.',
     }));

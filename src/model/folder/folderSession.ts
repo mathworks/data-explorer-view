@@ -14,7 +14,7 @@
 // DOM-free: the app lists the folder and reads its files (FolderFiles, the reader); a FolderReader
 // across a channel is both, and its onChange is a watch.
 import { isGraphPath, newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
-import { FolderHierarchy, type FolderFiles } from '../hierarchy/folderHierarchy.js';
+import { FolderHierarchy, type FolderFiles, type HierarchyItem } from '../hierarchy/folderHierarchy.js';
 import type { FolderFileList } from '../hierarchy/folderList.js';
 import type { GraphReader } from '../hierarchy/graphSources.js';
 import { NameIndex } from '../search/nameIndex.js';
@@ -73,10 +73,26 @@ export interface FolderSession {
   /**
    * Whether the folder's last listing holds the file of `uri`: for an app deciding whether a
    * document it has open is one of the folder's (and so whether its Usage column is filled from
-   * the folder). False before the folder has been listed; while a change is being listed, the
-   * listing before it.
+   * the folder). False before the folder has been listed (`listed()` resolves once it has); while
+   * a change is being listed, the listing before it.
    */
   has(uri: string): boolean;
+  /**
+   * Resolves once the folder has been listed, and `has()` answers from that listing: at once when
+   * it has been, else when the listing under way, or the one this asks for, answers. Rejects with
+   * the error of a listing that failed, and a later call lists again. After `dispose()`, rejects
+   * when the folder was never listed. For an app that needs the listing and not the whole
+   * hierarchy: a folder reader across a channel answers a project's store only for a file it listed.
+   */
+  listed(): Promise<void>;
+  /**
+   * The project row of the folder `folderUri`, as `hierarchy.roots()` draws it: its `id` is the
+   * uri of the project's marker (a `.prj`, or a `matlab.toml`), its `label` the project's name.
+   * Undefined when no project's marker is in that folder. `folderUri` is spelled as the folder's
+   * file uris are (`sourceUri`), with or without a trailing `/`. A folder holds one project; of
+   * two markers in one folder, the hierarchy's project is the first listed.
+   */
+  projectIn(folderUri: string): Promise<HierarchyItem | undefined>;
   /** Stop: the watch is let go, reposts stop, and a later change does nothing. */
   dispose(): void;
 }
@@ -107,9 +123,16 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
   // on as it came, not copied, so a listing cut short still says so to the hierarchy.
   let listing: Promise<FolderFileList> | null = null;
   // The last listing that answered, to diff the next one against, and its uris, for has().
-  let listed: readonly SourceFile[] | null = null;
+  let lastListed: readonly SourceFile[] | null = null;
   let listedUris = new Set<string>();
   let disposed = false;
+  // Who waits in listed() for the first listing: told when one is kept, or when the listing under
+  // way fails. Not by a listing a change replaced, which waits on for the one that replaced it.
+  const waiting = new Set<{ resolve(): void; reject(error: unknown): void }>();
+  const tell = (outcome: (w: { resolve(): void; reject(error: unknown): void }) => void): void => {
+    for (const w of [...waiting]) outcome(w);
+    waiting.clear();
+  };
 
   const current = (): Promise<FolderFileList> => {
     if (!listing) {
@@ -118,12 +141,15 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
       asking.then(
         (files) => {
           if (listing !== asking) return;
-          listed = files;
+          lastListed = files;
           listedUris = new Set(files.map((f) => f.uriString));
+          tell((w) => w.resolve());
         },
         // A listing that failed is not kept: the next ask lists again.
-        () => {
-          if (listing === asking) listing = null;
+        (error: unknown) => {
+          if (listing !== asking) return;
+          listing = null;
+          tell((w) => w.reject(error));
         },
       );
     }
@@ -171,7 +197,7 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
   let queued: { uris: Set<string> | null; done: Promise<void>; resolve: () => void } | null = null;
 
   async function apply(uris: ReadonlySet<string> | null): Promise<void> {
-    const before = listed;
+    const before = lastListed;
     listing = null;
     let after: readonly SourceFile[];
     try {
@@ -237,6 +263,20 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
     cache,
     changed,
     has: (uri) => listedUris.has(uri),
+    listed() {
+      if (lastListed) return Promise.resolve();
+      if (disposed) return Promise.reject(new Error('The folder session was disposed before the folder was listed.'));
+      const told = new Promise<void>((resolve, reject) => void waiting.add({ resolve, reject }));
+      // A listing under way, or one asked for now; what it answers is told through `waiting`.
+      current().catch(() => {});
+      return told;
+    },
+    async projectIn(folderUri) {
+      const folder = folderUri.replace(/\/+$/, '');
+      return (await hierarchy.roots()).find(
+        (item) => item.groupKind === 'project' && item.id !== undefined && item.id.slice(0, item.id.lastIndexOf('/')) === folder,
+      );
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -244,6 +284,7 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
       else watching?.dispose();
       reposts.dispose();
       modelSet.clear();
+      if (!lastListed) tell((w) => w.reject(new Error('The folder session was disposed before the folder was listed.')));
       queued?.resolve();
       queued = null;
     },

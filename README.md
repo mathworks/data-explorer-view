@@ -287,7 +287,8 @@ project page drawn from it is not redrawn by itself.
 
 A project row of the tree opens its marker's uri (a `.prj`, or a `matlab.toml`). The page
 has no file system, so the store comes through the folder reader, which the host answers
-for a listed marker once the folder has been listed (the tree lists it first):
+for a listed marker once the folder has been listed (the tree lists it first; a folder
+session's `listed()` resolves then):
 
 ```js
 // page: open a project row on its page (core's isProjectFile; dirname and join are the app's)

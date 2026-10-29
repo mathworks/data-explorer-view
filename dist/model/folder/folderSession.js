@@ -35,9 +35,17 @@ export function createFolderSession(options) {
     // on as it came, not copied, so a listing cut short still says so to the hierarchy.
     let listing = null;
     // The last listing that answered, to diff the next one against, and its uris, for has().
-    let listed = null;
+    let lastListed = null;
     let listedUris = new Set();
     let disposed = false;
+    // Who waits in listed() for the first listing: told when one is kept, or when the listing under
+    // way fails. Not by a listing a change replaced, which waits on for the one that replaced it.
+    const waiting = new Set();
+    const tell = (outcome) => {
+        for (const w of [...waiting])
+            outcome(w);
+        waiting.clear();
+    };
     const current = () => {
         if (!listing) {
             const asking = options.files.list();
@@ -45,13 +53,16 @@ export function createFolderSession(options) {
             asking.then((files) => {
                 if (listing !== asking)
                     return;
-                listed = files;
+                lastListed = files;
                 listedUris = new Set(files.map((f) => f.uriString));
+                tell((w) => w.resolve());
             }, 
             // A listing that failed is not kept: the next ask lists again.
-            () => {
-                if (listing === asking)
-                    listing = null;
+            (error) => {
+                if (listing !== asking)
+                    return;
+                listing = null;
+                tell((w) => w.reject(error));
             });
         }
         return listing;
@@ -94,7 +105,7 @@ export function createFolderSession(options) {
     let running = null;
     let queued = null;
     async function apply(uris) {
-        const before = listed;
+        const before = lastListed;
         listing = null;
         let after;
         try {
@@ -168,6 +179,20 @@ export function createFolderSession(options) {
         cache,
         changed,
         has: (uri) => listedUris.has(uri),
+        listed() {
+            if (lastListed)
+                return Promise.resolve();
+            if (disposed)
+                return Promise.reject(new Error('The folder session was disposed before the folder was listed.'));
+            const told = new Promise((resolve, reject) => void waiting.add({ resolve, reject }));
+            // A listing under way, or one asked for now; what it answers is told through `waiting`.
+            current().catch(() => { });
+            return told;
+        },
+        async projectIn(folderUri) {
+            const folder = folderUri.replace(/\/+$/, '');
+            return (await hierarchy.roots()).find((item) => item.groupKind === 'project' && item.id !== undefined && item.id.slice(0, item.id.lastIndexOf('/')) === folder);
+        },
         dispose() {
             if (disposed)
                 return;
@@ -178,6 +203,8 @@ export function createFolderSession(options) {
                 watching?.dispose();
             reposts.dispose();
             modelSet.clear();
+            if (!lastListed)
+                tell((w) => w.reject(new Error('The folder session was disposed before the folder was listed.')));
             queued?.resolve();
             queued = null;
         },

@@ -19,12 +19,17 @@ import * as model from '../src/model/index.js';
 const ROOT = join(import.meta.dirname, '..');
 
 const VALUES = [
+  'DECORATIONS',
+  'HEALTH_QUERY',
   'InspectorPage',
   'MAX_TABLE_ROWS',
   'answerChildRequest',
   'answerMatrixRequest',
+  'binaryEditSrcId',
   'capRows',
   'childRowsMessage',
+  'decode',
+  'encode',
   'findNode',
   'getModel',
   'getModelForBinaryTab',
@@ -41,7 +46,7 @@ const VALUES = [
   'releaseSourceView',
   'rowCapBanner',
 ];
-const TYPES = ['CappedRows', 'PostTarget', 'TabSources', 'UsageFiller'];
+const TYPES = ['CappedRows', 'HealthDecoration', 'PostTarget', 'TabSources', 'UsageFiller'];
 
 describe('data-explorer-view/host', () => {
   it('exports the host plumbing, and only that', () => {

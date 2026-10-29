@@ -26,7 +26,7 @@ export { sectionRules, wholeFileRules } from './actions/sectionRules.js';
 export type { SectionRule } from './actions/sectionRules.js';
 export { insertEntryRows, mergeChildRows, nextExpandedIds, nextStickyIds, pendingSelectionToApply, spliceEntryRows, } from './actions/rowUpdates.js';
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
-export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
+export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export type { LinkTarget } from './ids/linkTarget.js';
 export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
@@ -36,8 +36,7 @@ export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
 export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export type { GraphNode, GraphSource, GroupKind, NodeKind, SourceType } from './hierarchy/graphModel.js';
-export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
-export type { HealthDecoration, HealthState } from './hierarchy/health.js';
+export type { HealthState } from './hierarchy/health.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export type { GraphReader, ProjectStore, RawFile } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
@@ -141,3 +140,18 @@ CappedRows, } from './rows/rowCap.js';
 export { 
 /** @deprecated A host's inspector page: import it from data-explorer-view/host. */
 InspectorPage, } from './inspector/inspectorPage.js';
+export { 
+/** @deprecated The srcId of a host's editable byte-backed tree: import it from data-explorer-view/host. */
+binaryEditSrcId, } from './ids/srcId.js';
+export { 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+DECORATIONS, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+HEALTH_QUERY, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+decode, 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+encode, } from './hierarchy/health.js';
+export type { 
+/** @deprecated A host's file decorations: import it from data-explorer-view/host. */
+HealthDecoration, } from './hierarchy/health.js';

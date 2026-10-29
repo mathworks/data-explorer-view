@@ -68,6 +68,13 @@ table.on('navigate', ({ link, uri }) => openTab(uri ?? fileOf(link))); // uri: t
 
 `resolveReference(name, referrerUri)` is the same rule for a bare name.
 
+### A folder's project
+
+A project's row heads its group, and opens the project's marker: its `id` is the marker's uri
+(a `.prj`, or a `matlab.toml`). A folder session's `projectIn(folderUri)` answers the row of the
+project whose marker is in a folder, for a link that names a project by its folder (see
+[folder-session.md](../folder-session.md)).
+
 ### A folder read where the files are
 
 A page that cannot read files (a sandboxed Electron window, an embedded browser view) has its
@@ -85,7 +92,8 @@ by uri, which is matched exactly against the host's own last listing, and the fi
 listing's own, never a path the page sends. Any other uri is refused and nothing is read for it:
 one outside the folder, one with `..` in it, a prefix that looks like the folder's, another
 scheme, another spelling of a listed file (nothing is decoded, resolved or normalised), or one
-asked before the folder is listed. A project store is answered only for a listed file. The page's
+asked before the folder is listed. A project store is answered only for a listed file (a folder
+session's `listed()` resolves once the folder has been listed). The page's
 reader answers a refused question null, as core's readers answer for a file they were not given.
 
 ```js
