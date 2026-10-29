@@ -1,9 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 // What every gallery test shares: it fails on anything the page reports going wrong (a console
 // error, an uncaught exception, a request that failed or was answered with an error status, a
-// page served by another checkout's gallery),
-// it can wait for the page's requests to settle, and it knows the gallery's pages and how to pick
-// a theme.
+// page served by another checkout's gallery); every navigation after its first waits for the
+// page's requests to settle; and it knows the gallery's pages and how to pick a theme.
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
@@ -27,35 +26,59 @@ export const PAGES = [
 /** The page's requests, for a test that must not cut one off (`network`). */
 export interface Network {
   /**
-   * Resolves once no request of the page is in flight, and none has started or ended for
-   * `quietMs`: a widget still drawing asks for its icons in bursts. Before a reload, which would
-   * abort a request still loading (an icon), and the failed request would fail the test.
+   * Resolves once no request of the page is in flight, and none has started or ended, nor the
+   * page loaded, for `quietMs`: a widget still drawing asks for its icons in bursts, and Firefox
+   * asks for the page's favicon just after its load. A navigation would abort a request still
+   * loading, and the failed request would fail the test; every page.goto() after a test's first,
+   * and every page.reload(), waits for this first (the `page` fixture below).
    */
   settled(quietMs?: number): Promise<void>;
 }
 
+/** The requests in flight of each page, and when that last changed (or the page loaded). */
+const traffic = new WeakMap<Page, { inFlight: number; changed: number }>();
+
+function track(page: Page): void {
+  const t = { inFlight: 0, changed: Date.now() };
+  const touch = () => void (t.changed = Date.now());
+  page.on('request', () => (t.inFlight++, touch()));
+  page.on('requestfinished', () => (t.inFlight--, touch()));
+  page.on('requestfailed', () => (t.inFlight--, touch()));
+  // What a browser asks for of its own after a load (Firefox: the favicon) starts after it.
+  page.on('load', touch);
+  traffic.set(page, t);
+}
+
+async function settle(page: Page, quietMs = 250): Promise<void> {
+  const t = traffic.get(page)!;
+  await expect
+    .poll(() => t.inFlight === 0 && Date.now() - t.changed >= quietMs, { message: 'the page stops loading', intervals: [50] })
+    .toBe(true);
+}
+
 export const test = base.extend<{ problems: string[]; network: Network }>({
+  // The page, whose every navigation after its first, and every reload, first lets what the page
+  // is loading finish: a navigation aborts it, and the aborted request (NS_BINDING_ABORTED in
+  // Firefox, an icon, a fixture, the favicon) would fail the test. Nothing is ignored: a request
+  // that fails for any reason still fails the test (`problems`).
+  page: async ({ page }, use) => {
+    track(page);
+    let navigated = false;
+    const goto = page.goto.bind(page);
+    const reload = page.reload.bind(page);
+    page.goto = async (url, options) => {
+      if (navigated) await settle(page);
+      navigated = true;
+      return goto(url, options);
+    };
+    page.reload = async (options) => {
+      await settle(page);
+      return reload(options);
+    };
+    await use(page);
+  },
   network: async ({ page }, use) => {
-    let inFlight = 0;
-    let changed = Date.now();
-    const started = () => {
-      inFlight++;
-      changed = Date.now();
-    };
-    const ended = () => {
-      inFlight--;
-      changed = Date.now();
-    };
-    page.on('request', started);
-    page.on('requestfinished', ended);
-    page.on('requestfailed', ended);
-    await use({
-      async settled(quietMs = 250) {
-        await expect
-          .poll(() => inFlight === 0 && Date.now() - changed >= quietMs, { message: 'the page stops loading', intervals: [50] })
-          .toBe(true);
-      },
-    });
+    await use({ settled: (quietMs) => settle(page, quietMs) });
   },
   problems: [
     async ({ page }, use) => {
