@@ -369,6 +369,311 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/hierarchy/connectHierarchy.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "connectHierarchy",
+          "return": {
+            "type": {
+              "text": "HierarchyHandle"
+            }
+          },
+          "parameters": [
+            {
+              "name": "element",
+              "type": {
+                "text": "DexHierarchy"
+              }
+            },
+            {
+              "name": "hierarchy",
+              "type": {
+                "text": "FolderHierarchy"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "ConnectHierarchyOptions"
+              }
+            }
+          ],
+          "description": "Wire `element` to `hierarchy`: draw its rows now, and again on each of its refreshes and\nrebuilds, and answer each row the user opens."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "connectHierarchy",
+          "declaration": {
+            "name": "connectHierarchy",
+            "module": "dist/widgets/hierarchy/connectHierarchy.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/hierarchy/dex-hierarchy.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, and a file's mark a badge (a circular\nreference, unsaved changes).\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,\nand a row with rows under it opens or closes. The arrow keys move through the rows (Right opens\na row or goes into it, Left closes it or goes to its parent), Home and End go to the first and\nthe last. connectHierarchy wires one to a FolderHierarchy.",
+          "name": "DexHierarchy",
+          "members": [
+            {
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "HierarchyItem[]"
+              },
+              "default": "[]",
+              "description": "The top-level rows. Replacing them asks `loadChildren` again for every open row. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "loadChildren",
+              "type": {
+                "text": "((item: HierarchyItem) => Promise<HierarchyItem[]>) | null"
+              },
+              "default": "null",
+              "description": "What answers the rows under a row, as it is first opened: a FolderHierarchy's `children`.\nNull, the default, opens every row onto nothing."
+            },
+            {
+              "kind": "field",
+              "name": "expandedKeys",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "The keys of the open rows. The tree changes it as the user opens and closes rows; a row\nwhose key is here opens as soon as it is shown. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "selectedKey",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing."
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Files'",
+              "description": "What a screen reader calls the tree. Default `Files`. Attribute `label`.",
+              "attribute": "label"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-hierarchy-select",
+              "type": {
+                "text": "CustomEvent<HierarchySelectDetail>"
+              },
+              "description": "A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or\nnull for a row that is no file. Sent again each time a row is chosen."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Files'",
+              "description": "What a screen reader calls the tree. Default `Files`. Attribute `label`.",
+              "fieldName": "label"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-hierarchy",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-modified",
+              "description": "The Status column's \"Modified\".",
+              "default": "#b45309"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-color-warning",
+              "default": "#d83b01"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-row-height",
+              "default": "28px"
+            },
+            {
+              "name": "--dex-selection-fg",
+              "description": "The ink on a selected row, whose surface is --dex-color-accent-bg.",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineHierarchy",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-hierarchy'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-hierarchy>`, or under `tag`, and the `<dex-icon>` its rows draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "HierarchyItem",
+          "declaration": {
+            "name": "HierarchyItem",
+            "module": "dist/widgets/hierarchy/dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexHierarchy",
+          "declaration": {
+            "name": "DexHierarchy",
+            "module": "dist/widgets/hierarchy/dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineHierarchy",
+          "declaration": {
+            "name": "defineHierarchy",
+            "module": "dist/widgets/hierarchy/dex-hierarchy.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/hierarchy/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexHierarchy",
+          "declaration": {
+            "name": "DexHierarchy",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineHierarchy",
+          "declaration": {
+            "name": "defineHierarchy",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "connectHierarchy",
+          "declaration": {
+            "name": "connectHierarchy",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConnectHierarchyOptions",
+          "declaration": {
+            "name": "ConnectHierarchyOptions",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchyHandle",
+          "declaration": {
+            "name": "HierarchyHandle",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchyHandleEventMap",
+          "declaration": {
+            "name": "HierarchyHandleEventMap",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchyEventMap",
+          "declaration": {
+            "name": "HierarchyEventMap",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchyItem",
+          "declaration": {
+            "name": "HierarchyItem",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchySelectDetail",
+          "declaration": {
+            "name": "HierarchySelectDetail",
+            "module": "./dex-hierarchy.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/icon-assets/index.js",
       "declarations": [
         {

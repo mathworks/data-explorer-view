@@ -17,7 +17,7 @@ const page = (tag: string) => `${tag.replace(/^dex-/, '')}.md`;
 
 describe('docs/widgets', () => {
   it('has a page for every widget, and none for a widget there is not', () => {
-    expect(TAGS.length).toBe(11);
+    expect(TAGS.length).toBe(12);
     expect(readdirSync(DOCS).sort()).toEqual(TAGS.map(page).sort());
   });
 
@@ -54,7 +54,7 @@ describe('docs/widgets', () => {
 
   it("is linked from the README's table of entries, a page for each entry's widget", () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
-    for (const tag of ['dex-tree-table', 'dex-property-inspector', 'dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-icon']) {
+    for (const tag of ['dex-tree-table', 'dex-property-inspector', 'dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-icon']) {
       expect(readme, tag).toContain(`](docs/widgets/${page(tag)})`);
     }
     for (const [, target] of readme.matchAll(/\]\((docs\/widgets\/[\w-]+\.md)\)/g)) expect(existsSync(join(ROOT, target!)), target).toBe(true);

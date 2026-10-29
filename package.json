@@ -52,6 +52,10 @@
       "types": "./dist/widgets/project-page/index.d.ts",
       "default": "./dist/widgets/project-page/index.js"
     },
+    "./hierarchy": {
+      "types": "./dist/widgets/hierarchy/index.d.ts",
+      "default": "./dist/widgets/hierarchy/index.js"
+    },
     "./icon": {
       "types": "./dist/widgets/icon/index.d.ts",
       "default": "./dist/widgets/icon/index.js"

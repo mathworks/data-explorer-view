@@ -25,7 +25,7 @@ import { sourceFiles } from './tools/moduleGraph.js';
 
 const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
-const TAGS = ['dex-add-gallery', 'dex-column-filter', 'dex-context-menu', 'dex-error-dialog', 'dex-filter-bar', 'dex-icon',
+const TAGS = ['dex-add-gallery', 'dex-column-filter', 'dex-context-menu', 'dex-error-dialog', 'dex-filter-bar', 'dex-hierarchy', 'dex-icon',
   'dex-matrix-grid', 'dex-matrix-open', 'dex-property-inspector', 'dex-tree-table', 'dex-variable-editor'];
 
 interface ModuleEvents {
@@ -77,9 +77,9 @@ const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((f
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 23 events from 11 widgets: a parse that found none would pass everything below.
+    // 24 events from 12 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(23);
+    expect(new Set(names).size).toBe(24);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -146,7 +146,7 @@ let customElementsObserved: Map<string, string[]>;
 beforeAll(async () => {
   const { execFileSync } = await import('node:child_process');
   const script = `
-    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'icon'];
+    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'hierarchy', 'icon'];
     const out = {};
     for (const e of entries) {
       const m = await import('data-explorer-view/' + e);
@@ -180,20 +180,23 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineVariableEditor, type MatrixCellsAnswer } from 'data-explorer-view/variable-editor';
     import { defineContextMenu } from 'data-explorer-view/context-menu';
     import { defineErrorDialog } from 'data-explorer-view/error-dialog';
+    import { connectHierarchy, defineHierarchy, type HierarchyHandle, type HierarchySelectDetail } from 'data-explorer-view/hierarchy';
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
     import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
     import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
+    import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
 
-    defineTreeTable(); definePropertyInspector(); defineVariableEditor(); defineContextMenu(); defineErrorDialog(); defineIcon();
+    defineTreeTable(); definePropertyInspector(); defineVariableEditor(); defineContextMenu(); defineErrorDialog(); defineHierarchy(); defineIcon();
     const table = document.createElement('dex-tree-table');
     const inspector = document.createElement('dex-property-inspector');
     const menu = document.createElement('dex-context-menu');
     const dialog = document.createElement('dex-error-dialog');
+    const tree = document.createElement('dex-hierarchy');
     const bar = document.createElement('dex-filter-bar');
     const popup = document.createElement('dex-column-filter');
     const gallery = document.createElement('dex-add-gallery');
@@ -226,6 +229,9 @@ describe('an app written in TypeScript, against the built package', () => {
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
     menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
+    tree.addEventListener('dex-hierarchy-select', (e) => { const d: HierarchySelectDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
+    // @ts-expect-error a select's uri may be null: a row that is no file
+    tree.addEventListener('dex-hierarchy-select', (e) => s(e.detail.uri));
     // They bubble and are composed, so the document and the window hear them, typed.
     document.addEventListener('dex-matrix-open', (e) => s(e.detail.matrix.nodeId));
     document.addEventListener('dex-row-selected', (e) => e.detail.rowIds.map(s));
@@ -315,6 +321,25 @@ describe('an app written in TypeScript, against the built package', () => {
       await doc.reload(new ArrayBuffer(0));
       doc.dispose();
       ws.dispose();
+    })();
+
+    // A folder's hierarchy, in a tree: the model's rows go in as they are.
+    void (async () => {
+      const read: GraphReader = { version: async () => '1', bytes: async () => null, projectStore: async () => null };
+      const hierarchy = new FolderHierarchy({ files: { list: async () => [{ uriString: sourceUri('/w/a.sldd'), path: '/w/a.sldd' }] }, reader: () => read });
+      const roots: HierarchyItem[] = await hierarchy.roots();
+      tree.items = roots;
+      tree.loadChildren = (item) => hierarchy.children(item);
+      tree.expandedKeys = roots.map((r) => r.key);
+      tree.selectedKey = null;
+      const handle: HierarchyHandle = connectHierarchy(tree, hierarchy, { empty: document.createElement('p') });
+      handle.on('open', (uri) => s(uri));
+      handle.on('error', (message) => s(message));
+      // @ts-expect-error no such event
+      handle.on('select', () => {});
+      s((await hierarchy.resolveReference('b.sldd', roots[0]?.id ?? '')) ?? '');
+      hierarchy.rebuild();
+      handle.dispose();
     })();
 
     // One declaration, named by both entries.
