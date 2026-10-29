@@ -434,14 +434,8 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-muted` | `#666` |  |
 | `--dex-color-text-secondary` | `#555` |  |
-| `--dex-error-bg` | `rgba(241, 76, 76, 0.12)` |  |
-| `--dex-error-border` | `#be1100` |  |
-| `--dex-error-fg` | `#a1260d` | The banners above a table: what went wrong, and why a document is shown the way it is. |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
 | `--dex-frozen-shade` | `8px 0 6px -3px rgba(0, 0, 0, 0.28)` | The shade the table's columns slide under once the frozen Name column holds content back: one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the blur so the shade stays a band to the right of the column. |
-| `--dex-notice-bg` | `rgba(100, 148, 237, 0.12)` |  |
-| `--dex-notice-border` | `#4084d0` |  |
-| `--dex-notice-fg` | `#333` |  |
 | `--dex-row-height` | `28px` |  |
 | `--dex-selection-fg` | `#333` | The ink on a selected row, whose surface is --dex-color-accent-bg. |
 | `--dex-tooltip-bg` | `#f8f8f8` |  |

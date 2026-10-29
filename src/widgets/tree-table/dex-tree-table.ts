@@ -393,15 +393,17 @@ export class DexTreeTable extends LitElement {
         padding: 6px 10px;
         border-bottom: 1px solid;
       }
+      /* The theme's error and accent inks, on the search bar's surface: tokens every theme (and
+         an app's mapping of them) already sets, so a banner needs none of its own. */
       .banner-error {
-        color: var(--dex-error-fg, #a1260d);
-        background: var(--dex-error-bg, rgba(241, 76, 76, 0.12));
-        border-color: var(--dex-error-border, #be1100);
+        color: var(--dex-color-error, #d32f2f);
+        background: var(--dex-bg-secondary, #f8f8f8);
+        border-color: var(--dex-color-error, #d32f2f);
       }
       .banner-notice {
-        color: var(--dex-notice-fg, #333);
-        background: var(--dex-notice-bg, rgba(100, 148, 237, 0.12));
-        border-color: var(--dex-notice-border, #4084d0);
+        color: var(--dex-color-text, #333);
+        background: var(--dex-bg-secondary, #f8f8f8);
+        border-color: var(--dex-color-accent, #0078d4);
       }
       .banner-warning {
         color: var(--dex-warning-fg, #333);

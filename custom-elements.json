@@ -2775,19 +2775,6 @@
               "default": "#555"
             },
             {
-              "name": "--dex-error-bg",
-              "default": "rgba(241, 76, 76, 0.12)"
-            },
-            {
-              "name": "--dex-error-border",
-              "default": "#be1100"
-            },
-            {
-              "name": "--dex-error-fg",
-              "description": "The banners above a table: what went wrong, and why a document is shown the way it is.",
-              "default": "#a1260d"
-            },
-            {
               "name": "--dex-font-family",
               "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
             },
@@ -2795,18 +2782,6 @@
               "name": "--dex-frozen-shade",
               "description": "The shade the table's columns slide under once the frozen Name column holds content back: one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the blur so the shade stays a band to the right of the column.",
               "default": "8px 0 6px -3px rgba(0, 0, 0, 0.28)"
-            },
-            {
-              "name": "--dex-notice-bg",
-              "default": "rgba(100, 148, 237, 0.12)"
-            },
-            {
-              "name": "--dex-notice-border",
-              "default": "#4084d0"
-            },
-            {
-              "name": "--dex-notice-fg",
-              "default": "#333"
             },
             {
               "name": "--dex-row-height",
