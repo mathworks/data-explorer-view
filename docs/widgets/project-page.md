@@ -7,9 +7,10 @@ all; both are kept across a new page of the same project, as when its store is s
 cleared for another project. A Managed Simulink Project's page also names its interface and
 private dictionaries and its role.
 
-The page is drawn from the message `projectPageMessage` (or `readProjectPage`, which reads the
-store) in `data-explorer-view/model` builds, the message the VS Code extension's project page is
-sent. A link to a file, a folder or a referenced project is the app's to follow:
+The page is drawn from the message `projectPageMessage(store, markerPath, root)` builds in
+`data-explorer-view/model`, the message the VS Code extension's project page is sent. A host
+with a `StoreFs` (Node, core's `nodeStoreFs`; the extension's `workspace.fs`) has
+`readProjectPage(markerPath, fs)` read the store and build it:
 
 ```js
 import { nodeStoreFs } from 'data-explorer-core/node';
@@ -19,9 +20,36 @@ import { defineProjectPage } from 'data-explorer-view/project-page';
 defineProjectPage();
 const page = document.querySelector('dex-project-page');
 page.payload = await readProjectPage('/work/Plant/Plant.prj', nodeStoreFs);
+```
+
+A page with no file system (a sandboxed Electron window, its folder served by `serveFolder`)
+has the store read where the files are: the folder reader's `projectStore(file)` answers it for
+a project marker the host listed (a `.prj`, or a `matlab.toml`: the uri a hierarchy's project
+row opens), once the folder has been listed. The page then builds the message itself:
+
+```js
+import { isProjectFile } from 'data-explorer-core';
+import { projectPageMessage, uriPath } from 'data-explorer-view/model';
+
+hierarchyHandle.on('open', async (uri) => {
+  const marker = uriPath(uri);
+  if (!isProjectFile(marker)) return openTab(uri);
+  const store = (await folder.projectStore({ uriString: uri, path: marker })) ?? {}; // folderReader(port)
+  page.payload = projectPageMessage(store, marker, dirname(marker)); // root: the project's folder
+});
+```
+
+A link to a file, a folder or a referenced project is the app's to follow. `dex-project-open`'s
+`path` is relative to `payload.root`, with `..` kept as the store wrote it (`models/plant.slx`,
+`../LibProj`): join it to the root. Without `preferProject` the path is what it names, a file
+or a folder (a References row names the referenced project's folder, not its marker); with it
+(a Managed Simulink Project's component row), open the project in that folder:
+
+```js
 page.addEventListener('dex-project-open', (e) => {
-  // A path relative to the project's folder; a component row asks for the project in it.
-  openFile(join(page.payload.root, e.detail.path), e.detail.preferProject);
+  const target = join(page.payload.root, e.detail.path);
+  if (e.detail.preferProject) openProjectIn(target);
+  else openPath(target);
 });
 ```
 

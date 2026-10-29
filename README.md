@@ -249,15 +249,16 @@ the other. A port cannot cross `contextBridge`, so the preload hands it into the
 page with `window.postMessage`, and the page takes it only from its own window:
 
 ```js
-// main: data-explorer-view/serve and core's node/folder load neither view's model nor core's
-import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+// main: data-explorer-view/serve and core's node/folder (1.50 or later) load neither view's model nor core's
+import { listFolder, nodeSourceReader, readProjectStoreFromDisk, watchFolder } from 'data-explorer-core/node/folder';
 import { listedFiles, portFromMainPort, serveFolder, sourceUri } from 'data-explorer-view/serve';
 const { port1, port2 } = new MessageChannelMain();
 const served = serveFolder({
   files: { list: async () => listedFiles(await listFolder(root)) },
   reader: (files) => ({ ...nodeSourceReader(files), projectStore: (f) => readProjectStoreFromDisk(f.path) }),
 }, portFromMainPort(port1));
-watch(root, { recursive: true }, (_e, name) => name && served.changed([sourceUri(join(root, String(name)))]));
+const watch = watchFolder(root, (paths) => served.changed(paths?.map(sourceUri)));
+if (!watch.watching) console.warn(`${root} is shown but not followed: ${watch.error?.message}`);
 win.webContents.postMessage('folder-port', null, [port2]);
 
 // preload
@@ -273,7 +274,55 @@ window.addEventListener('message', (e) => {
 });
 ```
 
-Debouncing the watcher's bursts is the app's: each `changed()` is one message.
+Core's `watchFolder` follows the folder by `listFolder`'s rules, and calls back once per
+burst of changes (a save is several events, a branch switch thousands; 300 ms of quiet ends
+one), with the supported files the burst touched, or with none when anything may have
+changed (a folder created or removed, an event with no name): `changed(undefined)` then
+tells the page to list it all again. It never throws: a folder it cannot follow (missing,
+not a directory, or Linux before Node 20) gives `watching: false` and says why in `error`,
+and the folder is still shown, read again only when the app says so. `watch.dispose()` and
+`served.dispose()` when the folder closes. A `.prj` project's store
+(`resources/project/*.xml`) is no listed file, so a saved store is not reported, and a
+project page drawn from it is not redrawn by itself.
+
+A project row of the tree opens its marker's uri (a `.prj`, or a `matlab.toml`). The page
+has no file system, so the store comes through the folder reader, which the host answers
+for a listed marker once the folder has been listed (the tree lists it first):
+
+```js
+// page: open a project row on its page (core's isProjectFile; dirname and join are the app's)
+handle.on('open', async (uri) => {
+  const marker = uriPath(uri);
+  if (!isProjectFile(marker)) return openTab(uri);
+  const store = (await folder.projectStore({ uriString: uri, path: marker })) ?? {};
+  projectPage.payload = projectPageMessage(store, marker, dirname(marker));
+});
+projectPage.addEventListener('dex-project-open', (e) => {
+  // Relative to payload.root, `..` kept (`../LibProj`): a file, or a folder (a References row
+  // names the referenced project's folder); preferProject asks for the project in that folder.
+  const target = join(projectPage.payload.root, e.detail.path);
+  if (e.detail.preferProject) openProjectIn(target);
+  else openPath(target);
+});
+```
+
+`readProjectPage(marker, fs)` reads the store itself, for a host with a `StoreFs` (Node,
+core's `nodeStoreFs`); see [the project page's page](docs/widgets/project-page.md).
+
+Electron notes, which the recipe above does not show:
+
+- Electron 44's `clipboard.writeText` returns a promise: return it from the main process's
+  handler, and the page's call as connectTable's `copy`, so a refusal reaches the table's
+  error banner instead of passing unseen.
+- An error thrown in an `ipcMain.handle` handler reaches `ipcRenderer.invoke` wrapped, as
+  `Error invoking remote method '<channel>': Error: <message>`: unwrap it before a banner
+  shows it.
+- Vite's dev server injects stylesheets as `<style>` elements, so the dev page's
+  Content-Security-Policy needs `style-src 'unsafe-inline'`; a built page does not (every
+  widget sets its styles through the CSSOM).
+- A channel of the app's own that takes a path from the page (to reveal a file, to open a
+  tab) must confine it to the folder as `serveFolder` does: a file the host listed, by its
+  exact uri, never a path the page made up.
 
 ## Show a folder with Usage and search (preview)
 
@@ -434,7 +483,7 @@ export default {
 };
 ```
 
-The [gallery](gallery/README.md) is built this way and runs under
+The [gallery](https://github.com/mathworks/data-explorer-view/blob/main/gallery/README.md) is built this way and runs under
 `style-src 'self'; img-src 'self'` in Chromium, Firefox and WebKit.
 
 ## Developing
@@ -457,7 +506,7 @@ one) over that tag's.
 The gallery shows every widget on a page of its own, on small public files, and
 is what the browser tests run against, in Chromium, Firefox and WebKit. It is
 also an example of an app built on the package. See
-[gallery/README.md](gallery/README.md).
+[gallery/README.md](https://github.com/mathworks/data-explorer-view/blob/main/gallery/README.md).
 
 ```sh
 npm run gallery        # the pages, in Vite's dev server
@@ -467,4 +516,4 @@ npm run test:gallery   # the browser tests
 ## License
 
 BSD 3-Clause. See [LICENSE](LICENSE). To report a security issue, see
-[SECURITY.md](SECURITY.md).
+[SECURITY.md](https://github.com/mathworks/data-explorer-view/blob/main/SECURITY.md).
