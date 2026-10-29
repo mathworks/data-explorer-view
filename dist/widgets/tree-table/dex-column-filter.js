@@ -46,7 +46,7 @@ export class DexColumnFilter extends LitElement {
       display: block;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: 12px;
-      color: var(--dex-color-text, inherit);
+      color: var(--dex-color-text, #333);
       background: var(--dex-bg-primary, #fff);
       border: 1px solid var(--dex-border-color, #d0d0d0);
       border-radius: 4px;
@@ -117,7 +117,7 @@ export class DexColumnFilter extends LitElement {
       margin: 6px 0;
       min-height: 16px;
       font-size: 11px;
-      color: var(--dex-color-text-secondary, #666);
+      color: var(--dex-color-text-secondary, #555);
     }
     /* --dex-font-mono is the declared name, and it carries the user's own
        editor.fontFamily (vscode-theme.css). --dex-font-family-mono, which this read
@@ -125,7 +125,7 @@ export class DexColumnFilter extends LitElement {
        line in the popup that shows literal syntax to retype was the one line that
        ignored the font the user types code in. */
     .writes-value {
-      font-family: var(--dex-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+      font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace);
       overflow-wrap: anywhere;
     }
     .popup-actions {

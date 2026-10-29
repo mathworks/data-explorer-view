@@ -64,13 +64,19 @@ Icons are loaded from `icons/<id>.svg` under the page's base URL
 (`import.meta.env.BASE_URL`, which Vite sets); this release does not ship the
 icon files.
 
-**`theme/global.css`** holds the colour and font tokens the widgets read,
-with light defaults and `[data-theme="dark"]` and `[data-theme="high-contrast"]`
-sets. Load it once in the page; override the tokens to match your app.
+**`theme.css`** holds every colour, font and size token the widgets read: light
+defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
+(put the attribute on `<html>`). Each widget falls back to the light value of
+every token it reads, so a widget is readable on a page that loads no theme at
+all. To match your app, declare the `--dex-*` tokens after this file, or map
+them onto your own design system's variables.
 
 ```js
-import 'data-explorer-view/theme/global.css';
+import 'data-explorer-view/theme.css';
 ```
+
+`theme/global.css` still works during 0.x (the tokens plus a full-window page
+layout) and goes before 1.0.0.
 
 ## Developing
 

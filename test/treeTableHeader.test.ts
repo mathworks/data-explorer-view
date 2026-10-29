@@ -518,7 +518,14 @@ describe('the width floor and the frozen Name column', () => {
     const table = await mount();
     const c = container(table);
     const cell = () => table.shadowRoot!.querySelector('td') as HTMLElement;
-    const edge = () => getComputedStyle(cell()).boxShadow.replace(/\s+/g, ' ');
+    // The edge token where it is declared, and the rule that hands it to the frozen cell. Read
+    // as the token rather than as the cell's box-shadow: the cell reads it through a fallback (a
+    // literal, as every var() in a widget has), and happy-dom substitutes no var() whose
+    // fallback holds a space.
+    const edge = () => getComputedStyle(c).getPropertyValue('--dex-frozen-edge').replace(/\s+/g, ' ').trim();
+    expect(styleText()).toMatch(
+      /th:first-child,\s*td:first-child\s*\{\s*box-shadow: var\(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent\);/,
+    );
     expect(c.classList.contains('scrolled-x')).toBe(false);
     // Present but invisible, not absent: same layer count as the scrolled value, so
     // the two can transition into each other instead of snapping.
@@ -544,38 +551,13 @@ describe('the width floor and the frozen Name column', () => {
     table.remove();
   });
 
-  it('each theme kind states the shade as a whole layer, with no var() to poison it', async () => {
-    // Every clause here is a bug already paid for. A --vscode-* var in the shade took
-    // the whole box-shadow down with it when it turned out not to resolve to a usable
-    // colour — the line included, since one bad value invalidates the entire
-    // declaration. The theme's own widget.shadow, once it did resolve, was too faint
-    // to see. And the fix for THAT is not just alpha: black over a near-black
-    // background has so little room to darken it that the dark band has to cover more
-    // ground as well, so geometry and colour have to travel together.
-    const shades = [
-      '.table-container',
-      ':host-context(body.vscode-dark) .table-container',
-      // High contrast draws a hard line and no shade at all — but as a transparent
-      // layer, not as nothing, so both sides of the transition stay the same length.
-      ':host-context(body.vscode-high-contrast) .table-container',
-    ].map((scope) => {
-      const shade = ruleFor(scope).match(/--dex-frozen-shade:([^;]+)/)![1].trim();
-      expect(shade, scope).not.toContain('var(');
-      // A whole layer: four lengths (offset x/y, blur, spread) and then a colour,
-      // which may itself contain spaces. A bare colour here would leave the two sides
-      // of the transition different lengths, and box-shadow would snap instead.
-      const lengths = shade.match(/^(\S+) (\S+) (\S+) (\S+) (.+)$/);
-      expect(lengths, scope).not.toBeNull();
-      // The one that was a bug: a shadow is a copy of the whole cell box offset
-      // sideways, so a blur reaches above and below it across the column's full width,
-      // and the header table's bleed lands on the first row as a full-width shadow.
-      // A spread of minus half the blur pulls the rect in by what the blur pushes out,
-      // leaving the band strictly to the right of the cell.
-      const [, , , blur, spread] = lengths!;
-      expect(parseFloat(spread), `${scope} spread vs blur`).toBeCloseTo(-parseFloat(blur) / 2, 5);
-      return shade;
-    });
-    expect(shades[2]).toBe('0 0 0 0 transparent');
+  it('takes the shade from the theme, with the light layer as its fallback', async () => {
+    // The shade is per theme kind (themeTokens.test.ts pins each set's layer), so the table
+    // reads it rather than owning it: no :host-context keyed on one host's body classes. The
+    // fallback is the light layer, written whole, so the line still draws with no theme sheet.
+    const edge = ruleFor('.table-container.scrolled-x').replace(/\s+/g, ' ');
+    expect(edge).toContain('var(--dex-frozen-shade, 8px 0 6px -3px rgba(0, 0, 0, 0.28))');
+    expect(ruleFor('.table-container')).not.toContain('--dex-frozen-shade');
   });
 
   it('a ring drawn on the frozen cell keeps the frozen edge with it', async () => {
@@ -588,7 +570,7 @@ describe('the width floor and the frozen Name column', () => {
       'tr.data-row.drop-target-forbidden td:first-child',
     ];
     for (const ring of ['td:first-child.focused', ...drops]) {
-      expect(ruleFor(ring), ring).toContain('var(--dex-frozen-edge)');
+      expect(ruleFor(ring), ring).toContain('var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent)');
     }
     // A drop ring chases the cursor from row to row, where the easing that suits the
     // scroll would only smear it. The focus ring moves a keystroke at a time, so it

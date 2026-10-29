@@ -1,23 +1,22 @@
 // Copyright 2026 The MathWorks, Inc.
 // @vitest-environment happy-dom
 //
-// The table's Status "Modified" mark takes its colour from the theme, and from the SAME
-// theme colour as the sections tree's Modified badge (DECORATIONS.modified in
-// src/model/hierarchy/health.ts), so "modified" is one colour on both surfaces.
+// The table's Status "Modified" mark takes its colour from the theme: --dex-color-modified,
+// which vscode-theme.css maps onto the same theme colour as the sections tree's Modified badge
+// (DECORATIONS.modified in src/model/hierarchy/health.ts), so "modified" is one colour on both
+// surfaces there. data-explorer-vscode pins that mapping.
 //
 // It used to be the literal #b45309, chosen against a light background: 3.54:1 on Dark
 // Modern's #181818 and 4.18:1 on HC Black's #000, both under WCAG AA's 4.5. A theme colour
 // is the theme's own answer for each variant, high contrast included. The literal stays as
-// the fallback, reached only where the colour is not registered at all: it is contributed
-// by the built-in git extension, so it is absent when that extension is disabled and in
-// VS Code for the Web, which does not load it.
+// the light theme's value, which is the fallback a page with no theme sheet gets.
 //
 // happy-dom computes no colour, so the rule is asserted as text here, through the element
 // the real render path produces; the rendered contrast was measured in a browser against
 // the shipped bundle.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
-import { DECORATIONS } from '../src/model/hierarchy/health.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 defineTreeTable();
 
@@ -38,9 +37,6 @@ function colorOf(block: string): string | null {
   const m = /(?:^|[;\s])color\s*:([^;]*)(;|$)/.exec(block);
   return m ? m[1].replace(/\s+/g, ' ').trim() : null;
 }
-
-/** The VS Code webview variable for a ThemeColor id: `a.b` -> `--vscode-a-b`. */
-const cssVarFor = (colorId: string): string => `--vscode-${colorId.replace(/\./g, '-')}`;
 
 async function mountModifiedRow(): Promise<{ table: DexTreeTable; mark: HTMLElement }> {
   const table = new DexTreeTable();
@@ -78,14 +74,14 @@ function colorsSelecting(mark: HTMLElement): { selector: string; color: string }
 }
 
 describe('the Status "Modified" mark reads the theme', () => {
-  it('reads gitDecoration.modifiedResourceForeground, with the old literal as its fallback', async () => {
+  it('reads --dex-color-modified, with the light theme\'s value as its fallback', async () => {
     const { table, mark } = await mountModifiedRow();
     const colours = colorsSelecting(mark);
     expect(colours.map((c) => c.selector)).toContain('.status-modified');
     // Every rule that colours the mark: a second, literal one (a "high contrast override")
     // would put back exactly the unthemed colour this replaces.
     for (const { selector, color } of colours) {
-      expect(color, selector).toBe('var(--vscode-gitDecoration-modifiedResourceForeground, #b45309)');
+      expect(color, selector).toBe('var(--dex-color-modified, #b45309)');
     }
     // And it keeps its weight, the half of the cue that is not colour.
     const own = rules().find(([sel]) => sel === '.status-modified');
@@ -93,16 +89,14 @@ describe('the Status "Modified" mark reads the theme', () => {
     table.remove();
   });
 
-  it('is the same theme colour as the sections tree badge for the same state', async () => {
-    const { table, mark } = await mountModifiedRow();
-    const colours = colorsSelecting(mark);
-    expect(colours.length).toBeGreaterThan(0);
-    const expected = cssVarFor(DECORATIONS.modified.colorId);
-    for (const { selector, color } of colours) {
-      const read = /^var\(\s*(--[A-Za-z0-9-]+)\s*,/.exec(color);
-      expect(read, `${selector} reads no theme variable: ${color}`).not.toBeNull();
-      expect(read![1], selector).toBe(expected);
+  it('is a colour every theme set chooses for itself', () => {
+    // The literal was a light-background colour; the dark and high-contrast sets each pick one
+    // that clears AA on their own background (#e2c08d on #1e1e1e is 9.65:1, #7a4800 on #fff 7.62:1).
+    expect(THEME_SETS.light.get('--dex-color-modified')).toBe('#b45309');
+    for (const set of ['dark', 'high-contrast'] as const) {
+      const value = THEME_SETS[set].get('--dex-color-modified');
+      expect(value, set).toMatch(/^#[0-9a-f]{6}$/);
+      expect(value, set).not.toBe('#b45309');
     }
-    table.remove();
   });
 });

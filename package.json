@@ -25,6 +25,7 @@
       "types": "./dist/widgets/*.d.ts",
       "default": "./dist/widgets/*.js"
     },
+    "./theme.css": "./src/theme/tokens.css",
     "./theme/*.css": "./src/theme/*.css"
   },
   "scripts": {

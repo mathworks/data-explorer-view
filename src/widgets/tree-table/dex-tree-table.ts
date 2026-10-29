@@ -371,8 +371,8 @@ export class DexTreeTable extends LitElement {
         /* The horizontal half is --dex-add-gallery-inset, the same 8px read from the other end:
            Add is this bar's first item and Columns its last, so this padding is the line those
            two buttons stand on, and the gallery hanging off this box lines its own edges up with
-           them by using the same token (the maintainer's ask). Declared once in vscode-theme.css
-           — a document custom property is the only value two shadow roots can share — so
+           them by using the same token (the maintainer's ask). Declared once, in the theme
+           sheet — a document custom property is the only value two shadow roots can share — so
            changing it cannot silently un-align them. */
         padding: 4px var(--dex-add-gallery-inset, 8px);
         border-bottom: 1px solid var(--dex-border-color-light, #e0e0e0);
@@ -446,7 +446,7 @@ export class DexTreeTable extends LitElement {
         border: 1px solid var(--dex-border-color, #d0d0d0);
         border-radius: 3px;
         background: var(--dex-bg-primary, #fff);
-        color: var(--dex-color-text, inherit);
+        color: var(--dex-color-text, #333);
         font-size: 12px;
         font-family: inherit;
         cursor: pointer;
@@ -473,9 +473,9 @@ export class DexTreeTable extends LitElement {
          tr.data-row.selected below: --dex-bg-active is the selection surface, which on some
          themes is a saturated blue VS Code pairs with white, and leaving the label at the
          editor foreground measured 1.8:1 there the last time this file made that mistake.
-         Both halves come from vscode-theme.css's --dex-selection-bg/--dex-selection-fg pair,
-         which is switched in one place, so this rule cannot take one of the two from a theme
-         and the other from somewhere else.
+         Both halves come from the theme's --dex-selection-bg/--dex-selection-fg pair (in
+         VS Code, vscode-theme.css), which is switched in one place, so this rule cannot take
+         one of the two from a theme and the other from somewhere else.
 
          The border is what carries the state when the surface is faint, and it is the reason
          this rule is not a background alone. Light Modern's list.activeSelectionBackground is
@@ -483,18 +483,14 @@ export class DexTreeTable extends LitElement {
          percent apart, so a pointer resting on the open button erased the only cue it had.
          (That surface is now the theme's editor-selection blue, which is a cue of its own —
          the border stays because the faint case is a theme away, not because it was the
-         fashion.) inputOption.activeBorder is VS Code's own "this toggle is on" colour —
-         #005FB8 light, #2488DB dark, contrastBorder on both HC themes, i.e. never invisible.
-
-         Only the BORDER comes from that group, deliberately. inputOption.activeBackground is
-         registered fully transparent on the HC themes, and a registered value satisfies var()
-         — so taking the surface from it would hand HC a pressed button with no surface at all
-         and no fallback to rescue it, which is the one place this cue is least affordable. */
+         fashion.) --dex-border-color-active is that border; vscode-theme.css maps it onto
+         VS Code's own "this toggle is on" colour, and says there why only the border comes
+         from that group. */
       .columns-button[aria-expanded='true'],
       .add-button[aria-expanded='true'] {
         background: var(--dex-bg-active, #e0e0e0);
-        color: var(--dex-selection-fg, var(--vscode-foreground, inherit));
-        border-color: var(--vscode-inputOption-activeBorder, var(--dex-color-accent, #0078d4));
+        color: var(--dex-selection-fg, #333);
+        border-color: var(--dex-border-color-active, #0078d4);
       }
 
       .columns-button:focus-visible,
@@ -535,27 +531,6 @@ export class DexTreeTable extends LitElement {
         min-height: 0;
         position: relative;
         outline: none;
-        /* The shade the hidden columns slide into, as whole shadow layers: geometry and
-           colour have to move together, because how visible a band is depends as much
-           on how much of the neighbouring column it covers as on its alpha. OWNED here
-           rather than taken from the theme's own widget.shadow, for two reasons learned
-           the hard way: that token is tuned for a widget the eye is already tracking and
-           is far too faint for a band this narrow, and routing a --vscode-* var through
-           here risks poisoning the whole box-shadow — one unusable value invalidates the
-           declaration and takes the line down with it. So: no var() in this value, ever.
-
-           THE SPREAD IS MINUS HALF THE BLUR, which is what keeps this a right-hand band
-           instead of a shadow all the way around the cell. A box-shadow is a copy of the
-           WHOLE cell box offset sideways, not a strip along one edge, so a blurred one
-           reaches above and below the cell across the column's full width — and since
-           the header and the rows are separate tables, the header cell's bleed lands on
-           top of the first row as a shadow running the width of the column. Reported as
-           "a four border shadow". A blur of B reaches B/2 past the shadow rect, so a
-           spread of -B/2 pulls that rect in by exactly as much as the blur pushes out
-           and the vertical reach comes to zero. The cost, and the reason the blur stays
-           modest: the same inset softens the band's own top and bottom, so it thins out
-           over the last B/2 of each cell — which is where the row separator runs. */
-        --dex-frozen-shade: 8px 0 6px -3px rgba(0, 0, 0, 0.28);
         /* The frozen column's right-hand boundary, as one token every rule that
            draws a shadow on that column shares (box-shadow does not accumulate
            across rules, so each of them has to restate this). Present but invisible
@@ -565,34 +540,44 @@ export class DexTreeTable extends LitElement {
         --dex-frozen-edge: 0 0 0 0 transparent, 0 0 0 0 transparent;
       }
 
-      /* VS Code puts these classes on the webview's body, so the shade can answer to
-         the theme kind with no help from the host. Dark themes get a heavier, wider one
-         and still end up with the subtler band: black over a near-black editor
-         background has barely any room to darken it — the same alpha takes a light
-         sidebar (243 per channel) down by ~68 levels and a #181818 one (24) down by ~17
-         — so what perceptible contrast there is has to come from covering more ground.
-         The spread stays at minus half the blur here too, for the reason above. High
-         contrast wants no shade at all — a hard line is the idiom there — so the layer
-         stays and only turns transparent, keeping the layer count, and with it the
-         transition, intact. */
-      :host-context(body.vscode-dark) .table-container {
-        --dex-frozen-shade: 11px 0 8px -4px rgba(0, 0, 0, 0.7);
-      }
-
-      :host-context(body.vscode-high-contrast) .table-container {
-        --dex-frozen-shade: 0 0 0 0 transparent;
-      }
-
       /* Once the column is actually holding content back, its right edge stops
          meaning "the first cell ends here" and starts meaning "the rest of the
          table is under here" — so it goes to a full-strength line plus a shade the
          hidden columns appear to slide into. Both are shadow layers rather than
          borders, so they stay unbroken down the section rows and through the light
-         table style, neither of which draws a cell edge in this column at all. */
+         table style, neither of which draws a cell edge in this column at all.
+
+         The shade is --dex-frozen-shade, the theme's: one whole shadow layer, because
+         geometry and colour have to move together — how visible a band is depends as much
+         on how much of the neighbouring column it covers as on its alpha. A dark theme
+         wants a heavier, wider one and still ends up with the subtler band: black over a
+         near-black background has barely any room to darken it — the same alpha takes a
+         light sidebar (243 per channel) down by ~68 levels and a #181818 one (24) down by
+         ~17 — so what contrast there is has to come from covering more ground. High
+         contrast wants no shade at all (a hard line is the idiom there), as a transparent
+         layer, so the layer count, and with it the transition, stays intact. It is not the
+         host theme's own widget shadow, which is tuned for a widget the eye is already
+         tracking and is far too faint for a band this narrow.
+
+         THE SPREAD IS MINUS HALF THE BLUR, which is what keeps it a right-hand band
+         instead of a shadow all the way around the cell. A box-shadow is a copy of the
+         WHOLE cell box offset sideways, not a strip along one edge, so a blurred one
+         reaches above and below the cell across the column's full width — and since
+         the header and the rows are separate tables, the header cell's bleed lands on
+         top of the first row as a shadow running the width of the column. Reported as
+         "a four border shadow". A blur of B reaches B/2 past the shadow rect, so a
+         spread of -B/2 pulls that rect in by exactly as much as the blur pushes out
+         and the vertical reach comes to zero. The cost, and the reason the blur stays
+         modest: the same inset softens the band's own top and bottom, so it thins out
+         over the last B/2 of each cell — which is where the row separator runs.
+
+         Both reads carry a literal fallback, the light theme's: one unusable value in a
+         box-shadow invalidates the whole declaration and would take the line down with
+         the shade. */
       .table-container.scrolled-x {
         --dex-frozen-edge:
           1px 0 0 0 var(--dex-border-color, #d0d0d0),
-          var(--dex-frozen-shade);
+          var(--dex-frozen-shade, 8px 0 6px -3px rgba(0, 0, 0, 0.28));
       }
 
       .virtual-spacer {
@@ -642,7 +627,7 @@ export class DexTreeTable extends LitElement {
       }
 
       th {
-        background: var(--dex-bg-tertiary, #f0f0f0);
+        background: var(--dex-bg-tertiary, #f5f5f5);
         border-bottom: 1px solid var(--dex-border-color, #d0d0d0);
         border-right: 1px solid var(--dex-border-color-light, #e0e0e0);
         padding: 4px 8px;
@@ -784,14 +769,14 @@ export class DexTreeTable extends LitElement {
         flex: 0 0 auto;
         width: 12px;
         text-align: center;
-        color: var(--dex-color-text-muted, #999);
+        color: var(--dex-color-text-muted, #666);
         cursor: grab;
         user-select: none;
         line-height: 1;
       }
 
       .column-menu-item:not(.disabled):hover .col-grip {
-        color: var(--dex-color-text, #444);
+        color: var(--dex-color-text, #333);
       }
 
       .column-menu-item.disabled .col-grip {
@@ -812,7 +797,7 @@ export class DexTreeTable extends LitElement {
         padding: 6px 12px 2px 6px;
         font-size: 11px;
         font-weight: 600;
-        color: var(--dex-color-text-muted, #999);
+        color: var(--dex-color-text-muted, #666);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         user-select: none;
@@ -865,7 +850,7 @@ export class DexTreeTable extends LitElement {
       /* A selected row supplies its own INK as well as its own surface, because VS Code
          chooses the two together and we were only taking one of them.
 
-         Without the color declaration below the row kept --vscode-foreground, safe exactly
+         Without the color declaration below the row kept VS Code's foreground, safe exactly
          as long as the theme's selection colour is a muted one. Both default Modern themes
          are (#04395E dark, #E8E8E8 light), so nothing ever showed. But a theme that leaves
          list.activeSelectionBackground unspecified gets the REGISTRY DEFAULT #0060C0 — a
@@ -875,15 +860,16 @@ export class DexTreeTable extends LitElement {
          look at.
 
          --dex-row-ink exists so the colour is named once and read twice. It reads
-         --dex-selection-fg, which vscode-theme.css declares BESIDE the surface and switches
-         in the same block: on light and dark themes the surface is the theme's
+         --dex-selection-fg, which the theme declares BESIDE the surface. vscode-theme.css
+         switches the two in the same block: on light and dark themes the surface is the theme's
          editor.selectionBackground (a blue) and the ink its editor.selectionForeground, which
          is registered null and therefore lands on the ordinary foreground; on the two
          high-contrast themes both come from list.activeSelection*. Reading
          list.activeSelectionForeground directly from here is what this replaces, and it was
          the pair held apart in two files: that colour's registry default is WHITE, so the
-         first change to the surface would have painted white ink onto a pale blue row. The
-         fallback stays --vscode-foreground, i.e. the behaviour before either change.
+         first change to the surface would have painted white ink onto a pale blue row. In
+         VS Code the token falls back to the ordinary foreground, i.e. the behaviour before
+         either change; here the fallback is the light theme's ink, for a page with no theme.
 
          The muted token is REDECLARED here rather than left to inherit, and that is the
          whole point of the change: read-only ink has to be dim relative to the ink the ROW
@@ -897,10 +883,10 @@ export class DexTreeTable extends LitElement {
          The 78% is therefore written in two places (here and vscode-theme.css) and the two
          must agree; treeTableCellStates.test.ts pins that they do. */
       tr.data-row.selected {
-        --dex-row-ink: var(--dex-selection-fg, var(--vscode-foreground));
+        --dex-row-ink: var(--dex-selection-fg, #333);
         background: var(--dex-color-accent-bg, #cde4f7);
-        color: var(--dex-row-ink);
-        --dex-color-text-muted: color-mix(in srgb, var(--dex-row-ink) 78%, transparent);
+        color: var(--dex-row-ink, #333);
+        --dex-color-text-muted: color-mix(in srgb, var(--dex-row-ink, #333) 78%, transparent);
       }
 
       tr.data-row.cut {
@@ -939,7 +925,7 @@ export class DexTreeTable extends LitElement {
       }
 
       tr.data-row.drop-target-forbidden {
-        box-shadow: inset 0 0 0 2px var(--vscode-errorForeground, #f14c4c);
+        box-shadow: inset 0 0 0 2px var(--dex-color-error, #d32f2f);
         border-radius: 2px;
         cursor: no-drop;
       }
@@ -955,10 +941,10 @@ export class DexTreeTable extends LitElement {
         gap: 6px;
         padding: 3px 8px;
         font-size: 12px;
-        font-family: var(--vscode-font-family, system-ui, sans-serif);
-        color: var(--vscode-editorHoverWidget-foreground, #fff);
-        background: var(--vscode-editorHoverWidget-background, #252526);
-        border: 1px solid var(--vscode-editorHoverWidget-border, #454545);
+        font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+        color: var(--dex-tooltip-fg, #333);
+        background: var(--dex-tooltip-bg, #f8f8f8);
+        border: 1px solid var(--dex-tooltip-border, #c8c8c8);
         border-radius: 3px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
         white-space: nowrap;
@@ -966,7 +952,7 @@ export class DexTreeTable extends LitElement {
       }
 
       .drop-tooltip.forbidden {
-        color: var(--vscode-errorForeground, #f14c4c);
+        color: var(--dex-color-error, #d32f2f);
       }
 
       .drop-tooltip-icon {
@@ -1102,7 +1088,7 @@ export class DexTreeTable extends LitElement {
          home to the left edge. */
       th:first-child,
       td:first-child {
-        box-shadow: var(--dex-frozen-edge);
+        box-shadow: var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
         transition: box-shadow 120ms ease-out;
       }
 
@@ -1112,7 +1098,7 @@ export class DexTreeTable extends LitElement {
       td:first-child.focused {
         box-shadow:
           inset 0 0 0 1px var(--dex-color-accent, #0078d4),
-          var(--dex-frozen-edge);
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
       }
 
       /* Drop rings are inset shadows on the <tr>, which the frozen cell's opaque
@@ -1123,7 +1109,7 @@ export class DexTreeTable extends LitElement {
       tr.data-row.drop-target-above td:first-child {
         box-shadow:
           inset 0 2px 0 0 var(--dex-color-accent, #0078d4),
-          var(--dex-frozen-edge);
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
         transition: none;
       }
 
@@ -1131,15 +1117,15 @@ export class DexTreeTable extends LitElement {
         box-shadow:
           inset 2px 2px 0 0 var(--dex-color-accent, #0078d4),
           inset 0 -2px 0 0 var(--dex-color-accent, #0078d4),
-          var(--dex-frozen-edge);
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
         transition: none;
       }
 
       tr.data-row.drop-target-forbidden td:first-child {
         box-shadow:
-          inset 2px 2px 0 0 var(--vscode-errorForeground, #f14c4c),
-          inset 0 -2px 0 0 var(--vscode-errorForeground, #f14c4c),
-          var(--dex-frozen-edge);
+          inset 2px 2px 0 0 var(--dex-color-error, #d32f2f),
+          inset 0 -2px 0 0 var(--dex-color-error, #d32f2f),
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
         transition: none;
       }
 
@@ -1173,7 +1159,7 @@ export class DexTreeTable extends LitElement {
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: var(--dex-color-text-secondary, #888);
+        color: var(--dex-color-text-secondary, #555);
         font-size: 13px;
         font-style: italic;
         /* Focusable only to give the table the keyboard, like .table-container: no ring. */
@@ -1208,7 +1194,7 @@ export class DexTreeTable extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 12px;
-        color: var(--dex-color-text-secondary, #888);
+        color: var(--dex-color-text-secondary, #555);
         font-size: 12px;
         animation: dex-loading-in 120ms ease-out 500ms both;
       }
@@ -1228,7 +1214,7 @@ export class DexTreeTable extends LitElement {
       .loading-spinner {
         width: 28px;
         height: 28px;
-        border: 3px solid var(--vscode-progressBar-background, var(--dex-color-accent, #0e70c0));
+        border: 3px solid var(--dex-color-progress, #0078d4);
         border-top-color: transparent;
         border-radius: 50%;
         animation: dex-spin 0.8s linear infinite;
@@ -1249,7 +1235,7 @@ export class DexTreeTable extends LitElement {
         right: 0;
         padding: 16px;
         text-align: center;
-        color: var(--dex-color-text-secondary, #888);
+        color: var(--dex-color-text-secondary, #555);
         font-size: 13px;
         font-style: italic;
       }
@@ -1381,7 +1367,7 @@ export class DexTreeTable extends LitElement {
       }
 
       .value-object {
-        color: var(--dex-color-text-muted, #767676);
+        color: var(--dex-color-text-muted, #666);
         font-style: italic;
       }
 
@@ -1418,15 +1404,13 @@ export class DexTreeTable extends LitElement {
         font-size: 0.9em;
       }
 
-      /* The theme's own colour for a modified file, and the same one the sections tree's
-         Modified badge uses (DECORATIONS.modified in src/model/hierarchy/health.ts), so "modified" is
-         one colour on both surfaces. The literal it replaces failed AA on dark and
-         high-contrast themes (3.54:1 on Dark Modern, 4.18:1 on HC Black). The fallback is
-         reached only where the colour is unregistered: the built-in git extension
-         contributes it, so it is absent when that extension is disabled and in VS Code for
-         the Web, which does not load it. statusModifiedColour.test.ts pins both. */
+      /* The theme's colour for a modified file. A token, and not a literal, because the
+         literal failed AA on dark and high-contrast themes (3.54:1 on Dark Modern, 4.18:1 on
+         HC Black). vscode-theme.css maps it onto the colour the sections tree's Modified
+         badge uses (DECORATIONS.modified in src/model/hierarchy/health.ts), so "modified" is
+         one colour on both surfaces there. statusModifiedColour.test.ts pins the read. */
       .status-modified {
-        color: var(--vscode-gitDecoration-modifiedResourceForeground, #b45309);
+        color: var(--dex-color-modified, #b45309);
         font-weight: 500;
       }
 

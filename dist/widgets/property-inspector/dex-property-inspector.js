@@ -116,7 +116,7 @@ export class DexPropertyInspector extends LitElement {
 
     .prop-status {
       font-size: 11px;
-      color: var(--dex-color-text-secondary, #888);
+      color: var(--dex-color-text-secondary, #555);
     }
   `; }
     _onPropertyChange(propName, newValue, oldValue) {

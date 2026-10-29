@@ -40,7 +40,7 @@ export class DexVariableEditor extends LitElement {
       display: block;
     }
 
-    /* --dex-bg-tertiary is --vscode-editorWidget-background: the colour VS Code paints a
+    /* --dex-bg-tertiary is, in VS Code, editorWidget.background: the colour VS Code paints a
        thing that floats over the editor, which is exactly what this is. It replaces an
        rgba(252, 252, 252, 0.98) literal under a #1f1f1f one — copied from dex-context-menu
        together with its shape, but under invented token names (--dex-popover-bg,
@@ -62,7 +62,7 @@ export class DexVariableEditor extends LitElement {
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.06);
       padding: 6px 8px 8px;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-      font-size: var(--dex-font-size, 12px);
+      font-size: var(--dex-font-size, 13px);
       color: var(--dex-color-text, #333);
     }
 

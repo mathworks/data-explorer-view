@@ -17,12 +17,14 @@
 // both shells. No flash of unstyled content: the page's markup is created by the
 // same script, after this.
 //
-// Colours are VS Code theme variables ONLY — no literals, so the page follows the
-// user's theme, including ones that do not exist yet. `color-mix` against
-// `--vscode-foreground` rather than `descriptionForeground`/`disabledForeground` for
-// the reason recorded in vscode-theme.css: those tokens composite to under WCAG AA
-// on the stock themes, and mixing the theme's own foreground toward transparency
-// holds in any theme and over any surface the text actually sits on.
+// Colours, fonts and sizes are the widgets' --dex-* tokens (theme.css), each read with
+// the light theme's value as its fallback, so the page follows whatever theme the app
+// loads and is still readable with none; vscode-theme.css maps every one of them onto
+// the user's VS Code theme. The muted tone is a `color-mix` of the text colour rather
+// than a theme's description or disabled colour, for the reason recorded in
+// vscode-theme.css: those colours composite to under WCAG AA on VS Code's stock themes,
+// and mixing the theme's own foreground toward transparency holds in any theme and over
+// any surface the text actually sits on.
 export const PROJECT_PAGE_CSS = `
 /* The shared stylesheet locks the viewport (html,body{height:100%;overflow:hidden})
    because the table views are one absolutely-positioned element filling the panel.
@@ -30,10 +32,10 @@ export const PROJECT_PAGE_CSS = `
 html, body { height: auto; overflow: visible; }
 body {
   margin: 0;
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
+  font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--dex-font-size, 13px);
+  color: var(--dex-color-text, #333);
+  background: var(--dex-bg-primary, #fff);
   -webkit-font-smoothing: antialiased;
 }
 .dex-page * { box-sizing: border-box; }
@@ -47,80 +49,81 @@ body {
      not survive measurement -- a 60% mix reads as comfortably muted on the dark theme at
      4.58:1 and lands at 3.48:1 on the light one, which is the same trap vscode-theme.css
      records about descriptionForeground. Anything fainter than this needs a measurement,
-     not a preference. */
-  --dex-muted: color-mix(in srgb, var(--vscode-foreground) 72%, transparent);
+     not a preference. The fallback after each var(--dex-muted) is this mix over the light
+     theme's text and page. */
+  --dex-muted: color-mix(in srgb, var(--dex-color-text, #333) 72%, transparent);
 }
 
 .dex-page .identity { padding-bottom: 4px; }
 .dex-page .identity h1 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; }
 .dex-page .identity .root {
-  margin-top: 5px; font-family: var(--vscode-editor-font-family); font-size: 12px;
-  color: var(--dex-muted);
+  margin-top: 5px; font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px;
+  color: var(--dex-muted, #6c6c6c);
   word-break: break-all;
 }
 .dex-page .identity .meta {
   margin-top: 8px; font-size: 12px;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page .identity .meta .dot { opacity: .5; margin: 0 6px; }
 
 .dex-page .section { margin-top: 30px; }
 .dex-page .section > header {
   display: flex; align-items: baseline; gap: 10px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--dex-border-color, #d0d0d0);
   padding-bottom: 5px; margin-bottom: 7px;
 }
 .dex-page .section h2 {
   margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .09em;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page .section .count {
   font-size: 11px; font-variant-numeric: tabular-nums;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page .section .spacer { flex: 1 1 auto; }
 
 .dex-page input.filter {
   font: inherit; font-size: 11px; width: 190px; padding: 2px 6px;
-  color: var(--vscode-input-foreground, var(--vscode-foreground));
-  background: var(--vscode-input-background, var(--vscode-editor-background));
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  color: var(--dex-input-fg, #333);
+  background: var(--dex-input-bg, #fff);
+  border: 1px solid var(--dex-input-border, #c8c8c8);
   border-radius: 2px;
 }
-.dex-page input.filter::placeholder { color: var(--vscode-input-placeholderForeground, inherit); opacity: .7; }
-.dex-page input.filter:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.dex-page input.filter::placeholder { color: var(--dex-input-placeholder-fg, #767676); opacity: .7; }
+.dex-page input.filter:focus { outline: 1px solid var(--dex-color-accent, #0078d4); outline-offset: -1px; }
 
 .dex-page .row {
   display: flex; gap: 14px; align-items: baseline;
   padding: 3px 7px; border-radius: 3px;
 }
-.dex-page .row:hover { background: var(--vscode-list-hoverBackground); }
+.dex-page .row:hover { background: var(--dex-bg-hover, #e8e8e8); }
 .dex-page .row .name { flex: 0 0 auto; min-width: 190px; }
 .dex-page .row .target {
-  font-family: var(--vscode-editor-font-family); font-size: 12px;
-  color: var(--dex-muted);
+  font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px;
+  color: var(--dex-muted, #6c6c6c);
   word-break: break-all;
 }
-.dex-page .row.single .name { min-width: 0; font-family: var(--vscode-editor-font-family); font-size: 12px; }
+.dex-page .row.single .name { min-width: 0; font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px; }
 /* a.link is NESTED inside .target, so this (one class + one element) must not be
    outspecified by ".row .target" (two classes) -- which is what happened when one
    element carried both classes: every link rendered in the muted body colour, i.e.
    the clickable rows did not look clickable. */
-.dex-page a.link { color: var(--vscode-textLink-foreground); text-decoration: none; cursor: pointer; }
+.dex-page a.link { color: var(--dex-color-link, #005fb8); text-decoration: none; cursor: pointer; }
 .dex-page a.link:hover, .dex-page a.link:focus-visible { text-decoration: underline; }
-.dex-page a.link:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-.dex-page .muted { color: var(--dex-muted); }
+.dex-page a.link:focus-visible { outline: 1px solid var(--dex-color-accent, #0078d4); outline-offset: 1px; }
+.dex-page .muted { color: var(--dex-muted, #6c6c6c); }
 .dex-page .empty {
   padding: 3px 7px; font-size: 12px; font-style: italic;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page mark {
-  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234,92,0,.33));
+  background: var(--dex-match-highlight-bg, rgba(234, 92, 0, 0.33));
   color: inherit; border-radius: 2px;
 }
 .dex-page .group-label {
   margin: 8px 0 3px 7px; font-size: 11px; font-weight: 600;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page .group-label:first-child { margin-top: 0; }
 
@@ -128,9 +131,9 @@ body {
    did not read whole" looks the same wherever it is said. */
 .dex-page .warning {
   padding: 6px 10px; border-radius: 3px; font-size: 12px;
-  color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
-  background: var(--vscode-inputValidation-warningBackground, rgba(255,190,60,0.12));
-  border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+  color: var(--dex-warning-fg, #333);
+  background: var(--dex-warning-bg, rgba(255, 190, 60, 0.12));
+  border: 1px solid var(--dex-warning-border, #b89500);
   margin-bottom: 18px;
 }
 .dex-page .warning .headline { font-weight: 600; }
@@ -138,8 +141,8 @@ body {
 
 .dex-page .runs {
   padding: 8px 10px; border-radius: 4px;
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  background: var(--dex-bg-tertiary, #f5f5f5);
+  border: 1px solid var(--dex-border-color-light, #e0e0e0);
 }
 .dex-page .runs .row { padding: 2px 0; }
 .dex-page .runs .row .name { min-width: 92px; font-weight: 500; }
@@ -153,8 +156,8 @@ body {
    rather than a list of its contents. */
 .dex-page .msp {
   padding: 8px 10px; border-radius: 4px;
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  background: var(--dex-bg-tertiary, #f5f5f5);
+  border: 1px solid var(--dex-border-color-light, #e0e0e0);
 }
 .dex-page .msp .row { padding: 2px 0; }
 .dex-page .msp .row .name { min-width: 92px; }
@@ -162,7 +165,7 @@ body {
    the path it is about rather than between the two columns. */
 .dex-page .msp .note {
   margin: 1px 0 8px 106px; font-size: 11px; line-height: 1.45; max-width: 62ch;
-  color: var(--dex-muted);
+  color: var(--dex-muted, #6c6c6c);
 }
 .dex-page .msp .note:last-child { margin-bottom: 0; }
 
@@ -171,30 +174,31 @@ body {
    serviceInterfaces.svg, but every icon there paints itself through var(--mw-icon-*)
    tokens this extension never defines, so all of them render at their light-theme
    fallback (white fill, grey stroke) in every theme -- and an <img> gets no
-   forced-colours treatment at all. badge-background/foreground is a themed PAIR, so its
-   contrast is the theme author's guarantee rather than our mix. */
+   forced-colours treatment at all. --dex-tag-bg/--dex-tag-fg is a themed PAIR (VS Code's
+   badge colours, in vscode-theme.css), so its contrast is the theme author's guarantee
+   rather than our mix. */
 .dex-page .badge {
   display: inline-flex; align-items: center;
   padding: 0 7px; border-radius: 3px;
   font-size: 11px; font-weight: 600; letter-spacing: .02em;
-  border: 1px solid var(--vscode-panel-border);
-  background: var(--vscode-badge-background, var(--vscode-editorWidget-background));
-  color: var(--vscode-badge-foreground, var(--vscode-foreground));
+  border: 1px solid var(--dex-border-color, #d0d0d0);
+  background: var(--dex-tag-bg, #e0e0e0);
+  color: var(--dex-tag-fg, #333);
 }
 
 .dex-page .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 3px 7px; }
 .dex-page .chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 1px 9px; border-radius: 11px; font-size: 12px;
-  border: 1px solid var(--vscode-panel-border);
+  border: 1px solid var(--dex-border-color, #d0d0d0);
 }
-.dex-page .chip .n { font-variant-numeric: tabular-nums; color: var(--dex-muted); }
+.dex-page .chip .n { font-variant-numeric: tabular-nums; color: var(--dex-muted, #6c6c6c); }
 .dex-page .chip.unused { opacity: .5; }
 .dex-page .chip.custom { border-style: dashed; }
 
 .dex-page button.more {
   margin: 5px 0 0 7px; font: inherit; font-size: 11px; cursor: pointer;
-  color: var(--vscode-textLink-foreground); background: none; border: 0; padding: 2px 0;
+  color: var(--dex-color-link, #005fb8); background: none; border: 0; padding: 2px 0;
 }
 .dex-page button.more:hover { text-decoration: underline; }
 
