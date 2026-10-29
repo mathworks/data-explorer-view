@@ -110,7 +110,9 @@ The table then shows the file and its banners (what the read could not read,
 what was held back), fetches the rows under a row as it is opened, opens the
 variable editor on a matrix and fills it, keeps what the user opened and
 selected when the file changes, selects the row a Data Type link names, and has
-a read-only context menu (Copy Name, Copy Value) and Ctrl+F. The rest is the
+a read-only context menu (Copy Name, Copy Value) and Ctrl+F. A copy goes to the
+page's clipboard, or to the app's through the `copy` option, and one that fails
+says so in the error banner. The rest is the
 app's, on the handle: `handle.on('navigate', ({ link }) => …)` for a link to
 another document or a file, `handle.on('select', (rowIds) => …)`,
 `handle.selectByName(name)` for a link that arrives from another table, and

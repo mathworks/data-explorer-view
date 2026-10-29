@@ -2910,6 +2910,14 @@
         },
         {
           "kind": "js",
+          "name": "CopyFailure",
+          "declaration": {
+            "name": "CopyFailure",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "NavigateRequest",
           "declaration": {
             "name": "NavigateRequest",

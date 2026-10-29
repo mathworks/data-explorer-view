@@ -50,6 +50,7 @@ export function connectTable(table, source, options = {}) {
         select: new Set(),
         navigate: new Set(),
         action: new Set(),
+        copyFailed: new Set(),
     };
     const emit = (type, detail) => {
         for (const listener of [...listeners[type]])
@@ -304,6 +305,36 @@ export function connectTable(table, source, options = {}) {
     const onMenuClosed = () => {
         menuContext = null;
     };
+    // Copy Name and Copy Value. A copy that fails is said in the error banner, over whatever error
+    // was there, which the next copy that succeeds gives back (a repaint draws its own).
+    const copy = options.copy ?? pageClipboard;
+    let copyError = null;
+    const copyText = (context, which) => {
+        const text = selectionText(context, which);
+        let copying;
+        try {
+            copying = Promise.resolve(copy(text));
+        }
+        catch (err) {
+            copying = Promise.reject(err);
+        }
+        copying.then(() => {
+            if (disposed)
+                return;
+            if (copyError && banners.error === copyError.shown)
+                showError(copyError.covered);
+            copyError = null;
+        }, (err) => {
+            if (disposed)
+                return;
+            const message = messageOf(err);
+            const shown = `Could not copy to the clipboard: ${message}`;
+            const covered = copyError && banners.error === copyError.shown ? copyError.covered : banners.error;
+            copyError = { shown, covered };
+            showError(shown);
+            emit('copyFailed', { text, message });
+        });
+    };
     if (options.menu !== false) {
         listen(table, 'dex-table-context-menu', (e) => {
             const { x, y, rowId } = e.detail;
@@ -459,13 +490,20 @@ function readOnlyItems(context) {
         { id: 'copyValue', label: 'Copy Value' },
     ];
 }
-/** The selection's names (or values), one a line, on the clipboard; nothing where it is refused. */
-function copyText(context, which) {
+/** The selection's names (or values), one a line: what Copy Name (or Copy Value) copies. */
+function selectionText(context, which) {
     const byId = new Map(context.rows.map((r) => [r.ID, r]));
     const ops = resolveOperands(context.selectedRowIds, context.rows);
     const lines = ops.deleteIds.map((id) => {
         const row = byId.get(id);
         return which === 'copyName' ? (row?.Name?.label ?? '') : cellText(row?.Value);
     });
-    void navigator.clipboard?.writeText(lines.join('\n')).catch(() => { });
+    return lines.join('\n');
+}
+/** The page's clipboard, which a page without one fails like one that refuses. */
+function pageClipboard(text) {
+    if (!navigator.clipboard?.writeText) {
+        return Promise.reject(new Error('this page has no clipboard access'));
+    }
+    return navigator.clipboard.writeText(text);
 }

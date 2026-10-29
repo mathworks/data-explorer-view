@@ -38,7 +38,9 @@ Its options hand parts of that to the app. `variableEditor` is one editor for se
 and an inspector. `menu: false` leaves the right-click to the app, and `menuItems` adds the
 app's own items, whose choice comes out as `action`. `contextMenu` is a menu several tables
 share: the table that opened it acts on its choice, and a dismissed menu leaves none waiting.
-`banners` draws the banners somewhere else.
+`banners` draws the banners somewhere else. `copy` puts what Copy Name and Copy Value copy on
+the app's own clipboard instead of the page's; a copy that fails, on either, says so in the error
+banner and as the handle's `copyFailed`.
 
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the

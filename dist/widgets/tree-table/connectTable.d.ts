@@ -43,6 +43,14 @@ export interface ConnectTableOptions {
      * A function draws them elsewhere instead, and is called with all three whenever any changes.
      */
     banners?: (banners: TableBanners) => void;
+    /**
+     * Where Copy Name and Copy Value put their text, for an app with a clipboard of its own
+     * (Electron's, a host's). A throw or a rejected promise is a copy that failed: the table says
+     * so in its error banner, and the handle sends `copyFailed`. Default: the page's clipboard,
+     * `navigator.clipboard.writeText`, which a page without one, or one that refuses (an unfocused
+     * page, a permission policy), fails the same way.
+     */
+    copy?: (text: string) => Promise<void> | void;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -50,6 +58,13 @@ export interface NavigateRequest {
     target: string;
     /** What it points at. */
     link: LinkTarget;
+}
+/** A copy that did not reach the clipboard (the handle's `copyFailed`). */
+export interface CopyFailure {
+    /** What was to be copied: the names or values, one a line. */
+    text: string;
+    /** Why, as the clipboard or the app's `copy` said it. */
+    message: string;
 }
 /** A menu item the app added (`menuItems`) was chosen. */
 export interface TableAction {
@@ -71,6 +86,11 @@ export interface TableHandleEventMap {
     navigate: NavigateRequest;
     /** One of the app's menu items was chosen. */
     action: TableAction;
+    /**
+     * Copy Name or Copy Value did not reach the clipboard. The table's error banner says so too,
+     * until a copy succeeds or the table repaints.
+     */
+    copyFailed: CopyFailure;
 }
 /** A table wired to a source: what connectTable returns. */
 export interface TableHandle extends InspectorFeed {

@@ -293,6 +293,10 @@ describe('an app written in TypeScript, against the built package', () => {
       following.follow(table);
       handle.on('navigate', ({ link }) => s(link.kind === 'file' ? link.file : link.source));
       handle.on('select', (rowIds) => rowIds.map(s));
+      handle.on('copyFailed', ({ text, message }) => s(text + message));
+      const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
+      connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
+      copying.dispose();
       handle.selectByName('Kp');
       // Across a channel: the host serves, the page's table follows the messages.
       const port: TablePort = { postMessage: () => {}, onMessage: () => () => {} };
