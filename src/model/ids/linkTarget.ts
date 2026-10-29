@@ -3,13 +3,20 @@
 // What a link in a row points at, read out of its target (`dex-link-clicked`'s `target`, a
 // row's `linkTarget`) as core and the row builders write it.
 //
-// WHERE THE NAME ENDS. Both halves can hold an `@`: a source that is a raw path's uri
-// (`file:///u/me@corp/x.sldd`), and a block's name, which is what a block target names a block
-// by in a model older than SIDs (Simulink allows `@` in a block name: `blocks:Gain@1@…`). So the
-// split is at the first `@` that a uri follows — a scheme, `file:`, `untitled:`, `vscode-file:` —
-// and, when no `@` is followed by one (a source spelled as a bare file name, `Kp@params.sldd`),
-// at the last. The VS Code extension's uris spell an `@` as `%40`, so for every target it writes
-// this is the last `@`, its own rule; for a raw path it is the one after the name.
+// WHERE THE NAME ENDS. A source can hold an `@`: a raw path's uri (`file:///u/me@corp/x.sldd`).
+// So can one kind of name: a block target names a block of a model older than SIDs by its name,
+// and Simulink lets a block's name hold one (`blocks:Gain@1@…`). An entry's or a model-workspace
+// parameter's name is a MATLAB identifier, which cannot.
+//
+//   - An entry or workspace target splits at the first `@`, as core's own resolver of an entry
+//     link does (DataModel.ts splitLinkTarget): the name cannot hold one, so the first is the end
+//     of the name, whatever the source holds.
+//   - A block target splits at the first `@` that a uri follows (a scheme: `file:`, `untitled:`,
+//     `vscode-file:`, `binedit:`), and when no `@` is followed by one (a source spelled as a bare
+//     file name, `blocks:A@B@x.sldd`), at the last.
+//
+// The VS Code extension's uris spell an `@` as `%40`, so on every target it writes both read what
+// its own last-`@` split reads; for a raw path, and a pre-SID block's name, they read it right.
 //
 // The name half of a block or model-workspace target carries its kind as a prefix with a colon,
 // which an entry or variable name cannot contain.
@@ -33,10 +40,12 @@ const WORKSPACE = 'workspace:';
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
 /**
- * Where a target's source begins: after the first `@` that a uri follows, else after the last
- * `@`; -1 for a target with none. See the header.
+ * Where a target's source begins: for a block target, after the first `@` that a uri follows,
+ * else after the last `@`; for any other, after the first `@`. -1 for a target with none. See
+ * the header.
  */
 export function sourceAt(target: string): number {
+  if (!target.startsWith(BLOCKS)) return target.indexOf('@');
   for (let at = target.indexOf('@'); at >= 0; at = target.indexOf('@', at + 1)) {
     if (SCHEME.test(target.slice(at + 1))) return at;
   }

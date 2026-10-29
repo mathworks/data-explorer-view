@@ -90,8 +90,9 @@ export interface EditTextRequestDetail {
  * - `<file>`, with no `@`: a file to open (a Model Reference or External Data link), with no row
  *   in it to select.
  *
- * Split at the first `@` that a uri follows, else at the last: a source can contain one, and so
- * can a block's name. `<source>` is a core source id, the file's URL (the model's
+ * Split at the first `@`, as core does, but for a block target: a pre-SID block's name can hold
+ * one, so it splits at the first `@` that a uri follows, else at the last. A source can contain
+ * one. `<source>` is a core source id, the file's URL (the model's
  * srcIdToUriString turns any source id into one), or a bare file name where the file recorded
  * only that. `parseLinkTarget` (`data-explorer-view/model`) reads one.
  */

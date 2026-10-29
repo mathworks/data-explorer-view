@@ -19,7 +19,9 @@ describe('parseNavTarget — Usage-link target grammar', () => {
   });
 
   // Both halves may hold an `@`: a raw path's uri (VS Code's spells it `%40`), and a block's name
-  // in a model older than SIDs. The split is at the first `@` a uri follows, else at the last.
+  // in a model older than SIDs. A block target splits at the first `@` a uri follows, else at the
+  // last; an entry or workspace target, whose name is a MATLAB identifier, at the first, as core's
+  // resolver does.
   it.each([
     ['blocks:Gain@1@file:///w/m.mdl', 'Gain@1', 'file:///w/m.mdl'],
     ['blocks:65@file:///u/me@corp/x.sldd', '65', 'file:///u/me@corp/x.sldd'],
@@ -33,6 +35,10 @@ describe('parseNavTarget — Usage-link target grammar', () => {
     ['blocks:Gain@1@binedit:file:///u/me@corp/d.sldd', 'Gain@1', 'binedit:file:///u/me@corp/d.sldd'],
     ['blocks:Sum@file:///path/to/my.slx', 'Sum', 'file:///path/to/my.slx'],
     ['Kp@file:///u/me@corp/d.sldd', 'Kp', 'file:///u/me@corp/d.sldd'],
+    // An entry's name holds no `@`: what follows the first is all source, uri or not.
+    ['Kp@my@dict.sldd', 'Kp', 'my@dict.sldd'],
+    ['a@b@file:///w/Controller.sldd', 'a', 'b@file:///w/Controller.sldd'],
+    ['workspace:Ts@file:///u/me@corp/m.slx', 'Ts', 'file:///u/me@corp/m.slx'],
   ])('reads %s as the name %s in %s', (target, name, source) => {
     expect(parseNavTarget(target)).toEqual({ name, source });
   });
