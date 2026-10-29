@@ -52,7 +52,8 @@ Focuses the glyph's button, where the variable editor returns focus when it clos
 ## Events
 
 Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
-`HTMLElementEventMap`, so a listener's `e.detail` is typed with no cast.
+`HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
+typed with no cast, on the element, the document or the window.
 
 ### `dex-matrix-open`
 

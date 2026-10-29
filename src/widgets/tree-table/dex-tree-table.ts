@@ -4579,46 +4579,55 @@ export function defineTreeTable(tag = 'dex-tree-table'): void {
   defineElement(tag, DexTreeTable);
 }
 
+/**
+ * The events `<dex-tree-table>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface TreeTableEventMap {
+  /**
+   * The user changed the selection: a click, Ctrl/Cmd- or Shift-click, a key, select-all, or a
+   * right-click on a row not in it.
+   */
+  'dex-row-selected': CustomEvent<RowSelectedDetail>;
+  /**
+   * A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
+   * merged into `rows` under it (the model's childRowsMessage builds them with the file's
+   * planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
+   */
+  'dex-request-children': CustomEvent<RequestChildrenDetail>;
+  /**
+   * A right-click on a row (after selecting it) or on the space under the rows: open a context
+   * menu there.
+   */
+  'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
+  /** The user started dragging rows. */
+  'dex-row-drag-start': CustomEvent<RowDragStartDetail>;
+  /** A drag of this table's rows ended, dropped or not. No detail. */
+  'dex-row-drag-end': CustomEvent<null>;
+  /**
+   * Rows were let go over a row the dropPredictor accepts (any row, with no predictor), or over
+   * the space under the rows when it accepts that.
+   */
+  'dex-row-drop': CustomEvent<RowDropDetail>;
+  /** A Value editor is opening on a summary: send the whole text with openWholeValueEditor. */
+  'dex-edit-text-request': CustomEvent<EditTextRequestDetail>;
+  /** A cell edit was committed with a text that differs from the one it had. */
+  'dex-edit-completed': CustomEvent<EditCompletedDetail>;
+  /**
+   * A link in a cell was clicked: a Data Type, Used By, a block or a parameter. `target` says
+   * what it points at; see LinkClickedDetail for its forms.
+   */
+  'dex-link-clicked': CustomEvent<LinkClickedDetail>;
+  /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
+  'dex-add-entry': CustomEvent<AddEntryDetail>;
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'dex-tree-table': DexTreeTable;
   }
-  interface HTMLElementEventMap {
-    /**
-     * The user changed the selection: a click, Ctrl/Cmd- or Shift-click, a key, select-all, or a
-     * right-click on a row not in it.
-     */
-    'dex-row-selected': CustomEvent<RowSelectedDetail>;
-    /**
-     * A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
-     * merged into `rows` under it (the model's childRowsMessage builds them with the file's
-     * planner, and mergeChildRows puts them in place). Asked once until its rows arrive.
-     */
-    'dex-request-children': CustomEvent<RequestChildrenDetail>;
-    /**
-     * A right-click on a row (after selecting it) or on the space under the rows: open a context
-     * menu there.
-     */
-    'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
-    /** The user started dragging rows. */
-    'dex-row-drag-start': CustomEvent<RowDragStartDetail>;
-    /** A drag of this table's rows ended, dropped or not. No detail. */
-    'dex-row-drag-end': CustomEvent<null>;
-    /**
-     * Rows were let go over a row the dropPredictor accepts (any row, with no predictor), or over
-     * the space under the rows when it accepts that.
-     */
-    'dex-row-drop': CustomEvent<RowDropDetail>;
-    /** A Value editor is opening on a summary: send the whole text with openWholeValueEditor. */
-    'dex-edit-text-request': CustomEvent<EditTextRequestDetail>;
-    /** A cell edit was committed with a text that differs from the one it had. */
-    'dex-edit-completed': CustomEvent<EditCompletedDetail>;
-    /**
-     * A link in a cell was clicked: a Data Type, Used By, a block or a parameter. `target` says
-     * what it points at; see LinkClickedDetail for its forms.
-     */
-    'dex-link-clicked': CustomEvent<LinkClickedDetail>;
-    /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
-    'dex-add-entry': CustomEvent<AddEntryDetail>;
-  }
+  interface HTMLElementEventMap extends TreeTableEventMap {}
+  interface DocumentEventMap extends TreeTableEventMap {}
+  interface WindowEventMap extends TreeTableEventMap {}
 }

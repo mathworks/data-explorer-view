@@ -65,7 +65,8 @@ Focuses the value box; the caller opens the popup for typing, not for reading.
 ## Events
 
 Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
-`HTMLElementEventMap`, so a listener's `e.detail` is typed with no cast.
+`HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
+typed with no cast, on the element, the document or the window.
 
 ### `dex-column-filter-applied`
 

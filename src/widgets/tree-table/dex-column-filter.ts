@@ -306,16 +306,25 @@ export function defineColumnFilter(tag = 'dex-column-filter'): void {
   defineElement(tag, DexColumnFilter);
 }
 
+/**
+ * The events `<dex-column-filter>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface ColumnFilterEventMap {
+  /** Apply, or Enter: put this condition in the filter, in place of the column's own if it has one. */
+  'dex-column-filter-applied': CustomEvent<ColumnFilterAppliedDetail>;
+  /** Clear: take the column's condition out of the filter. */
+  'dex-column-filter-cleared': CustomEvent<ColumnFilterClearedDetail>;
+  /** Escape: close the popup and change nothing. No detail. */
+  'dex-column-filter-closed': CustomEvent<null>;
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'dex-column-filter': DexColumnFilter;
   }
-  interface HTMLElementEventMap {
-    /** Apply, or Enter: put this condition in the filter, in place of the column's own if it has one. */
-    'dex-column-filter-applied': CustomEvent<ColumnFilterAppliedDetail>;
-    /** Clear: take the column's condition out of the filter. */
-    'dex-column-filter-cleared': CustomEvent<ColumnFilterClearedDetail>;
-    /** Escape: close the popup and change nothing. No detail. */
-    'dex-column-filter-closed': CustomEvent<null>;
-  }
+  interface HTMLElementEventMap extends ColumnFilterEventMap {}
+  interface DocumentEventMap extends ColumnFilterEventMap {}
+  interface WindowEventMap extends ColumnFilterEventMap {}
 }

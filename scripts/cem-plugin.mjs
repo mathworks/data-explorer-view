@@ -7,9 +7,11 @@
 //   * private members (TypeScript `private`, or a leading `_`) are left out: they are not API;
 //   * attribute names are Lit's, lowercased (Lit observes `rowid` for a `rowId` property; the
 //     analyzer writes the property's own spelling);
-//   * each event's type and description come from the `HTMLElementEventMap` entry its module
-//     declares, the one place a listener's type comes from too. An event a widget dispatches
-//     with no entry, or an entry no widget in that module dispatches, fails the build;
+//   * each event's type and description come from the event map its module declares (the
+//     interface its `HTMLElementEventMap` augmentation extends, beside `DocumentEventMap` and
+//     `WindowEventMap`), the one place a listener's type comes from too. An event a widget
+//     dispatches with no entry, an entry no widget in that module dispatches, or a module whose
+//     three augmentations do not extend the same maps, fails the build;
 //   * each widget's cssProperties are the theme's --dex-* tokens it reads, found in its source
 //     and in the shared stylesheets it imports, with the light default and the note theme.css
 //     gives. A token a widget declares for itself and reads back (the table's --dex-row-ink) is
@@ -81,24 +83,38 @@ function toDist(value) {
 const isPrivate = (member) =>
   (member.privacy !== undefined && member.privacy !== 'public') || /^[_#]/.test(member.name);
 
+const GLOBAL_MAPS = ['HTMLElementEventMap', 'DocumentEventMap', 'WindowEventMap'];
+
 export function dexManifestPlugin() {
-  // Module path → event name → { type, description }, from its `declare global` block.
-  const eventMaps = new Map();
+  // Module path → its interfaces' members by interface name, and what each global event map's
+  // augmentation there extends (and declares itself).
+  const modules = new Map();
+  const moduleOf = (path) => {
+    if (!modules.has(path)) modules.set(path, { interfaces: new Map(), globals: new Map() });
+    return modules.get(path);
+  };
   return {
     name: 'dex-manifest',
 
     analyzePhase({ ts, node, moduleDoc }) {
-      if (!ts.isModuleDeclaration(node) || node.name.getText() !== 'global' || !node.body) return;
-      for (const statement of node.body.statements ?? []) {
-        if (!ts.isInterfaceDeclaration(statement) || statement.name.text !== 'HTMLElementEventMap') continue;
-        const map = eventMaps.get(moduleDoc.path) ?? new Map();
-        for (const member of statement.members) {
+      const members = (decl) => {
+        const out = new Map();
+        for (const member of decl.members) {
           if (!ts.isPropertySignature(member) || !member.type) continue;
           const docs = ts.getJSDocCommentsAndTags(member).filter(ts.isJSDoc);
           const description = docs.map((d) => ts.getTextOfJSDocComment(d.comment) ?? '').join('\n').trim();
-          map.set(member.name.text, { type: member.type.getText(), description: description || undefined });
+          out.set(member.name.text, { type: member.type.getText(), description: description || undefined });
         }
-        eventMaps.set(moduleDoc.path, map);
+        return out;
+      };
+      if (ts.isInterfaceDeclaration(node) && ts.isSourceFile(node.parent)) {
+        moduleOf(moduleDoc.path).interfaces.set(node.name.text, members(node));
+      }
+      if (!ts.isModuleDeclaration(node) || node.name.getText() !== 'global' || !node.body) return;
+      for (const statement of node.body.statements ?? []) {
+        if (!ts.isInterfaceDeclaration(statement) || !GLOBAL_MAPS.includes(statement.name.text)) continue;
+        const extendsNames = (statement.heritageClauses ?? []).flatMap((c) => c.types.map((t) => t.expression.getText()));
+        moduleOf(moduleDoc.path).globals.set(statement.name.text, { extendsNames, own: members(statement) });
       }
     },
 
@@ -107,7 +123,22 @@ export function dexManifestPlugin() {
       const tokens = lightTokens();
       customElementsManifest.modules.sort((a, b) => a.path.localeCompare(b.path));
       for (const mod of customElementsManifest.modules) {
-        const declared = eventMaps.get(mod.path) ?? new Map();
+        const info = modules.get(mod.path);
+        const declared = new Map();
+        const html = info?.globals.get('HTMLElementEventMap');
+        if (html) {
+          for (const name of html.extendsNames) {
+            const map = info.interfaces.get(name);
+            if (!map) errors.push(`${mod.path}: HTMLElementEventMap extends ${name}, which is not an interface of this module`);
+            for (const [event, entry] of map ?? []) declared.set(event, entry);
+          }
+          for (const [event, entry] of html.own) declared.set(event, entry);
+          const spelling = (g) => JSON.stringify([[...g.extendsNames].sort(), [...g.own.keys()].sort()]);
+          for (const other of GLOBAL_MAPS.slice(1)) {
+            const g = info.globals.get(other);
+            if (!g || spelling(g) !== spelling(html)) errors.push(`${mod.path}: ${other} does not declare the events HTMLElementEventMap does`);
+          }
+        }
         const dispatched = new Set();
         for (const decl of mod.declarations ?? []) {
           if (!decl.customElement) continue;

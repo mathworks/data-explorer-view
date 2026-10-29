@@ -74,12 +74,23 @@ export declare class DexContextMenu extends LitElement {
 }
 /** Registers the widget as `<dex-context-menu>`, or under `tag`. */
 export declare function defineContextMenu(tag?: string): void;
+/**
+ * The events `<dex-context-menu>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface ContextMenuEventMap {
+    /** An item that is not disabled was chosen, by a click or Enter; the menu closes. */
+    'dex-action': CustomEvent<ActionDetail>;
+}
 declare global {
     interface HTMLElementTagNameMap {
         'dex-context-menu': DexContextMenu;
     }
-    interface HTMLElementEventMap {
-        /** An item that is not disabled was chosen, by a click or Enter; the menu closes. */
-        'dex-action': CustomEvent<ActionDetail>;
+    interface HTMLElementEventMap extends ContextMenuEventMap {
+    }
+    interface DocumentEventMap extends ContextMenuEventMap {
+    }
+    interface WindowEventMap extends ContextMenuEventMap {
     }
 }

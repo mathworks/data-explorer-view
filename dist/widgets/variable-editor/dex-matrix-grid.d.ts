@@ -52,6 +52,8 @@ export declare class DexMatrixGrid extends LitElement {
     private _measure;
     willUpdate(changed: Map<string, unknown>): void;
     updated(): void;
+    private _measureQueued;
+    private _measureAfterUpdate;
     disconnectedCallback(): void;
     private _scan;
     private get _scanned();

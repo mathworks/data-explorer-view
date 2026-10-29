@@ -42,15 +42,26 @@ export declare class DexFilterBar extends LitElement {
 }
 /** Registers the widget as `<dex-filter-bar>`, or under `tag`. */
 export declare function defineFilterBar(tag?: string): void;
+/**
+ * The events `<dex-filter-bar>` sends, by name. They bubble and are composed, so they reach the document
+ * and the window too: HTMLElementEventMap, DocumentEventMap and WindowEventMap extend this map,
+ * and a listener on an element, the document or the window is typed.
+ */
+export interface FilterBarEventMap {
+    /**
+     * The user asked for this filter text: Enter on what they typed (added after the applied
+     * text), a chip removed, or the whole filter cleared. The table handles it and lets it on.
+     */
+    'dex-filter-applied': CustomEvent<FilterAppliedDetail>;
+}
 declare global {
     interface HTMLElementTagNameMap {
         'dex-filter-bar': DexFilterBar;
     }
-    interface HTMLElementEventMap {
-        /**
-         * The user asked for this filter text: Enter on what they typed (added after the applied
-         * text), a chip removed, or the whole filter cleared. The table handles it and lets it on.
-         */
-        'dex-filter-applied': CustomEvent<FilterAppliedDetail>;
+    interface HTMLElementEventMap extends FilterBarEventMap {
+    }
+    interface DocumentEventMap extends FilterBarEventMap {
+    }
+    interface WindowEventMap extends FilterBarEventMap {
     }
 }

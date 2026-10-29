@@ -78,11 +78,16 @@ same is in `custom-elements.json`
 (the [Custom Elements Manifest](https://github.com/webcomponents/custom-elements-manifest),
 named by `customElements` in `package.json`) for editors and tools. In
 TypeScript the tags and events are typed: `document.createElement('dex-tree-table')`
-is a `DexTreeTable`, and a listener's `e.detail` has its type with no cast:
+is a `DexTreeTable`, and a listener's `e.detail` has its type with no cast, on
+the element or, since every event bubbles out of its shadow root, on the
+document or the window:
 
 ```ts
 table.addEventListener('dex-row-selected', (e) => {
   e.detail.rowIds; // string[]
+});
+document.addEventListener('dex-matrix-open', (e) => {
+  e.detail.matrix.nodeId; // string
 });
 ```
 

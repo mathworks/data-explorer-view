@@ -13,6 +13,11 @@
    (data-explorer-vscode's vscode-theme.css maps every one onto VS Code's theme colours); a
    token it leaves out keeps the value here.
 
+   Each [data-theme] set also says which scheme it is (color-scheme), so the browser draws what it
+   draws itself (scrollbars, a <select>'s list, a checkbox) to match. :root says nothing: a page
+   that loads this file without choosing a theme keeps its own color-scheme, as VS Code's webview
+   does.
+
    The values are literals, and that is deliberate: a var() inside a custom property is resolved
    where the property is DECLARED, so a token derived from another one on :root would keep its
    light value under a [data-theme] set placed on a descendant. Every colour token is therefore
@@ -110,6 +115,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --dex-color-text: #e0e0e0;
   --dex-color-text-secondary: #b0b0b0;
   --dex-color-text-muted: #888;
@@ -181,6 +187,7 @@
 }
 
 [data-theme="high-contrast"] {
+  color-scheme: light;
   --dex-color-text: #000;
   --dex-color-text-secondary: #1a1a1a;
   --dex-color-text-muted: #333;

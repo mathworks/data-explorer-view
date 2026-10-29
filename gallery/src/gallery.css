@@ -9,11 +9,6 @@ body {
   margin: 0;
 }
 
-/* The browser's own controls and scrollbars, which theme.css does not reach. */
-[data-theme='dark'] {
-  color-scheme: dark;
-}
-
 body {
   display: flex;
   flex-direction: column;

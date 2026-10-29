@@ -71,3 +71,15 @@ test('the context menu and the error dialog take the dark set', async ({ page })
   expect(dark[0]).toBe(TEXT.dark);
   expect(dark[1]).not.toBe(light[1]);
 });
+
+test("the browser draws its own controls in the set's scheme", async ({ page }) => {
+  // Scrollbars, the theme switch's own list and a checkbox are the browser's, drawn from
+  // color-scheme, which theme.css sets in each [data-theme] set and leaves alone on :root.
+  await page.goto('index.html');
+  const scheme = () => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  expect(await scheme()).toBe('normal');
+  await pickTheme(page, 'dark');
+  expect(await scheme()).toBe('dark');
+  await pickTheme(page, 'high-contrast');
+  expect(await scheme()).toBe('light');
+});

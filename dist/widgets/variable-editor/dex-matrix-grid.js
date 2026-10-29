@@ -121,6 +121,12 @@ export class DexMatrixGrid extends LitElement {
         this._pendingScroll = null;
         this._lastWindowStart = { row: -1, col: -1 };
         this._resizeObserver = null;
+        // The render just made is measured once its update has finished, not inside it: a state set
+        // in updated() schedules an update from inside the one finishing, which Lit's dev mode warns
+        // about on every open (change-in-update). A microtask later is still before the browser
+        // paints, so the render the measurement asks for is the first one the user sees, as it was
+        // when updated() measured.
+        this._measureQueued = false;
         // One pass over the cells for the two things the whole grid needs to know about
         // them: whether they are all numbers (alignment) and which is the widest (the
         // column width every column then takes). Two passes over a million strings is
@@ -504,7 +510,7 @@ export class DexMatrixGrid extends LitElement {
             if (box.scrollLeft !== pending.left)
                 box.scrollLeft = pending.left;
         }
-        this._measure();
+        this._measureAfterUpdate();
         if (!this._resizeObserver && box && typeof ResizeObserver !== 'undefined') {
             // The panel is positioned after it opens and can be resized by the window, and
             // either one changes how many cells belong in the window.
@@ -515,6 +521,16 @@ export class DexMatrixGrid extends LitElement {
             this._refocus = false;
             this.focusActiveCell();
         }
+    }
+    _measureAfterUpdate() {
+        if (this._measureQueued)
+            return;
+        this._measureQueued = true;
+        void this.updateComplete.then(() => {
+            this._measureQueued = false;
+            if (this.isConnected)
+                this._measure();
+        });
     }
     disconnectedCallback() {
         super.disconnectedCallback();
