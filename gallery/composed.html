@@ -10,6 +10,10 @@
     <main class="split three">
       <aside class="pane left" aria-label="Folder">
         <h2>Folder</h2>
+        <div class="search">
+          <input id="search" type="search" aria-label="Search entries" placeholder="Search entries by name" />
+          <ul id="search-results" aria-label="Matching entries"></ul>
+        </div>
         <dex-hierarchy id="folder" label="Folder"></dex-hierarchy>
       </aside>
       <section class="stage" id="stage">

@@ -4,16 +4,17 @@
 //
 // <dex-icon> draws `<base><id>.svg` and has no fallback, so an id with no file is a broken
 // image in a row, a tile or a button — in every app, and invisible to every test that does not
-// look for the file. An id reaches it from five places, each checked below: the alias table
+// look for the file. An id reaches it from six places, each checked below: the alias table
 // dex-icon maps a data-model kind through, an Add gallery tile, a template that names its own
-// glyph, a row of a folder's hierarchy, and a table row, whose icon is its core node's (rowBuilder
-// passes it through). The last one is read out of core's code (tools/coreIcons.ts) rather than off
-// fixture rows, because no fixture holds every class.
+// glyph, a row of a folder's hierarchy, a search result, and a table row, whose icon is its core
+// node's (rowBuilder passes it through). The last one is read out of core's code
+// (tools/coreIcons.ts) rather than off fixture rows, because no fixture holds every class.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { allTiles } from '../src/model/ids/addCatalog.js';
 import { HIERARCHY_ICONS } from '../src/model/hierarchy/folderHierarchy.js';
+import { SEARCH_ICONS } from '../src/model/search/searchItems.js';
 import { widgetSources } from './tools/cssTokens.js';
 import { coreIconIds } from './tools/coreIcons.js';
 
@@ -61,6 +62,11 @@ describe('every icon id the widgets and the model can ask for ships in icons/', 
       expect.arrayContaining(['simulink_folder', 'simulink_project', 'link_database', 'simulink', 'typeGeneric']),
     );
     expect(missing(HIERARCHY_ICONS)).toEqual([]);
+  });
+
+  it('each icon a search result names, one per kind of entry', () => {
+    expect(Object.keys(SEARCH_ICONS).sort()).toEqual(['block', 'mat', 'sldd', 'workspace']);
+    expect(missing(Object.values(SEARCH_ICONS))).toEqual([]);
   });
 
   it("each id core's nodes can answer with, which is what a row draws", () => {
