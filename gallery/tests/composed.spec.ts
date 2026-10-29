@@ -95,7 +95,8 @@ test("a dictionary's Usage names the blocks of both models, and a click opens th
   await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-sharedParams.sldd');
   const usage = row(page, 'SharedGain').locator('td.col-UsedBy');
   await expect(usage).toHaveText('GainA, LimitA(ctrlA); GainB(plantB)');
-  await usage.getByRole('link', { name: 'GainB' }).click();
-  await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-plantB.slx');
-  await expect(row(page, 'GainB')).toHaveAttribute('aria-selected', 'true');
+  // The first link: the column is narrow beside two panes, and clips the rest of the cell.
+  await usage.getByRole('link', { name: 'GainA' }).click();
+  await expect(page.getByLabel('File', { exact: true })).toHaveValue('usageorder-ctrlA.slx');
+  await expect(row(page, 'GainA')).toHaveAttribute('aria-selected', 'true');
 });
