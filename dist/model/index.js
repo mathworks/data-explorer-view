@@ -50,6 +50,13 @@ export { sourceUri, uriPath } from './source/sourceUri.js';
 // column's cells (over core's usage index), and the grammar of the links in them.
 export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsageGraphFromSummaries, } from './usage/usageCells.js';
 export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';
+// Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
+// blocks), read once over core's source cache, and what a search over them shows.
+export { NameIndex } from './search/nameIndex.js';
+export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
+export { namesOfFile } from './search/nameScan.js';
+export { filterEntries } from './search/searchFilter.js';
+export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
 // between them.

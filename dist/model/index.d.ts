@@ -49,6 +49,15 @@ export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsag
 export type { BlockLink, ParamLink, RawSource, UsageGraph } from './usage/usageCells.js';
 export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';
 export type { NavSourceLookups, ScopedResolve } from './usage/navTarget.js';
+export { NameIndex } from './search/nameIndex.js';
+export type { NameIndexOptions } from './search/nameIndex.js';
+export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
+export type { EntryKind, NameRecord } from './search/nameExtract.js';
+export { namesOfFile } from './search/nameScan.js';
+export type { NameReader } from './search/nameScan.js';
+export { filterEntries } from './search/searchFilter.js';
+export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
+export type { SearchItem } from './search/searchItems.js';
 export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { serveTable } from './source/serveTable.js';
 export type { ChildRowsMessage, EmptyMessage, ErrorMessage, InsertEntryRowsMessage, MatrixCellsMessage, ReadyMessage, RequestChildrenMessage, RequestMatrixMessage, SelectMessage, SetRowsMessage, ShowPropsMessage, TableClientMessage, TableHostMessage, TablePort, UpdateEntryRowsMessage, } from './source/wire.js';
