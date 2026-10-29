@@ -16,7 +16,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { removeToken } from '../../model/filter/rowFilter.js';
 import { OP_GLYPHS } from './dex-column-filter.js';
 const GLYPH = new Map(OP_GLYPHS.map(([op, glyph]) => [op, glyph]));
@@ -25,7 +26,7 @@ const WARNING_TEXT = {
     'unknown-column': 'No column by that name — searched as ordinary text.',
     'non-numeric-bound': 'The bound is not a number, so this condition is ignored.',
 };
-let DexFilterBar = class DexFilterBar extends LitElement {
+export class DexFilterBar extends LitElement {
     constructor() {
         super(...arguments);
         /** The applied filter text. The bar never mutates it; it proposes replacements. */
@@ -319,7 +320,7 @@ let DexFilterBar = class DexFilterBar extends LitElement {
             : nothing}
     `;
     }
-};
+}
 __decorate([
     property({ type: String })
 ], DexFilterBar.prototype, "text", void 0);
@@ -335,7 +336,7 @@ __decorate([
 __decorate([
     query('.filter-input')
 ], DexFilterBar.prototype, "_input", void 0);
-DexFilterBar = __decorate([
-    customElement('dex-filter-bar')
-], DexFilterBar);
-export { DexFilterBar };
+/** Registers the widget as `<dex-filter-bar>`, or under `tag`. */
+export function defineFilterBar(tag = 'dex-filter-bar') {
+    defineElement(tag, DexFilterBar);
+}

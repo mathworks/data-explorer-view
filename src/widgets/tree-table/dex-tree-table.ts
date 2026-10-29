@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
 import { dragModeFromModifiers, type DragMode } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
@@ -11,12 +12,12 @@ import {
 } from '../../model/filter/rowFilter.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
-import './dex-add-gallery.js';
-import './dex-column-filter.js';
-import './dex-filter-bar.js';
+import { defineAddGallery } from './dex-add-gallery.js';
+import { defineColumnFilter } from './dex-column-filter.js';
+import { defineFilterBar } from './dex-filter-bar.js';
 import type { DexFilterBar } from './dex-filter-bar.js';
-import '../shared/dex-icon.js';
-import '../shared/dex-matrix-open.js';
+import { defineIcon } from '../shared/dex-icon.js';
+import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 // Type-only, so nothing from core enters the webview bundle: the import is erased
 // before vite ever resolves it. See the contract below TreeTableRow.
@@ -350,7 +351,6 @@ const OP_WORD_TEXT: Record<FilterOp, string> = {
   '<=': 'at most',
 };
 
-@customElement('dex-tree-table')
 export class DexTreeTable extends LitElement {
   static override styles = [
     highContrastStyles,
@@ -4388,6 +4388,21 @@ export class DexTreeTable extends LitElement {
       </div>
     `;
   }
+}
+
+/**
+ * Registers the widget as `<dex-tree-table>`, or under `tag`, after the parts its template draws,
+ * which keep their default names: the + Add gallery, the column-filter popup, the filter bar, the
+ * icon and the matrix glyph. Parts first, so a part whose name is taken throws before the table
+ * is registered at all.
+ */
+export function defineTreeTable(tag = 'dex-tree-table'): void {
+  defineAddGallery();
+  defineColumnFilter();
+  defineFilterBar();
+  defineIcon();
+  defineMatrixOpen();
+  defineElement(tag, DexTreeTable);
 }
 
 declare global {

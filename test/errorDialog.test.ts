@@ -7,7 +7,9 @@
 // a blocking backdrop, the user MUST always be able to get out of it by keyboard
 // — an unclosable dialog wedges the whole editor tab.
 import { describe, it, expect, afterEach } from 'vitest';
-import { DexErrorDialog } from '../src/widgets/error-dialog/dex-error-dialog.js';
+import { DexErrorDialog, defineErrorDialog } from '../src/widgets/error-dialog/dex-error-dialog.js';
+
+defineErrorDialog();
 
 let dialog: DexErrorDialog | null = null;
 

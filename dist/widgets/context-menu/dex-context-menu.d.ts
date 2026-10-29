@@ -53,6 +53,8 @@ export declare class DexContextMenu extends LitElement {
     private _getSvgIcon;
     render(): import("lit-html").TemplateResult<1>;
 }
+/** Registers the widget as `<dex-context-menu>`, or under `tag`. */
+export declare function defineContextMenu(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-context-menu': DexContextMenu;

@@ -18,7 +18,9 @@ import { join } from 'node:path';
 import { DataModel, parseBinarySldd } from 'data-explorer-core';
 import { buildRows } from '../src/model/rows/rowBuilder.js';
 import { buildMatRows } from '../src/model/rows/matRowBuilder.js';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

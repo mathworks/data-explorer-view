@@ -16,8 +16,10 @@
 // the real render path produces; the rendered contrast was measured in a browser against
 // the shipped bundle.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
 import { DECORATIONS } from '../src/model/hierarchy/health.js';
+
+defineTreeTable();
 
 beforeEach(() => localStorage.clear());
 

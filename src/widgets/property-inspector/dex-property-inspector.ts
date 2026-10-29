@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
-import '../shared/dex-matrix-open.js';
+import { defineElement } from '../shared/define.js';
+import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 
 export interface PropertyGroup {
@@ -28,7 +29,6 @@ export interface PropertyRow {
   matrix?: MatrixDescriptor;
 }
 
-@customElement('dex-property-inspector')
 export class DexPropertyInspector extends LitElement {
   static override styles = css`
     :host {
@@ -213,6 +213,15 @@ export class DexPropertyInspector extends LitElement {
       </div>
     `;
   }
+}
+
+/**
+ * Registers the widget as `<dex-property-inspector>`, or under `tag`, after the matrix glyph a
+ * matrix-valued row draws (under its default name).
+ */
+export function definePropertyInspector(tag = 'dex-property-inspector'): void {
+  defineMatrixOpen();
+  defineElement(tag, DexPropertyInspector);
 }
 
 declare global {

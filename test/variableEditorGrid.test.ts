@@ -7,11 +7,13 @@
 // cell. The page arithmetic (dimension 3 varying fastest) is the part with no
 // second source of truth in the DOM, so it is pinned hardest.
 import { describe, it, expect, afterEach } from 'vitest';
-import { DexMatrixGrid, type MatrixPayload, type MatrixDescriptor } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+import { DexMatrixGrid, defineMatrixGrid, type MatrixPayload, type MatrixDescriptor } from '../src/widgets/variable-editor/dex-matrix-grid.js';
 import type {
   MatrixPayload as HostMatrixPayload,
   MatrixDescriptor as HostMatrixDescriptor,
 } from '../src/model/matrix/matrixPayload.js';
+
+defineMatrixGrid();
 
 let grid: DexMatrixGrid | null = null;
 

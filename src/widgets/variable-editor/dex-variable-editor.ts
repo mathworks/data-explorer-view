@@ -6,8 +6,9 @@
 // same problems (fixed positioning, viewport clamping, document-level dismissal)
 // and whose listener lifecycle is copied deliberately rather than re-derived.
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
-import './dex-matrix-grid.js';
+import { state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
+import { defineMatrixGrid } from './dex-matrix-grid.js';
 import type { DexMatrixGrid, MatrixDescriptor, MatrixPayload } from './dex-matrix-grid.js';
 
 // The host's answer to `requestMatrix` (src/common/protocol.ts MatrixCellsMessage).
@@ -27,7 +28,6 @@ const WAITING = 'Loading…';
 const OFFSET = 4;
 const MARGIN = 8;
 
-@customElement('dex-variable-editor')
 export class DexVariableEditor extends LitElement {
   static override styles = css`
     :host {
@@ -273,6 +273,12 @@ export class DexVariableEditor extends LitElement {
       </div>
     `;
   }
+}
+
+/** Registers the widget as `<dex-variable-editor>`, or under `tag`, after the grid it shows. */
+export function defineVariableEditor(tag = 'dex-variable-editor'): void {
+  defineMatrixGrid();
+  defineElement(tag, DexVariableEditor);
 }
 
 declare global {

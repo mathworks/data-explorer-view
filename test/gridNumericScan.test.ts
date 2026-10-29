@@ -19,7 +19,9 @@ import { join } from 'node:path';
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 import { getModelFromBytes, invalidate } from '../src/model/workspace/SlddModel.js';
 import { matrixPayload } from '../src/model/matrix/matrixPayload.js';
-import { DexMatrixGrid, type MatrixPayload } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+import { DexMatrixGrid, defineMatrixGrid, type MatrixPayload } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+
+defineMatrixGrid();
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

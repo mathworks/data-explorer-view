@@ -11,7 +11,9 @@
 // clicked away from, was written back as one line: a change the user never made, saved
 // without a word. Enter still commits, as in every other cell, and Shift+Enter starts a new line.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 const HOST_COLUMNS = ['Name', 'Value', 'DataType', 'UsedBy', 'Status', 'preStatement', 'headerFile', 'qualifier'];
 

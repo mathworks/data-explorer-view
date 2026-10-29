@@ -6,8 +6,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-let DexErrorDialog = class DexErrorDialog extends LitElement {
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
+export class DexErrorDialog extends LitElement {
     constructor() {
         super(...arguments);
         this.dialogTitle = '';
@@ -262,7 +263,7 @@ let DexErrorDialog = class DexErrorDialog extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     property({ type: String })
 ], DexErrorDialog.prototype, "dialogTitle", void 0);
@@ -284,7 +285,7 @@ __decorate([
 __decorate([
     state()
 ], DexErrorDialog.prototype, "_open", void 0);
-DexErrorDialog = __decorate([
-    customElement('dex-error-dialog')
-], DexErrorDialog);
-export { DexErrorDialog };
+/** Registers the widget as `<dex-error-dialog>`, or under `tag`. */
+export function defineErrorDialog(tag = 'dex-error-dialog') {
+    defineElement(tag, DexErrorDialog);
+}

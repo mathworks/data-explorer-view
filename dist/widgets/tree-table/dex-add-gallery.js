@@ -21,8 +21,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import '../shared/dex-icon.js';
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
+import { defineIcon } from '../shared/dex-icon.js';
 import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '../../model/ids/addCatalog.js';
 /**
  * How big a tile's icon is, in px.
@@ -54,7 +55,7 @@ import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '.
  * declaration for a stylesheet to own.
  */
 const ICON_SIZE = 24;
-let DexAddGallery = class DexAddGallery extends LitElement {
+export class DexAddGallery extends LitElement {
     constructor() {
         super(...arguments);
         /**
@@ -682,7 +683,7 @@ let DexAddGallery = class DexAddGallery extends LitElement {
       </button>
     `;
     }
-};
+}
 __decorate([
     property({ type: Boolean })
 ], DexAddGallery.prototype, "pinned", void 0);
@@ -692,7 +693,8 @@ __decorate([
 __decorate([
     state()
 ], DexAddGallery.prototype, "_activeIndex", void 0);
-DexAddGallery = __decorate([
-    customElement('dex-add-gallery')
-], DexAddGallery);
-export { DexAddGallery };
+/** Registers the widget as `<dex-add-gallery>`, or under `tag`, after the icon its tiles draw. */
+export function defineAddGallery(tag = 'dex-add-gallery') {
+    defineIcon();
+    defineElement(tag, DexAddGallery);
+}

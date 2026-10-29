@@ -8,7 +8,9 @@
 // cycles, orphan rows) that come out of a corrupt .sldd — the component has to
 // stay responsive rather than hang the webview.
 import { describe, it, expect } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 function makeRow(id: string, parent: string | null, name = id): TreeTableRow {
   return { ID: id, parent, Name: { label: name }, Value: '', DataType: '', Description: '', Status: '' };

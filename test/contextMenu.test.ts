@@ -7,7 +7,9 @@
 // — table-main.ts turns that id straight into a host message, so a wrong or
 // missing id silently performs the wrong edit (or none).
 import { describe, it, expect, afterEach } from 'vitest';
-import { DexContextMenu, type ContextMenuItem } from '../src/widgets/context-menu/dex-context-menu.js';
+import { DexContextMenu, defineContextMenu, type ContextMenuItem } from '../src/widgets/context-menu/dex-context-menu.js';
+
+defineContextMenu();
 
 // show() defers listener wiring + position clamping to a rAF, so every test has
 // to let one frame pass before the menu is really interactive.

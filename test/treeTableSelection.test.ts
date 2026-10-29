@@ -8,7 +8,9 @@
 // `selectedRowIds` property, so the component has to behave correctly whether
 // the change came from a click or from outside.
 import { describe, it, expect } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 function makeRow(id: string, parent: string | null, name = id): TreeTableRow {
   return { ID: id, parent, Name: { label: name }, Value: '', DataType: '', Description: '', Status: '' };

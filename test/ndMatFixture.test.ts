@@ -21,7 +21,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getModelFromBytes, invalidate } from '../src/model/workspace/SlddModel.js';
 import { matrixPayload } from '../src/model/matrix/matrixPayload.js';
-import { DexMatrixGrid } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+import { DexMatrixGrid, defineMatrixGrid } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+
+defineMatrixGrid();
 
 // import.meta.dirname, not a URL relative to import.meta.url: under happy-dom
 // that resolves against a document base rather than the file, and every read

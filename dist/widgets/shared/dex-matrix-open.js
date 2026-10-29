@@ -16,9 +16,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 // descriptor and itself; matrixOpen.ts turns that into a show() on the one editor
 // instance the webview owns, plus the `requestMatrix` that fetches the cells.
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import './dex-icon.js';
-let DexMatrixOpen = class DexMatrixOpen extends LitElement {
+import { property } from 'lit/decorators.js';
+import { defineElement } from './define.js';
+import { defineIcon } from './dex-icon.js';
+export class DexMatrixOpen extends LitElement {
     constructor() {
         super(...arguments);
         this.matrix = null;
@@ -97,14 +98,15 @@ let DexMatrixOpen = class DexMatrixOpen extends LitElement {
       @keydown=${this._onKeydown}
     ><dex-icon .iconId=${'wsTable'} .size=${14}></dex-icon></a>`;
     }
-};
+}
 __decorate([
     property({ attribute: false })
 ], DexMatrixOpen.prototype, "matrix", void 0);
 __decorate([
     property({ type: String })
 ], DexMatrixOpen.prototype, "rowId", void 0);
-DexMatrixOpen = __decorate([
-    customElement('dex-matrix-open')
-], DexMatrixOpen);
-export { DexMatrixOpen };
+/** Registers the widget as `<dex-matrix-open>`, or under `tag`, after the icon it draws. */
+export function defineMatrixOpen(tag = 'dex-matrix-open') {
+    defineIcon();
+    defineElement(tag, DexMatrixOpen);
+}

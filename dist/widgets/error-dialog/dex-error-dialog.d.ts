@@ -28,6 +28,8 @@ export declare class DexErrorDialog extends LitElement {
     private _onBackdropClick;
     render(): import("lit-html").TemplateResult<1>;
 }
+/** Registers the widget as `<dex-error-dialog>`, or under `tag`. */
+export declare function defineErrorDialog(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-error-dialog': DexErrorDialog;

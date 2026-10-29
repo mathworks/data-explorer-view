@@ -1,9 +1,4 @@
 import { LitElement } from 'lit';
-import './dex-add-gallery.js';
-import './dex-column-filter.js';
-import './dex-filter-bar.js';
-import '../shared/dex-icon.js';
-import '../shared/dex-matrix-open.js';
 import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
 export interface TreeTableRow {
     ID: string;
@@ -370,6 +365,13 @@ export declare class DexTreeTable extends LitElement {
     private _renderColumnFilterPopup;
     private _renderColumnMenu;
 }
+/**
+ * Registers the widget as `<dex-tree-table>`, or under `tag`, after the parts its template draws,
+ * which keep their default names: the + Add gallery, the column-filter popup, the filter bar, the
+ * icon and the matrix glyph. Parts first, so a part whose name is taken throws before the table
+ * is registered at all.
+ */
+export declare function defineTreeTable(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-tree-table': DexTreeTable;

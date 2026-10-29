@@ -31,7 +31,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 // old auto-layout would have given the widest column — applied to all of them, the
 // way MATLAB's own Variable Editor lays a numeric grid out.
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
 // A cell is right-aligned only if EVERY cell in the matrix reads as a number, so
 // one non-numeric entry keeps the whole column block left-aligned rather than
@@ -65,7 +66,7 @@ const MAX_COL_WIDTH = 240;
 const DEFAULT_ROW_HEIGHT = 20; // 12px of text, 2px of padding either side, a 1px rule
 const DEFAULT_COL_WIDTH = 64;
 const DEFAULT_ROWHEADER_WIDTH = 36;
-let DexMatrixGrid = class DexMatrixGrid extends LitElement {
+export class DexMatrixGrid extends LitElement {
     constructor() {
         super(...arguments);
         this.matrix = null;
@@ -669,7 +670,7 @@ let DexMatrixGrid = class DexMatrixGrid extends LitElement {
       ${this._renderPager()}
     `;
     }
-};
+}
 __decorate([
     property({ attribute: false })
 ], DexMatrixGrid.prototype, "matrix", void 0);
@@ -697,7 +698,7 @@ __decorate([
 __decorate([
     state()
 ], DexMatrixGrid.prototype, "_cellBox", void 0);
-DexMatrixGrid = __decorate([
-    customElement('dex-matrix-grid')
-], DexMatrixGrid);
-export { DexMatrixGrid };
+/** Registers the widget as `<dex-matrix-grid>`, or under `tag`. */
+export function defineMatrixGrid(tag = 'dex-matrix-grid') {
+    defineElement(tag, DexMatrixGrid);
+}

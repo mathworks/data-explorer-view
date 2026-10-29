@@ -20,6 +20,8 @@ export declare class DexFilterBar extends LitElement {
     private _renderChip;
     render(): import("lit-html").TemplateResult<1>;
 }
+/** Registers the widget as `<dex-filter-bar>`, or under `tag`. */
+export declare function defineFilterBar(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-filter-bar': DexFilterBar;

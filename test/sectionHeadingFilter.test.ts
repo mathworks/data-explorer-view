@@ -17,8 +17,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getModel, invalidate } from '../src/model/workspace/SlddModel.js';
 import { buildRows, COLUMNS, COLUMN_LABELS } from '../src/model/rows/rowBuilder.js';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
 import { isSectionRowId } from '../src/model/ids/sectionRowId.js';
+
+defineTreeTable();
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

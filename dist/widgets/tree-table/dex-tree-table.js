@@ -6,18 +6,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { property, state, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
 import { dragModeFromModifiers } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
 import { filterRows, formatToken, parseFilterExpression, removeToken, } from '../../model/filter/rowFilter.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
-import './dex-add-gallery.js';
-import './dex-column-filter.js';
-import './dex-filter-bar.js';
-import '../shared/dex-icon.js';
-import '../shared/dex-matrix-open.js';
+import { defineAddGallery } from './dex-add-gallery.js';
+import { defineColumnFilter } from './dex-column-filter.js';
+import { defineFilterBar } from './dex-filter-bar.js';
+import { defineIcon } from '../shared/dex-icon.js';
+import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 const DEFAULT_ROW_HEIGHT = 26;
 const BUFFER_ROWS = 10;
 // Default column widths as RELATIVE weights: only their ratio matters, because
@@ -216,7 +217,7 @@ const OP_WORD_TEXT = {
     '>=': 'at least',
     '<=': 'at most',
 };
-let DexTreeTable = class DexTreeTable extends LitElement {
+export class DexTreeTable extends LitElement {
     constructor() {
         super(...arguments);
         this.rows = [];
@@ -4082,7 +4083,7 @@ let DexTreeTable = class DexTreeTable extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     property({ type: Array })
 ], DexTreeTable.prototype, "rows", void 0);
@@ -4227,7 +4228,17 @@ __decorate([
 __decorate([
     query('.table-container')
 ], DexTreeTable.prototype, "_container", void 0);
-DexTreeTable = __decorate([
-    customElement('dex-tree-table')
-], DexTreeTable);
-export { DexTreeTable };
+/**
+ * Registers the widget as `<dex-tree-table>`, or under `tag`, after the parts its template draws,
+ * which keep their default names: the + Add gallery, the column-filter popup, the filter bar, the
+ * icon and the matrix glyph. Parts first, so a part whose name is taken throws before the table
+ * is registered at all.
+ */
+export function defineTreeTable(tag = 'dex-tree-table') {
+    defineAddGallery();
+    defineColumnFilter();
+    defineFilterBar();
+    defineIcon();
+    defineMatrixOpen();
+    defineElement(tag, DexTreeTable);
+}

@@ -1,5 +1,4 @@
 import { LitElement } from 'lit';
-import '../shared/dex-icon.js';
 export declare class DexAddGallery extends LitElement {
     static styles: import("lit").CSSResult;
     /**
@@ -76,6 +75,8 @@ export declare class DexAddGallery extends LitElement {
     render(): import("lit-html").TemplateResult<1>;
     private _renderTile;
 }
+/** Registers the widget as `<dex-add-gallery>`, or under `tag`, after the icon its tiles draw. */
+export declare function defineAddGallery(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-add-gallery': DexAddGallery;

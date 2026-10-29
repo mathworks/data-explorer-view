@@ -8,7 +8,9 @@
 // a sort they cannot clear, and a Shift-click that replaces instead of appending
 // silently discards the primary sort they had just set.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable();
 
 const HOST_COLUMNS = ['Name', 'Value', 'DataType', 'Status'];
 

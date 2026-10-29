@@ -48,10 +48,16 @@ import { buildRows } from 'data-explorer-view/model/rows/rowBuilder.js';
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with
 its filter bar, column filter and Add gallery), the property inspector, the
 variable editor, the context menu, the error dialog and the project page.
-Importing a widget's module defines its element.
+Importing a widget defines nothing: call its define function before the
+first element is created. It defines the parts the widget draws (the table's
+filter bar, for example) under their default names, then the widget, under
+the name you pass or its default. A name already defined by a different class
+throws, naming both.
 
 ```js
-import 'data-explorer-view/widgets/tree-table/dex-tree-table.js';
+import { defineTreeTable } from 'data-explorer-view/widgets/tree-table/dex-tree-table.js';
+
+defineTreeTable(); // <dex-tree-table>; or defineTreeTable('my-table')
 ```
 
 Icons are loaded from `icons/<id>.svg` under the page's base URL

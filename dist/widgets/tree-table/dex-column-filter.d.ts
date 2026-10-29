@@ -22,6 +22,8 @@ export declare class DexColumnFilter extends LitElement {
     private _onKeyDown;
     render(): import("lit-html").TemplateResult<1>;
 }
+/** Registers the widget as `<dex-column-filter>`, or under `tag`. */
+export declare function defineColumnFilter(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-column-filter': DexColumnFilter;

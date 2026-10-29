@@ -6,10 +6,11 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
-import '../shared/dex-matrix-open.js';
-let DexPropertyInspector = class DexPropertyInspector extends LitElement {
+import { defineElement } from '../shared/define.js';
+import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
+export class DexPropertyInspector extends LitElement {
     constructor() {
         super(...arguments);
         this.groups = [];
@@ -191,11 +192,15 @@ let DexPropertyInspector = class DexPropertyInspector extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     property({ type: Array })
 ], DexPropertyInspector.prototype, "groups", void 0);
-DexPropertyInspector = __decorate([
-    customElement('dex-property-inspector')
-], DexPropertyInspector);
-export { DexPropertyInspector };
+/**
+ * Registers the widget as `<dex-property-inspector>`, or under `tag`, after the matrix glyph a
+ * matrix-valued row draws (under its default name).
+ */
+export function definePropertyInspector(tag = 'dex-property-inspector') {
+    defineMatrixOpen();
+    defineElement(tag, DexPropertyInspector);
+}

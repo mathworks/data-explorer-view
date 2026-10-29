@@ -13,7 +13,8 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, query } from 'lit/decorators.js';
+import { property, query } from 'lit/decorators.js';
+import { defineElement } from '../shared/define.js';
 import { formatToken } from '../../model/filter/rowFilter.js';
 // Glyph per operator: chips and radios must agree, and `≠ ≥ ≤` read faster than
 // their ASCII spellings. `contains` shows the colon it writes.
@@ -26,7 +27,7 @@ export const OP_GLYPHS = [
     ['>=', '≥', 'greater than or equal to'],
     ['<=', '≤', 'less than or equal to'],
 ];
-let DexColumnFilter = class DexColumnFilter extends LitElement {
+export class DexColumnFilter extends LitElement {
     constructor() {
         super(...arguments);
         /** Column key the condition is about. */
@@ -258,7 +259,7 @@ let DexColumnFilter = class DexColumnFilter extends LitElement {
       </div>
     `;
     }
-};
+}
 __decorate([
     property({ type: String })
 ], DexColumnFilter.prototype, "column", void 0);
@@ -277,7 +278,7 @@ __decorate([
 __decorate([
     query('.popup-value')
 ], DexColumnFilter.prototype, "_valueInput", void 0);
-DexColumnFilter = __decorate([
-    customElement('dex-column-filter')
-], DexColumnFilter);
-export { DexColumnFilter };
+/** Registers the widget as `<dex-column-filter>`, or under `tag`. */
+export function defineColumnFilter(tag = 'dex-column-filter') {
+    defineElement(tag, DexColumnFilter);
+}

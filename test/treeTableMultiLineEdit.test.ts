@@ -16,8 +16,10 @@
 // happy-dom keeps a textarea's CRLF as given, where a browser reads it back as LF; `asBrowserReads`
 // does to the editor what the browser would, so the tests see what a user's commit sees.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DexTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
+import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
 import { hasLineBreak, withHeldLineBreaks } from '../src/widgets/shared/lineBreaks.js';
+
+defineTreeTable();
 
 const HOST_COLUMNS = ['Name', 'Value', 'DataType', 'Status', 'Description', 'headerFile', 'storageClass', 'preStatement'];
 
