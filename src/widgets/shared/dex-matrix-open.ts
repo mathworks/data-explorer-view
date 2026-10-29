@@ -14,8 +14,9 @@ import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
 import { hiddenStyles } from './hidden.styles.js';
 import { defineIcon } from './dex-icon.js';
-import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
+import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
 
+/** What `dex-matrix-open` carries. */
 export interface MatrixOpenDetail {
   // The descriptor, not the payload: the glyph exists once per matrix-valued row,
   // so what it holds is what every such row costs. Its label and tooltip need the
@@ -27,6 +28,14 @@ export interface MatrixOpenDetail {
   rowId?: string;
 }
 
+/**
+ * The glyph after a matrix value that opens it in the variable editor: a button, by click,
+ * Enter or Space. It opens nothing itself; it sends `dex-matrix-open`, and the app shows the
+ * editor (`<dex-variable-editor>`'s show) and fetches the cells. Draws nothing while `matrix` is
+ * null. The table's Value cells and the inspector's Value rows draw it.
+ *
+ * @tagname dex-matrix-open
+ */
 export class DexMatrixOpen extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -60,11 +69,17 @@ export class DexMatrixOpen extends LitElement {
     }
   `];
 
+  /**
+   * The matrix it opens: its name, class, shape and node id, and no cells. Null, the default,
+   * draws nothing. Property only.
+   */
   @property({ attribute: false }) matrix: MatrixDescriptor | null = null;
+  /** The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`. */
   @property({ type: String }) rowId?: string;
 
   // The host element is not focusable, so a bare focus() would land on <body>.
   // dex-variable-editor.close() calls anchorEl.focus() to return focus here.
+  /** Focuses the glyph's button, where the variable editor returns focus when it closes. */
   override focus(options?: FocusOptions): void {
     (this.shadowRoot?.querySelector('a') as HTMLElement | null)?.focus(options);
   }
@@ -120,5 +135,9 @@ export function defineMatrixOpen(tag = 'dex-matrix-open'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-matrix-open': DexMatrixOpen;
+  }
+  interface HTMLElementEventMap {
+    /** The glyph was clicked, or Enter or Space pressed on it: open this matrix. */
+    'dex-matrix-open': CustomEvent<MatrixOpenDetail>;
   }
 }

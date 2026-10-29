@@ -7,7 +7,8 @@
 // cell. The page arithmetic (dimension 3 varying fastest) is the part with no
 // second source of truth in the DOM, so it is pinned hardest.
 import { describe, it, expect, afterEach } from 'vitest';
-import { DexMatrixGrid, defineMatrixGrid, type MatrixPayload, type MatrixDescriptor } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+import { DexMatrixGrid, defineMatrixGrid } from '../src/widgets/variable-editor/dex-matrix-grid.js';
+import type { MatrixPayload, MatrixDescriptor } from '../src/widgets/variable-editor/index.js';
 import type {
   MatrixPayload as HostMatrixPayload,
   MatrixDescriptor as HostMatrixDescriptor,
@@ -56,10 +57,12 @@ function key(el: DexMatrixGrid, k: string): boolean {
 }
 
 describe('the payload type is one shape, mirrored not re-invented', () => {
+  // It was declared twice, in the model and beside the grid, and these assignments kept the two
+  // copies in step. Now it is declared once, in the model: the grid imports it as a type and the
+  // variable-editor entry re-exports it, so the two names below are one declaration
+  // (test/typedApi.test.ts checks the two entries resolve to it). They stay as the plainest
+  // statement of what the grid takes.
   it('the host payload is assignable to the component payload', () => {
-    // The webview does not import host modules at runtime (see dex-tree-table's
-    // own TreeTableRow), so the interface is declared twice. This assignment is
-    // what stops the two copies from drifting: it is a compile error if they do.
     const fromHost: HostMatrixPayload = {
       name: 'A', className: 'double', dims: [1, 2], nodeId: 'n1', cells: ['1', '2'],
     };
@@ -70,8 +73,7 @@ describe('the payload type is one shape, mirrored not re-invented', () => {
   it('the host DESCRIPTOR is assignable too, because that is what a row carries', () => {
     // The split is the whole fetch-on-open design: a row is stamped with the
     // descriptor — name, class, shape, and the node id to ask for — and the cells
-    // arrive only when a panel opens. Both halves have to mirror, or the glyph and
-    // the grid would be describing different types of thing.
+    // arrive only when a panel opens.
     const fromHost: HostMatrixDescriptor = { name: 'A', className: 'double', dims: [1, 2], nodeId: 'n1' };
     const asComponent: MatrixDescriptor = fromHost;
     expect(asComponent.nodeId).toBe('n1');

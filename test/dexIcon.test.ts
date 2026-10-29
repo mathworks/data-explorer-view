@@ -71,6 +71,23 @@ describe('setIconBase', () => {
   });
 });
 
+describe('an id that is not an alias', () => {
+  // The alias table is a plain object, and indexing one also answers with what it inherits: a
+  // bare `ALIASES[id]` gave Object.prototype's `constructor` (a function, so its source text
+  // became the file name), `toString`, or the prototype itself for `__proto__`. Only the
+  // table's own keys are aliases.
+  it.each(['constructor', 'toString', 'hasOwnProperty', 'valueOf', '__proto__'])('draws %s as the file of that name', async (id) => {
+    setIconBase('./icons/');
+    expect(await draw(id)).toBe(`./icons/${id}.svg`);
+  });
+
+  it('still maps a kind the table names', async () => {
+    setIconBase('./icons/');
+    expect(await draw('bus')).toBe('./icons/typeBus.svg');
+    expect(await draw('typeBus')).toBe('./icons/typeBus.svg');
+  });
+});
+
 describe('with no bundler at all', () => {
   const render = (iconId: string, base?: string): string =>
     execFileSync(

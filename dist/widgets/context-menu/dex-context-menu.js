@@ -10,6 +10,15 @@ import { state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { menuitemFocusRingStyles } from '../shared/focus.styles.js';
+/**
+ * A context menu of the items an app hands it, at a point of the viewport: show() opens it,
+ * a choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,
+ * or a scroll close it. Arrow keys move along the items, disabled ones included (their
+ * `reason` is their tooltip), and Enter chooses. The tree table's items for a selection are
+ * buildContextMenuItems' (`data-explorer-view/tree-table`).
+ *
+ * @tagname dex-context-menu
+ */
 export class DexContextMenu extends LitElement {
     constructor() {
         super(...arguments);
@@ -198,6 +207,11 @@ export class DexContextMenu extends LitElement {
       margin: 4px 12px;
     }
   `]; }
+    /**
+     * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
+     * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
+     * open is replaced.
+     */
     show(x, y, items) {
         this._x = x;
         this._y = y;
@@ -213,6 +227,7 @@ export class DexContextMenu extends LitElement {
             window.addEventListener('scroll', this._scrollHandler, true);
         });
     }
+    /** Closes the menu, choosing nothing. */
     close() {
         this._open = false;
         this._focusedIndex = -1;

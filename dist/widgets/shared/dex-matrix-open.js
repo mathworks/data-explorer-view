@@ -20,9 +20,21 @@ import { property } from 'lit/decorators.js';
 import { defineElement } from './define.js';
 import { hiddenStyles } from './hidden.styles.js';
 import { defineIcon } from './dex-icon.js';
+/**
+ * The glyph after a matrix value that opens it in the variable editor: a button, by click,
+ * Enter or Space. It opens nothing itself; it sends `dex-matrix-open`, and the app shows the
+ * editor (`<dex-variable-editor>`'s show) and fetches the cells. Draws nothing while `matrix` is
+ * null. The table's Value cells and the inspector's Value rows draw it.
+ *
+ * @tagname dex-matrix-open
+ */
 export class DexMatrixOpen extends LitElement {
     constructor() {
         super(...arguments);
+        /**
+         * The matrix it opens: its name, class, shape and node id, and no cells. Null, the default,
+         * draws nothing. Property only.
+         */
         this.matrix = null;
     }
     static { this.styles = [hiddenStyles, css `
@@ -58,6 +70,7 @@ export class DexMatrixOpen extends LitElement {
   `]; }
     // The host element is not focusable, so a bare focus() would land on <body>.
     // dex-variable-editor.close() calls anchorEl.focus() to return focus here.
+    /** Focuses the glyph's button, where the variable editor returns focus when it closes. */
     focus(options) {
         this.shadowRoot?.querySelector('a')?.focus(options);
     }

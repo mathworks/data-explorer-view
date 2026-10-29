@@ -1,0 +1,3468 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/context-menu/dex-context-menu.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A context menu of the items an app hands it, at a point of the viewport: show() opens it,\na choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,\nor a scroll close it. Arrow keys move along the items, disabled ones included (their\n`reason` is their tooltip), and Enter chooses. The tree table's items for a selection are\nbuildContextMenuItems' (`data-explorer-view/tree-table`).",
+          "name": "DexContextMenu",
+          "members": [
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "x",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "y",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "items",
+                  "type": {
+                    "text": "ContextMenuItem[]"
+                  }
+                }
+              ],
+              "description": "Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels\n(a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already\nopen is replaced."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the menu, choosing nothing."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-action",
+              "type": {
+                "text": "CustomEvent<ActionDetail>"
+              },
+              "description": "An item that is not disabled was chosen, by a click or Enter; the menu closes."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-context-menu",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-disabled",
+              "default": "#999"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-context-menu-active",
+              "default": "rgba(0, 0, 0, 0.06)"
+            },
+            {
+              "name": "--dex-context-menu-bg",
+              "default": "rgba(252, 252, 252, 0.96)"
+            },
+            {
+              "name": "--dex-context-menu-border",
+              "default": "rgba(0, 0, 0, 0.08)"
+            },
+            {
+              "name": "--dex-context-menu-hover",
+              "default": "rgba(0, 0, 0, 0.04)"
+            },
+            {
+              "name": "--dex-context-menu-separator",
+              "default": "rgba(0, 0, 0, 0.08)"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineContextMenu",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-context-menu'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-context-menu>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexContextMenu",
+          "declaration": {
+            "name": "DexContextMenu",
+            "module": "dist/widgets/context-menu/dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineContextMenu",
+          "declaration": {
+            "name": "defineContextMenu",
+            "module": "dist/widgets/context-menu/dex-context-menu.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/context-menu/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexContextMenu",
+          "declaration": {
+            "name": "DexContextMenu",
+            "module": "./dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineContextMenu",
+          "declaration": {
+            "name": "defineContextMenu",
+            "module": "./dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ActionDetail",
+          "declaration": {
+            "name": "ActionDetail",
+            "module": "./dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ContextMenuItem",
+          "declaration": {
+            "name": "ContextMenuItem",
+            "module": "./dex-context-menu.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/error-dialog/dex-error-dialog.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A modal dialog that says why something the user did was refused: a title, the reason, the\nvalue entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click\noutside it closes it, and focus goes back where it was. With `showRevert`, a Revert button\nsends `dex-revert` first. Tab stays inside the dialog while it is open.",
+          "name": "DexErrorDialog",
+          "members": [
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "opts",
+                  "type": {
+                    "text": "{\n    title?: string;\n    reason?: string;\n    detail?: string;\n    invalidValue?: string;\n    validValue?: string;\n    showRevert?: boolean;\n    returnFocusTo?: HTMLElement;\n  }"
+                  }
+                }
+              ],
+              "description": "Opens the dialog, focused on OK (never on Revert, which discards the user's edit).\n\n`title` defaults to 'Invalid Value' and `reason` to 'The entered value is not valid.';\n`invalidValue` and `validValue` are shown as Entered and Previous, `detail` under them, and\n`showRevert` adds the Revert button. Focus returns to `returnFocusTo` when it closes, or to\nthe element that had it when this was called."
+            },
+            {
+              "kind": "method",
+              "name": "hide",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the dialog and gives focus back, sending nothing."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-revert",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "Revert was pressed: put back the value kept. The dialog closes. No detail."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-error-dialog",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineErrorDialog",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-error-dialog'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-error-dialog>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexErrorDialog",
+          "declaration": {
+            "name": "DexErrorDialog",
+            "module": "dist/widgets/error-dialog/dex-error-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineErrorDialog",
+          "declaration": {
+            "name": "defineErrorDialog",
+            "module": "dist/widgets/error-dialog/dex-error-dialog.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/error-dialog/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexErrorDialog",
+          "declaration": {
+            "name": "DexErrorDialog",
+            "module": "./dex-error-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineErrorDialog",
+          "declaration": {
+            "name": "defineErrorDialog",
+            "module": "./dex-error-dialog.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/icon-assets/index.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "useIconAssets",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "description": "Draws every `<dex-icon>` from the icon files the app's bundler copied, with no copy step and no\nsetIconBase: this module names each icon as `new URL('…/<id>.svg', import.meta.url)`, which Vite,\nwebpack 5 and Parcel turn into an asset of the build. Call it once, before the first icon is\ndrawn, as setIconBase; a setIconBase after it goes back to a folder.\n\nImporting this entry is what puts the icons into a bundle — all of them, renamed — so an app\nthat ships the folder as files already (VS Code's extension does) leaves it out."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "ICON_ASSETS",
+          "declaration": {
+            "name": "ICON_ASSETS",
+            "module": "dist/widgets/icon-assets/index.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "useIconAssets",
+          "declaration": {
+            "name": "useIconAssets",
+            "module": "dist/widgets/icon-assets/index.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/icon/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexIcon",
+          "declaration": {
+            "name": "DexIcon",
+            "module": "../shared/dex-icon.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineIcon",
+          "declaration": {
+            "name": "defineIcon",
+            "module": "../shared/dex-icon.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "setIconBase",
+          "declaration": {
+            "name": "setIconBase",
+            "module": "../shared/dex-icon.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/project-page/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "ROW_CAP",
+          "declaration": {
+            "name": "ROW_CAP",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "newSectionState",
+          "declaration": {
+            "name": "newSectionState",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "renderProjectPage",
+          "declaration": {
+            "name": "renderProjectPage",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PageState",
+          "declaration": {
+            "name": "PageState",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ProjectPagePayload",
+          "declaration": {
+            "name": "ProjectPagePayload",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SectionState",
+          "declaration": {
+            "name": "SectionState",
+            "module": "./projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PROJECT_PAGE_CSS",
+          "declaration": {
+            "name": "PROJECT_PAGE_CSS",
+            "module": "./projectPageStyle.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/project-page/projectPage.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "FILTER_THRESHOLD",
+          "type": {
+            "text": "number"
+          },
+          "default": "8",
+          "description": "A filter box appears above this many items."
+        },
+        {
+          "kind": "variable",
+          "name": "ROW_CAP",
+          "type": {
+            "text": "number"
+          },
+          "default": "30",
+          "description": "Rows rendered before a \"Show all\" button takes over."
+        },
+        {
+          "kind": "function",
+          "name": "newSectionState",
+          "return": {
+            "type": {
+              "text": "SectionState"
+            }
+          }
+        },
+        {
+          "kind": "function",
+          "name": "esc",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "s",
+              "type": {
+                "text": "string | number"
+              }
+            }
+          ],
+          "description": "Everything that reaches the markup, escaped — the page's single rule.\n\nNumbers are accepted, not just strings, so a count is escaped by the same call as\nthe name beside it. Counts look exempt — a count is declared a number, and a number\ncannot carry a `<` — but that type is a claim core's parser makes, and this\npage sits on the far side of a postMessage boundary, where the payload is JSON and\nnothing re-checks the declaration. While this took `string` only, a count could not\nuse it and was concatenated bare instead; `memberCount` then rendered escaped in the\nidentity block and raw in the Labels header, one field under two rules, and the\nsecond was the wrong one (CodeQL js/xss, 2026-10-01).\n\n`null` is NOT in the parameter type and must not be added. `memberCount` and friends are\nnullable for a format that records no member list, and this signature is what turns one\nof them reaching the markup into a compile error at the call site instead of the word\n'null' on a customer's page — core's ProjectPage.memberCount relies on that by name.\nWidening here, or defaulting the argument, moves the decision out of the renderer that\nhas to make it (see labelsSection).\n\n`'` is deliberately absent: every attribute written here is double-quoted, and the\ntest that pins that is the reminder to keep it so."
+        },
+        {
+          "kind": "function",
+          "name": "filterTerms",
+          "return": {
+            "type": {
+              "text": "string[]"
+            }
+          },
+          "parameters": [
+            {
+              "name": "query",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Split a filter query into terms.\n\nBare terms only: whitespace-separated, case-insensitive substring, ANDed. This is\ndeliberately NOT the table's `rowFilter.ts` grammar, which is column-aware\n(`Name:foo`, comparison operators) and needs each row to be a record of named\ncolumns. A page section is not a table — Project Path rows have one field, Labels\nare chips and are not filtered at all — so adopting that grammar would mean\ninventing column names per section to expose a syntax nobody asked for. What IS\nshared is the part a user actually types: several words, all of which must appear."
+        },
+        {
+          "kind": "function",
+          "name": "highlight",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "text",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "terms",
+              "type": {
+                "text": "string[]"
+              }
+            }
+          ],
+          "description": "Escaped `text` with every occurrence of every term wrapped in `<mark>`.\n\nOverlapping and adjacent hits are merged before wrapping. Two terms that overlap\nin one word (`sup` and `upp` in \"support\") would otherwise emit nested or\ninterleaved marks, i.e. broken markup, from input the user typed by accident."
+        },
+        {
+          "kind": "function",
+          "name": "renderProjectPage",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "payload",
+              "type": {
+                "text": "ProjectPagePayload"
+              }
+            },
+            {
+              "name": "state",
+              "type": {
+                "text": "PageState"
+              }
+            }
+          ],
+          "description": "The whole page."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "FILTER_THRESHOLD",
+          "declaration": {
+            "name": "FILTER_THRESHOLD",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ROW_CAP",
+          "declaration": {
+            "name": "ROW_CAP",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "newSectionState",
+          "declaration": {
+            "name": "newSectionState",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "esc",
+          "declaration": {
+            "name": "esc",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "filterTerms",
+          "declaration": {
+            "name": "filterTerms",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "highlight",
+          "declaration": {
+            "name": "highlight",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "renderProjectPage",
+          "declaration": {
+            "name": "renderProjectPage",
+            "module": "dist/widgets/project-page/projectPage.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/project-page/projectPageStyle.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "PROJECT_PAGE_CSS",
+          "default": "` /* The shared stylesheet locks the viewport (html,body{height:100%;overflow:hidden}) because the table views are one absolutely-positioned element filling the panel. This view is a DOCUMENT: it is as tall as the project is and it scrolls. */ html, body { height: auto; overflow: visible; } body { margin: 0; font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); font-size: var(--dex-font-size, 13px); color: var(--dex-color-text, #333); background: var(--dex-bg-primary, #fff); -webkit-font-smoothing: antialiased; } .dex-page * { box-sizing: border-box; } /* A measure, not the full panel width: these are lines of prose-length text, and a path folder stretched across an ultrawide editor is unreadable. */ .dex-page { max-width: 860px; margin: 0 auto; padding: 26px 28px 80px; /* ONE muted tone for the whole page, at the one mix measured to clear WCAG AA in BOTH stock themes: 4.82:1 on light, 5.97:1 on dark. The tones that varied per surface did not survive measurement -- a 60% mix reads as comfortably muted on the dark theme at 4.58:1 and lands at 3.48:1 on the light one, which is the same trap vscode-theme.css records about descriptionForeground. Anything fainter than this needs a measurement, not a preference. The fallback after each var(--dex-muted) is this mix over the light theme's text and page. */ --dex-muted: color-mix(in srgb, var(--dex-color-text, #333) 72%, transparent); } .dex-page .identity { padding-bottom: 4px; } .dex-page .identity h1 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; } .dex-page .identity .root { margin-top: 5px; font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px; color: var(--dex-muted, #6c6c6c); word-break: break-all; } .dex-page .identity .meta { margin-top: 8px; font-size: 12px; color: var(--dex-muted, #6c6c6c); } .dex-page .identity .meta .dot { opacity: .5; margin: 0 6px; } .dex-page .section { margin-top: 30px; } .dex-page .section > header { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--dex-border-color, #d0d0d0); padding-bottom: 5px; margin-bottom: 7px; } .dex-page .section h2 { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--dex-muted, #6c6c6c); } .dex-page .section .count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--dex-muted, #6c6c6c); } .dex-page .section .spacer { flex: 1 1 auto; } .dex-page input.filter { font: inherit; font-size: 11px; width: 190px; padding: 2px 6px; color: var(--dex-input-fg, #333); background: var(--dex-input-bg, #fff); border: 1px solid var(--dex-input-border, #c8c8c8); border-radius: 2px; } .dex-page input.filter::placeholder { color: var(--dex-input-placeholder-fg, #767676); opacity: .7; } .dex-page input.filter:focus { outline: 1px solid var(--dex-color-accent, #0078d4); outline-offset: -1px; } .dex-page .row { display: flex; gap: 14px; align-items: baseline; padding: 3px 7px; border-radius: 3px; } .dex-page .row:hover { background: var(--dex-bg-hover, #e8e8e8); } .dex-page .row .name { flex: 0 0 auto; min-width: 190px; } .dex-page .row .target { font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px; color: var(--dex-muted, #6c6c6c); word-break: break-all; } .dex-page .row.single .name { min-width: 0; font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace); font-size: 12px; } /* a.link is NESTED inside .target, so this (one class + one element) must not be outspecified by \".row .target\" (two classes) -- which is what happened when one element carried both classes: every link rendered in the muted body colour, i.e. the clickable rows did not look clickable. */ .dex-page a.link { color: var(--dex-color-link, #005fb8); text-decoration: none; cursor: pointer; } .dex-page a.link:hover, .dex-page a.link:focus-visible { text-decoration: underline; } .dex-page a.link:focus-visible { outline: 1px solid var(--dex-color-accent, #0078d4); outline-offset: 1px; } .dex-page .muted { color: var(--dex-muted, #6c6c6c); } .dex-page .empty { padding: 3px 7px; font-size: 12px; font-style: italic; color: var(--dex-muted, #6c6c6c); } .dex-page mark { background: var(--dex-match-highlight-bg, rgba(234, 92, 0, 0.33)); color: inherit; border-radius: 2px; } .dex-page .group-label { margin: 8px 0 3px 7px; font-size: 11px; font-weight: 600; color: var(--dex-muted, #6c6c6c); } .dex-page .group-label:first-child { margin-top: 0; } /* The same palette as the table views' warning banner (BANNERS_HTML), so \"this file did not read whole\" looks the same wherever it is said. */ .dex-page .warning { padding: 6px 10px; border-radius: 3px; font-size: 12px; color: var(--dex-warning-fg, #333); background: var(--dex-warning-bg, rgba(255, 190, 60, 0.12)); border: 1px solid var(--dex-warning-border, #b89500); margin-bottom: 18px; } .dex-page .warning .headline { font-weight: 600; } .dex-page .warning ul { margin: 4px 0 0; padding-inline-start: 18px; } .dex-page .runs { padding: 8px 10px; border-radius: 4px; background: var(--dex-bg-tertiary, #f5f5f5); border: 1px solid var(--dex-border-color-light, #e0e0e0); } .dex-page .runs .row { padding: 2px 0; } .dex-page .runs .row .name { min-width: 92px; font-weight: 500; } .dex-page .runs .ord { display: inline-block; min-width: 14px; margin-right: 4px; text-align: right; opacity: .55; font-variant-numeric: tabular-nums; } /* The Managed Simulink Project card (PROOF OF CONCEPT). Same card treatment as .runs, because it says the same KIND of thing: a handful of facts that are about the project rather than a list of its contents. */ .dex-page .msp { padding: 8px 10px; border-radius: 4px; background: var(--dex-bg-tertiary, #f5f5f5); border: 1px solid var(--dex-border-color-light, #e0e0e0); } .dex-page .msp .row { padding: 2px 0; } .dex-page .msp .row .name { min-width: 92px; } /* Indented past the badge column AND the row gap (92 + 14), so the sentence starts under the path it is about rather than between the two columns. */ .dex-page .msp .note { margin: 1px 0 8px 106px; font-size: 11px; line-height: 1.45; max-width: 62ch; color: var(--dex-muted, #6c6c6c); } .dex-page .msp .note:last-child { margin-bottom: 0; } /* The badge that carries a new concept's NAME -- 'interface', 'private', 'component'. A WORD and not an icon: icons/ ships simulink_component.svg and serviceInterfaces.svg, but every icon there paints itself through var(--mw-icon-*) tokens this extension never defines, so all of them render at their light-theme fallback (white fill, grey stroke) in every theme -- and an <img> gets no forced-colours treatment at all. --dex-tag-bg/--dex-tag-fg is a themed PAIR (VS Code's badge colours, in vscode-theme.css), so its contrast is the theme author's guarantee rather than our mix. */ .dex-page .badge { display: inline-flex; align-items: center; padding: 0 7px; border-radius: 3px; font-size: 11px; font-weight: 600; letter-spacing: .02em; border: 1px solid var(--dex-border-color, #d0d0d0); background: var(--dex-tag-bg, #e0e0e0); color: var(--dex-tag-fg, #333); } .dex-page .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 3px 7px; } .dex-page .chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 11px; font-size: 12px; border: 1px solid var(--dex-border-color, #d0d0d0); } .dex-page .chip .n { font-variant-numeric: tabular-nums; color: var(--dex-muted, #6c6c6c); } .dex-page .chip.unused { opacity: .5; } .dex-page .chip.custom { border-style: dashed; } .dex-page button.more { margin: 5px 0 0 7px; font: inherit; font-size: 11px; cursor: pointer; color: var(--dex-color-link, #005fb8); background: none; border: 0; padding: 2px 0; } .dex-page button.more:hover { text-decoration: underline; } /* A dashed border and an opacity are both invisible in a forced-colours theme, where the OS replaces every colour we asked for. Say the same two things with properties it keeps. */ @media (forced-colors: active) { .dex-page .chip { border-color: CanvasText; } /* The badge's themed background is replaced by the OS, so the border is what is left to say \"this is a label on the row\" -- same treatment as the chip. */ .dex-page .badge { border-color: CanvasText; } .dex-page .chip.unused { opacity: 1; color: GrayText; } .dex-page .chip.custom { border-style: dashed; } .dex-page a.link { color: LinkText; } .dex-page mark { background: Highlight; color: HighlightText; } } `"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "PROJECT_PAGE_CSS",
+          "declaration": {
+            "name": "PROJECT_PAGE_CSS",
+            "module": "dist/widgets/project-page/projectPageStyle.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/property-inspector/dex-property-inspector.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a change sends `dex-property-changed`), a link (on its name, or on its value; a click\nsends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
+          "name": "DexPropertyInspector",
+          "members": [
+            {
+              "kind": "field",
+              "name": "groups",
+              "type": {
+                "text": "PropertyGroup[]"
+              },
+              "default": "[]",
+              "description": "The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON).",
+              "attribute": "groups"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-property-changed",
+              "type": {
+                "text": "CustomEvent<PropertyChangedDetail>"
+              },
+              "description": "An editable row's field was changed and committed (its change event)."
+            },
+            {
+              "name": "dex-pi-navigate",
+              "type": {
+                "text": "CustomEvent<PiNavigateDetail>"
+              },
+              "description": "A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a\nvalue link (its `valueLink`)."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "groups",
+              "type": {
+                "text": "PropertyGroup[]"
+              },
+              "default": "[]",
+              "description": "The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON).",
+              "fieldName": "groups"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-property-inspector",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "definePropertyInspector",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-property-inspector'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-property-inspector>`, or under `tag`, after the matrix glyph a\nmatrix-valued row draws (under its default name)."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexPropertyInspector",
+          "declaration": {
+            "name": "DexPropertyInspector",
+            "module": "dist/widgets/property-inspector/dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "definePropertyInspector",
+          "declaration": {
+            "name": "definePropertyInspector",
+            "module": "dist/widgets/property-inspector/dex-property-inspector.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/property-inspector/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexPropertyInspector",
+          "declaration": {
+            "name": "DexPropertyInspector",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "definePropertyInspector",
+          "declaration": {
+            "name": "definePropertyInspector",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PiNavigateDetail",
+          "declaration": {
+            "name": "PiNavigateDetail",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PropertyChangedDetail",
+          "declaration": {
+            "name": "PropertyChangedDetail",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PropertyGroup",
+          "declaration": {
+            "name": "PropertyGroup",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PropertyRow",
+          "declaration": {
+            "name": "PropertyRow",
+            "module": "./dex-property-inspector.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexMatrixOpen",
+          "declaration": {
+            "name": "DexMatrixOpen",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineMatrixOpen",
+          "declaration": {
+            "name": "defineMatrixOpen",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixOpenDetail",
+          "declaration": {
+            "name": "MatrixOpenDetail",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/define.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "defineElement",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "cls",
+              "type": {
+                "text": "CustomElementConstructor"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "defineElement",
+          "declaration": {
+            "name": "defineElement",
+            "module": "dist/widgets/shared/define.js"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "tag",
+          "declaration": {
+            "name": "cls",
+            "module": "dist/widgets/shared/define.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/dex-icon.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "setIconBase",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "url",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Tells every `<dex-icon>` where the icon files are: the URL of a folder holding the files of\nthis package's `icons/` (`data-explorer-view/icons/*`), to which `<id>.svg` is appended. A\nrelative URL resolves as any `<img src>` does, against the page's base URL.\n\nThe default is the package's own folder, found from this module's URL. That holds wherever\nthe package's files are served as they are installed — a static server, an import map, a\ndev server that does not bundle dependencies. A bundler moves this module into a chunk of its\nown, from which that path leads nowhere: an app that bundles copies the icons to where it\nserves its assets and calls this with that folder, before the first icon renders, since\nnothing redraws the icons already on the page."
+        },
+        {
+          "kind": "function",
+          "name": "setIconUrls",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "urls",
+              "type": {
+                "text": "Readonly<Record<string, string>> | null"
+              }
+            }
+          ],
+          "description": "Tells every `<dex-icon>` drawn after it the URL of each icon by its id, in place of a folder; an\nid the table does not name is still `<base><id>.svg`. What useIconAssets calls with the URLs a\nbundler made; a later setIconBase goes back to the folder. Not on the `./icon` entry."
+        },
+        {
+          "kind": "class",
+          "description": "One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see\nsetIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is\ndrawn as the icon that stands for it. Decorative: hidden from assistive technology, so the\nelement beside it carries the name.",
+          "name": "DexIcon",
+          "members": [
+            {
+              "kind": "field",
+              "name": "iconId",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.",
+              "attribute": "iconid"
+            },
+            {
+              "kind": "field",
+              "name": "size",
+              "type": {
+                "text": "number"
+              },
+              "default": "16",
+              "description": "Its width and height in CSS pixels. Default 16. Attribute `size`.",
+              "attribute": "size"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "iconid",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model\nkind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.",
+              "fieldName": "iconId"
+            },
+            {
+              "name": "size",
+              "type": {
+                "text": "number"
+              },
+              "default": "16",
+              "description": "Its width and height in CSS pixels. Default 16. Attribute `size`.",
+              "fieldName": "size"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-icon",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-icon-filter",
+              "description": "A CSS filter over every icon (<dex-icon>). The icons are drawn for a light background, so the light sets leave them as they are.",
+              "default": "none"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineIcon",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-icon'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-icon>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "setIconBase",
+          "declaration": {
+            "name": "setIconBase",
+            "module": "dist/widgets/shared/dex-icon.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "setIconUrls",
+          "declaration": {
+            "name": "setIconUrls",
+            "module": "dist/widgets/shared/dex-icon.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexIcon",
+          "declaration": {
+            "name": "DexIcon",
+            "module": "dist/widgets/shared/dex-icon.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineIcon",
+          "declaration": {
+            "name": "defineIcon",
+            "module": "dist/widgets/shared/dex-icon.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/dex-matrix-open.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The glyph after a matrix value that opens it in the variable editor: a button, by click,\nEnter or Space. It opens nothing itself; it sends `dex-matrix-open`, and the app shows the\neditor (`<dex-variable-editor>`'s show) and fetches the cells. Draws nothing while `matrix` is\nnull. The table's Value cells and the inspector's Value rows draw it.",
+          "name": "DexMatrixOpen",
+          "members": [
+            {
+              "kind": "field",
+              "name": "matrix",
+              "type": {
+                "text": "MatrixDescriptor | null"
+              },
+              "default": "null",
+              "description": "The matrix it opens: its name, class, shape and node id, and no cells. Null, the default,\ndraws nothing. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "rowId",
+              "type": {
+                "text": "string | undefined"
+              },
+              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`.",
+              "attribute": "rowid"
+            },
+            {
+              "kind": "method",
+              "name": "focus",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ],
+              "description": "Focuses the glyph's button, where the variable editor returns focus when it closes."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-matrix-open",
+              "type": {
+                "text": "CustomEvent<MatrixOpenDetail>"
+              },
+              "description": "The glyph was clicked, or Enter or Space pressed on it: open this matrix."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "rowid",
+              "type": {
+                "text": "string | undefined"
+              },
+              "description": "The row it sits in, sent on with the event; unset in the inspector. Attribute `rowid`.",
+              "fieldName": "rowId"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-matrix-open",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineMatrixOpen",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-matrix-open'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-matrix-open>`, or under `tag`, after the icon it draws."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexMatrixOpen",
+          "declaration": {
+            "name": "DexMatrixOpen",
+            "module": "dist/widgets/shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineMatrixOpen",
+          "declaration": {
+            "name": "defineMatrixOpen",
+            "module": "dist/widgets/shared/dex-matrix-open.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/dragMode.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "isMacPlatform",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "platform",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "True for macOS/iOS platform strings (navigator.platform or userAgentData)."
+        },
+        {
+          "kind": "function",
+          "name": "dragModeFromModifiers",
+          "return": {
+            "type": {
+              "text": "DragMode"
+            }
+          },
+          "parameters": [
+            {
+              "name": "platform",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "mods",
+              "type": {
+                "text": "{ altKey: boolean; ctrlKey: boolean }"
+              }
+            }
+          ],
+          "description": "The drag mode for the given platform and the modifier keys currently held."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "isMacPlatform",
+          "declaration": {
+            "name": "isMacPlatform",
+            "module": "dist/widgets/shared/dragMode.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "dragModeFromModifiers",
+          "declaration": {
+            "name": "dragModeFromModifiers",
+            "module": "dist/widgets/shared/dragMode.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/focus.styles.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "buttonFocusRingStyles",
+          "default": "css` button:focus-visible { box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); outline: none; } `",
+          "description": "Standard (outward) focus ring for <button> elements.\nApplies to all native button elements within the shadow root."
+        },
+        {
+          "kind": "variable",
+          "name": "tabindexFocusRingStyles",
+          "default": "css` [tabindex]:focus-visible { box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); outline: none; } `",
+          "description": "Standard (outward) focus ring for elements with tabindex attribute.\nUseful for custom interactive spans/divs that use tabindex=\"0\"."
+        },
+        {
+          "kind": "variable",
+          "name": "tabRoleFocusRingStyles",
+          "default": "css` [role=\"tab\"]:focus-visible { box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); outline: none; } `",
+          "description": "Inset focus ring for ARIA tab role elements.\nFor tab items inside a tab bar where inset focus is preferred."
+        },
+        {
+          "kind": "variable",
+          "name": "menuitemFocusRingStyles",
+          "default": "css` [role=\"menuitem\"]:focus-visible { box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); outline: none; } `",
+          "description": "Inset focus ring for ARIA menuitem role elements.\nFor menu items inside dropdown/context menus."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "buttonFocusRingStyles",
+          "declaration": {
+            "name": "buttonFocusRingStyles",
+            "module": "dist/widgets/shared/focus.styles.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "tabindexFocusRingStyles",
+          "declaration": {
+            "name": "tabindexFocusRingStyles",
+            "module": "dist/widgets/shared/focus.styles.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "tabRoleFocusRingStyles",
+          "declaration": {
+            "name": "tabRoleFocusRingStyles",
+            "module": "dist/widgets/shared/focus.styles.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "menuitemFocusRingStyles",
+          "declaration": {
+            "name": "menuitemFocusRingStyles",
+            "module": "dist/widgets/shared/focus.styles.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/hidden.styles.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "hiddenStyles",
+          "default": "css` :host([hidden]) { display: none !important; } `",
+          "description": "The `hidden` attribute, honoured.\n\nThe browser hides `[hidden]` with a user-agent rule, and every widget's own `:host` rule sets\n`display`, which beats it: `table.hidden = true` used to leave the table on screen. Important,\nso it also beats a page rule that gives the element a display of its own — hidden means hidden,\nas it does on a plain element. Each widget lists this first in its styles."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "hiddenStyles",
+          "declaration": {
+            "name": "hiddenStyles",
+            "module": "dist/widgets/shared/hidden.styles.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/high-contrast.styles.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "highContrastStyles",
+          "default": "css` @media (forced-colors: active) { button, [role='button'], [tabindex] { border: 1px solid ButtonText !important; } button:focus-visible, [role='button']:focus-visible, [tabindex]:focus-visible { outline: 2px solid Highlight !important; outline-offset: 2px !important; } button:disabled, [role='button'][aria-disabled='true'] { border-color: GrayText !important; color: GrayText !important; } input, select, textarea { border: 1px solid ButtonText !important; } input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid Highlight !important; outline-offset: 1px !important; } a { color: LinkText !important; } [aria-selected='true'], .selected { outline: 2px solid Highlight !important; outline-offset: -2px !important; } } `",
+          "description": "Forced-colors / high-contrast mode styles.\nEnsures all interactive elements have visible borders and focus indicators\nwhen the OS is in forced-colors (Windows High Contrast) mode."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "highContrastStyles",
+          "declaration": {
+            "name": "highContrastStyles",
+            "module": "dist/widgets/shared/high-contrast.styles.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/lineBreaks.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "hasLineBreak",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "text",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Whether `text` holds a line break of any kind (LF, CRLF or a lone CR)."
+        },
+        {
+          "kind": "function",
+          "name": "withHeldLineBreaks",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "typed",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "held",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "What to post for `typed`, read back from a textarea seeded with `held`. `held` itself where the\ntwo differ only in how their line breaks are spelled: nothing was edited, so the caller posts\nnothing. Otherwise `typed` with each line break spelled as `held` spelled it, matched by the\nlines around it rather than by its place in the list, so that a line added or removed in a text\nmixing two kinds leaves every other break as it was: the lines `typed` begins with as `held`\ndoes keep the breaks after them, and the lines it ends with as `held` does keep the breaks\nbefore them. A break between edited lines is spelled as most of `held`'s are (the first such\nkind, on a tie), and as LF, MATLAB's `newline`, where `held` has none."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "hasLineBreak",
+          "declaration": {
+            "name": "hasLineBreak",
+            "module": "dist/widgets/shared/lineBreaks.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "withHeldLineBreaks",
+          "declaration": {
+            "name": "withHeldLineBreaks",
+            "module": "dist/widgets/shared/lineBreaks.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/styleProps.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "styleProps"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "styleProps",
+          "declaration": {
+            "name": "styleProps",
+            "module": "dist/widgets/shared/styleProps.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/shared/virtualWindow.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "virtualWindow",
+          "return": {
+            "type": {
+              "text": "VirtualWindow"
+            }
+          },
+          "parameters": [
+            {
+              "name": "{ items, itemSize, scroll, viewport, buffer }",
+              "type": {
+                "text": "VirtualWindowSpec"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "virtualWindow",
+          "declaration": {
+            "name": "virtualWindow",
+            "module": "dist/widgets/shared/virtualWindow.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/dex-add-gallery.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The `+ Add` gallery: a popover of tiles, one per kind of entry a dictionary's sections take\n(or per class a MAT-file takes), grouped by section. A click on a tile sends `dex-add-tile`;\nthe table turns it into `dex-add-entry`. Its Keep open box pins it open across adds\n(`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab\nstop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.",
+          "name": "DexAddGallery",
+          "members": [
+            {
+              "kind": "field",
+              "name": "pinned",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether an add keeps the popover open.\n\nOwned by the table, not here, so the choice survives closing and reopening within a\nsession: a user who pins is telling you about their next several minutes, not about\nthis one popover. Default false. Attribute `pinned`.",
+              "attribute": "pinned"
+            },
+            {
+              "kind": "field",
+              "name": "classes",
+              "type": {
+                "text": "readonly string[] | null"
+              },
+              "default": "null",
+              "description": "The classes a MAT-file can take a new variable of, as its host says core lists them, or null\nfor a dictionary's gallery. Given, the tiles are those classes' (matCatalog): a MAT-file has\nno sections, so no tile names one, and nothing is offered that the file cannot take.\nDefault null. Property only."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-add-tile",
+              "type": {
+                "text": "CustomEvent<AddTileDetail>"
+              },
+              "description": "A tile was clicked: add one entry of its class. The table stops it and sends `dex-add-entry`."
+            },
+            {
+              "name": "dex-add-pin-changed",
+              "type": {
+                "text": "CustomEvent<AddPinChangedDetail>"
+              },
+              "description": "Keep open was turned on or off; `pinned` has already changed."
+            },
+            {
+              "name": "dex-add-closed",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "Escape: close the gallery. No detail."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "pinned",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether an add keeps the popover open.\n\nOwned by the table, not here, so the choice survives closing and reopening within a\nsession: a user who pins is telling you about their next several minutes, not about\nthis one popover. Default false. Attribute `pinned`.",
+              "fieldName": "pinned"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-add-gallery",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-add-gallery-bg",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-add-gallery-header-bg",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-add-gallery-min-width",
+              "default": "300px"
+            },
+            {
+              "name": "--dex-add-gallery-tint",
+              "description": "The Add gallery: its tiles, its sheet and its sticky header, and the two numbers the table and the gallery both lay the popover out by.",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineAddGallery",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-add-gallery'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-add-gallery>`, or under `tag`, after the icon its tiles draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexAddGallery",
+          "declaration": {
+            "name": "DexAddGallery",
+            "module": "dist/widgets/tree-table/dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAddGallery",
+          "declaration": {
+            "name": "defineAddGallery",
+            "module": "dist/widgets/tree-table/dex-add-gallery.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/dex-column-filter.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "OP_GLYPHS",
+          "type": {
+            "text": "ReadonlyArray<readonly [FilterOp, string, string]>"
+          },
+          "default": "[ ['contains', ':', 'contains'], ['=', '=', 'equals'], ['!=', '≠', 'does not equal'], ['>', '>', 'greater than'], ['<', '<', 'less than'], ['>=', '≥', 'greater than or equal to'], ['<=', '≤', 'less than or equal to'], ]"
+        },
+        {
+          "kind": "class",
+          "description": "The popup a right-click on a column header opens: one condition on that column (an operator\nand a value), and the filter text it will write. It filters nothing: Apply sends the condition\nin `dex-column-filter-applied`, Clear (when the table has one for the column) sends\n`dex-column-filter-cleared`, and Escape `dex-column-filter-closed`; the table writes the\ncondition into its search. The value box takes focus when it opens. `<dex-tree-table>` draws it.",
+          "name": "DexColumnFilter",
+          "members": [
+            {
+              "kind": "field",
+              "name": "column",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Column key the condition is about (`DataType`). Default ''. Attribute `column`.",
+              "attribute": "column"
+            },
+            {
+              "kind": "field",
+              "name": "columnLabel",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`.",
+              "attribute": "columnlabel"
+            },
+            {
+              "kind": "field",
+              "name": "op",
+              "type": {
+                "text": "FilterOp"
+              },
+              "default": "'contains'",
+              "description": "The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute\n`op`.",
+              "attribute": "op"
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The value compared with. Default ''. Attribute `value`.",
+              "attribute": "value"
+            },
+            {
+              "kind": "field",
+              "name": "hasExisting",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `hasexisting`.",
+              "attribute": "hasexisting"
+            },
+            {
+              "kind": "method",
+              "name": "focusValue",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Focuses the value box; the caller opens the popup for typing, not for reading."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-column-filter-applied",
+              "type": {
+                "text": "CustomEvent<ColumnFilterAppliedDetail>"
+              },
+              "description": "Apply, or Enter: put this condition in the filter, in place of the column's own if it has one."
+            },
+            {
+              "name": "dex-column-filter-closed",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "Escape: close the popup and change nothing. No detail."
+            },
+            {
+              "name": "dex-column-filter-cleared",
+              "type": {
+                "text": "CustomEvent<ColumnFilterClearedDetail>"
+              },
+              "description": "Clear: take the column's condition out of the filter."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "column",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Column key the condition is about (`DataType`). Default ''. Attribute `column`.",
+              "fieldName": "column"
+            },
+            {
+              "name": "columnlabel",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`.",
+              "fieldName": "columnLabel"
+            },
+            {
+              "name": "op",
+              "type": {
+                "text": "FilterOp"
+              },
+              "default": "'contains'",
+              "description": "The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute\n`op`.",
+              "fieldName": "op"
+            },
+            {
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The value compared with. Default ''. Attribute `value`.",
+              "fieldName": "value"
+            },
+            {
+              "name": "hasexisting",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "True when the table already has a condition for this column, which offers Clear. Default\nfalse. Attribute `hasexisting`.",
+              "fieldName": "hasExisting"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-column-filter",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineColumnFilter",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-column-filter'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-column-filter>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "OP_GLYPHS",
+          "declaration": {
+            "name": "OP_GLYPHS",
+            "module": "dist/widgets/tree-table/dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexColumnFilter",
+          "declaration": {
+            "name": "DexColumnFilter",
+            "module": "dist/widgets/tree-table/dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineColumnFilter",
+          "declaration": {
+            "name": "defineColumnFilter",
+            "module": "dist/widgets/tree-table/dex-column-filter.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/dex-filter-bar.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The tree table's search bar: the applied filter as one chip per condition, and an input for\nwhat the user is still typing. It filters nothing and keeps no filter: each gesture — Enter on\nthe input, a chip's ×, the clear button, a second Escape — proposes a replacement for the whole\ntext in `dex-filter-applied`, and the table applies it and sets `text` and `tokens` back.\n`<dex-tree-table>` draws it.",
+          "name": "DexFilterBar",
+          "members": [
+            {
+              "kind": "field",
+              "name": "text",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The applied filter text. The bar never mutates it; it proposes replacements. Default ''.\nAttribute `text`.",
+              "attribute": "text"
+            },
+            {
+              "kind": "field",
+              "name": "tokens",
+              "type": {
+                "text": "FilterToken[]"
+              },
+              "default": "[]",
+              "description": "Its parse, from the table's one `parseFilterExpression` call: one chip each. Default none.\nProperty only."
+            },
+            {
+              "kind": "field",
+              "name": "placeholder",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Search'",
+              "description": "The input's placeholder. Default 'Search'. Attribute `placeholder`.",
+              "attribute": "placeholder"
+            },
+            {
+              "kind": "method",
+              "name": "focusInput",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Focuses (and selects) the input — the Ctrl+F entry point, forwarded by the table's focusFilter."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-filter-applied",
+              "type": {
+                "text": "CustomEvent<FilterAppliedDetail>"
+              },
+              "description": "The user asked for this filter text: Enter on what they typed (added after the applied\ntext), a chip removed, or the whole filter cleared. The table handles it and lets it on."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "text",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The applied filter text. The bar never mutates it; it proposes replacements. Default ''.\nAttribute `text`.",
+              "fieldName": "text"
+            },
+            {
+              "name": "placeholder",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Search'",
+              "description": "The input's placeholder. Default 'Search'. Attribute `placeholder`.",
+              "fieldName": "placeholder"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-filter-bar",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-badge",
+              "default": "rgba(128, 128, 128, 0.18)"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-color-warning",
+              "default": "#d83b01"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineFilterBar",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-filter-bar'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-filter-bar>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexFilterBar",
+          "declaration": {
+            "name": "DexFilterBar",
+            "module": "dist/widgets/tree-table/dex-filter-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineFilterBar",
+          "declaration": {
+            "name": "defineFilterBar",
+            "module": "dist/widgets/tree-table/dex-filter-bar.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/dex-tree-table.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The tree table: a document's rows as a tree, with a search bar, sortable, resizable and\nreorderable columns (the Columns menu shows, hides and orders them, and a right-click on a\nheader filters on that column), cell editors, row drag and drop, links, matrix glyphs, an\n`+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties\n(`rows` above all) and every user action goes out as a `dex-*` event; it never changes the\ndocument itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts\nof that off.",
+          "name": "DexTreeTable",
+          "members": [
+            {
+              "kind": "field",
+              "name": "rows",
+              "type": {
+                "text": "TreeTableRow[]"
+              },
+              "default": "[]",
+              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's buildRows (or\nbuildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.",
+              "attribute": "rows"
+            },
+            {
+              "kind": "field",
+              "name": "selectedRowIds",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "The ids of the selected rows. The table changes it as the user selects, and says so with\n`dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).",
+              "attribute": "selectedrowids"
+            },
+            {
+              "kind": "field",
+              "name": "rowHeight",
+              "default": "26",
+              "description": "A row's height in CSS pixels, which virtual scrolling lays the rows out at: the\n`--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.",
+              "attribute": "rowheight",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "tableStyle",
+              "type": {
+                "text": "'normal' | 'light'"
+              },
+              "default": "'normal'",
+              "description": "`normal`, the default, rules every cell; `light` drops the lines between columns and keeps a\nfaint one between rows. Reflected to the attribute `table-style`.",
+              "attribute": "table-style",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "columnLabels",
+              "type": {
+                "text": "Record<string, string> | null"
+              },
+              "default": "null",
+              "description": "Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a\nsearch may qualify a term with (`\"Data Type\":double`); a column with none shows its key.\nDefault null. Attribute `columnlabels` (JSON).",
+              "attribute": "columnlabels"
+            },
+            {
+              "kind": "field",
+              "name": "columnGroups",
+              "type": {
+                "text": "Record<string, string> | null"
+              },
+              "default": "null",
+              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Attribute `columngroups` (JSON).",
+              "attribute": "columngroups"
+            },
+            {
+              "kind": "field",
+              "name": "columns",
+              "type": {
+                "text": "string[] | null"
+              },
+              "default": "null",
+              "description": "The column keys this document has, which the Columns menu offers; the user's saved order and\nchoice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`\n(JSON).",
+              "attribute": "columns"
+            },
+            {
+              "kind": "field",
+              "name": "loading",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The rows are on their way: while there are none, the table says Loading… (with a spinner,\nafter half a second) instead of \"No data\"; the search bar stays. Set it while a document is\nread. Default false. Attribute `loading`.",
+              "attribute": "loading"
+            },
+            {
+              "kind": "field",
+              "name": "canAdd",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.",
+              "attribute": "canadd"
+            },
+            {
+              "kind": "field",
+              "name": "addClasses",
+              "type": {
+                "text": "readonly string[] | null"
+              },
+              "default": "null",
+              "description": "The classes a MAT-file's gallery offers, as its host says core lists them (setRows'\n`add: {classes}`), or null, the default, for a dictionary's gallery, which offers every tile.\nThe gallery draws the tiles of these classes only (matCatalog). Property only."
+            },
+            {
+              "kind": "field",
+              "name": "rowDrag",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Whether a row can be dragged, or a dragged row let go over one. False where the document is\nread-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from\nanother table draws no drop target here, on a row or on the empty body. Default true.\nAttribute `rowdrag`.",
+              "attribute": "rowdrag"
+            },
+            {
+              "kind": "field",
+              "name": "readonly",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "attribute": "readonly",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "storageKey",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "'dex'",
+              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so a key set before then is the only one read; one\nset later reads again, from that key. Attribute `storage-key`.",
+              "attribute": "storage-key"
+            },
+            {
+              "kind": "field",
+              "name": "selectedRowId",
+              "type": {
+                "text": "string"
+              },
+              "description": "The last of `selectedRowIds`, or '' when nothing is selected; set, it selects that row alone\n('' selects nothing). Sends nothing."
+            },
+            {
+              "kind": "field",
+              "name": "expandedIds",
+              "type": {
+                "text": "Set<string>"
+              },
+              "description": "The rows shown open, by id: a copy, the caller's to keep.\n\nSet it to open exactly these rows — an expansion the app saved, or the one it read before\ngiving the table new rows (nextExpandedIds keeps those that still exist). An id with no row is\nkept, and opens its row if one comes. Setting it fetches nothing; expand() is the twisty's\nclick, which asks for children the payload held back."
+            },
+            {
+              "kind": "method",
+              "name": "expand",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "ids",
+                  "type": {
+                    "text": "Iterable<string>"
+                  }
+                }
+              ],
+              "description": "Opens these rows as a click on each one's twisty does: a row with nothing under it stays\nclosed, and a row whose children the payload held back (`_lazy`) asks for them once\n(dex-request-children). Read off `rows` as they are now, so it may follow an assignment of\nthem directly."
+            },
+            {
+              "kind": "method",
+              "name": "collapse",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "ids",
+                  "type": {
+                    "text": "Iterable<string>"
+                  }
+                }
+              ],
+              "description": "Closes these rows."
+            },
+            {
+              "kind": "field",
+              "name": "expandTopLevel",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The expansion an app otherwise keeps around every assignment of `rows`, kept by the table\n(nextExpandedIds): the first rows with any in them open their top level — a dictionary's\nsections, a MAT-file's variables, though not one whose children were held back, whose first\nclick fetches — and from then on the rows the user opened stay open while they exist, and\nwhat they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it\nwas, to the app (expandedIds). Attribute `expand-top-level`.",
+              "attribute": "expand-top-level"
+            },
+            {
+              "kind": "field",
+              "name": "dropPredictor",
+              "type": {
+                "text": "| ((\n        targetRowId: string,\n        mode: 'copy' | 'move',\n      ) => { canDrop: boolean; cursor: string; tooltip: string; noop: boolean } | null)\n    | null"
+              },
+              "default": "null",
+              "description": "Predicts a drop for the row under the cursor ('' for the empty body), injected by the\nhost-side glue (table-main) and backed by the pure dropDecision: whether it may drop, the\ncursor and the tooltip to show, and whether it would change nothing. Returns null when it\ncannot predict — no drag it was told about, or a target with no rule — and null REFUSES:\nwith glue present, \"cannot say\" is not \"yes\". Only a table with no predictor at all, the\ndefault, falls back to the built-in permissive drag behavior, so it is usable without the\nglue. Property only."
+            },
+            {
+              "kind": "method",
+              "name": "toggleAddGallery",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Open or close the Add gallery, anchored under the Add button.\n\nPublic because the keyboard's way in comes from outside this element: the host's\n`dataExplorer.addEntry` command posts `openAddGallery`, and table-main calls this. It\nTOGGLES, so the accelerator behaves exactly as the button does rather than being a\nsecond, subtly different way to open the same popover.\n\nOpening is one flag because the popover is anchored in CSS, so both callers land on the\nsame geometry without either of them measuring anything. A view that cannot add has no\nAdd button and nothing to open — the command is a no-op there, which is the right answer\nfor a read-only .slx: the keybinding's `when` clause already excludes that view, but the\nCommand Palette does not have to."
+            },
+            {
+              "kind": "method",
+              "name": "beginRename",
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "rowId",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Open the inline name editor on a row, from outside the component.\n\nThe host asks for this after creating an entry from the gallery (`beginRename`), and it\ngoes through the very path a double-click takes — `_cellEditTarget`, which is the one\nplace that knows whether a cell may be edited at all. So a row whose Name the host would\nrefuse gets no editor rather than one whose commit bounces. Returns whether the editor\nopened, so a caller can keep holding a request whose row has not arrived yet."
+            },
+            {
+              "kind": "method",
+              "name": "openWholeValueEditor",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "rowId",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "text",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Open the Value editor of `rowId` on `text`, the whole value its summary stands for, which the\nhost sent in answer to this table's `dex-edit-text-request`. In the textarea, as the text is one\nlong line of up to 200,000 characters; committed unchanged it posts nothing, and changed it\nposts the whole text. Only the answer to the last request opens an editor, and only while no\nother editor is open and the cell still takes this one: an answer that arrives after the user\nmoved on opens nothing."
+            },
+            {
+              "kind": "method",
+              "name": "focusFilter",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Focus (and select) the search input — e.g. for a Ctrl+F shortcut."
+            },
+            {
+              "kind": "method",
+              "name": "flashRow",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "rowId",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Flashes a row's background once, on the next render, as a copy does; nothing if it is not drawn."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-add-entry",
+              "type": {
+                "text": "CustomEvent<AddEntryDetail>"
+              },
+              "description": "A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`."
+            },
+            {
+              "name": "dex-request-children",
+              "type": {
+                "text": "CustomEvent<RequestChildrenDetail>"
+              },
+              "description": "A row whose children the payload held back (`_lazy`) was opened: answer with its rows.\nAsked once until its rows arrive."
+            },
+            {
+              "name": "dex-table-context-menu",
+              "type": {
+                "text": "CustomEvent<TableContextMenuDetail>"
+              },
+              "description": "A right-click on a row (after selecting it) or on the space under the rows: open a context\nmenu there."
+            },
+            {
+              "name": "dex-row-selected",
+              "type": {
+                "text": "CustomEvent<RowSelectedDetail>"
+              },
+              "description": "The user changed the selection: a click, Ctrl/Cmd- or Shift-click, a key, select-all, or a\nright-click on a row not in it."
+            },
+            {
+              "name": "dex-row-drag-start",
+              "type": {
+                "text": "CustomEvent<RowDragStartDetail>"
+              },
+              "description": "The user started dragging rows."
+            },
+            {
+              "name": "dex-row-drag-end",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "A drag of this table's rows ended, dropped or not. No detail."
+            },
+            {
+              "name": "dex-row-drop",
+              "type": {
+                "text": "CustomEvent<RowDropDetail>"
+              },
+              "description": "Rows were let go over a row the dropPredictor accepts (any row, with no predictor), or over\nthe space under the rows when it accepts that."
+            },
+            {
+              "name": "dex-edit-text-request",
+              "type": {
+                "text": "CustomEvent<EditTextRequestDetail>"
+              },
+              "description": "A Value editor is opening on a summary: send the whole text with openWholeValueEditor."
+            },
+            {
+              "name": "dex-edit-completed",
+              "type": {
+                "text": "CustomEvent<EditCompletedDetail>"
+              },
+              "description": "A cell edit was committed with a text that differs from the one it had."
+            },
+            {
+              "name": "dex-link-clicked",
+              "type": {
+                "text": "CustomEvent<LinkClickedDetail>"
+              },
+              "description": "A link in a cell was clicked: any cell whose text names its `linkTarget` (a Data Type, Used\nBy, a block, a parameter)."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "rows",
+              "type": {
+                "text": "TreeTableRow[]"
+              },
+              "default": "[]",
+              "description": "The rows, flat: each names its parent by `ID` (`parent`, null at the top level), and\nsiblings show in the order given until the user sorts. What the model's buildRows (or\nbuildMatRows) makes of a document. Default none. Attribute `rows` (JSON); set the property.",
+              "fieldName": "rows"
+            },
+            {
+              "name": "selectedrowids",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "The ids of the selected rows. The table changes it as the user selects, and says so with\n`dex-row-selected`; setting it sends nothing. Default none. Attribute `selectedrowids` (JSON).",
+              "fieldName": "selectedRowIds"
+            },
+            {
+              "name": "rowheight",
+              "default": "DEFAULT_ROW_HEIGHT",
+              "description": "A row's height in CSS pixels, which virtual scrolling lays the rows out at: the\n`--dex-row-height` token when the page sets one, else this. Default 26. Attribute `rowheight`.",
+              "fieldName": "rowHeight"
+            },
+            {
+              "name": "table-style",
+              "type": {
+                "text": "'normal' | 'light'"
+              },
+              "default": "'normal'",
+              "description": "`normal`, the default, rules every cell; `light` drops the lines between columns and keeps a\nfaint one between rows. Reflected to the attribute `table-style`.",
+              "fieldName": "tableStyle"
+            },
+            {
+              "name": "columnlabels",
+              "type": {
+                "text": "Record<string, string> | null"
+              },
+              "default": "null",
+              "description": "Each column's header text, by column key (`{ DataType: 'Data Type' }`), also the name a\nsearch may qualify a term with (`\"Data Type\":double`); a column with none shows its key.\nDefault null. Attribute `columnlabels` (JSON).",
+              "fieldName": "columnLabels"
+            },
+            {
+              "name": "columngroups",
+              "type": {
+                "text": "Record<string, string> | null"
+              },
+              "default": "null",
+              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Attribute `columngroups` (JSON).",
+              "fieldName": "columnGroups"
+            },
+            {
+              "name": "columns",
+              "type": {
+                "text": "string[] | null"
+              },
+              "default": "null",
+              "description": "The column keys this document has, which the Columns menu offers; the user's saved order and\nchoice of hidden ones apply within them. Default null: the built-in set. Attribute `columns`\n(JSON).",
+              "fieldName": "columns"
+            },
+            {
+              "name": "loading",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The rows are on their way: while there are none, the table says Loading… (with a spinner,\nafter half a second) instead of \"No data\"; the search bar stays. Set it while a document is\nread. Default false. Attribute `loading`.",
+              "fieldName": "loading"
+            },
+            {
+              "name": "canadd",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether this view can create entries, i.e. whether the `+ Add` button (and its gallery,\nwhose tiles send `dex-add-entry`) exists at all. Default false. Attribute `canadd`.",
+              "fieldName": "canAdd"
+            },
+            {
+              "name": "rowdrag",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Whether a row can be dragged, or a dragged row let go over one. False where the document is\nread-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from\nanother table draws no drop target here, on a row or on the empty body. Default true.\nAttribute `rowdrag`.",
+              "fieldName": "rowDrag"
+            },
+            {
+              "name": "readonly",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "fieldName": "readonly"
+            },
+            {
+              "name": "storage-key",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "'dex'",
+              "description": "Where the user's column choices (which are shown, and their order) are kept: the page's\nlocalStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and\n`<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,\nso a layout saved before this existed carries over — and every table on the page that keeps\nthe default shares one layout. An app gives each kind of table a key of its own, or null\n(or '') to keep the choices for this element's life only, with localStorage never touched.\nThey are read when the table is connected, so a key set before then is the only one read; one\nset later reads again, from that key. Attribute `storage-key`.",
+              "fieldName": "storageKey"
+            },
+            {
+              "name": "expand-top-level",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The expansion an app otherwise keeps around every assignment of `rows`, kept by the table\n(nextExpandedIds): the first rows with any in them open their top level — a dictionary's\nsections, a MAT-file's variables, though not one whose children were held back, whose first\nclick fetches — and from then on the rows the user opened stay open while they exist, and\nwhat they closed stays closed. Off, the default, a change of `rows` leaves the expansion as it\nwas, to the app (expandedIds). Attribute `expand-top-level`.",
+              "fieldName": "expandTopLevel"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-tree-table",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-add-gallery-inset",
+              "default": "8px"
+            },
+            {
+              "name": "--dex-add-gallery-min-width",
+              "default": "300px"
+            },
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-active",
+              "description": "The border of a bar button whose popover is open (its surface is --dex-bg-active).",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-border-color-ultralight",
+              "default": "rgba(0, 0, 0, 0.05)"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-bg-na",
+              "description": "The wash over a cell the column does not apply to. Translucent, so it stays visible over a hovered or selected row.",
+              "default": "rgba(127, 127, 127, 0.05)"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-modified",
+              "description": "The Status column's \"Modified\".",
+              "default": "#b45309"
+            },
+            {
+              "name": "--dex-color-progress",
+              "description": "The table's loading spinner.",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-frozen-shade",
+              "description": "The shade the table's columns slide under once the frozen Name column holds content back: one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the blur so the shade stays a band to the right of the column.",
+              "default": "8px 0 6px -3px rgba(0, 0, 0, 0.28)"
+            },
+            {
+              "name": "--dex-row-height",
+              "default": "28px"
+            },
+            {
+              "name": "--dex-selection-fg",
+              "description": "The ink on a selected row, whose surface is --dex-color-accent-bg.",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-tooltip-bg",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-tooltip-border",
+              "default": "#c8c8c8"
+            },
+            {
+              "name": "--dex-tooltip-fg",
+              "description": "The tooltip that follows the pointer while a row is dragged.",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineTreeTable",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-tree-table'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-tree-table>`, or under `tag`, after the parts its template draws,\nwhich keep their default names: the + Add gallery, the column-filter popup, the filter bar, the\nicon and the matrix glyph. Parts first, so a part whose name is taken throws before the table\nis registered at all."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexTreeTable",
+          "declaration": {
+            "name": "DexTreeTable",
+            "module": "dist/widgets/tree-table/dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineTreeTable",
+          "declaration": {
+            "name": "defineTreeTable",
+            "module": "dist/widgets/tree-table/dex-tree-table.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexTreeTable",
+          "declaration": {
+            "name": "DexTreeTable",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineTreeTable",
+          "declaration": {
+            "name": "defineTreeTable",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "AddEntryDetail",
+          "declaration": {
+            "name": "AddEntryDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "BlockLinkGroup",
+          "declaration": {
+            "name": "BlockLinkGroup",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "EditCompletedDetail",
+          "declaration": {
+            "name": "EditCompletedDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "EditTextRequestDetail",
+          "declaration": {
+            "name": "EditTextRequestDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LinkClickedDetail",
+          "declaration": {
+            "name": "LinkClickedDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RequestChildrenDetail",
+          "declaration": {
+            "name": "RequestChildrenDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RowDragStartDetail",
+          "declaration": {
+            "name": "RowDragStartDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RowDropDetail",
+          "declaration": {
+            "name": "RowDropDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RowSelectedDetail",
+          "declaration": {
+            "name": "RowSelectedDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableContextMenuDetail",
+          "declaration": {
+            "name": "TableContextMenuDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TreeTableRow",
+          "declaration": {
+            "name": "TreeTableRow",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexFilterBar",
+          "declaration": {
+            "name": "DexFilterBar",
+            "module": "./dex-filter-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineFilterBar",
+          "declaration": {
+            "name": "defineFilterBar",
+            "module": "./dex-filter-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FilterAppliedDetail",
+          "declaration": {
+            "name": "FilterAppliedDetail",
+            "module": "./dex-filter-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexColumnFilter",
+          "declaration": {
+            "name": "DexColumnFilter",
+            "module": "./dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineColumnFilter",
+          "declaration": {
+            "name": "defineColumnFilter",
+            "module": "./dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ColumnFilterAppliedDetail",
+          "declaration": {
+            "name": "ColumnFilterAppliedDetail",
+            "module": "./dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ColumnFilterClearedDetail",
+          "declaration": {
+            "name": "ColumnFilterClearedDetail",
+            "module": "./dex-column-filter.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexAddGallery",
+          "declaration": {
+            "name": "DexAddGallery",
+            "module": "./dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAddGallery",
+          "declaration": {
+            "name": "defineAddGallery",
+            "module": "./dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "AddPinChangedDetail",
+          "declaration": {
+            "name": "AddPinChangedDetail",
+            "module": "./dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "AddTileDetail",
+          "declaration": {
+            "name": "AddTileDetail",
+            "module": "./dex-add-gallery.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexMatrixOpen",
+          "declaration": {
+            "name": "DexMatrixOpen",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineMatrixOpen",
+          "declaration": {
+            "name": "defineMatrixOpen",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixOpenDetail",
+          "declaration": {
+            "name": "MatrixOpenDetail",
+            "module": "../shared/dex-matrix-open.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "buildContextMenuItems",
+          "declaration": {
+            "name": "buildContextMenuItems",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "resolveShortcutAction",
+          "declaration": {
+            "name": "resolveShortcutAction",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "shouldOpenCellEditor",
+          "declaration": {
+            "name": "shouldOpenCellEditor",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "shouldShowContextMenu",
+          "declaration": {
+            "name": "shouldShowContextMenu",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ClipboardState",
+          "declaration": {
+            "name": "ClipboardState",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MenuInput",
+          "declaration": {
+            "name": "MenuInput",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MenuRow",
+          "declaration": {
+            "name": "MenuRow",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PasteTarget",
+          "declaration": {
+            "name": "PasteTarget",
+            "module": "./menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShortcutAction",
+          "declaration": {
+            "name": "ShortcutAction",
+            "module": "./menuItems.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/menuItems.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "resolveShortcutAction",
+          "return": {
+            "type": {
+              "text": "ShortcutAction | null"
+            }
+          },
+          "parameters": [
+            {
+              "name": "e",
+              "type": {
+                "text": "KeyboardEvent"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "shouldShowContextMenu",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "editable",
+              "type": {
+                "text": "boolean"
+              }
+            }
+          ],
+          "description": "Whether a right-click should open the context menu at all. Read-only\ndocuments get NO menu — the read-only byte-backed view has no copy/paste/\nmutation handlers, so an all-disabled menu would be dead UI."
+        },
+        {
+          "kind": "function",
+          "name": "shouldOpenCellEditor",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "editable",
+              "type": {
+                "text": "boolean"
+              }
+            }
+          ],
+          "description": "Whether a double-click / Enter should open the inline cell editor. Gated on\nthe document-level flag only: read-only documents never open the editor,\nregardless of any per-row `editable` flag (which is a coloring signal)."
+        },
+        {
+          "kind": "function",
+          "name": "buildContextMenuItems",
+          "return": {
+            "type": {
+              "text": "ContextMenuItem[]"
+            }
+          },
+          "parameters": [
+            {
+              "name": "input",
+              "type": {
+                "text": "MenuInput"
+              }
+            }
+          ],
+          "description": "Build the right-click context menu for the CURRENT SELECTION.\n\nPure and synchronous: enablement comes from the host-computed row flags, the cached\nclipboard state, the target section's rules, and whether the document is editable —\nno round-trip. Two things it deliberately does NOT decide: which rows are operands\n(resolveOperands does, so the keyboard cannot diverge) and whether a payload may land\nin a section (dropDecision.rejectReason does, so a Paste offered here is a drop the\nhover feedback would allow).\n\nGROUPS, THEN JOIN. The items are built as groups and the separators are put between\nwhatever groups survive. A section header's menu — Paste, then Undo/Redo — then falls\nout of dropping the two empty groups, with no case of its own; so does the binary\nformat's missing \"Location in Text\". Managing separators by hand is how a menu ends\nup with two in a row or one at the bottom, and that is exactly what this shape makes\nimpossible."
+        },
+        {
+          "kind": "variable",
+          "name": "label"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "resolveShortcutAction",
+          "declaration": {
+            "name": "resolveShortcutAction",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "shouldShowContextMenu",
+          "declaration": {
+            "name": "shouldShowContextMenu",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "shouldOpenCellEditor",
+          "declaration": {
+            "name": "shouldOpenCellEditor",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "buildContextMenuItems",
+          "declaration": {
+            "name": "buildContextMenuItems",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/variable-editor/dex-matrix-grid.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A matrix's cells as a read-only grid, one page at a time, headed by MATLAB's 1-based row and\ncolumn numbers, with a page selector over the dimensions past the second. Only the cells near\nthe scroll position are built, so a 1000x1000 page scrolls as a small one does. The arrow\nkeys, Home and End move between cells and PageUp and PageDown between pages; a cell whose text\nis clipped shows it whole as its tooltip. Escape is left to the panel around it.\n`<dex-variable-editor>` draws it.",
+          "name": "DexMatrixGrid",
+          "members": [
+            {
+              "kind": "field",
+              "name": "matrix",
+              "type": {
+                "text": "MatrixPayload | null"
+              },
+              "default": "null",
+              "description": "The matrix shown, cells included; null, the default, draws nothing. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "pageCount",
+              "type": {
+                "text": "number"
+              },
+              "description": "How many pages the matrix has: the product of its dimensions past the second, 1 for 2-D.",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "page",
+              "type": {
+                "text": "number"
+              },
+              "description": "The page shown, from 0; set, it is clamped to the pages there are."
+            },
+            {
+              "kind": "method",
+              "name": "pageLabel",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "page",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ],
+              "description": "A page's subscript as MATLAB writes it, `(:,:,2)` or `(:,:,1,3)`; '' for a 2-D matrix."
+            },
+            {
+              "kind": "method",
+              "name": "cellText",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "r",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "c",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "page",
+                  "default": "this._page"
+                }
+              ],
+              "description": "The text of cell (`r`, `c`), from 0, of a page (the one shown by default); '' outside the matrix."
+            },
+            {
+              "kind": "method",
+              "name": "focusActiveCell",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Focuses the cell the keyboard is on, (1,1) until it has moved."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-matrix-grid",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-matrix-max-height",
+              "description": "The largest the variable editor's grid grows before it scrolls.",
+              "default": "320px"
+            },
+            {
+              "name": "--dex-matrix-max-width",
+              "default": "640px"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineMatrixGrid",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-matrix-grid'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-matrix-grid>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexMatrixGrid",
+          "declaration": {
+            "name": "DexMatrixGrid",
+            "module": "dist/widgets/variable-editor/dex-matrix-grid.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineMatrixGrid",
+          "declaration": {
+            "name": "defineMatrixGrid",
+            "module": "dist/widgets/variable-editor/dex-matrix-grid.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/variable-editor/dex-variable-editor.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The variable editor: a panel, anchored under the glyph that opened it, that shows a matrix's\ncells in a `<dex-matrix-grid>`. An app makes one and appends it to the page; show() opens it\non a matrix's descriptor, with its title and a waiting line, and deliver() fills it in with\nthe cells once the app has them. Escape, the close button, a click outside it or a scroll\nclose it, and focus goes back to the glyph if the panel held it. It sends no events.",
+          "name": "DexVariableEditor",
+          "members": [
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "anchorEl",
+                  "type": {
+                    "text": "HTMLElement"
+                  }
+                },
+                {
+                  "name": "matrix",
+                  "type": {
+                    "text": "MatrixDescriptor"
+                  }
+                }
+              ],
+              "description": "Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:\nname, class, shape, node id. The cells are not here yet — the app fetches them for\n`matrix.nodeId` (vscode's matrixOpen.ts posts a `requestMatrix`) and hands the answer to\ndeliver(). Until then the panel shows its title and a waiting line."
+            },
+            {
+              "kind": "method",
+              "name": "deliver",
+              "return": {
+                "type": {
+                  "text": "Promise<void>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "answer",
+                  "type": {
+                    "text": "MatrixCellsAnswer | null | undefined"
+                  }
+                }
+              ],
+              "description": "The host answered a `requestMatrix`. Fills the panel in, or says why it cannot\nbe filled in. Ignores an answer that is not about what is currently on screen:\nopen A, change your mind, open B, and A's reply can still be in flight — taking\nit would put A's numbers under B's title, which is worse than a slow panel."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the panel; focus goes back to the glyph that opened it, if the panel held it."
+            },
+            {
+              "kind": "method",
+              "name": "reposition",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Places the panel again under its glyph, left edges aligned, pulled in at the viewport's\nedges and flipped above the glyph when there is no room below. show() and deliver() call it."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-variable-editor",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineVariableEditor",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-variable-editor'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-variable-editor>`, or under `tag`, after the grid it shows."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexVariableEditor",
+          "declaration": {
+            "name": "DexVariableEditor",
+            "module": "dist/widgets/variable-editor/dex-variable-editor.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineVariableEditor",
+          "declaration": {
+            "name": "defineVariableEditor",
+            "module": "dist/widgets/variable-editor/dex-variable-editor.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/variable-editor/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexVariableEditor",
+          "declaration": {
+            "name": "DexVariableEditor",
+            "module": "./dex-variable-editor.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineVariableEditor",
+          "declaration": {
+            "name": "defineVariableEditor",
+            "module": "./dex-variable-editor.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixCellsAnswer",
+          "declaration": {
+            "name": "MatrixCellsAnswer",
+            "module": "./dex-variable-editor.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexMatrixGrid",
+          "declaration": {
+            "name": "DexMatrixGrid",
+            "module": "./dex-matrix-grid.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineMatrixGrid",
+          "declaration": {
+            "name": "defineMatrixGrid",
+            "module": "./dex-matrix-grid.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixDescriptor",
+          "declaration": {
+            "name": "MatrixDescriptor",
+            "module": "../../model/matrix/matrixPayload.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatrixPayload",
+          "declaration": {
+            "name": "MatrixPayload",
+            "module": "../../model/matrix/matrixPayload.js"
+          }
+        }
+      ]
+    }
+  ]
+}

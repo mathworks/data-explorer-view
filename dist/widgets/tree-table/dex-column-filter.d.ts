@@ -1,18 +1,46 @@
 import { LitElement } from 'lit';
 import { type FilterOp } from '../../model/filter/rowFilter.js';
 export declare const OP_GLYPHS: ReadonlyArray<readonly [FilterOp, string, string]>;
-export declare class DexColumnFilter extends LitElement {
-    static styles: import("lit").CSSResult[];
-    /** Column key the condition is about. */
+/** What `dex-column-filter-applied` carries: the condition, and the filter text it writes. */
+export interface ColumnFilterAppliedDetail {
     column: string;
-    /** Header label; also the prefix the written text uses. */
-    columnLabel: string;
     op: FilterOp;
     value: string;
-    /** True when the table already has a condition for this column. */
+    text: string;
+}
+/** What `dex-column-filter-cleared` carries: the column whose condition goes. */
+export interface ColumnFilterClearedDetail {
+    column: string;
+}
+/**
+ * The popup a right-click on a column header opens: one condition on that column (an operator
+ * and a value), and the filter text it will write. It filters nothing: Apply sends the condition
+ * in `dex-column-filter-applied`, Clear (when the table has one for the column) sends
+ * `dex-column-filter-cleared`, and Escape `dex-column-filter-closed`; the table writes the
+ * condition into its search. The value box takes focus when it opens. `<dex-tree-table>` draws it.
+ *
+ * @tagname dex-column-filter
+ */
+export declare class DexColumnFilter extends LitElement {
+    static styles: import("lit").CSSResult[];
+    /** Column key the condition is about (`DataType`). Default ''. Attribute `column`. */
+    column: string;
+    /** Header label; also the prefix the written text uses. Default ''. Attribute `columnlabel`. */
+    columnLabel: string;
+    /**
+     * The operator: `contains`, `=`, `!=`, `>`, `<`, `>=` or `<=`. Default `contains`. Attribute
+     * `op`.
+     */
+    op: FilterOp;
+    /** The value compared with. Default ''. Attribute `value`. */
+    value: string;
+    /**
+     * True when the table already has a condition for this column, which offers Clear. Default
+     * false. Attribute `hasexisting`.
+     */
     hasExisting: boolean;
     private _valueInput?;
-    /** Focus the value box; the caller opens the popup for typing, not for reading. */
+    /** Focuses the value box; the caller opens the popup for typing, not for reading. */
     focusValue(): void;
     firstUpdated(): void;
     private get _text();
@@ -27,5 +55,13 @@ export declare function defineColumnFilter(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-column-filter': DexColumnFilter;
+    }
+    interface HTMLElementEventMap {
+        /** Apply, or Enter: put this condition in the filter, in place of the column's own if it has one. */
+        'dex-column-filter-applied': CustomEvent<ColumnFilterAppliedDetail>;
+        /** Clear: take the column's condition out of the filter. */
+        'dex-column-filter-cleared': CustomEvent<ColumnFilterClearedDetail>;
+        /** Escape: close the popup and change nothing. No detail. */
+        'dex-column-filter-closed': CustomEvent<null>;
     }
 }

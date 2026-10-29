@@ -30,8 +30,10 @@ const ALIASES = {
     matlabVariable: 'wsParameters',
     matlabStruct: 'typeStruct',
 };
+// Own keys only: a bare `ALIASES[iconId]` answers `constructor`, `toString` or `__proto__` with
+// Object.prototype's member, which became the file name.
 function resolveId(iconId) {
-    return ALIASES[iconId] || iconId;
+    return Object.hasOwn(ALIASES, iconId) ? ALIASES[iconId] : iconId;
 }
 // The package's own icons/ folder, relative to this module: dist/widgets/shared/dex-icon.js
 // (and src/widgets/shared/dex-icon.ts, which the tests load) is three folders below the package
@@ -85,10 +87,23 @@ export function setIconUrls(urls) {
 function iconUrl(id) {
     return (iconUrls && Object.hasOwn(iconUrls, id) ? iconUrls[id] : undefined) ?? `${iconBase}${id}.svg`;
 }
+/**
+ * One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see
+ * setIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is
+ * drawn as the icon that stands for it. Decorative: hidden from assistive technology, so the
+ * element beside it carries the name.
+ *
+ * @tagname dex-icon
+ */
 export class DexIcon extends LitElement {
     constructor() {
         super(...arguments);
+        /**
+         * The icon's id: the name of its file in `icons/` without `.svg` (`typeBus`), or a data-model
+         * kind (`bus`). Empty, the default, draws nothing. Attribute `iconid`.
+         */
         this.iconId = '';
+        /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
         this.size = 16;
     }
     static { this.styles = [hiddenStyles, css `

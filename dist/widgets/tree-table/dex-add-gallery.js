@@ -56,6 +56,15 @@ import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '.
  * declaration for a stylesheet to own.
  */
 const ICON_SIZE = 24;
+/**
+ * The `+ Add` gallery: a popover of tiles, one per kind of entry a dictionary's sections take
+ * (or per class a MAT-file takes), grouped by section. A click on a tile sends `dex-add-tile`;
+ * the table turns it into `dex-add-entry`. Its Keep open box pins it open across adds
+ * (`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab
+ * stop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.
+ *
+ * @tagname dex-add-gallery
+ */
 export class DexAddGallery extends LitElement {
     constructor() {
         super(...arguments);
@@ -64,13 +73,14 @@ export class DexAddGallery extends LitElement {
          *
          * Owned by the table, not here, so the choice survives closing and reopening within a
          * session: a user who pins is telling you about their next several minutes, not about
-         * this one popover.
+         * this one popover. Default false. Attribute `pinned`.
          */
         this.pinned = false;
         /**
          * The classes a MAT-file can take a new variable of, as its host says core lists them, or null
          * for a dictionary's gallery. Given, the tiles are those classes' (matCatalog): a MAT-file has
          * no sections, so no tile names one, and nothing is offered that the file cannot take.
+         * Default null. Property only.
          */
         this.classes = null;
         /**
@@ -585,7 +595,11 @@ export class DexAddGallery extends LitElement {
     }
     _onPin(pinned) {
         this.pinned = pinned;
-        this.dispatchEvent(new CustomEvent('dex-add-pin-changed', { detail: { pinned }, bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent('dex-add-pin-changed', {
+            detail: { pinned },
+            bubbles: true,
+            composed: true,
+        }));
     }
     _close() {
         this.dispatchEvent(new CustomEvent('dex-add-closed', { bubbles: true, composed: true }));

@@ -56,13 +56,13 @@ defineVariableEditor();
 | Entry | What it holds |
 |---|---|
 | `data-explorer-view/model` | the view model: rows, inspector pages, matrix cells, the rules for actions |
-| `data-explorer-view/tree-table` | `<dex-tree-table>` and its parts, and the items of its context menu |
-| `data-explorer-view/property-inspector` | `<dex-property-inspector>` |
-| `data-explorer-view/variable-editor` | `<dex-variable-editor>` and the grid inside it |
-| `data-explorer-view/context-menu` | `<dex-context-menu>` |
-| `data-explorer-view/error-dialog` | `<dex-error-dialog>` |
+| `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
+| `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
+| `data-explorer-view/variable-editor` | [`<dex-variable-editor>`](docs/widgets/variable-editor.md) and the [grid](docs/widgets/matrix-grid.md) inside it |
+| `data-explorer-view/context-menu` | [`<dex-context-menu>`](docs/widgets/context-menu.md) |
+| `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | a project's page, as HTML and the stylesheet it is drawn with |
-| `data-explorer-view/icon` | `<dex-icon>` and `setIconBase` |
+| `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
 | `data-explorer-view/theme.css` | the colour, font and size tokens |
 | `data-explorer-view/icons/<id>.svg` | the icons |
@@ -70,6 +70,20 @@ defineVariableEditor();
 Nothing runs on import, and the package says so (`sideEffects` in
 `package.json` names only the stylesheets), so a bundler keeps only the
 modules your app uses.
+
+Each widget's page (linked above) lists its properties and attributes, its
+methods, the events it sends with the shape of each `detail`, the parts it
+defines and the theme tokens it reads. The same is in `custom-elements.json`
+(the [Custom Elements Manifest](https://github.com/webcomponents/custom-elements-manifest),
+named by `customElements` in `package.json`) for editors and tools. In
+TypeScript the tags and events are typed: `document.createElement('dex-tree-table')`
+is a `DexTreeTable`, and a listener's `e.detail` has its type with no cast:
+
+```ts
+table.addEventListener('dex-row-selected', (e) => {
+  e.detail.rowIds; // string[]
+});
+```
 
 ## What is in it
 
@@ -172,11 +186,18 @@ layout) and goes before 1.0.0.
 
 ```sh
 npm ci
-npm run verify   # typecheck, import boundaries, build, tests, leak check
+npm run verify   # typecheck, import boundaries, build, API check, tests, leak check
 ```
 
-After changing `src/`, run `npm run build` and commit `dist/` with the change.
-CI fails when `dist/` is not the build of `src/`.
+After changing `src/`, run `npm run build` and commit `dist/`,
+`custom-elements.json` and `docs/widgets/` with the change. CI fails when
+they are not the build of `src/`. A widget's page is written below its marker
+line from the manifest: change the widget's JSDoc, not the page.
+
+`npm run check:api` compares the manifest with the one in the latest release
+tag. A widget, property, method, attribute or event that is gone or renamed
+fails it, unless `package.json`'s version is a major bump (while 0.x, a minor
+one) over that tag's.
 
 The gallery shows every widget on a page of its own, on small public files, and
 is what the browser tests run against, in Chromium, Firefox and WebKit. It is

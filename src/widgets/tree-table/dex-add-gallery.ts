@@ -54,6 +54,27 @@ import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js
  */
 const ICON_SIZE = 24;
 
+/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
+export interface AddTileDetail {
+  className: string;
+  section: string;
+  label: string;
+}
+
+/** What `dex-add-pin-changed` carries: whether the gallery is now pinned. */
+export interface AddPinChangedDetail {
+  pinned: boolean;
+}
+
+/**
+ * The `+ Add` gallery: a popover of tiles, one per kind of entry a dictionary's sections take
+ * (or per class a MAT-file takes), grouped by section. A click on a tile sends `dex-add-tile`;
+ * the table turns it into `dex-add-entry`. Its Keep open box pins it open across adds
+ * (`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab
+ * stop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.
+ *
+ * @tagname dex-add-gallery
+ */
 export class DexAddGallery extends LitElement {
   static override styles = [hiddenStyles, css`
     /* No position and no z-index here. WHERE this goes is the table's business, because the
@@ -446,7 +467,7 @@ export class DexAddGallery extends LitElement {
    *
    * Owned by the table, not here, so the choice survives closing and reopening within a
    * session: a user who pins is telling you about their next several minutes, not about
-   * this one popover.
+   * this one popover. Default false. Attribute `pinned`.
    */
   @property({ type: Boolean }) pinned = false;
 
@@ -454,6 +475,7 @@ export class DexAddGallery extends LitElement {
    * The classes a MAT-file can take a new variable of, as its host says core lists them, or null
    * for a dictionary's gallery. Given, the tiles are those classes' (matCatalog): a MAT-file has
    * no sections, so no tile names one, and nothing is offered that the file cannot take.
+   * Default null. Property only.
    */
   @property({ attribute: false }) classes: readonly string[] | null = null;
 
@@ -577,7 +599,7 @@ export class DexAddGallery extends LitElement {
 
   private _onTile(tile: GalleryTile): void {
     this.dispatchEvent(
-      new CustomEvent('dex-add-tile', {
+      new CustomEvent<AddTileDetail>('dex-add-tile', {
         detail: { className: tile.className, section: this.classes ? '' : tile.section, label: tile.label },
         bubbles: true,
         composed: true,
@@ -587,11 +609,17 @@ export class DexAddGallery extends LitElement {
 
   private _onPin(pinned: boolean): void {
     this.pinned = pinned;
-    this.dispatchEvent(new CustomEvent('dex-add-pin-changed', { detail: { pinned }, bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent<AddPinChangedDetail>('dex-add-pin-changed', {
+        detail: { pinned },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _close(): void {
-    this.dispatchEvent(new CustomEvent('dex-add-closed', { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent<null>('dex-add-closed', { bubbles: true, composed: true }));
   }
 
   private _onKeyDown(e: KeyboardEvent): void {
@@ -700,5 +728,13 @@ export function defineAddGallery(tag = 'dex-add-gallery'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-add-gallery': DexAddGallery;
+  }
+  interface HTMLElementEventMap {
+    /** A tile was clicked: add one entry of its class. The table stops it and sends `dex-add-entry`. */
+    'dex-add-tile': CustomEvent<AddTileDetail>;
+    /** Keep open was turned on or off; `pinned` has already changed. */
+    'dex-add-pin-changed': CustomEvent<AddPinChangedDetail>;
+    /** Escape: close the gallery. No detail. */
+    'dex-add-closed': CustomEvent<null>;
   }
 }

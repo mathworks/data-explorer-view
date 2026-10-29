@@ -21,10 +21,12 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      # No later step uses git with the token, so checkout does not keep it.
+      # No later step uses git with the token, so checkout does not keep it. The whole history,
+      # for its tags: the API check compares with the latest release.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -51,15 +53,23 @@ jobs:
       # dist/ is committed and is what a consumer runs (see .gitignore), so it must be
       # the build of src/. It deletes dist/ first because tsc never deletes an output:
       # built over the committed copy, a file whose source is gone would stay and pass.
-      # The status line prints every file that differs; it prints nothing when dist/
-      # matches. To fix a red: rm -rf dist && npm run build, then commit dist/.
-      - name: dist/ is the build of src/
+      # The build also writes custom-elements.json and the API half of each
+      # docs/widgets/ page from the widgets' source, so they are held to the same rule.
+      # The status line prints every file that differs; it prints nothing when they
+      # match. To fix a red: rm -rf dist && npm run build, then commit what it changed.
+      - name: dist/, the manifest and the widget docs are the build of src/
         run: |
           rm -rf dist
           npm run build
-          git status --porcelain --untracked-files=all -- dist
-          git diff --exit-code --stat -- dist
-          test -z "$(git status --porcelain --untracked-files=all -- dist)"
+          git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets
+          git diff --exit-code --stat -- dist custom-elements.json docs/widgets
+          test -z "$(git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets)"
+
+      # The public API against the latest v* tag: a widget, property, method, attribute or
+      # event that is gone or renamed fails unless package.json's version is a major bump
+      # over the tag's (a minor one while 0.x). See scripts/check-api.mjs.
+      - name: API against the last release
+        run: npm run check:api
 
       - name: Unit tests
         run: npm test

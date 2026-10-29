@@ -6,17 +6,21 @@ import { live } from 'lit/directives/live.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
-import type { MatrixDescriptor } from '../variable-editor/dex-matrix-grid.js';
+import type { MatrixDescriptor } from '../../model/matrix/matrixPayload.js';
 
+/** One titled group of the inspector's rows. */
 export interface PropertyGroup {
   title: string;
   properties: PropertyRow[];
 }
 
+/** One row of the inspector: a property's name and its value as text. */
 export interface PropertyRow {
   name: string;
   value: string;
+  /** The value is an input; a committed change sends `dex-property-changed`. */
   editable?: boolean;
+  /** `link` anchors the NAME, and a click sends `dex-pi-navigate` with `linkTarget` (else the name). */
   type?: 'text' | 'link';
   linkTarget?: string;
   // A link on the VALUE (piBuilder, from core's toPIObject): the Data Type of an entry
@@ -30,6 +34,27 @@ export interface PropertyRow {
   matrix?: MatrixDescriptor;
 }
 
+/** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
+export interface PropertyChangedDetail {
+  propName: string;
+  newValue: string;
+  oldValue: string;
+}
+
+/** What `dex-pi-navigate` carries: the target of the link clicked. */
+export interface PiNavigateDetail {
+  sourceId: string;
+}
+
+/**
+ * The properties of one entry, in titled groups of name–value rows. A row may be an editable
+ * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
+ * sends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable
+ * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
+ * `groups`, from the model's buildPropertyGroups, each time the selection changes.
+ *
+ * @tagname dex-property-inspector
+ */
 export class DexPropertyInspector extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -136,10 +161,11 @@ export class DexPropertyInspector extends LitElement {
     }
   `];
 
+  /** The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON). */
   @property({ type: Array }) groups: PropertyGroup[] = [];
 
   private _onPropertyChange(propName: string, newValue: string, oldValue: string): void {
-    this.dispatchEvent(new CustomEvent('dex-property-changed', {
+    this.dispatchEvent(new CustomEvent<PropertyChangedDetail>('dex-property-changed', {
       detail: { propName, newValue, oldValue },
       bubbles: true,
       composed: true,
@@ -148,7 +174,7 @@ export class DexPropertyInspector extends LitElement {
 
   private _onLinkClick(e: Event, target: string): void {
     e.preventDefault();
-    this.dispatchEvent(new CustomEvent('dex-pi-navigate', {
+    this.dispatchEvent(new CustomEvent<PiNavigateDetail>('dex-pi-navigate', {
       detail: { sourceId: target },
       bubbles: true,
       composed: true,
@@ -228,5 +254,14 @@ export function definePropertyInspector(tag = 'dex-property-inspector'): void {
 declare global {
   interface HTMLElementTagNameMap {
     'dex-property-inspector': DexPropertyInspector;
+  }
+  interface HTMLElementEventMap {
+    /** An editable row's field was changed and committed (its change event). */
+    'dex-property-changed': CustomEvent<PropertyChangedDetail>;
+    /**
+     * A link was clicked: a link row's name (`sourceId` is its `linkTarget`, else its name) or a
+     * value link (its `valueLink`).
+     */
+    'dex-pi-navigate': CustomEvent<PiNavigateDetail>;
   }
 }

@@ -15,11 +15,13 @@
   "files": [
     "dist",
     "icons",
-    "src/theme"
+    "src/theme",
+    "custom-elements.json"
   ],
   "sideEffects": [
     "*.css"
   ],
+  "customElements": "custom-elements.json",
   "exports": {
     "./model": {
       "types": "./dist/model/index.d.ts",
@@ -70,12 +72,14 @@
     "./theme/*.css": "./src/theme/*.css"
   },
   "scripts": {
-    "build": "node scripts/gen-icon-assets.mjs && tsc -p tsconfig.build.json",
+    "build": "node scripts/gen-icon-assets.mjs && tsc -p tsconfig.build.json && npm run build:api",
+    "build:api": "cem analyze --config custom-elements-manifest.config.mjs --quiet && node scripts/gen-widget-docs.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.model.json",
     "check:boundary": "node scripts/check-boundary.mjs",
+    "check:api": "node scripts/check-api.mjs",
     "check:leak": "node scripts/leak-check.mjs",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run test && npm run check:leak",
+    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run check:api && npm run test && npm run check:leak",
     "gallery": "vite --config gallery/vite.config.ts",
     "gallery:build": "tsc -p gallery/tsconfig.json && vite build --config gallery/vite.config.ts",
     "test:gallery": "playwright test -c gallery/playwright.config.ts"
@@ -85,6 +89,7 @@
     "lit": "^3.2.0"
   },
   "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.11.0",
     "@playwright/test": "1.62.0",
     "data-explorer-core": "github:mathworks/data-explorer-core#v1.47.0",
     "fflate": "^0.8.3",
