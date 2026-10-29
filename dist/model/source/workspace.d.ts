@@ -66,6 +66,13 @@ export interface Doc {
      * read (and `open()` then rejects with it).
      */
     reload(bytes: ArrayBuffer | Uint8Array): Promise<void>;
+    /**
+     * Paint the table again from the read it has, refilled from the workspace's `usage`: its
+     * subscribers hear a `replaceAll` (or the `error` the paint failed with). For what changed the
+     * Usage column and not the file, as a usage source that appeared (`setUsage`). A project, which
+     * opens on a page, has no table to paint.
+     */
+    repaint(): Promise<void>;
     /** Close it: its tree leaves the session, and its table answers nothing more. */
     dispose(): void;
 }
@@ -86,6 +93,15 @@ export interface Workspace {
     open(bytes: ArrayBuffer | Uint8Array, name: string, uri?: string): Promise<Doc>;
     /** The open document of `uri`, if there is one. */
     get(uri: string): Doc | undefined;
+    /**
+     * Fill the Usage column from `usage` from now on, and repaint from `usageReposts` (both as
+     * `createWorkspace` takes them; leaving one out means none): for a workspace that outlives a
+     * folder, or a usage source that comes after the documents. Every open dictionary's and
+     * MAT-file's table is painted again, refilled (`replaceAll`), and its repost subscription moves
+     * to the new hub. A model's table is not repainted, as no repost repaints one: it is refilled at
+     * its next paint, and `doc.repaint()` paints it now. Resolves when the repaints are done.
+     */
+    setUsage(usage?: UsageSource, usageReposts?: UsageReposts): Promise<void>;
     /** Close every document and the session they were read into. */
     dispose(): void;
 }

@@ -30,6 +30,8 @@ export interface UsageRepostHub {
     subscribe(repost: () => void, busy?: () => boolean): {
         dispose(): void;
     };
+    /** Stop: the watch is let go and a pending repost dropped, and a later subscription hears nothing. */
+    dispose(): void;
 }
 /** A repost hub over the app's watch. */
 export declare function createUsageRepostHub(options: UsageRepostHubOptions): UsageRepostHub;

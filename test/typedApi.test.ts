@@ -190,6 +190,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
     import { projectPageMessage, readProjectPage, type SetProjectMessage } from 'data-explorer-view/model';
+    import { createFolderSession, type FolderSession, type WatchFolder } from 'data-explorer-view/model';
     import { folderReader, serveFolder, type FolderReader, type FolderReads, type FolderServer, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
@@ -331,6 +332,16 @@ describe('an app written in TypeScript, against the built package', () => {
       });
       stop();
       await doc.reload(new ArrayBuffer(0));
+      // A folder read once for its tree, its Usage and its names; a workspace that takes it later.
+      const watch: WatchFolder = (changed) => { changed(['file:///w/a.sldd']); changed(); return () => {}; };
+      const folder: FolderSession = createFolderSession({ files: { list: async () => [] }, reader: () => ({ version: async () => null, bytes: async () => null, projectStore: async () => null }), watch });
+      await ws.setUsage(folder.usage, folder.reposts);
+      await ws.setUsage();
+      await doc.repaint();
+      await folder.changed(['file:///w/a.sldd']);
+      void folder.hierarchy.roots();
+      void folder.names.list();
+      folder.dispose();
       doc.dispose();
       ws.dispose();
     })();

@@ -59,6 +59,9 @@ export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTa
 export { UsageGraphs } from './usage/usageGraphs.js';
 export { USAGE_REPOST_DEBOUNCE_MS, USAGE_REPOST_MAX_WAITS, createUsageRepostBus, repostsUsageOn, } from './usage/usageRepost.js';
 export { createUsageRepostHub } from './usage/usageRepostHub.js';
+// A folder, read once for all of it: its hierarchy, its Usage graphs, its names and its reposts,
+// over one listing and one cache, kept up to date by one change.
+export { createFolderSession } from './folder/folderSession.js';
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, and what a search over them shows.
 export { NameIndex } from './search/nameIndex.js';
