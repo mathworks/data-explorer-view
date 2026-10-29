@@ -1,14 +1,36 @@
 import { LitElement } from 'lit';
+/**
+ * A modal dialog that says why something the user did was refused: a title, the reason, the
+ * value entered beside the one kept, and a detail line. show() opens it; OK, Escape or a click
+ * outside it closes it, and focus goes back where it was. With `showRevert`, a Revert button
+ * sends `dex-revert` first. Tab stays inside the dialog while it is open.
+ *
+ * @tagname dex-error-dialog
+ */
 export declare class DexErrorDialog extends LitElement {
     static styles: import("lit").CSSResult[];
+    /** @internal The title; show()'s `title`. */
     dialogTitle: string;
+    /** @internal The reason; show()'s `reason`. */
     message: string;
+    /** @internal The detail line; show()'s `detail`. */
     detail: string;
+    /** @internal The value entered; show()'s `invalidValue`. */
     invalidValue: string;
+    /** @internal The value kept; show()'s `validValue`. */
     validValue: string;
+    /** @internal Whether Revert is offered; show()'s `showRevert`. */
     showRevert: boolean;
     private _open;
     private _returnFocusTo;
+    /**
+     * Opens the dialog, focused on OK (never on Revert, which discards the user's edit).
+     *
+     * `title` defaults to 'Invalid Value' and `reason` to 'The entered value is not valid.';
+     * `invalidValue` and `validValue` are shown as Entered and Previous, `detail` under them, and
+     * `showRevert` adds the Revert button. Focus returns to `returnFocusTo` when it closes, or to
+     * the element that had it when this was called.
+     */
     show(opts: {
         title?: string;
         reason?: string;
@@ -18,6 +40,7 @@ export declare class DexErrorDialog extends LitElement {
         showRevert?: boolean;
         returnFocusTo?: HTMLElement;
     }): void;
+    /** Closes the dialog and gives focus back, sending nothing. */
     hide(): void;
     private _findActiveElement;
     private _onDismiss;
@@ -33,5 +56,9 @@ export declare function defineErrorDialog(tag?: string): void;
 declare global {
     interface HTMLElementTagNameMap {
         'dex-error-dialog': DexErrorDialog;
+    }
+    interface HTMLElementEventMap {
+        /** Revert was pressed: put back the value kept. The dialog closes. No detail. */
+        'dex-revert': CustomEvent<null>;
     }
 }

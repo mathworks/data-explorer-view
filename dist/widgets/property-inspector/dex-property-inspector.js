@@ -11,9 +11,19 @@ import { live } from 'lit/directives/live.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
+/**
+ * The properties of one entry, in titled groups of name–value rows. A row may be an editable
+ * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
+ * sends `dex-pi-navigate`), or a matrix value with the glyph that opens it in the variable
+ * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
+ * `groups`, from the model's buildPropertyGroups, each time the selection changes.
+ *
+ * @tagname dex-property-inspector
+ */
 export class DexPropertyInspector extends LitElement {
     constructor() {
         super(...arguments);
+        /** The groups shown, in order; none, the default, draws an empty panel. Attribute `groups` (JSON). */
         this.groups = [];
     }
     static { this.styles = [hiddenStyles, css `

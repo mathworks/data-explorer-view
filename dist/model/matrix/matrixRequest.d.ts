@@ -17,6 +17,11 @@ interface Poster {
  * `node` is the ROW's node, so `matrixPayload` re-runs its own `matrixForRow` here (a
  * property row's matrix lives on its `Value` child). No caller resolves the owner;
  * that rule stays in one place.
+ *
+ * Its type says `matrix` may be null (it is matrixPayload's return type), though the value
+ * never holds null: it carries a payload, or no `matrix` at all. The variable editor's
+ * MatrixCellsAnswer has `matrix?: MatrixPayload`, so a caller that hands this to deliver()
+ * writes `matrix ?? undefined` until the two are one type.
  */
 export declare function matrixCellsMessage(nodeId: string, node: any): {
     type: 'matrixCells';

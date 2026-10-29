@@ -23,6 +23,15 @@ const WAITING = 'Loading…';
 // edge. Same 8px margin dex-context-menu uses, so the two agree on screen.
 const OFFSET = 4;
 const MARGIN = 8;
+/**
+ * The variable editor: a panel, anchored under the glyph that opened it, that shows a matrix's
+ * cells in a `<dex-matrix-grid>`. An app makes one and appends it to the page; show() opens it
+ * on a matrix's descriptor, with its title and a waiting line, and deliver() fills it in with
+ * the cells once the app has them. Escape, the close button, a click outside it or a scroll
+ * close it, and focus goes back to the glyph if the panel held it. It sends no events.
+ *
+ * @tagname dex-variable-editor
+ */
 export class DexVariableEditor extends LitElement {
     constructor() {
         super(...arguments);
@@ -134,9 +143,10 @@ export class DexVariableEditor extends LitElement {
         return this.shadowRoot?.querySelector('dex-matrix-grid') ?? null;
     }
     /**
-     * Open on what the row knew: name, class, shape, node id. The cells are not here
-     * yet — matrixOpen.ts posts a `requestMatrix` for `matrix.nodeId` and hands the
-     * answer to deliver(). Until then the panel shows its title and a waiting line.
+     * Opens the panel under `anchorEl` (the glyph, which gets focus back) on what the row knew:
+     * name, class, shape, node id. The cells are not here yet — the app fetches them for
+     * `matrix.nodeId` (vscode's matrixOpen.ts posts a `requestMatrix`) and hands the answer to
+     * deliver(). Until then the panel shows its title and a waiting line.
      */
     show(anchorEl, matrix) {
         this._anchor = anchorEl;
@@ -195,6 +205,7 @@ export class DexVariableEditor extends LitElement {
         // cell (1,1) without a second keystroke.
         this._grid?.focusActiveCell();
     }
+    /** Closes the panel; focus goes back to the glyph that opened it, if the panel held it. */
     close() {
         const wasFocusInside = document.activeElement === this || this.contains(document.activeElement);
         this._open = false;
@@ -215,10 +226,12 @@ export class DexVariableEditor extends LitElement {
             anchor?.focus();
         }
     }
-    // Below the anchor, left edges aligned; pulled in at the viewport edges and
-    // flipped above when there is no room below. Public because the tests drive it
-    // directly: happy-dom has no layout engine, so they stub the two rects and
-    // check the arithmetic.
+    // Public because the tests drive it directly: happy-dom has no layout engine, so they stub
+    // the two rects and check the arithmetic.
+    /**
+     * Places the panel again under its glyph, left edges aligned, pulled in at the viewport's
+     * edges and flipped above the glyph when there is no room below. show() and deliver() call it.
+     */
     reposition() {
         const panel = this.shadowRoot?.querySelector('.panel');
         if (!panel || !this._anchor) {

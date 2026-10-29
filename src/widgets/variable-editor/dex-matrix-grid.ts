@@ -30,29 +30,17 @@ import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { styleProps } from '../shared/styleProps.js';
 import { virtualWindow } from '../shared/virtualWindow.js';
+import type { MatrixPayload } from '../../model/matrix/matrixPayload.js';
 
-// Mirror of the host's MatrixDescriptor / MatrixPayload pair. Declared here rather
-// than imported because webview components never import host modules — the same
-// reason dex-property-inspector declares PropertyRow beside piBuilder's
-// PIPropertyRow. test/variableEditorGrid.test.ts assigns both host types to these,
-// so the two copies cannot drift without a compile error.
+// The pair is the model's (src/model/matrix/matrixPayload.ts), imported as types only, so
+// nothing of the model enters a page's bundle through the grid; the variable-editor entry
+// re-exports it, and both entries name the one declaration.
 //
 // The split is the fetch-on-open design. A row carries the DESCRIPTOR — enough to
 // label the glyph and title the panel — and the cells are fetched by node id when a
 // panel actually opens. A 1000x1000 entry is 4 MB of cell strings; stamped onto a
 // row it is paid for every such row on screen, re-sort and repaint, for a panel that
-// may never be opened. See src/model/matrix/matrixPayload.ts and src/webview/matrixOpen.ts.
-export interface MatrixDescriptor {
-  name: string;
-  className: string;
-  dims: number[];        // effectiveDims: length >= 2, no trailing singletons past dim 2
-  nodeId: string;        // the ROW's node — what `requestMatrix` asks the host about
-}
-
-export interface MatrixPayload extends MatrixDescriptor {
-  cells: string[];        // row-major within a page, pages in order; length = prod(dims)
-}
-
+// may never be opened. See src/model/matrix/matrixPayload.ts.
 // A cell is right-aligned only if EVERY cell in the matrix reads as a number, so
 // one non-numeric entry keeps the whole column block left-aligned rather than
 // producing a ragged mix. Inf/NaN count: they are numeric results, and MATLAB
@@ -89,6 +77,16 @@ const DEFAULT_ROW_HEIGHT = 20; // 12px of text, 2px of padding either side, a 1p
 const DEFAULT_COL_WIDTH = 64;
 const DEFAULT_ROWHEADER_WIDTH = 36;
 
+/**
+ * A matrix's cells as a read-only grid, one page at a time, headed by MATLAB's 1-based row and
+ * column numbers, with a page selector over the dimensions past the second. Only the cells near
+ * the scroll position are built, so a 1000x1000 page scrolls as a small one does. The arrow
+ * keys, Home and End move between cells and PageUp and PageDown between pages; a cell whose text
+ * is clipped shows it whole as its tooltip. Escape is left to the panel around it.
+ * `<dex-variable-editor>` draws it.
+ *
+ * @tagname dex-matrix-grid
+ */
 export class DexMatrixGrid extends LitElement {
   static override styles = [hiddenStyles, css`
     :host {
@@ -249,6 +247,7 @@ export class DexMatrixGrid extends LitElement {
     .pager select { font: inherit; }
   `];
 
+  /** The matrix shown, cells included; null, the default, draws nothing. Property only. */
   @property({ attribute: false }) matrix: MatrixPayload | null = null;
 
   @state() private _page = 0;
@@ -293,10 +292,12 @@ export class DexMatrixGrid extends LitElement {
     return this._dims[1] ?? 0;
   }
 
+  /** How many pages the matrix has: the product of its dimensions past the second, 1 for 2-D. */
   get pageCount(): number {
     return this._dims.slice(2).reduce((a, b) => a * b, 1);
   }
 
+  /** The page shown, from 0; set, it is clamped to the pages there are. */
   get page(): number {
     return this._page;
   }
@@ -310,6 +311,7 @@ export class DexMatrixGrid extends LitElement {
 
   // `(:,:,k)` / `(:,:,k3,k4)` — dimension 3 varies fastest, matching MATLAB's own
   // column-major page order and the host's canonical cell layout.
+  /** A page's subscript as MATLAB writes it, `(:,:,2)` or `(:,:,1,3)`; '' for a 2-D matrix. */
   pageLabel(page: number): string {
     const trailing = this._dims.slice(2);
     if (trailing.length === 0) {
@@ -324,6 +326,7 @@ export class DexMatrixGrid extends LitElement {
     return '(:,:,' + subs.join(',') + ')';
   }
 
+  /** The text of cell (`r`, `c`), from 0, of a page (the one shown by default); '' outside the matrix. */
   cellText(r: number, c: number, page = this._page): string {
     const cells = this.matrix?.cells;
     if (!cells) {
@@ -332,6 +335,7 @@ export class DexMatrixGrid extends LitElement {
     return cells[page * this._rows * this._cols + r * this._cols + c] ?? '';
   }
 
+  /** Focuses the cell the keyboard is on, (1,1) until it has moved. */
   focusActiveCell(): void {
     const cell = this.shadowRoot?.querySelector<HTMLElement>('[role="gridcell"][tabindex="0"]');
     cell?.focus();
