@@ -1,9 +1,15 @@
 // Copyright 2026 The MathWorks, Inc.
 // What every gallery test shares: it fails on anything the page reports going wrong (a console
-// error, an uncaught exception, a request that failed or was answered with an error status),
+// error, an uncaught exception, a request that failed or was answered with an error status, a
+// page served by another checkout's gallery),
 // it can wait for the page's requests to settle, and it knows the gallery's pages and how to pick
 // a theme.
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
+
+/** The gallery these tests are of: what its servers say in X-Dex-Gallery (vite.config.ts). */
+const GALLERY = realpathSync(resolve(import.meta.dirname, '..'));
 
 export const PAGES = [
   'index.html',
@@ -61,6 +67,14 @@ export const test = base.extend<{ problems: string[]; network: Network }>({
       page.on('requestfailed', (r) => problems.push(`request failed: ${r.url()} (${r.failure()?.errorText})`));
       page.on('response', (r) => {
         if (r.status() >= 400) problems.push(`HTTP ${r.status()}: ${r.url()}`);
+        // A page another checkout's server answered would be a test of that checkout's code. Only
+        // a page's own content is checked: a 304 (a reload, a page visited again) carries no
+        // header and no content, and the copy it keeps was checked when it came, in this test's
+        // own browser context.
+        const from = r.headers()['x-dex-gallery'];
+        if (r.request().resourceType() === 'document' && r.status() < 300 && from !== GALLERY) {
+          problems.push(`${r.url()} was served by ${from === undefined ? 'a server that is not a gallery' : `the gallery at ${from}`}, not ${GALLERY}`);
+        }
       });
       await use(problems);
       expect(problems, 'what the page reported going wrong').toEqual([]);

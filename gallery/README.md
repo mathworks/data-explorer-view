@@ -109,11 +109,14 @@ any widget that needed either would fail the other tests on the refusal's consol
 error. They check behaviour, not pixels, so they hold across engines.
 
 They run against the built gallery in Chromium, Firefox and WebKit, and against the dev
-server in Chromium (`chromium-dev`), each project on a port of its own (4791, 4792).
-Playwright starts both servers. The first run needs the browsers:
+server in Chromium (`chromium-dev`), each on 127.0.0.1 and a port of its own: 4791 and 4792,
+or `GALLERY_PORT` and `GALLERY_DEV_PORT`. Playwright starts both servers, and refuses to start
+when a port is taken, rather than test what holds it; and every page a test loads must say it
+is this checkout's gallery (`X-Dex-Gallery`). The first run needs the browsers:
 
 ```sh
 npx playwright install chromium firefox webkit
 npm run test:gallery                          # all four projects
 npm run test:gallery -- --project=chromium    # one
+GALLERY_PORT=4891 GALLERY_DEV_PORT=4892 npm run test:gallery   # beside another checkout's run
 ```
