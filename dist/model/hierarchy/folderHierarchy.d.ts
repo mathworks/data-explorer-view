@@ -1,4 +1,5 @@
 import { type SourceCache, type SourceFile } from 'data-explorer-core';
+import type { LinkTarget } from '../ids/linkTarget.js';
 import { type GraphNode, type GroupKind, type NodeKind } from './graphModel.js';
 import { type GraphReader } from './graphSources.js';
 import type { HealthState } from './health.js';
@@ -93,6 +94,26 @@ export declare class FolderHierarchy {
      * resolved through this opens the file the hierarchy shows under the referrer.
      */
     resolveReference(ref: string, referrerUri: string): Promise<string | undefined>;
+    /**
+     * The file a link in the document `fromUri` opens, where the link names it by a bare file name
+     * (as a model records the models and dictionaries it links, `params.sldd` or
+     * `Kp@params.sldd`): resolveReference's answer, the file this hierarchy shows under `fromUri`
+     * for that name. Undefined for a link that names its file by a uri or a path, which means that
+     * file, and for a name no file of the folder has.
+     *
+     * What connectTable's `resolveLink` asks, so a table's links open the files the tree shows:
+     * `resolveLink: (link, fromUri) => hierarchy.resolveLink(link, fromUri)`.
+     */
+    resolveLink(link: LinkTarget, fromUri: string): Promise<string | undefined>;
+    /**
+     * The rows from the top level down to a row whose file is `uri` (its `id`), that row last; or
+     * undefined when no row is (the file is not in the folder). A file can be a row in several
+     * places, under each file that references it, and in its own folder's group when nothing there
+     * references it; the row this finds is the shallowest, and of several at one depth the first as
+     * the tree draws them, from the top. Each file's references are read once, however many rows it
+     * is. For a tree to show a file (connectHierarchy's `reveal`).
+     */
+    pathTo(uri: string): Promise<HierarchyItem[] | undefined>;
     /** Draw the rows again from the graph there is: for a file's unsaved changes. */
     refresh(): void;
     /** Read the folder again, for what changes it: a file created, deleted or saved. */

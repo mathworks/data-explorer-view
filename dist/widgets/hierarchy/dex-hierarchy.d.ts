@@ -21,7 +21,8 @@ export interface HierarchySelectDetail {
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-select` says which file it opens,
  * and a row with rows under it opens or closes. The arrow keys move through the rows (Right opens
  * a row or goes into it, Left closes it or goes to its parent), Home and End go to the first and
- * the last. connectHierarchy wires one to a FolderHierarchy.
+ * the last. `revealRow` shows a row the app names (the file it has open), and `expandTopLevel`
+ * opens the folder's own row on first show. connectHierarchy wires one to a FolderHierarchy.
  *
  * @tagname dex-hierarchy
  */
@@ -43,6 +44,13 @@ export declare class DexHierarchy extends LitElement {
     selectedKey: string | null;
     /** What a screen reader calls the tree. Default `Files`. Attribute `label`. */
     label: string;
+    /**
+     * Open each top-level row (a folder's own row, each project's) the first time the tree shows it,
+     * by adding its key to `expandedKeys`, as a table opens its sections; after that the row stays
+     * as the user leaves it, through new `items` too. Another folder's rows are new rows, and open.
+     * Off, the default, a folder opens closed. Attribute `expand-top-level`.
+     */
+    expandTopLevel: boolean;
     private _children;
     private _previous;
     private _asked;
@@ -50,6 +58,21 @@ export declare class DexHierarchy extends LitElement {
     private _focusKey;
     private _focusPending;
     private _open;
+    private _openedTop;
+    private _scrollKey;
+    /**
+     * Show a row: open each row of `path` but the last (the rows from a top-level row down to it,
+     * as FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as
+     * it is drawn, once the rows above it are read. The keyboard goes on from it. It takes no focus,
+     * and a choice of the user's before the row is drawn leaves the scroll undone.
+     *
+     * Sends nothing, unless `options.choose`: then `dex-hierarchy-select` for the row, as a click on
+     * it sends, without opening or closing it. connectHierarchy's `reveal(uri)` finds the path to a
+     * file's row.
+     */
+    revealRow(path: readonly HierarchyItem[], options?: {
+        choose?: boolean;
+    }): void;
     protected willUpdate(changed: PropertyValues<this>): void;
     protected updated(): void;
     private _load;
@@ -59,6 +82,7 @@ export declare class DexHierarchy extends LitElement {
     private _setOpen;
     private _focus;
     private _choose;
+    private _announce;
     private _onKeydown;
     private _onTwisty;
     private _icon;

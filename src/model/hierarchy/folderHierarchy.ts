@@ -12,6 +12,8 @@
 // DOM-free: an app lists the folder and reads its files (FolderFiles, GraphReader); nothing here
 // knows where the files are.
 import { newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
+import type { LinkTarget } from '../ids/linkTarget.js';
+import { srcIdToUriString } from '../ids/srcId.js';
 import { RelGraph, type GraphNode, type GroupKind, type NodeKind } from './graphModel.js';
 import { graphSourcesOf, type GraphReader } from './graphSources.js';
 import type { HealthState } from './health.js';
@@ -151,6 +153,59 @@ export class FolderHierarchy {
    */
   async resolveReference(ref: string, referrerUri: string): Promise<string | undefined> {
     return (await this.ensureGraph()).resolveFor(ref, referrerUri)[0];
+  }
+
+  /**
+   * The file a link in the document `fromUri` opens, where the link names it by a bare file name
+   * (as a model records the models and dictionaries it links, `params.sldd` or
+   * `Kp@params.sldd`): resolveReference's answer, the file this hierarchy shows under `fromUri`
+   * for that name. Undefined for a link that names its file by a uri or a path, which means that
+   * file, and for a name no file of the folder has.
+   *
+   * What connectTable's `resolveLink` asks, so a table's links open the files the tree shows:
+   * `resolveLink: (link, fromUri) => hierarchy.resolveLink(link, fromUri)`.
+   */
+  async resolveLink(link: LinkTarget, fromUri: string): Promise<string | undefined> {
+    const name = srcIdToUriString(link.kind === 'file' ? link.file : link.source);
+    if (name === '' || name.includes('/') || name.includes('\\')) return undefined;
+    return this.resolveReference(name, fromUri);
+  }
+
+  /**
+   * The rows from the top level down to a row whose file is `uri` (its `id`), that row last; or
+   * undefined when no row is (the file is not in the folder). A file can be a row in several
+   * places, under each file that references it, and in its own folder's group when nothing there
+   * references it; the row this finds is the shallowest, and of several at one depth the first as
+   * the tree draws them, from the top. Each file's references are read once, however many rows it
+   * is. For a tree to show a file (connectHierarchy's `reveal`).
+   */
+  async pathTo(uri: string): Promise<HierarchyItem[] | undefined> {
+    type Step = { item: HierarchyItem; up: Step | null };
+    const pathOf = (step: Step): HierarchyItem[] => {
+      const path: HierarchyItem[] = [];
+      for (let at: Step | null = step; at; at = at.up) path.unshift(at.item);
+      return path;
+    };
+    // A file's rows hold the same files wherever it is a row, so only the first is searched: a
+    // later one finds nothing the first does not find as high or higher.
+    const searched = new Set<string>();
+    let level: Step[] = (await this.roots()).map((item) => ({ item, up: null }));
+    while (level.length > 0) {
+      const found = level.find((step) => step.item.id === uri);
+      if (found) return pathOf(found);
+      const next: Step[] = [];
+      for (const step of level) {
+        const { item } = step;
+        if (item.collapsible !== 'collapsed') continue;
+        if (item.kind !== 'group' && item.id !== undefined) {
+          if (searched.has(item.id)) continue;
+          searched.add(item.id);
+        }
+        for (const child of await this.children(item)) next.push({ item: child, up: step });
+      }
+      level = next;
+    }
+    return undefined;
   }
 
   /** Draw the rows again from the graph there is: for a file's unsaved changes. */

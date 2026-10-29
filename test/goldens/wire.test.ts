@@ -19,9 +19,9 @@ import {
   messageSource,
   serveTable,
   type TableChange,
-  type TablePort,
   type TableSource,
 } from '../../src/model/index.js';
+import { channel } from './channel.js';
 
 const REPO = resolve(import.meta.dirname, '../..');
 const SNAPSHOTS = join(import.meta.dirname, '__snapshots__');
@@ -29,24 +29,6 @@ const FIXTURES = readdirSync(SNAPSHOTS)
   .filter((key) => existsSync(join(SNAPSHOTS, key, 'table.json')))
   .map((key) => key.split('__').join('/'))
   .sort();
-
-/** Two ends of a channel. */
-export function channel(): [TablePort, TablePort] {
-  const heard = [new Set<(m: unknown) => void>(), new Set<(m: unknown) => void>()];
-  const end = (me: 0 | 1, other: 0 | 1): TablePort => ({
-    postMessage(message) {
-      const copy = structuredClone(message);
-      setTimeout(() => {
-        for (const listener of [...heard[other]]) listener(copy);
-      }, 0);
-    },
-    onMessage(listener) {
-      heard[me].add(listener);
-      return () => void heard[me].delete(listener);
-    },
-  });
-  return [end(0, 1), end(1, 0)];
-}
 
 const asJson = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 

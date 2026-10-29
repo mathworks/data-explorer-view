@@ -188,6 +188,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { childRowsMessage } from 'data-explorer-view/host';
     import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
+    import { folderReader, serveFolder, type FolderReader, type FolderReads, type FolderServer, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -341,6 +342,34 @@ describe('an app written in TypeScript, against the built package', () => {
       s((await hierarchy.resolveReference('b.sldd', roots[0]?.id ?? '')) ?? '');
       hierarchy.rebuild();
       handle.dispose();
+      // The folder's own row open first, a file shown, and a link opening what the tree shows.
+      const doc = await createWorkspace().open(new Uint8Array(0), 'a.sldd', sourceUri('/w/a.sldd'));
+      const port: TablePort = { postMessage: () => {}, onMessage: () => () => {} };
+      const following = connectHierarchy(tree, hierarchy, { expandTopLevel: true });
+      tree.expandTopLevel = true;
+      b(await following.reveal(sourceUri('/w/a.sldd')));
+      b(await following.reveal(sourceUri('/w/a.sldd'), { choose: true }));
+      const path: HierarchyItem[] | undefined = await hierarchy.pathTo(sourceUri('/w/a.sldd'));
+      if (path) tree.revealRow(path);
+      const linked = connectTable(table, doc.table, { resolveLink: (link, fromUri) => hierarchy.resolveLink(link, fromUri) });
+      linked.on('navigate', ({ link, uri }) => s(uri ?? (link.kind === 'file' ? link.file : link.source)));
+      connectTable(table, doc.table, { resolveLink: () => null }).dispose();
+      // @ts-expect-error a resolved link is a uri, not a path list
+      connectTable(table, doc.table, { resolveLink: () => ['a'] });
+      // The same folder read across a channel: served where the files are, read in the page.
+      const reads: FolderReads = { files: { list: async () => [] }, reader: () => read };
+      const served: FolderServer = serveFolder(reads, port, { transfer: true });
+      served.changed();
+      const remote: FolderReader = folderReader(port);
+      const across = new FolderHierarchy({ files: remote, reader: () => remote });
+      remote.onChange(() => across.rebuild())();
+      const asked: FolderRequestMessage = { type: 'folderRequest', id: 1, ask: 'bytes', uri: sourceUri('/w/a.sldd') };
+      const answered: FolderHostMessage = { type: 'folderAnswer', id: asked.id, value: new ArrayBuffer(0) };
+      void answered;
+      remote.dispose();
+      served.dispose();
+      linked.dispose();
+      following.dispose();
     })();
 
     // One declaration, named by both entries.

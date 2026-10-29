@@ -60,6 +60,20 @@ export interface ConnectTableOptions {
      * option.
      */
     columns?: readonly string[] | ((column: string, view: TableView) => boolean);
+    /**
+     * The file a link opens, for an app that knows where the files a link names are: asked of each
+     * link the table follows, but one into the table's own document, with that document's uri
+     * (`fromUri`). A uri is the file the link opens: a link to an entry of this table's own
+     * document then selects it here, as a Data Type link does, and any other link goes to
+     * `navigate` with the uri as its `uri`. Null, undefined, or a throw leaves the link to the
+     * table's own rule, as without this option.
+     *
+     * A FolderHierarchy's `resolveLink` is one, so a table's links open the files a folder's tree
+     * shows for the names they hold: `resolveLink: (link, fromUri) => hierarchy.resolveLink(link,
+     * fromUri)`. Default: none; the table selects a Data Type link's row, and sends every other link
+     * to `navigate`.
+     */
+    resolveLink?: (link: LinkTarget, fromUri: string) => string | null | undefined | Promise<string | null | undefined>;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -67,6 +81,11 @@ export interface NavigateRequest {
     target: string;
     /** What it points at. */
     link: LinkTarget;
+    /**
+     * The uri of the file the link opens, as connectTable's `resolveLink` named it: open this one,
+     * rather than the file `link` names. Absent without a `resolveLink`, or when it named none.
+     */
+    uri?: string;
 }
 /** A copy that did not reach the clipboard (the handle's `copyFailed`). */
 export interface CopyFailure {

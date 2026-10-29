@@ -47,7 +47,11 @@ export type { Doc, DocKind, Workspace, WorkspaceOptions } from './source/workspa
 export { sourceUri, uriPath } from './source/sourceUri.js';
 export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { serveTable } from './source/serveTable.js';
-export type { ChildRowsMessage, EmptyMessage, ErrorMessage, InsertEntryRowsMessage, MatrixCellsMessage, ReadyMessage, RequestChildrenMessage, RequestMatrixMessage, SelectMessage, SetRowsMessage, ShowPropsMessage, TableClientMessage, TableHostMessage, TablePort, UpdateEntryRowsMessage, } from './source/wire.js';
+export type { ChildRowsMessage, EmptyMessage, ErrorMessage, FolderAnswerMessage, FolderAsk, FolderChangedMessage, FolderClientMessage, FolderHostMessage, FolderRequestMessage, InsertEntryRowsMessage, MatrixCellsMessage, ReadyMessage, RequestChildrenMessage, RequestMatrixMessage, SelectMessage, SetRowsMessage, ShowPropsMessage, TableClientMessage, TableHostMessage, TablePort, UpdateEntryRowsMessage, } from './source/wire.js';
+export { serveFolder } from './source/serveFolder.js';
+export type { FolderReads, FolderServer, ServeFolderOptions } from './source/serveFolder.js';
+export { folderReader } from './source/folderReader.js';
+export type { FolderReader } from './source/folderReader.js';
 export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
 export { 
 /** @deprecated A host's document registry: import it from data-explorer-view/host. */

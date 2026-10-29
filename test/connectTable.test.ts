@@ -7,7 +7,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { connectTable, defineTreeTable, type DexTreeTable, type TableBanners, type TableHandle } from '../src/widgets/tree-table/index.js';
+import {
+  connectTable,
+  defineTreeTable,
+  type ConnectTableOptions,
+  type DexTreeTable,
+  type TableBanners,
+  type TableHandle,
+} from '../src/widgets/tree-table/index.js';
 import type { DexVariableEditor } from '../src/widgets/variable-editor/index.js';
 import { defineContextMenu, type DexContextMenu } from '../src/widgets/context-menu/index.js';
 import { createWorkspace, messageSource, type TableChange, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
@@ -49,14 +56,14 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-async function mount(file: Uint8Array, name: string, opts: { rowBudget?: number; uri?: string } = {}) {
+async function mount(file: Uint8Array, name: string, opts: { rowBudget?: number; uri?: string; connect?: ConnectTableOptions } = {}) {
   const ws = createWorkspace(opts.rowBudget ? { rowBudget: opts.rowBudget } : {});
   workspaces.push(ws);
   const doc = await ws.open(file, name, opts.uri);
   const table = document.createElement('dex-tree-table');
   document.body.append(table);
   const { editor, calls } = fakeEditor();
-  const handle = connectTable(table, doc.table, { variableEditor: editor });
+  const handle = connectTable(table, doc.table, { variableEditor: editor, ...opts.connect });
   handles.push(handle);
   await settle(table);
   return { doc, table, handle, editorCalls: calls };
@@ -232,6 +239,63 @@ describe('links', () => {
       { target: 'plant.slx', link: { kind: 'file', file: 'plant.slx' } },
       { target: `Missing@${URI}`, link: { kind: 'entry', name: 'Missing', source: URI } },
     ]);
+  });
+
+  it("asks the app's resolveLink first: its file goes with navigate, and one that is this document selects here", async () => {
+    const asked: [string, string][] = [];
+    const resolveLink: ConnectTableOptions['resolveLink'] = async (link, fromUri) => {
+      const named = link.kind === 'file' ? link.file : link.source;
+      asked.push([named, fromUri]);
+      if (named === 'boom.slx') throw new Error('no folder');
+      if (named === 'plant.slx') return 'file:///models/plant.slx';
+      if (named === 'typelink.sldd') return URI;
+      return null;
+    };
+    const { table, handle } = await mount(TYPELINK, 'typelink.sldd', { uri: URI, connect: { resolveLink } });
+    const navigated: unknown[] = [];
+    handle.on('navigate', (n) => navigated.push(n));
+    const click = async (target: string) => {
+      table.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target }, bubbles: true }));
+      await settle(table);
+    };
+    // A link into this document is answered here, unasked.
+    await click(`MyAlias@${URI}`);
+    expect(asked).toEqual([]);
+    expect(table.selectedRowIds).toEqual([`${URI}/design/MyAlias`]);
+    table.selectedRowIds = [];
+    // A bare name the app resolves to this document: selected here too.
+    await click('MyAlias@typelink.sldd');
+    expect(table.selectedRowIds).toEqual([`${URI}/design/MyAlias`]);
+    await click('plant.slx');
+    await click('Other@file:///w/other.sldd');
+    await click('boom.slx');
+    expect(navigated).toEqual([
+      { target: 'plant.slx', link: { kind: 'file', file: 'plant.slx' }, uri: 'file:///models/plant.slx' },
+      { target: 'Other@file:///w/other.sldd', link: { kind: 'entry', name: 'Other', source: 'file:///w/other.sldd' } },
+      { target: 'boom.slx', link: { kind: 'file', file: 'boom.slx' } },
+    ]);
+    expect(asked).toEqual([
+      ['typelink.sldd', URI],
+      ['plant.slx', URI],
+      ['file:///w/other.sldd', URI],
+      ['boom.slx', URI],
+    ]);
+  });
+
+  it('follows no link a resolveLink answers after the table is disposed', async () => {
+    let answer!: (uri: string) => void;
+    const { table, handle } = await mount(TYPELINK, 'typelink.sldd', {
+      uri: URI,
+      connect: { resolveLink: () => new Promise<string>((done) => (answer = done)) },
+    });
+    const navigated: unknown[] = [];
+    handle.on('navigate', (n) => navigated.push(n));
+    table.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: 'plant.slx' }, bubbles: true }));
+    await settle(table);
+    handle.dispose();
+    answer('file:///models/plant.slx');
+    await settle(table);
+    expect(navigated).toEqual([]);
   });
 });
 

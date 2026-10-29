@@ -9,7 +9,13 @@
 // TableSource. The extension adds messages of its own beside these (editing, navigation); a side
 // that does not know a message ignores it.
 //
+// Below the table's are a folder's: the messages `serveFolder` and `folderReader` exchange to read
+// a folder for a FolderHierarchy across a channel, from where its files are (Electron's main
+// process, a worker) to where they are not (a sandboxed page).
+//
 // Types only.
+import type { SourceFile } from 'data-explorer-core';
+import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
@@ -151,3 +157,59 @@ export interface RequestMatrixMessage {
 
 /** Every message a table's (or an inspector's) end sends its host. */
 export type TableClientMessage = ReadyMessage | SelectMessage | RequestChildrenMessage | RequestMatrixMessage;
+
+// --- A folder across a channel -------------------------------------------------------------------
+//
+// The page asks (folderReader), the host answers (serveFolder): every question a `folderRequest`
+// with an `id`, and its answer the `folderAnswer` with the same `id`, in whatever order the reads
+// finish. Each is plain data (structured-clone safe; a file's bytes are an ArrayBuffer, which a
+// port that can transfer hands over rather than copies). A port may carry a table's messages beside
+// these, but one folder's.
+
+/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
+export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
+
+/**
+ * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
+ * its `id`:
+ *
+ * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
+ *   host keeps this listing, and the questions below are about its files.
+ * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
+ *   `uri` of its last listing. A uri that listing does not hold is answered null and nothing is
+ *   read, so a page can have the host read only the files the host listed.
+ */
+export interface FolderRequestMessage {
+  type: 'folderRequest';
+  /** Which answer is this question's: no other question of the same reader waiting has it. */
+  id: number;
+  ask: FolderAsk;
+  /** The file asked about, by its uriString. Not on a `list`. */
+  uri?: string;
+}
+
+/**
+ * The answer to the `folderRequest` with this `id`: a `value`, or an `error`.
+ *
+ * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
+ * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
+ * `projectStore`, a ProjectStore or null.
+ */
+export interface FolderAnswerMessage {
+  type: 'folderAnswer';
+  id: number;
+  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
+  /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
+  error?: string;
+}
+
+/** The folder changed (a file created, deleted or saved): the page reads it again (FolderHierarchy.rebuild). */
+export interface FolderChangedMessage {
+  type: 'folderChanged';
+}
+
+/** Every message a folder's host sends the page's end. */
+export type FolderHostMessage = FolderAnswerMessage | FolderChangedMessage;
+
+/** Every message the page's end of a folder sends its host. */
+export type FolderClientMessage = FolderRequestMessage;
