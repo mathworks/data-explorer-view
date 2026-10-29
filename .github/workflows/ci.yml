@@ -1,6 +1,7 @@
 # Continuous integration: leak check, typecheck (the model also without a DOM), import
-# boundaries, that the committed dist/ is the build of src/, and the unit tests. Runs on
-# every push to main and on pull requests.
+# boundaries, that the committed dist/ is the build of src/, and the unit tests; and,
+# alongside, the VS Code extension's own checks run against this view. Runs on every
+# push to main and on pull requests.
 name: CI
 
 on:
@@ -62,3 +63,100 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  # The VS Code extension (mathworks/data-explorer-vscode) is the first consumer of this
+  # package, and a change here must not regress it. So this job runs the extension's
+  # typecheck, builds and unit tests, its golden payloads among them, against this view
+  # in place of the one it pins. A change that breaks the extension on purpose comes with
+  # a vscode branch of the same name that adapts the extension to it: the job tests that
+  # branch when there is one, and the extension's main otherwise.
+  #
+  # Not a required check: its result also depends on another repository, which a pull
+  # request here cannot fix. After a breaking change merges, the push run on main is red
+  # until the extension's adaptation reaches its main. The extension's integration suite
+  # is left out: it launches VS Code under a virtual display, takes minutes and has a
+  # known flake; the extension's CI runs it on the pull request that moves the pin.
+  downstream-vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: view
+          persist-credentials: false
+
+      # The branch is passed in through env, not written into the script: whoever opens a
+      # pull request names its branch, and an expression is pasted into the script as text
+      # before the shell parses it. --exit-code makes ls-remote exit 2 when no branch
+      # matches; any other failure is a failed lookup, which fails the job rather than
+      # quietly testing main.
+      - name: Choose the extension's branch
+        id: vscode-ref
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          status=0
+          git ls-remote --exit-code --heads \
+            https://github.com/mathworks/data-explorer-vscode.git "refs/heads/$BRANCH" || status=$?
+          case $status in
+            0) ref=$BRANCH; why="it has a branch named $BRANCH" ;;
+            2) ref=main; why="it has no branch named $BRANCH" ;;
+            *) exit "$status" ;;
+          esac
+          echo "::notice title=Extension branch::data-explorer-vscode $ref, as $why"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: mathworks/data-explorer-vscode
+          ref: ${{ steps.vscode-ref.outputs.ref }}
+          path: vscode
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+
+      # As the extension's CI installs it: core and view by git, at its lockfile's commits.
+      - name: Install the extension's dependencies
+        working-directory: vscode
+        run: npm ci
+
+      # What the extension would get from this commit: the files npm packs (the committed
+      # dist/ and the theme), with no script run, as an install by git under ignore-scripts
+      # gets them. --no-save keeps the extension's package.json and lockfile as they are;
+      # its test/viewPin.test.ts reads the pin there and leaves what is installed alone.
+      - name: Install this view over the extension's pin
+        run: |
+          tarball=$(cd view && npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP" | tail -n 1)
+          cd vscode
+          npm install --no-save --ignore-scripts "$RUNNER_TEMP/$tarball"
+
+      # Every later step tests this view only if it is the one installed. An install that
+      # kept the pinned view would make each of them a test of the pin, green for the wrong
+      # reason.
+      - name: The installed view is this one
+        run: diff -r view/dist vscode/node_modules/data-explorer-view/dist
+
+      - name: Typecheck the extension
+        working-directory: vscode
+        run: npm run typecheck
+
+      # vite bundles the widgets into the webview, and esbuild the model into the host, for
+      # the desktop and the web extension. Before the unit tests, as in the extension's CI:
+      # one of them reads the built webview, and passes without looking when there is none.
+      - name: Build the extension (desktop + web)
+        working-directory: vscode
+        run: |
+          npm run build
+          npm run build:web
+
+      # Under CI, vitest fails on a snapshot it does not have rather than writing it, so a
+      # golden payload that changed or went missing is red. Actions sets CI already; it is
+      # spelled out because the goldens depend on it.
+      - name: The extension's unit tests, goldens included
+        working-directory: vscode
+        env:
+          CI: '1'
+        run: npx vitest run
