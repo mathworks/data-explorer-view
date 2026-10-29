@@ -51,6 +51,15 @@ export interface ConnectTableOptions {
      * page, a permission policy), fails the same way.
      */
     copy?: (text: string) => Promise<void> | void;
+    /**
+     * Which of the source's columns the table has (`table.columns`, the ones its Columns menu
+     * offers), chosen again on every whole paint: the keys in a list, or those a test passes, asked
+     * of each column with the paint (`TableView`). For a column nothing fills in this document, such
+     * as Usage in a dictionary opened where no workspace fills it. Default: every column the source
+     * paints. A paint that names no columns leaves the table its built-in set, as without this
+     * option.
+     */
+    columns?: readonly string[] | ((column: string, view: TableView) => boolean);
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {

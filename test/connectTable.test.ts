@@ -501,6 +501,58 @@ function cellOf(table: DexTreeTable, name: string, column: string): string {
   return typeof cell === 'string' ? cell : (cell as { text?: string } | undefined)?.text ?? '';
 }
 
+describe('the columns', () => {
+  it("keeps the source's columns a test passes, asked with each paint, on every paint", async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const doc = await ws.open(PARAMS, 'params.sldd');
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    const asked: [string, unknown][] = [];
+    const handle = connectTable(table, doc.table, {
+      variableEditor: fakeEditor().editor,
+      columns: (column, view) => (asked.push([column, view]), column !== 'UsedBy'),
+    });
+    handles.push(handle);
+    await settle(table);
+    const view = await doc.table.open();
+    expect(view.columns).toContain('UsedBy');
+    expect(table.columns).toEqual(view.columns.filter((c) => c !== 'UsedBy'));
+    expect(asked.map(([c]) => c)).toEqual(view.columns);
+    expect(asked.every(([, v]) => v === handle.view)).toBe(true);
+    // The handle's view is the source's, whole.
+    expect(handle.view?.columns).toEqual(view.columns);
+    // Chosen again as the file is read again.
+    table.columns = view.columns;
+    await doc.reload(PARAMS);
+    await settle(table);
+    expect(table.columns).toEqual(view.columns.filter((c) => c !== 'UsedBy'));
+    expect(asked).toHaveLength(view.columns.length * 2);
+  });
+
+  it("keeps the keys a list names, in the source's order, and names none the source has not", async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const doc = await ws.open(PARAMS, 'params.sldd');
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, doc.table, { variableEditor: fakeEditor().editor, columns: ['Value', 'Name', 'Nope'] }));
+    await settle(table);
+    expect(table.columns).toEqual(['Name', 'Value']);
+  });
+
+  it('leaves a paint that names no columns the built-in set', async () => {
+    let hear: (m: unknown) => void = () => {};
+    const port: TablePort = { postMessage: () => {}, onMessage: (l) => ((hear = l), () => {}) };
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, messageSource(port), { variableEditor: fakeEditor().editor, columns: (c) => c !== 'UsedBy' }));
+    hear({ type: 'setRows', rows: [], docUri: 'file:///x.sldd' });
+    await settle(table);
+    expect(table.columns).toBeNull();
+  });
+});
+
 describe('the inspector feed', () => {
   it('pages the first selected row, refreshes on a reload, and sends a page only when it changes', async () => {
     const { doc, table, handle } = await mount(PARAMS, 'params.sldd');

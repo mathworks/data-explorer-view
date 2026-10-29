@@ -296,6 +296,8 @@ describe('an app written in TypeScript, against the built package', () => {
       handle.on('copyFailed', ({ text, message }) => s(text + message));
       const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
       connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
+      connectTable(table, doc.table, { columns: (column, v: TableView) => column !== 'UsedBy' || v.rows.length > 0 }).dispose();
+      connectTable(table, doc.table, { columns: ['Name', 'Value'] }).dispose();
       copying.dispose();
       handle.selectByName('Kp');
       // Across a channel: the host serves, the page's table follows the messages.

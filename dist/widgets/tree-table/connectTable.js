@@ -79,6 +79,14 @@ export function connectTable(table, source, options = {}) {
             table.banners = banners.error || banners.notice || banners.warnings ? { ...banners } : null;
     };
     const showError = (message) => drawBanners({ ...banners, error: message });
+    // --- Columns ---------------------------------------------------------------------------------
+    const chosen = options.columns;
+    const chooseColumns = (next) => {
+        if (chosen === undefined)
+            return next.columns;
+        const keep = typeof chosen === 'function' ? (c) => chosen(c, next) : (c) => chosen.includes(c);
+        return next.columns.filter(keep);
+    };
     // --- Rows ------------------------------------------------------------------------------------
     const selectedRowIds = () => (Array.isArray(table.selectedRowIds) ? table.selectedRowIds : []);
     const rowsNow = () => (Array.isArray(table.rows) ? table.rows : []);
@@ -175,7 +183,7 @@ export function connectTable(table, source, options = {}) {
         // Every row is replaced, so an open grid describes rows the user can no longer see.
         variableEditor.close();
         drawBanners({ notice: next.notice, warnings: next.warnings });
-        table.columns = next.columns.length > 0 ? next.columns : null;
+        table.columns = next.columns.length > 0 ? chooseColumns(next) : null;
         table.columnLabels = next.columnLabels;
         table.columnGroups = next.columnGroups;
         installRows(next.rows);
