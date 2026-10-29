@@ -14,6 +14,7 @@ const PROBES: Partial<Record<(typeof PAGES)[number], string>> = {
   'property-inspector.html': 'dex-property-inspector .prop-name',
   'variable-editor.html': 'dex-variable-editor .panel',
   'project-page.html': '#project .identity .root',
+  'hierarchy.html': 'dex-hierarchy [role="treeitem"] .label',
 };
 
 async function colours(page: Page, probe: string | undefined): Promise<string[]> {

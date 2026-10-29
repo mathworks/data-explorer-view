@@ -1,18 +1,22 @@
 // Copyright 2026 The MathWorks, Inc.
-// Table, inspector and variable editor together, as an app wires them: a file read in the page,
+// Folder, table, inspector and variable editor together, as an app wires them: the folder's
+// hierarchy on the left (connectHierarchy), a file chosen there or in the picker read in the page,
 // connectTable feeding the table from it, and connectInspector following the table's selection.
 // The matrix glyph (in a Value cell or the inspector's Value row) opens the one variable editor.
+import { connectHierarchy, defineHierarchy, type DexHierarchy } from 'data-explorer-view/hierarchy';
 import { createWorkspace, type Doc } from 'data-explorer-view/model';
 import { connectInspector, definePropertyInspector, type DexPropertyInspector } from 'data-explorer-view/property-inspector';
 import { connectTable, defineTreeTable, type TableHandle } from 'data-explorer-view/tree-table';
 import { defineVariableEditor, type DexVariableEditor } from 'data-explorer-view/variable-editor';
-import { askedFixture, fixturePicker, openFixture, type Fixture } from '../fixtures';
+import { askedFixture, FIXTURES, fixturePicker, openFixture, type Fixture } from '../fixtures';
+import { FIXTURE_FOLDER, folderHierarchy, uriOf } from '../folders';
 import { byId, startPage } from '../shell';
 
 startPage();
 defineTreeTable();
 definePropertyInspector();
 defineVariableEditor();
+defineHierarchy();
 
 const stage = byId('stage');
 const editor = byId<DexVariableEditor>('editor');
@@ -50,3 +54,12 @@ async function show(fixture: Fixture): Promise<void> {
 const first = askedFixture();
 byId('toolbar').append(fixturePicker(first, (f) => void show(f)));
 void show(first);
+
+// A file chosen in the folder opens as one picked: the folder lists the picker's files.
+const folder = connectHierarchy(byId<DexHierarchy>('folder'), folderHierarchy(FIXTURE_FOLDER));
+folder.on('open', (uri) => {
+  const fixture = FIXTURES.find((f) => uriOf(`${FIXTURE_FOLDER.path}/${f.name}`) === uri);
+  if (!fixture) return;
+  byId<HTMLSelectElement>('fixture').value = fixture.id;
+  void show(fixture);
+});

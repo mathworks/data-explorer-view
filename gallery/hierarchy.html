@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Hierarchy · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="stage" id="stage">
+        <div class="toolbar" id="toolbar">
+          <label><input type="checkbox" id="dirty" /> data.sldd has unsaved changes</label>
+          <span class="buttons"><button type="button" id="rebuild">Read the folder again</button></span>
+        </div>
+        <dex-hierarchy id="tree" label="Workspace"></dex-hierarchy>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Opened</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <script type="module" src="./src/pages/hierarchy.ts"></script>
+  </body>
+</html>

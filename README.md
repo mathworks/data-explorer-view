@@ -23,7 +23,7 @@ notes before you move the pin.
 ```json
 "dependencies": {
   "data-explorer-view": "github:mathworks/data-explorer-view#v0.2.0",
-  "data-explorer-core": "github:mathworks/data-explorer-core#v1.47.0",
+  "data-explorer-core": "github:mathworks/data-explorer-core#v1.48.0",
   "lit": "^3.2.0"
 }
 ```
@@ -31,7 +31,7 @@ notes before you move the pin.
 `data-explorer-core` and `lit` are peer dependencies: your app installs them
 itself, so a page holds one copy of each. For core that matters beyond size:
 the model recognises core's nodes with `instanceof`, which two copies of core
-would break. This release accepts core `^1.47.0` and lit `^3.2.0`.
+would break. This release accepts core `^1.48.0` and lit `^3.2.0`.
 
 Releases are tags, and `dist/` is committed, so installing needs no build step.
 
@@ -55,7 +55,7 @@ defineVariableEditor();
 
 | Entry | What it holds |
 |---|---|
-| `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions |
+| `data-explorer-view/model` | the view model: a workspace that opens files, rows, inspector pages, matrix cells, the rules for actions, a folder's hierarchy |
 | `data-explorer-view/host` | for a host that serves the wire format, not for an app: the document registry over core's module-level session, the answers posted to a webview, the inspector's page (also in `/model` until 1.0, deprecated there) |
 | `data-explorer-view/tree-table` | [`<dex-tree-table>`](docs/widgets/tree-table.md) and its parts ([filter bar](docs/widgets/filter-bar.md), [column filter](docs/widgets/column-filter.md), [Add gallery](docs/widgets/add-gallery.md), [matrix glyph](docs/widgets/matrix-open.md)), and the items of its context menu |
 | `data-explorer-view/property-inspector` | [`<dex-property-inspector>`](docs/widgets/property-inspector.md) |
@@ -63,6 +63,7 @@ defineVariableEditor();
 | `data-explorer-view/context-menu` | [`<dex-context-menu>`](docs/widgets/context-menu.md) |
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | a project's page, as HTML and the stylesheet it is drawn with |
+| `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
 | `data-explorer-view/theme.css` | the colour, font and size tokens |
@@ -141,6 +142,35 @@ where `port` is any `{ postMessage, onMessage }` (`TablePort`). The messages
 are the extension's own table protocol (`TableHostMessage`,
 `TableClientMessage`), and the table behaves as it does beside its source.
 
+## Show a folder (preview)
+
+A `FolderHierarchy` reads a folder's files through core's source cache and
+answers its hierarchy as rows: each project and folder, the files in it, and
+under each file the files it references, with the references no file answers
+and the files that close a cycle marked. `<dex-hierarchy>` draws them, and
+`connectHierarchy` wires the two:
+
+```js
+import { FolderHierarchy } from 'data-explorer-view/model';
+import { connectHierarchy, defineHierarchy } from 'data-explorer-view/hierarchy';
+
+const hierarchy = new FolderHierarchy({
+  files: { list: async () => files },        // the folder's SourceFiles, in a stable order
+  reader: (files) => readerFor(files),       // a GraphReader: versions, bytes, project stores
+});
+defineHierarchy();
+connectHierarchy(tree, hierarchy).on('open', (uri) => openTab(uri));
+```
+
+The app lists the folder and reads its files: in Electron or Node, core's
+`nodeSourceReader(files)` and `readProjectStoreFromDisk(path)`
+(`data-explorer-core/node`) are a reader. `hierarchy.rebuild()` reads the
+folder again when a file in it is created, deleted or saved (only what changed
+is read), and `refresh()` redraws the marks for a file's unsaved changes
+(`isDirty`). `resolveReference(name, referrer)` answers which file a bare name
+means, by the rule the tree draws with. The rows are what the VS Code
+extension's sidebar draws for the same folder.
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's
@@ -158,7 +188,8 @@ const { rows } = await doc.table.open(); // the table's rows
 
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with
 its filter bar, column filter and Add gallery), the property inspector, the
-variable editor, the context menu, the error dialog and the project page.
+variable editor, the context menu, the error dialog, the folder hierarchy and
+the project page.
 Importing a widget defines nothing: call its define function before the
 first element is created, as above. It defines the parts the widget draws (the table's
 filter bar, for example) under their default names, then the widget, under

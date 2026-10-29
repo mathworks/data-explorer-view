@@ -61,3 +61,18 @@ test('another file: a MAT-file variable opens on its own cells', async ({ page }
   await expect(page.locator('dex-variable-editor')).not.toHaveAttribute('open', '');
   await expect(property(page, 'Name')).toHaveText('Nd');
 });
+
+test('a file chosen in the folder opens in the table, as one picked', async ({ page }) => {
+  await page.goto('composed.html');
+  const folder = page.locator('dex-hierarchy').getByRole('tree', { name: 'Folder' });
+  await expect(folder.locator('.label')).toHaveText(['fixtures']);
+  await folder.getByRole('treeitem').first().click();
+  await expect(folder.locator('.label')).toHaveText([
+    'fixtures', 'nd_numeric.mat', 'numeric_json.sldd', 'object_props_binary.sldd', 'shared_gain.slx',
+  ]);
+  await folder.getByRole('treeitem').filter({ has: page.locator('.label:text-is("nd_numeric.mat")') }).click();
+  await expect(row(page, 'Mat')).toBeVisible();
+  await expect(page.getByLabel('File', { exact: true })).toHaveValue('mat');
+  await row(page, 'Nd').locator('td.col-Name').click();
+  await expect(property(page, 'Name')).toHaveText('Nd');
+});

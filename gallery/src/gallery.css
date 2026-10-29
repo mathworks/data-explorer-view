@@ -122,7 +122,9 @@ main.split.three {
   border-bottom: 1px solid var(--dex-border-color-light);
 }
 
-.stage > dex-tree-table {
+.stage > dex-tree-table,
+.stage > dex-hierarchy,
+.pane > dex-hierarchy {
   flex: 1;
   min-height: 0;
 }

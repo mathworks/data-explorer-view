@@ -22,7 +22,8 @@ npm run test:gallery    # the browser tests (see below)
 | `context-menu.html` | `<dex-context-menu>`, from a right-click and from the keyboard |
 | `error-dialog.html` | `<dex-error-dialog>`: an error, and a refused edit with Revert |
 | `project-page.html` | a MATLAB project's page, from its project store |
-| `composed.html` | table, inspector and variable editor together (`connectTable`, `connectInspector`): the selection fills the inspector, the matrix glyph opens the editor |
+| `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
+| `composed.html` | folder, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in the folder opens in the table, the selection fills the inspector, the matrix glyph opens the editor |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads.
@@ -31,7 +32,7 @@ Each page has the theme switch (light, dark, high contrast) in its header: it se
 
 The pages import `data-explorer-view` by its name and only through its public entries
 (`/model`, `/tree-table`, `/property-inspector`, `/variable-editor`, `/context-menu`,
-`/error-dialog`, `/project-page`, `/icon-assets`, `/theme.css`). Inside this repository
+`/error-dialog`, `/project-page`, `/hierarchy`, `/icon-assets`, `/theme.css`). Inside this repository
 the name resolves to the repository itself, through `package.json`'s `exports` (a
 package may import itself by name), so the pages run the committed `dist/` as an app
 that installs the package does, and `gallery/tsconfig.json` checks them against the
@@ -68,6 +69,12 @@ widgets to the document's table source:
 - `property-inspector.ts`: no table, so the inspector follows the page's list of entries instead,
   an `InspectorFeed` of the pages `doc.table.inspect()` answers for each pick.
 - `variable-editor.ts`: `show()`, then `deliver(await doc.table.matrix(nodeId))`.
+- `hierarchy.ts`: `connectHierarchy(tree, hierarchy)`, over a `FolderHierarchy` whose folder is
+  a list of fixture files and whose reader fetches them (`src/folders.ts`): a page has no
+  filesystem, so a file's version is its URL and there is no project store to walk.
+  `refresh()` redraws the unsaved-changes mark, `rebuild()` reads the folder again.
+- `composed.ts`: the same over the picker's files, beside the table; a file chosen there opens
+  as one picked.
 
 The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
 the page in the document and handles its filters and links.
@@ -77,8 +84,9 @@ the page in the document and handles its filters and links.
 `tests/` are Playwright tests: every page loads with no console error, uncaught
 exception or failed request, and every icon draws; each kind of file draws its rows; a
 click and the arrow keys move the selection; the selection fills the inspector; the
-matrix glyph opens the editor on the right cells; the menu, the dialog and the project
-page answer the mouse and the keyboard; and the theme switch changes the colours of the
+matrix glyph opens the editor on the right cells; the hierarchy opens a folder with the
+mouse and the keyboard and hands the page the file chosen; the menu, the dialog and the
+project page answer the mouse and the keyboard; and the theme switch changes the colours of the
 page and of the widgets. `csp.spec.ts` checks that every built page has the strict
 policy, and that each engine refuses an inline style and a `data:` image under it, so
 any widget that needed either would fail the other tests on the refusal's console

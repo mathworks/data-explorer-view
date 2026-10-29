@@ -69,11 +69,16 @@ export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export type { GalleryCategory, GalleryTile, SectionKey } from './ids/addCatalog.js';
 export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
 
-// The hierarchy: the graph of which file references which, and the health marks on it.
+// The hierarchy: the graph of which file references which, and the health marks on it; a
+// folder's files read into it over core's source cache; and the folder as a tree's rows.
 export { RelGraph } from './hierarchy/graphModel.js';
 export type { GraphNode, GraphSource, GroupKind, NodeKind, SourceType } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
 export type { HealthDecoration, HealthState } from './hierarchy/health.js';
+export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
+export type { GraphReader, ProjectStore, RawFile } from './hierarchy/graphSources.js';
+export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
+export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hierarchy/folderHierarchy.js';
 
 // Sources: a document as a table shows it (the rows, the children of a row, a matrix's cells,
 // the inspector's page, and what changes after), and the workspace that opens documents in the

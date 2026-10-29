@@ -38,9 +38,12 @@ export { binaryEditSrcId, srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
-// The hierarchy: the graph of which file references which, and the health marks on it.
+// The hierarchy: the graph of which file references which, and the health marks on it; a
+// folder's files read into it over core's source cache; and the folder as a tree's rows.
 export { RelGraph } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
+export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
+export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
