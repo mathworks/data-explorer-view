@@ -2,7 +2,7 @@
 // data-explorer-view by its package name, which resolves to this repository through the
 // package's own `exports` (a self-reference), so every page runs the committed dist/ exactly
 // as an app that installs the package does.
-import { readdirSync } from 'node:fs';
+import { readdirSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -66,6 +66,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rolldownOptions: { input: pages },
   },
-  preview: { headers: { 'Content-Security-Policy': POLICY } },
+  // Which checkout's gallery this is, on every response of both servers: the tests check that the
+  // pages they load are this checkout's (playwright.config.ts says why). Not in the build itself.
+  server: { headers: { 'X-Dex-Gallery': realpathSync(root) } },
+  preview: { headers: { 'Content-Security-Policy': POLICY, 'X-Dex-Gallery': realpathSync(root) } },
   plugins: [contentSecurityPolicy()],
 });
