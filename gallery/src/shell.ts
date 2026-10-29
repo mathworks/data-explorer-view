@@ -22,7 +22,8 @@ export const PAGES = [
   { file: 'context-menu.html', title: 'Context menu', about: 'A menu of items with icons, shortcuts and a disabled item.' },
   { file: 'error-dialog.html', title: 'Error dialog', about: 'An error, and a refused edit with Revert.' },
   { file: 'project-page.html', title: 'Project page', about: "A MATLAB project's page, rendered from its project store." },
-  { file: 'composed.html', title: 'Composed', about: 'Table, inspector and variable editor together, as an app wires them.' },
+  { file: 'hierarchy.html', title: 'Hierarchy', about: 'A folder: its files, and the files each one references.' },
+  { file: 'composed.html', title: 'Composed', about: 'Folder, table, inspector and variable editor together, as an app wires them.' },
 ];
 
 const STORAGE_KEY = 'dex-gallery-theme';

@@ -4,7 +4,7 @@
 import { expect, PAGES, test } from './gallery';
 
 // The pages whose widgets draw icons from the package, by the bundler's copies.
-const WITH_ICONS = new Set(['tree-table.html', 'composed.html']);
+const WITH_ICONS = new Set(['tree-table.html', 'hierarchy.html', 'composed.html']);
 
 for (const path of PAGES) {
   test(`${path} loads and draws every icon`, async ({ page }) => {

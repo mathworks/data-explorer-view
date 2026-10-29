@@ -12,6 +12,7 @@ export const PAGES = [
   'context-menu.html',
   'error-dialog.html',
   'project-page.html',
+  'hierarchy.html',
   'composed.html',
 ] as const;
 
