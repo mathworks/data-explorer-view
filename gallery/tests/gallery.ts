@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 // What every gallery test shares: it fails on anything the page reports going wrong (a console
 // error, an uncaught exception, a request that failed or was answered with an error status),
-// and it knows the gallery's pages and how to pick a theme.
+// it can wait for the page's requests to settle, and it knows the gallery's pages and how to pick
+// a theme.
 import { test as base, expect, type Page } from '@playwright/test';
 
 export const PAGES = [
@@ -17,7 +18,39 @@ export const PAGES = [
   'folder.html',
 ] as const;
 
-export const test = base.extend<{ problems: string[] }>({
+/** The page's requests, for a test that must not cut one off (`network`). */
+export interface Network {
+  /**
+   * Resolves once no request of the page is in flight, and none has started or ended for
+   * `quietMs`: a widget still drawing asks for its icons in bursts. Before a reload, which would
+   * abort a request still loading (an icon), and the failed request would fail the test.
+   */
+  settled(quietMs?: number): Promise<void>;
+}
+
+export const test = base.extend<{ problems: string[]; network: Network }>({
+  network: async ({ page }, use) => {
+    let inFlight = 0;
+    let changed = Date.now();
+    const started = () => {
+      inFlight++;
+      changed = Date.now();
+    };
+    const ended = () => {
+      inFlight--;
+      changed = Date.now();
+    };
+    page.on('request', started);
+    page.on('requestfinished', ended);
+    page.on('requestfailed', ended);
+    await use({
+      async settled(quietMs = 250) {
+        await expect
+          .poll(() => inFlight === 0 && Date.now() - changed >= quietMs, { message: 'the page stops loading', intervals: [50] })
+          .toBe(true);
+      },
+    });
+  },
   problems: [
     async ({ page }, use) => {
       const problems: string[] = [];
