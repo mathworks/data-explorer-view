@@ -7,10 +7,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { connectTable, defineTreeTable, type DexTreeTable, type TableHandle } from '../src/widgets/tree-table/index.js';
+import { connectTable, defineTreeTable, type DexTreeTable, type TableBanners, type TableHandle } from '../src/widgets/tree-table/index.js';
 import type { DexVariableEditor } from '../src/widgets/variable-editor/index.js';
-import type { DexContextMenu } from '../src/widgets/context-menu/index.js';
-import { createWorkspace, messageSource, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
+import { defineContextMenu, type DexContextMenu } from '../src/widgets/context-menu/index.js';
+import { createWorkspace, messageSource, type TableChange, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
 
 defineTreeTable();
 
@@ -282,6 +282,101 @@ describe('the read-only context menu', () => {
     expect(actions).toEqual([{ actionId: 'reveal', rowId: kp.ID, rowIds: [kp.ID] }]);
   });
 
+  it('acts for the table that opened a shared menu, and for none whose menu was dismissed', async () => {
+    defineContextMenu();
+    const menu = document.createElement('dex-context-menu');
+    document.body.append(menu);
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => void written.push(t) }, configurable: true });
+    const actions: string[] = [];
+    const open = async (file: Uint8Array, name: string, row: string) => {
+      const doc = await ws.open(file, name);
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const handle = connectTable(table, doc.table, {
+        variableEditor: fakeEditor().editor,
+        contextMenu: menu,
+        menuItems: () => [{ id: 'reveal', label: 'Reveal in Folder' }],
+      });
+      handles.push(handle);
+      handle.on('action', ({ rowIds }) => actions.push(`${name} ${rowIds.length}`));
+      await settle(table);
+      const id = table.rows.find((r) => r.Name.label === row)!.ID;
+      table.selectedRowIds = [id];
+      return () => table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 3, y: 4, rowId: id }, bubbles: true }));
+    };
+    const rightClickA = await open(PARAMS, 'params.sldd', 'Kp');
+    const rightClickB = await open(NUMERIC, 'numeric_json.sldd', 'Matrix');
+    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const choose = async (label: string) => {
+      await frame();
+      await menu.updateComplete;
+      [...menu.shadowRoot!.querySelectorAll<HTMLElement>('.item')].find((i) => i.textContent?.includes(label))!.click();
+    };
+
+    // Opened from A and dismissed with Escape; opened from B, whose Copy Name is chosen.
+    rightClickA();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(menu.hasAttribute('open')).toBe(false);
+    rightClickB();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix']);
+
+    // Opened from A and dismissed by a click elsewhere; B's own item is chosen.
+    rightClickA();
+    await frame();
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    rightClickB();
+    await choose('Reveal in Folder');
+    expect(actions).toEqual(['numeric_json.sldd 1']);
+
+    // Opened from A, then from B over it (no dismissal between, as the menu key does): B's.
+    rightClickA();
+    rightClickB();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix', 'Matrix']);
+    // And A's menu, chosen from, is A's.
+    rightClickA();
+    await choose('Copy Name');
+    expect(written).toEqual(['Matrix', 'Matrix', 'Kp']);
+
+    // Opened from A and dismissed; the app then fills the same menu with an item of its own.
+    rightClickA();
+    await frame();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    menu.show(0, 0, [{ id: 'reveal', label: 'Reveal in Folder' }]);
+    await choose('Reveal in Folder');
+    expect(actions).toEqual(['numeric_json.sldd 1']);
+  });
+
+  it('acts for the table that opened it last even in a menu that never says it closed', async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const { menu } = fakeMenu();
+    const written: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => void written.push(t) }, configurable: true });
+    const rightClicks: (() => void)[] = [];
+    for (const [file, name, row] of [[PARAMS, 'params.sldd', 'Kp'], [NUMERIC, 'numeric_json.sldd', 'Matrix']] as const) {
+      const doc = await ws.open(file, name);
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      handles.push(connectTable(table, doc.table, { variableEditor: fakeEditor().editor, contextMenu: menu }));
+      await settle(table);
+      const id = table.rows.find((r) => r.Name.label === row)!.ID;
+      table.selectedRowIds = [id];
+      rightClicks.push(() => table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: id }, bubbles: true })));
+    }
+    rightClicks[0]();
+    rightClicks[1]();
+    menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId: 'copyName' } }));
+    // A's context went with that choice, made in B's menu: a second one finds no table's.
+    menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId: 'copyName' } }));
+    expect(written).toEqual(['Matrix']);
+  });
+
   it('opens none when told not to, and none for a selection of section headings', async () => {
     const ws = createWorkspace();
     workspaces.push(ws);
@@ -297,6 +392,164 @@ describe('the read-only context menu', () => {
       table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: table.selectedRowIds[0] }, bubbles: true }));
       expect(shown).toEqual([]);
     }
+  });
+
+  describe('copying', () => {
+    /** A table on params.sldd with a menu, and a way to choose Copy Name or Copy Value for rows. */
+    async function copier(options: Parameters<typeof connectTable>[2] = {}, source?: (s: TableSource) => TableSource) {
+      const ws = createWorkspace();
+      workspaces.push(ws);
+      const doc = await ws.open(PARAMS, 'params.sldd');
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const { menu } = fakeMenu();
+      const handle = connectTable(table, source ? source(doc.table) : doc.table, { variableEditor: fakeEditor().editor, contextMenu: menu, ...options });
+      handles.push(handle);
+      await settle(table);
+      const failures: unknown[] = [];
+      handle.on('copyFailed', (f) => failures.push(f));
+      const choose = async (actionId: 'copyName' | 'copyValue', ...names: string[]) => {
+        table.selectedRowIds = names.map((n) => table.rows.find((r) => r.Name.label === n)!.ID);
+        table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: table.selectedRowIds[0] }, bubbles: true }));
+        menu.dispatchEvent(new CustomEvent('dex-action', { detail: { actionId } }));
+        await settle(table);
+      };
+      return { table, failures, choose };
+    }
+
+    it("puts the text on the app's clipboard when it gives one, and not the page's", async () => {
+      const page = vi.fn(async () => {});
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText: page }, configurable: true });
+      const copied: string[] = [];
+      const { table, failures, choose } = await copier({ copy: (text) => void copied.push(text) });
+      await choose('copyName', 'Kp', 'Uo');
+      await choose('copyValue', 'Kp');
+      expect(copied).toEqual(['Kp\nUo', cellOf(table, 'Kp', 'Value')]);
+      expect(copied[1]).not.toBe('');
+      expect(page).not.toHaveBeenCalled();
+      expect(failures).toEqual([]);
+      expect(table.banners).toBeNull();
+    });
+
+    it('says a copy that failed, in the error banner and to the handle, until one succeeds', async () => {
+      let refuse: 'reject' | 'throw' | null = 'reject';
+      const { table, failures, choose } = await copier({
+        copy: (text) => {
+          if (refuse === 'throw') throw new Error('no clipboard here');
+          if (refuse === 'reject') return Promise.reject(new Error('Document is not focused.'));
+          return void text;
+        },
+      });
+      await choose('copyName', 'Kp');
+      expect(failures).toEqual([{ text: 'Kp', message: 'Document is not focused.' }]);
+      expect(table.banners?.error).toBe('Could not copy to the clipboard: Document is not focused.');
+      expect(table.shadowRoot!.querySelector('.banner-error')?.getAttribute('role')).toBe('alert');
+      refuse = 'throw';
+      await choose('copyName', 'Uo');
+      expect(failures.at(-1)).toEqual({ text: 'Uo', message: 'no clipboard here' });
+      expect(table.banners?.error).toBe('Could not copy to the clipboard: no clipboard here');
+      refuse = null;
+      await choose('copyName', 'Kp');
+      expect(table.banners).toBeNull();
+      expect(failures).toHaveLength(2);
+    });
+
+    it('gives back the error a failed copy covered, and leaves one a repaint drew', async () => {
+      let say: (change: TableChange) => void = () => {};
+      const spy = (s: TableSource): TableSource => ({ ...s, subscribe: (l) => ((say = l), s.subscribe(l)) });
+      let refuse = true;
+      const { table, choose } = await copier({ copy: () => (refuse ? Promise.reject(new Error('no')) : undefined) }, spy);
+      say({ kind: 'error', message: 'Failed to apply edit: no.' });
+      await choose('copyName', 'Kp');
+      await choose('copyName', 'Kp');
+      expect(table.banners?.error).toBe('Could not copy to the clipboard: no');
+      refuse = false;
+      await choose('copyName', 'Kp');
+      expect(table.banners?.error).toBe('Failed to apply edit: no.');
+
+      refuse = true;
+      await choose('copyName', 'Kp');
+      say({ kind: 'error', message: 'Another.' });
+      refuse = false;
+      await choose('copyName', 'Kp');
+      expect(table.banners?.error).toBe('Another.');
+    });
+
+    it("says it of the page's clipboard too: one that refuses, and none at all", async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => Promise.reject(new Error('Write permission denied.')) }, configurable: true });
+      const { table, failures, choose } = await copier();
+      await choose('copyValue', 'Kp');
+      expect(failures).toEqual([{ text: cellOf(table, 'Kp', 'Value'), message: 'Write permission denied.' }]);
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+      await choose('copyName', 'Kp');
+      expect(table.banners?.error).toBe('Could not copy to the clipboard: this page has no clipboard access');
+    });
+
+    it('draws the failure where the app draws its banners', async () => {
+      const drawn: TableBanners[] = [];
+      const { table, choose } = await copier({ copy: () => Promise.reject(new Error('no')), banners: (b) => drawn.push(b) });
+      await choose('copyName', 'Kp');
+      expect(drawn.at(-1)?.error).toBe('Could not copy to the clipboard: no');
+      expect(table.banners).toBeNull();
+    });
+  });
+});
+
+/** What the table shows in `column` for the row named `name`. */
+function cellOf(table: DexTreeTable, name: string, column: string): string {
+  const cell = table.rows.find((r) => r.Name.label === name)?.[column];
+  return typeof cell === 'string' ? cell : (cell as { text?: string } | undefined)?.text ?? '';
+}
+
+describe('the columns', () => {
+  it("keeps the source's columns a test passes, asked with each paint, on every paint", async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const doc = await ws.open(PARAMS, 'params.sldd');
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    const asked: [string, unknown][] = [];
+    const handle = connectTable(table, doc.table, {
+      variableEditor: fakeEditor().editor,
+      columns: (column, view) => (asked.push([column, view]), column !== 'UsedBy'),
+    });
+    handles.push(handle);
+    await settle(table);
+    const view = await doc.table.open();
+    expect(view.columns).toContain('UsedBy');
+    expect(table.columns).toEqual(view.columns.filter((c) => c !== 'UsedBy'));
+    expect(asked.map(([c]) => c)).toEqual(view.columns);
+    expect(asked.every(([, v]) => v === handle.view)).toBe(true);
+    // The handle's view is the source's, whole.
+    expect(handle.view?.columns).toEqual(view.columns);
+    // Chosen again as the file is read again.
+    table.columns = view.columns;
+    await doc.reload(PARAMS);
+    await settle(table);
+    expect(table.columns).toEqual(view.columns.filter((c) => c !== 'UsedBy'));
+    expect(asked).toHaveLength(view.columns.length * 2);
+  });
+
+  it("keeps the keys a list names, in the source's order, and names none the source has not", async () => {
+    const ws = createWorkspace();
+    workspaces.push(ws);
+    const doc = await ws.open(PARAMS, 'params.sldd');
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, doc.table, { variableEditor: fakeEditor().editor, columns: ['Value', 'Name', 'Nope'] }));
+    await settle(table);
+    expect(table.columns).toEqual(['Name', 'Value']);
+  });
+
+  it('leaves a paint that names no columns the built-in set', async () => {
+    let hear: (m: unknown) => void = () => {};
+    const port: TablePort = { postMessage: () => {}, onMessage: (l) => ((hear = l), () => {}) };
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, messageSource(port), { variableEditor: fakeEditor().editor, columns: (c) => c !== 'UsedBy' }));
+    hear({ type: 'setRows', rows: [], docUri: 'file:///x.sldd' });
+    await settle(table);
+    expect(table.columns).toBeNull();
   });
 });
 

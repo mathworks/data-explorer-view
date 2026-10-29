@@ -10,6 +10,8 @@
 // same spelling, so a file opened in a page and in the extension has one identity. Node's
 // `pathToFileURL` and `encodeURI` keep `@` (and other characters) raw, and are not.
 
+import { srcIdToUriString } from '../ids/srcId.js';
+
 // The characters a uri component keeps as they are (RFC 3986 unreserved), and in a path `/`.
 const KEPT = /^[A-Za-z0-9\-._~]$/;
 
@@ -77,15 +79,52 @@ function encodeAuthority(authority: string): string {
 }
 
 /**
- * The path a uri names, decoded: `file:///fx/my%20plant.mdl` → `/fx/my plant.mdl` (VS Code's
- * `Uri.path`). The uri itself when it has no `scheme:` to read past.
+ * The path part of a uri, decoded: `file:///fx/my%20plant.mdl` → `/fx/my plant.mdl` (VS Code's
+ * `Uri.path`, which for a Windows file is `/c:/work/plant.mdl`). The uri itself when it has no
+ * `scheme:` to read past.
  */
-export function uriPath(uri: string): string {
+export function uriPathPart(uri: string): string {
   const m = /^[A-Za-z][A-Za-z0-9+.-]*:(?:\/\/[^/?#]*)?([^?#]*)/.exec(uri);
   if (!m) return uri;
+  return decode(m[1]);
+}
+
+function decode(text: string): string {
   try {
-    return decodeURIComponent(m[1]);
+    return decodeURIComponent(text);
   } catch {
-    return m[1];
+    return text;
   }
+}
+
+/**
+ * The path of the file a `file:` uri names: sourceUri read backwards. For every uri sourceUri
+ * writes, `sourceUri(uriPath(uri))` is that uri again; and `uriPath(sourceUri(path))` is `path`,
+ * as sourceUri reads it (a drive letter and a UNC host lower-case, a relative path from `/`).
+ *
+ * A uri with a drive letter gives a Windows path and one with a host a UNC path, with
+ * backslashes, as VS Code's `Uri.fsPath` gives them on Windows: `file:///c%3A/work/plant.sldd` →
+ * `c:\work\plant.sldd`, `file://server/share/x.sldd` → `\\server\share\x.sldd`. Every other
+ * gives a POSIX path: `file:///u/me%40corp/my%20plant.sldd` → `/u/me@corp/my plant.sldd`. (A name
+ * that holds a backslash cannot be in a Windows path, so such a uri gives its POSIX spelling,
+ * which sourceUri reads back the same.)
+ *
+ * It takes a link's source as it comes too, a core source id: `binedit:` and a uri
+ * (srcIdToUriString). Anything that is not a `file:` uri (a path, a bare name, another scheme)
+ * is given back as it is.
+ */
+export function uriPath(uri: string): string {
+  const m = /^file:\/\/([^/?#]*)([^?#]*)/i.exec(srcIdToUriString(uri));
+  if (!m) return uri;
+  const host = decode(m[1]);
+  const path = decode(m[2]) || '/';
+  // A UNC path, and a drive letter's, unless a backslash in it would read as a separator.
+  if (host) {
+    const posix = `//${host}${path}`;
+    return posix.includes('\\') ? posix : posix.replace(/\//g, '\\');
+  }
+  if (/^\/[A-Za-z]:\//.test(path) && !path.includes('\\')) {
+    return `${path[1].toLowerCase()}${path.slice(2)}`.replace(/\//g, '\\');
+  }
+  return path;
 }

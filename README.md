@@ -112,15 +112,22 @@ variable editor on a matrix and fills it, keeps what the user opened and
 selected when the file changes, selects the row a Data Type link names, and has
 a read-only context menu (Copy Name, Copy Value) and Ctrl+F. The rest is the
 app's, on the handle: `handle.on('navigate', ({ link }) => …)` for a link to
-another document or a file, `handle.on('select', (rowIds) => …)`,
-`handle.selectByName(name)` for a link that arrives from another table, and
-`menuItems` for the app's own menu items. The table's `readonly` stays the
-app's to set.
+another document or a file, `handle.on('select', (rowIds) => …)`, and
+`handle.selectByName(name)` for a link that arrives from another table. The
+table's `readonly` stays the app's to set, and connectTable's options take
+over more: `menuItems` adds the app's own menu items, `copy` puts a copy on the
+app's clipboard rather than the page's (a copy that fails, on either, says so
+in the error banner), and `columns` leaves out a column nothing fills in a
+document. One inspector beside several tables follows the active one with
+`follow(handle)`, and shows its empty state after `follow(null)`.
 
 When the file changes, `doc.reload(bytes)` reads it again and the table
 repaints. A document's uri is its identity, in every row id: by default
 `file:///<name>`; to open two files that share a name, pass each one's
 `sourceUri(path)` as the third argument, which spells a path as VS Code does.
+`uriPath(uri)` reads one back into the path, Windows paths included, and takes
+a link's `source` as it comes: the file to open for a link to another
+document.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
 what the VS Code extension shows for the same file, read-only; editing comes in
 a later release, and so does the page a project (`doc.kind === 'project'`)

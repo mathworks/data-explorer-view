@@ -7,6 +7,7 @@ export { DexTreeTable, defineTreeTable } from './dex-tree-table.js';
 export { connectTable } from './connectTable.js';
 export type {
   ConnectTableOptions,
+  CopyFailure,
   NavigateRequest,
   TableAction,
   TableHandle,

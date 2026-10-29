@@ -31,13 +31,35 @@ export interface ConnectTableOptions {
      * handle's `action`.
      */
     menuItems?: (context: TableMenuContext) => ContextMenuItem[];
-    /** The context menu to open. Default: one connectTable makes, in `<body>`, when it is first needed. */
+    /**
+     * The context menu to open. Default: one connectTable makes, in `<body>`, when it is first
+     * needed. One menu may serve several tables: a choice is acted on by the table that opened the
+     * menu, and a menu dismissed (or opened by another table, or by the app) leaves no table
+     * waiting for its next choice.
+     */
     contextMenu?: DexContextMenu;
     /**
      * Where the banners go. Default: the table's own strip, above its search bar (`table.banners`).
      * A function draws them elsewhere instead, and is called with all three whenever any changes.
      */
     banners?: (banners: TableBanners) => void;
+    /**
+     * Where Copy Name and Copy Value put their text, for an app with a clipboard of its own
+     * (Electron's, a host's). A throw or a rejected promise is a copy that failed: the table says
+     * so in its error banner, and the handle sends `copyFailed`. Default: the page's clipboard,
+     * `navigator.clipboard.writeText`, which a page without one, or one that refuses (an unfocused
+     * page, a permission policy), fails the same way.
+     */
+    copy?: (text: string) => Promise<void> | void;
+    /**
+     * Which of the source's columns the table has (`table.columns`, the ones its Columns menu
+     * offers), chosen again on every whole paint: the keys in a list, or those a test passes, asked
+     * of each column with the paint (`TableView`). For a column nothing fills in this document, such
+     * as Usage in a dictionary opened where no workspace fills it. Default: every column the source
+     * paints. A paint that names no columns leaves the table its built-in set, as without this
+     * option.
+     */
+    columns?: readonly string[] | ((column: string, view: TableView) => boolean);
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -45,6 +67,13 @@ export interface NavigateRequest {
     target: string;
     /** What it points at. */
     link: LinkTarget;
+}
+/** A copy that did not reach the clipboard (the handle's `copyFailed`). */
+export interface CopyFailure {
+    /** What was to be copied: the names or values, one a line. */
+    text: string;
+    /** Why, as the clipboard or the app's `copy` said it. */
+    message: string;
 }
 /** A menu item the app added (`menuItems`) was chosen. */
 export interface TableAction {
@@ -66,6 +95,11 @@ export interface TableHandleEventMap {
     navigate: NavigateRequest;
     /** One of the app's menu items was chosen. */
     action: TableAction;
+    /**
+     * Copy Name or Copy Value did not reach the clipboard. The table's error banner says so too,
+     * until a copy succeeds or the table repaints.
+     */
+    copyFailed: CopyFailure;
 }
 /** A table wired to a source: what connectTable returns. */
 export interface TableHandle extends InspectorFeed {

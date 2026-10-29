@@ -57,13 +57,35 @@ export interface ConnectTableOptions {
    * handle's `action`.
    */
   menuItems?: (context: TableMenuContext) => ContextMenuItem[];
-  /** The context menu to open. Default: one connectTable makes, in `<body>`, when it is first needed. */
+  /**
+   * The context menu to open. Default: one connectTable makes, in `<body>`, when it is first
+   * needed. One menu may serve several tables: a choice is acted on by the table that opened the
+   * menu, and a menu dismissed (or opened by another table, or by the app) leaves no table
+   * waiting for its next choice.
+   */
   contextMenu?: DexContextMenu;
   /**
    * Where the banners go. Default: the table's own strip, above its search bar (`table.banners`).
    * A function draws them elsewhere instead, and is called with all three whenever any changes.
    */
   banners?: (banners: TableBanners) => void;
+  /**
+   * Where Copy Name and Copy Value put their text, for an app with a clipboard of its own
+   * (Electron's, a host's). A throw or a rejected promise is a copy that failed: the table says
+   * so in its error banner, and the handle sends `copyFailed`. Default: the page's clipboard,
+   * `navigator.clipboard.writeText`, which a page without one, or one that refuses (an unfocused
+   * page, a permission policy), fails the same way.
+   */
+  copy?: (text: string) => Promise<void> | void;
+  /**
+   * Which of the source's columns the table has (`table.columns`, the ones its Columns menu
+   * offers), chosen again on every whole paint: the keys in a list, or those a test passes, asked
+   * of each column with the paint (`TableView`). For a column nothing fills in this document, such
+   * as Usage in a dictionary opened where no workspace fills it. Default: every column the source
+   * paints. A paint that names no columns leaves the table its built-in set, as without this
+   * option.
+   */
+  columns?: readonly string[] | ((column: string, view: TableView) => boolean);
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -72,6 +94,14 @@ export interface NavigateRequest {
   target: string;
   /** What it points at. */
   link: LinkTarget;
+}
+
+/** A copy that did not reach the clipboard (the handle's `copyFailed`). */
+export interface CopyFailure {
+  /** What was to be copied: the names or values, one a line. */
+  text: string;
+  /** Why, as the clipboard or the app's `copy` said it. */
+  message: string;
 }
 
 /** A menu item the app added (`menuItems`) was chosen. */
@@ -95,6 +125,11 @@ export interface TableHandleEventMap {
   navigate: NavigateRequest;
   /** One of the app's menu items was chosen. */
   action: TableAction;
+  /**
+   * Copy Name or Copy Value did not reach the clipboard. The table's error banner says so too,
+   * until a copy succeeds or the table repaints.
+   */
+  copyFailed: CopyFailure;
 }
 
 /** A table wired to a source: what connectTable returns. */
@@ -130,6 +165,10 @@ function isRecord(x: unknown): x is Record<string, any> {
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
+// The table each context menu was last opened for, by menu: every table connected to a shared
+// menu hears each of its choices, and the one that opened it is the one that acts.
+const menuOwners = new WeakMap<object, object>();
+
 /** The text of a cell, as the table shows it. */
 function cellText(cell: unknown): string {
   if (typeof cell === 'string') return cell;
@@ -159,6 +198,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     select: new Set(),
     navigate: new Set(),
     action: new Set(),
+    copyFailed: new Set(),
   };
   const emit = <K extends keyof TableHandleEventMap>(type: K, detail: TableHandleEventMap[K]): void => {
     for (const listener of [...listeners[type]]) (listener as (d: TableHandleEventMap[K]) => void)(detail);
@@ -188,6 +228,15 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     else table.banners = banners.error || banners.notice || banners.warnings ? { ...banners } : null;
   };
   const showError = (message: string | undefined): void => drawBanners({ ...banners, error: message });
+
+  // --- Columns ---------------------------------------------------------------------------------
+
+  const chosen = options.columns;
+  const chooseColumns = (next: TableView): string[] => {
+    if (chosen === undefined) return next.columns;
+    const keep = typeof chosen === 'function' ? (c: string) => chosen(c, next) : (c: string) => chosen.includes(c);
+    return next.columns.filter(keep);
+  };
 
   // --- Rows ------------------------------------------------------------------------------------
 
@@ -283,7 +332,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     // Every row is replaced, so an open grid describes rows the user can no longer see.
     variableEditor.close();
     drawBanners({ notice: next.notice, warnings: next.warnings });
-    table.columns = next.columns.length > 0 ? next.columns : null;
+    table.columns = next.columns.length > 0 ? chooseColumns(next) : null;
     table.columnLabels = next.columnLabels;
     table.columnGroups = next.columnGroups;
     installRows(next.rows);
@@ -410,15 +459,51 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   let contextMenu = options.contextMenu;
   let madeMenu = false;
   let menuListening = false;
-  // What the open menu is about, until one of its items is chosen.
+  // What the open menu is about, until it closes: a choice, a dismissal, or another table's (or
+  // the app's) show() in its place. A menu shared with other tables (`contextMenu`) acts for the
+  // one that opened it last, and only on its next choice.
   let menuContext: TableMenuContext | null = null;
+  const menuOwner = {};
   const onAction = (e: Event): void => {
     const context = menuContext;
-    if (!context) return;
     menuContext = null;
+    if (!context || menuOwners.get(e.currentTarget as object) !== menuOwner) return;
     const actionId = (e as CustomEvent<{ actionId: string }>).detail?.actionId;
     if (actionId === 'copyName' || actionId === 'copyValue') return void copyText(context, actionId);
     if (typeof actionId === 'string') emit('action', { actionId, rowId: context.rowId, rowIds: context.selectedRowIds });
+  };
+  const onMenuClosed = (): void => {
+    menuContext = null;
+  };
+
+  // Copy Name and Copy Value. A copy that fails is said in the error banner, over whatever error
+  // was there, which the next copy that succeeds gives back (a repaint draws its own).
+  const copy = options.copy ?? pageClipboard;
+  let copyError: { shown: string; covered: string | undefined } | null = null;
+  const copyText = (context: TableMenuContext, which: 'copyName' | 'copyValue'): void => {
+    const text = selectionText(context, which);
+    let copying: Promise<void>;
+    try {
+      copying = Promise.resolve(copy(text));
+    } catch (err) {
+      copying = Promise.reject(err);
+    }
+    copying.then(
+      () => {
+        if (disposed) return;
+        if (copyError && banners.error === copyError.shown) showError(copyError.covered);
+        copyError = null;
+      },
+      (err) => {
+        if (disposed) return;
+        const message = messageOf(err);
+        const shown = `Could not copy to the clipboard: ${message}`;
+        const covered = copyError && banners.error === copyError.shown ? copyError.covered : banners.error;
+        copyError = { shown, covered };
+        showError(shown);
+        emit('copyFailed', { text, message });
+      },
+    );
   };
   if (options.menu !== false) {
     listen(table, 'dex-table-context-menu', (e) => {
@@ -437,10 +522,13 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       }
       if (!menuListening) {
         contextMenu.addEventListener('dex-action', onAction);
+        contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
         menuListening = true;
       }
-      menuContext = context;
+      // After show(): a menu it replaces says it closed, which clears every table's context.
       contextMenu.show(x, y, items);
+      menuOwners.set(contextMenu, menuOwner);
+      menuContext = context;
     });
   }
 
@@ -539,7 +627,10 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       unsubscribe();
       cancelVanishedClear();
       for (const cleanup of cleanups.splice(0)) cleanup();
-      if (contextMenu && menuListening) contextMenu.removeEventListener('dex-action', onAction);
+      if (contextMenu && menuListening) {
+        contextMenu.removeEventListener('dex-action', onAction);
+        contextMenu.removeEventListener('dex-menu-closed', onMenuClosed);
+      }
       if (madeMenu) contextMenu?.remove();
       if (madeEditor) variableEditor.remove();
       for (const set of Object.values(listeners)) set.clear();
@@ -558,13 +649,21 @@ function readOnlyItems(context: TableMenuContext): ContextMenuItem[] {
   ];
 }
 
-/** The selection's names (or values), one a line, on the clipboard; nothing where it is refused. */
-function copyText(context: TableMenuContext, which: 'copyName' | 'copyValue'): void {
+/** The selection's names (or values), one a line: what Copy Name (or Copy Value) copies. */
+function selectionText(context: TableMenuContext, which: 'copyName' | 'copyValue'): string {
   const byId = new Map(context.rows.map((r) => [r.ID, r]));
   const ops = resolveOperands(context.selectedRowIds, context.rows);
   const lines = ops.deleteIds.map((id) => {
     const row = byId.get(id);
     return which === 'copyName' ? (row?.Name?.label ?? '') : cellText(row?.Value);
   });
-  void navigator.clipboard?.writeText(lines.join('\n')).catch(() => {});
+  return lines.join('\n');
+}
+
+/** The page's clipboard, which a page without one fails like one that refuses. */
+function pageClipboard(text: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) {
+    return Promise.reject(new Error('this page has no clipboard access'));
+  }
+  return navigator.clipboard.writeText(text);
 }

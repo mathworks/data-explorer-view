@@ -34,6 +34,20 @@ handle.on('select', (rowIds) => showProperties(rowIds)); // or connectInspector(
 handle.on('navigate', ({ link }) => openTarget(link)); // a row of another document, a file
 ```
 
+Its options hand parts of that to the app. `variableEditor` is one editor for several tables
+and an inspector. `menu: false` leaves the right-click to the app, and `menuItems` adds the
+app's own items, whose choice comes out as `action`. `contextMenu` is a menu several tables
+share: the table that opened it acts on its choice, and a dismissed menu leaves none waiting.
+`banners` draws the banners somewhere else. `copy` puts what Copy Name and Copy Value copy on
+the app's own clipboard instead of the page's; a copy that fails, on either, says so in the error
+banner and as the handle's `copyFailed`. `columns` narrows the source's columns, on every paint,
+to those a list names or a test passes: to leave out one nothing fills in this document.
+
+```js
+// No Usage column where no row has a usage to show.
+connectTable(table, doc.table, { columns: (column, view) => column !== 'UsedBy' || view.rows.some((r) => r.UsedBy) });
+```
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.

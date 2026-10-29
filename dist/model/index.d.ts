@@ -48,7 +48,7 @@ export type { HealthDecoration, HealthState } from './hierarchy/health.js';
 export type { ChildRows, InspectorFeed, InspectorView, MatrixPage, TableChange, TableSource, TableView, } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, Workspace, WorkspaceOptions } from './source/workspace.js';
-export { sourceUri } from './source/sourceUri.js';
+export { sourceUri, uriPath } from './source/sourceUri.js';
 export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { serveTable } from './source/serveTable.js';
 export type { ChildRowsMessage, EmptyMessage, ErrorMessage, InsertEntryRowsMessage, MatrixCellsMessage, ReadyMessage, RequestChildrenMessage, RequestMatrixMessage, SelectMessage, SetRowsMessage, ShowPropsMessage, TableClientMessage, TableHostMessage, TablePort, UpdateEntryRowsMessage, } from './source/wire.js';

@@ -46,7 +46,7 @@ export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
 export { createWorkspace } from './source/workspace.js';
-export { sourceUri } from './source/sourceUri.js';
+export { sourceUri, uriPath } from './source/sourceUri.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages
 // between them.

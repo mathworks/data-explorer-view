@@ -8,7 +8,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A context menu of the items an app hands it, at a point of the viewport: show() opens it,\na choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,\nor a scroll close it. Arrow keys move along the items, disabled ones included (their\n`reason` is their tooltip), and Enter chooses. The tree table's items for a selection are\nbuildContextMenuItems' (`data-explorer-view/tree-table`).",
+          "description": "A context menu of the items an app hands it, at a point of the viewport: show() opens it,\na choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,\nor a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move\nalong the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.\nThe tree table's items for a selection are buildContextMenuItems'\n(`data-explorer-view/tree-table`).",
           "name": "DexContextMenu",
           "members": [
             {
@@ -39,7 +39,7 @@
                   }
                 }
               ],
-              "description": "Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels\n(a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already\nopen is replaced."
+              "description": "Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels\n(a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already\nopen is replaced: it closes first, and says so (`dex-menu-closed`)."
             },
             {
               "kind": "method",
@@ -49,10 +49,17 @@
                   "text": "void"
                 }
               },
-              "description": "Closes the menu, choosing nothing."
+              "description": "Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`)."
             }
           ],
           "events": [
+            {
+              "name": "dex-menu-closed",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "The open menu closed, whichever way: after a choice (and its `dex-action`), on Escape, a\nclick, a right-click or a scroll outside it, on close(), or as show() replaced its items.\nconnectTable hears it, so that a menu several tables share forgets which one opened it. No\ndetail."
+            },
             {
               "name": "dex-action",
               "type": {
@@ -706,7 +713,7 @@
             {
               "name": "feed",
               "type": {
-                "text": "InspectorFeed"
+                "text": "InspectorFeed | null"
               }
             },
             {
@@ -717,7 +724,7 @@
               }
             }
           ],
-          "description": "Wire `inspector` to `feed`: show every page it sends, and answer what the inspector asks."
+          "description": "Wire `inspector` to `feed`: show every page it sends, and answer what the inspector asks. A\n`null` feed starts it empty, following none until `follow()` gives it one."
         }
       ],
       "exports": [
@@ -2898,6 +2905,14 @@
           "name": "ConnectTableOptions",
           "declaration": {
             "name": "ConnectTableOptions",
+            "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CopyFailure",
+          "declaration": {
+            "name": "CopyFailure",
             "module": "./connectTable.js"
           }
         },

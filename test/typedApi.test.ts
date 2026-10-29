@@ -77,9 +77,9 @@ const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((f
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 22 events from 11 widgets: a parse that found none would pass everything below.
+    // 23 events from 11 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(22);
+    expect(new Set(names).size).toBe(23);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -184,7 +184,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
     import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
-    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
+    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -224,6 +224,7 @@ describe('an app written in TypeScript, against the built package', () => {
     inspector.addEventListener('dex-property-changed', (e) => { s(e.detail.propName); s(e.detail.newValue); s(e.detail.oldValue); });
     inspector.addEventListener('dex-pi-navigate', (e) => s(e.detail.sourceId));
     menu.addEventListener('dex-action', (e) => s(e.detail.actionId));
+    menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
     // They bubble and are composed, so the document and the window hear them, typed.
     document.addEventListener('dex-matrix-open', (e) => s(e.detail.matrix.nodeId));
@@ -267,6 +268,7 @@ describe('an app written in TypeScript, against the built package', () => {
     void (async () => {
       const ws = createWorkspace({ rowBudget: 1000 });
       const doc: Doc = await ws.open(new Uint8Array(0), 'plant.sldd', sourceUri('/work/plant.sldd'));
+      s(uriPath(doc.uri));
       const kind: DocKind = doc.kind;
       s(kind);
       const source: TableSource = doc.table;
@@ -283,8 +285,20 @@ describe('an app written in TypeScript, against the built package', () => {
       // The README's quick start, as it is written there, and the handle's hooks.
       const handle = connectTable(table, doc.table);
       connectInspector(inspector, handle);
+      // One inspector beside several tables: it follows the active one, or none.
+      const following = connectInspector(inspector, null, { empty: document.createElement('p') });
+      following.follow(handle);
+      following.follow(null);
+      // @ts-expect-error a feed is a table's handle or a host's pages, not a table
+      following.follow(table);
       handle.on('navigate', ({ link }) => s(link.kind === 'file' ? link.file : link.source));
       handle.on('select', (rowIds) => rowIds.map(s));
+      handle.on('copyFailed', ({ text, message }) => s(text + message));
+      const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
+      connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
+      connectTable(table, doc.table, { columns: (column, v: TableView) => column !== 'UsedBy' || v.rows.length > 0 }).dispose();
+      connectTable(table, doc.table, { columns: ['Name', 'Value'] }).dispose();
+      copying.dispose();
       handle.selectByName('Kp');
       // Across a channel: the host serves, the page's table follows the messages.
       const port: TablePort = { postMessage: () => {}, onMessage: () => () => {} };

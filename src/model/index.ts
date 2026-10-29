@@ -95,7 +95,7 @@ export type {
 } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, Workspace, WorkspaceOptions } from './source/workspace.js';
-export { sourceUri } from './source/sourceUri.js';
+export { sourceUri, uriPath } from './source/sourceUri.js';
 
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), the host's end (serveTable), and the messages

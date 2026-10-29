@@ -22,6 +22,9 @@ function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
+// The table each context menu was last opened for, by menu: every table connected to a shared
+// menu hears each of its choices, and the one that opened it is the one that acts.
+const menuOwners = new WeakMap();
 /** The text of a cell, as the table shows it. */
 function cellText(cell) {
     if (typeof cell === 'string')
@@ -47,6 +50,7 @@ export function connectTable(table, source, options = {}) {
         select: new Set(),
         navigate: new Set(),
         action: new Set(),
+        copyFailed: new Set(),
     };
     const emit = (type, detail) => {
         for (const listener of [...listeners[type]])
@@ -75,6 +79,14 @@ export function connectTable(table, source, options = {}) {
             table.banners = banners.error || banners.notice || banners.warnings ? { ...banners } : null;
     };
     const showError = (message) => drawBanners({ ...banners, error: message });
+    // --- Columns ---------------------------------------------------------------------------------
+    const chosen = options.columns;
+    const chooseColumns = (next) => {
+        if (chosen === undefined)
+            return next.columns;
+        const keep = typeof chosen === 'function' ? (c) => chosen(c, next) : (c) => chosen.includes(c);
+        return next.columns.filter(keep);
+    };
     // --- Rows ------------------------------------------------------------------------------------
     const selectedRowIds = () => (Array.isArray(table.selectedRowIds) ? table.selectedRowIds : []);
     const rowsNow = () => (Array.isArray(table.rows) ? table.rows : []);
@@ -171,7 +183,7 @@ export function connectTable(table, source, options = {}) {
         // Every row is replaced, so an open grid describes rows the user can no longer see.
         variableEditor.close();
         drawBanners({ notice: next.notice, warnings: next.warnings });
-        table.columns = next.columns.length > 0 ? next.columns : null;
+        table.columns = next.columns.length > 0 ? chooseColumns(next) : null;
         table.columnLabels = next.columnLabels;
         table.columnGroups = next.columnGroups;
         installRows(next.rows);
@@ -282,18 +294,54 @@ export function connectTable(table, source, options = {}) {
     let contextMenu = options.contextMenu;
     let madeMenu = false;
     let menuListening = false;
-    // What the open menu is about, until one of its items is chosen.
+    // What the open menu is about, until it closes: a choice, a dismissal, or another table's (or
+    // the app's) show() in its place. A menu shared with other tables (`contextMenu`) acts for the
+    // one that opened it last, and only on its next choice.
     let menuContext = null;
+    const menuOwner = {};
     const onAction = (e) => {
         const context = menuContext;
-        if (!context)
-            return;
         menuContext = null;
+        if (!context || menuOwners.get(e.currentTarget) !== menuOwner)
+            return;
         const actionId = e.detail?.actionId;
         if (actionId === 'copyName' || actionId === 'copyValue')
             return void copyText(context, actionId);
         if (typeof actionId === 'string')
             emit('action', { actionId, rowId: context.rowId, rowIds: context.selectedRowIds });
+    };
+    const onMenuClosed = () => {
+        menuContext = null;
+    };
+    // Copy Name and Copy Value. A copy that fails is said in the error banner, over whatever error
+    // was there, which the next copy that succeeds gives back (a repaint draws its own).
+    const copy = options.copy ?? pageClipboard;
+    let copyError = null;
+    const copyText = (context, which) => {
+        const text = selectionText(context, which);
+        let copying;
+        try {
+            copying = Promise.resolve(copy(text));
+        }
+        catch (err) {
+            copying = Promise.reject(err);
+        }
+        copying.then(() => {
+            if (disposed)
+                return;
+            if (copyError && banners.error === copyError.shown)
+                showError(copyError.covered);
+            copyError = null;
+        }, (err) => {
+            if (disposed)
+                return;
+            const message = messageOf(err);
+            const shown = `Could not copy to the clipboard: ${message}`;
+            const covered = copyError && banners.error === copyError.shown ? copyError.covered : banners.error;
+            copyError = { shown, covered };
+            showError(shown);
+            emit('copyFailed', { text, message });
+        });
     };
     if (options.menu !== false) {
         listen(table, 'dex-table-context-menu', (e) => {
@@ -314,10 +362,13 @@ export function connectTable(table, source, options = {}) {
             }
             if (!menuListening) {
                 contextMenu.addEventListener('dex-action', onAction);
+                contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
                 menuListening = true;
             }
-            menuContext = context;
+            // After show(): a menu it replaces says it closed, which clears every table's context.
             contextMenu.show(x, y, items);
+            menuOwners.set(contextMenu, menuOwner);
+            menuContext = context;
         });
     }
     // --- The inspector's feed: this table's selection, inspected ----------------------------------
@@ -423,8 +474,10 @@ export function connectTable(table, source, options = {}) {
             cancelVanishedClear();
             for (const cleanup of cleanups.splice(0))
                 cleanup();
-            if (contextMenu && menuListening)
+            if (contextMenu && menuListening) {
                 contextMenu.removeEventListener('dex-action', onAction);
+                contextMenu.removeEventListener('dex-menu-closed', onMenuClosed);
+            }
             if (madeMenu)
                 contextMenu?.remove();
             if (madeEditor)
@@ -445,13 +498,20 @@ function readOnlyItems(context) {
         { id: 'copyValue', label: 'Copy Value' },
     ];
 }
-/** The selection's names (or values), one a line, on the clipboard; nothing where it is refused. */
-function copyText(context, which) {
+/** The selection's names (or values), one a line: what Copy Name (or Copy Value) copies. */
+function selectionText(context, which) {
     const byId = new Map(context.rows.map((r) => [r.ID, r]));
     const ops = resolveOperands(context.selectedRowIds, context.rows);
     const lines = ops.deleteIds.map((id) => {
         const row = byId.get(id);
         return which === 'copyName' ? (row?.Name?.label ?? '') : cellText(row?.Value);
     });
-    void navigator.clipboard?.writeText(lines.join('\n')).catch(() => { });
+    return lines.join('\n');
+}
+/** The page's clipboard, which a page without one fails like one that refuses. */
+function pageClipboard(text) {
+    if (!navigator.clipboard?.writeText) {
+        return Promise.reject(new Error('this page has no clipboard access'));
+    }
+    return navigator.clipboard.writeText(text);
 }

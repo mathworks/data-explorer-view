@@ -17,7 +17,7 @@
 import { isMatFile, isModelFile, isProjectFile, isSlddFile, parseModel } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
-import { uriPath } from './sourceUri.js';
+import { uriPathPart } from './sourceUri.js';
 /** The kind of the file `name` names, or undefined for a file this package does not open. */
 export function docKindOf(name) {
     if (isMatFile(name))
@@ -124,7 +124,7 @@ function readZip(registry, name, uri, bytes) {
 function readModel(registry, name, uri, bytes) {
     let node;
     try {
-        node = registry.getModelFromParsed(uri, name, parseModel(bytes, uriPath(uri)));
+        node = registry.getModelFromParsed(uri, name, parseModel(bytes, uriPathPart(uri)));
     }
     catch (err) {
         throw new Error(`Failed to parse ${name}: ${messageOf(err)}`);

@@ -23,6 +23,17 @@ const connected = connectInspector(inspector, handle, { empty: placeholder });
 connected.on('navigate', (target) => goTo(target)); // a cross-reference, `name@source`
 ```
 
+One inspector beside several tables (a table per tab) follows the active one: `follow(feed)`
+switches it to another table's handle, with the same options and listeners, and `follow(null)`
+shows the empty state until a table is followed again. Connect it with `null` to start with none.
+A grid the inspector opened closes as it switches; one a table opened in a shared editor stays.
+
+```js
+const inspector = connectInspector(element, null, { empty: placeholder, variableEditor: editor });
+// as a tab becomes active, and when the last one closes:
+inspector.follow(activeTab ? activeTab.handle : null);
+```
+
 Without connectInspector, set `groups` yourself: `(await source.inspect(rowIds)).groups`, or the
 model's buildPropertyGroups of a node.
 

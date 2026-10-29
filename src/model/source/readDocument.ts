@@ -19,7 +19,7 @@ import { binaryEditSrcId } from '../ids/srcId.js';
 import { rowPlannerFor, type PlanOptions, type RowPlanner } from '../rows/rowPlanner.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { DocumentRegistry } from '../workspace/SlddModel.js';
-import { uriPath } from './sourceUri.js';
+import { uriPathPart } from './sourceUri.js';
 
 /** What kind of file a document is, which decides what it opens in. */
 export type DocKind = 'dictionary' | 'model' | 'mat' | 'project';
@@ -155,7 +155,7 @@ function readZip(registry: DocumentRegistry, name: string, uri: string, bytes: A
 function readModel(registry: DocumentRegistry, name: string, uri: string, bytes: ArrayBuffer): Reading {
   let node: any;
   try {
-    node = registry.getModelFromParsed(uri, name, parseModel(bytes, uriPath(uri)));
+    node = registry.getModelFromParsed(uri, name, parseModel(bytes, uriPathPart(uri)));
   } catch (err) {
     throw new Error(`Failed to parse ${name}: ${messageOf(err)}`);
   }
