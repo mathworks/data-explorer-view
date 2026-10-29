@@ -12,6 +12,8 @@ import type { SourceFile } from 'data-explorer-core';
 import {
   createFolderSession,
   createWorkspace,
+  folderReader,
+  serveFolder,
   type FolderSession,
   type GraphReader,
   type HierarchyItem,
@@ -19,6 +21,8 @@ import {
   type TreeTableRow,
   type WatchFolder,
 } from '../src/model/index.js';
+
+import { channel } from './goldens/channel.js';
 
 const DIR = resolve(import.meta.dirname, '../test-integration/fixtures/usageorder');
 const disk = (name: string): Uint8Array => new Uint8Array(readFileSync(join(DIR, name)));
@@ -320,5 +324,46 @@ describe('a folder whose listing was cut short', () => {
     const roots = await s.hierarchy.roots();
     expect(roots.map((r) => r.kind)).toEqual(['group', 'notice']);
     expect(roots.at(-1)!.label).toBe(`Only the first ${folder.size} files are shown`);
+  });
+});
+
+describe('a folder read across a channel', () => {
+  it("follows the host's changes: the reader's onChange is the session's watch as it is", async () => {
+    // The folder above, served where it is; the session, where the page is.
+    const [host, page] = channel();
+    const listing = async () => [...folder.keys()].sort().map(file);
+    const server = serveFolder({ files: { list: listing }, reader }, host);
+    const remote = folderReader(page);
+    const heard: (readonly string[] | undefined)[] = [];
+    const s = createFolderSession({
+      files: remote,
+      reader: () => remote,
+      repostDelayMs: 1,
+      watch: (changed) =>
+        remote.onChange((uris) => {
+          heard.push(uris);
+          changed(uris);
+        }),
+    });
+    sessions.push(s);
+    try {
+      expect(await tree(s)).not.toContain('copyA.slx');
+      put('copyA.slx', disk('ctrlA.slx'));
+      server.changed([file('copyA.slx').uriString]);
+      await expect.poll(() => heard, { timeout: 10_000, interval: 5 }).toEqual([[file('copyA.slx').uriString]]);
+      await expect.poll(() => tree(s), { timeout: 10_000, interval: 5 }).toContain('copyA.slx');
+      await expect.poll(() => names(s), { timeout: 10_000, interval: 5 }).toEqual(
+        ['GainA', 'GainA', 'GainB', 'LimitA', 'LimitA', 'SharedGain', 'UnusedVar'],
+      );
+      // And a change that names nothing: the session lists again all the same.
+      folder.delete('copyA.slx');
+      server.changed();
+      await expect.poll(() => heard.length, { timeout: 10_000, interval: 5 }).toBe(2);
+      expect(heard[1]).toBeUndefined();
+      await expect.poll(() => tree(s), { timeout: 10_000, interval: 5 }).not.toContain('copyA.slx');
+    } finally {
+      server.dispose();
+      remote.dispose();
+    }
   });
 });
