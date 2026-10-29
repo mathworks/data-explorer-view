@@ -12,6 +12,11 @@ coverage/
 # Written by test/parity/dump.test.ts on every run, for reading by eye.
 test/parity/dump-output.txt
 
+# The gallery's build and its browser tests' output.
+gallery/dist/
+gallery/test-results/
+gallery/playwright-report/
+
 # Screenshots and page snapshots a browser-automation session leaves behind. Scratch
 # output, never source.
 .playwright-mcp/

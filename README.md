@@ -168,6 +168,16 @@ npm run verify   # typecheck, import boundaries, build, tests, leak check
 After changing `src/`, run `npm run build` and commit `dist/` with the change.
 CI fails when `dist/` is not the build of `src/`.
 
+The gallery shows every widget on a page of its own, on small public files, and
+is what the browser tests run against, in Chromium, Firefox and WebKit. It is
+also an example of an app built on the package. See
+[gallery/README.md](gallery/README.md).
+
+```sh
+npm run gallery        # the pages, in Vite's dev server
+npm run test:gallery   # the browser tests
+```
+
 ## License
 
 BSD 3-Clause. See [LICENSE](LICENSE). To report a security issue, see

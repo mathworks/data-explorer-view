@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Tree table · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="stage" id="stage">
+        <div class="toolbar" id="toolbar">
+          <label><input type="checkbox" id="readonly" checked /> Read-only</label>
+        </div>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Events</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <script type="module" src="./src/pages/tree-table.ts"></script>
+  </body>
+</html>

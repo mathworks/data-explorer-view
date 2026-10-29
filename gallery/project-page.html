@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.svg" />
+    <title>Project page · data-explorer-view gallery</title>
+  </head>
+  <body>
+    <main class="split">
+      <section class="stage scroll" id="stage">
+        <div class="toolbar" id="toolbar"></div>
+        <div id="project"></div>
+      </section>
+      <aside class="pane" aria-label="Events">
+        <h2>Opened</h2>
+        <ol id="event-log" aria-live="polite"></ol>
+      </aside>
+    </main>
+    <script type="module" src="./src/pages/project-page.ts"></script>
+  </body>
+</html>
