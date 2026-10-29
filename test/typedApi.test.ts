@@ -284,6 +284,12 @@ describe('an app written in TypeScript, against the built package', () => {
       // The README's quick start, as it is written there, and the handle's hooks.
       const handle = connectTable(table, doc.table);
       connectInspector(inspector, handle);
+      // One inspector beside several tables: it follows the active one, or none.
+      const following = connectInspector(inspector, null, { empty: document.createElement('p') });
+      following.follow(handle);
+      following.follow(null);
+      // @ts-expect-error a feed is a table's handle or a host's pages, not a table
+      following.follow(table);
       handle.on('navigate', ({ link }) => s(link.kind === 'file' ? link.file : link.source));
       handle.on('select', (rowIds) => rowIds.map(s));
       handle.selectByName('Kp');

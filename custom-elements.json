@@ -713,7 +713,7 @@
             {
               "name": "feed",
               "type": {
-                "text": "InspectorFeed"
+                "text": "InspectorFeed | null"
               }
             },
             {
@@ -724,7 +724,7 @@
               }
             }
           ],
-          "description": "Wire `inspector` to `feed`: show every page it sends, and answer what the inspector asks."
+          "description": "Wire `inspector` to `feed`: show every page it sends, and answer what the inspector asks. A\n`null` feed starts it empty, following none until `follow()` gives it one."
         }
       ],
       "exports": [

@@ -16,6 +16,7 @@ defineTreeTable();
 definePropertyInspector();
 
 const NUMERIC = new Uint8Array(readFileSync(join(import.meta.dirname, 'fixtures/numeric_json.sldd')));
+const PARAMS = new Uint8Array(readFileSync(join(import.meta.dirname, 'fixtures/params.sldd')));
 
 async function settle(table?: DexTreeTable): Promise<void> {
   for (let i = 0; i < 3; i++) {
@@ -88,6 +89,145 @@ describe('beside a table', () => {
     expect(calls.slice(before)).toEqual([['close']]);
     await select('Matrix');
     expect(calls.slice(before + 1)).toEqual([]);
+  });
+});
+
+describe('following another feed', () => {
+  // One inspector beside a table per tab: it follows the active tab's table, and shows its empty
+  // state while no tab has one.
+  async function tabs() {
+    const ws = createWorkspace();
+    const params = await ws.open(PARAMS, 'params.sldd');
+    const numeric = await ws.open(NUMERIC, 'numeric_json.sldd');
+    const pi = document.createElement('dex-property-inspector');
+    const empty = document.createElement('p');
+    document.body.append(pi, empty);
+    const shared = fakeEditor();
+    const tab = (doc: typeof params, name: string, editor = shared.editor) => {
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const handle = connectTable(table, doc.table, { variableEditor: editor });
+      const select = async (label: string) => {
+        const row = table.rows.find((r) => r.Name.label === label)!;
+        table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: [row.ID] }, bubbles: true }));
+        await settle(table);
+        return row;
+      };
+      return { doc, name, table, handle, select };
+    };
+    const a = tab(params, 'params.sldd');
+    const b = tab(numeric, 'numeric_json.sldd');
+    cleanups.push(() => (a.handle.dispose(), b.handle.dispose(), ws.dispose()));
+    await settle(a.table);
+    await settle(b.table);
+    return { pi, empty, a, b, tab, calls: shared.calls };
+  }
+
+  it("switches to the new feed's page, keeps its listeners, and shows the empty state for null", async () => {
+    const { pi, empty, a, b } = await tabs();
+    const kp = await a.select('Kp');
+    const matrix = await b.select('Matrix');
+    const inspector = connectInspector(pi, a.handle, { empty });
+    cleanups.push(() => inspector.dispose());
+    const targets: string[] = [];
+    inspector.on('navigate', (t) => targets.push(t));
+    await settle();
+    expect(pi.groups).toEqual((await a.doc.table.inspect(kp.ID)).groups);
+
+    inspector.follow(b.handle);
+    expect(pi.groups).toEqual([]);
+    expect(empty.hidden).toBe(false);
+    await settle();
+    expect(pi.groups).toEqual((await b.doc.table.inspect(matrix.ID)).groups);
+    expect(pi.hidden).toBe(false);
+    // The table it left says nothing to it now.
+    const uo = await a.select('Uo');
+    expect(pi.groups).toEqual((await b.doc.table.inspect(matrix.ID)).groups);
+
+    inspector.follow(null);
+    expect(pi.groups).toEqual([]);
+    expect(pi.hidden).toBe(true);
+    expect(empty.hidden).toBe(false);
+    await b.select('Array');
+    expect(pi.groups).toEqual([]);
+
+    inspector.follow(a.handle);
+    await settle();
+    expect(pi.groups).toEqual((await a.doc.table.inspect(uo.ID)).groups);
+    pi.dispatchEvent(new CustomEvent('dex-pi-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
+    expect(targets).toEqual(['Kp@file:///w/x.sldd']);
+  });
+
+  it('closes a grid it opened, and leaves one the table opened in the shared editor', async () => {
+    const { pi, a, b, calls } = await tabs();
+    await a.select('Kp');
+    const matrix = await b.select('Matrix');
+    const inspector = connectInspector(pi, b.handle, { variableEditor: b.handle.variableEditor });
+    cleanups.push(() => inspector.dispose());
+    await settle();
+    const descriptor = pi.groups.flatMap((g) => g.properties).find((p) => p.matrix)!.matrix!;
+    pi.dispatchEvent(new CustomEvent('dex-matrix-open', { detail: { matrix: descriptor, anchorEl: pi }, bubbles: true }));
+    await settle();
+    expect(calls.slice(-2)).toEqual([['show', pi, descriptor], ['deliver', await b.doc.table.matrix(matrix.ID)]]);
+    let before = calls.length;
+    inspector.follow(a.handle);
+    expect(calls.slice(before)).toEqual([['close']]);
+    await settle();
+
+    // The table's own glyph, in the editor both share: following elsewhere leaves it open.
+    b.table.dispatchEvent(new CustomEvent('dex-matrix-open', { detail: { matrix: matrix._matrix, anchorEl: b.table }, bubbles: true }));
+    await settle(b.table);
+    before = calls.length;
+    inspector.follow(null);
+    inspector.follow(b.handle);
+    inspector.follow(b.handle); // the feed it follows: nothing
+    await settle();
+    expect(calls.slice(before)).toEqual([]);
+  });
+
+  it("opens the followed table's own editor when it is given none", async () => {
+    const { pi, a, b, tab } = await tabs();
+    const own = fakeEditor();
+    const c = tab(b.doc, 'numeric again', own.editor);
+    cleanups.push(() => c.handle.dispose());
+    await settle(c.table);
+    await c.select('Matrix');
+    const inspector = connectInspector(pi, a.handle);
+    cleanups.push(() => inspector.dispose());
+    inspector.follow(c.handle);
+    await settle();
+    const descriptor = pi.groups.flatMap((g) => g.properties).find((p) => p.matrix)!.matrix!;
+    pi.dispatchEvent(new CustomEvent('dex-matrix-open', { detail: { matrix: descriptor, anchorEl: pi }, bubbles: true }));
+    await settle();
+    expect(own.calls.map((call) => call[0])).toEqual(['close', 'show', 'deliver']);
+  });
+
+  it('starts with no feed, empty, and follows one when it is given', async () => {
+    const { pi, empty, a } = await tabs();
+    const kp = await a.select('Kp');
+    const inspector = connectInspector(pi, null, { empty });
+    cleanups.push(() => inspector.dispose());
+    expect(empty.hidden).toBe(false);
+    expect(pi.hidden).toBe(true);
+    // A glyph with nothing followed asks nobody.
+    pi.dispatchEvent(new CustomEvent('dex-matrix-open', { detail: { matrix: { name: 'M', className: 'double', dims: [1, 1], nodeId: 'n' }, anchorEl: pi }, bubbles: true }));
+    inspector.follow(a.handle);
+    await settle();
+    expect(pi.groups).toEqual((await a.doc.table.inspect(kp.ID)).groups);
+    // It uses the table's editor, and made none of its own.
+    expect(document.querySelectorAll('dex-variable-editor')).toHaveLength(0);
+    inspector.dispose();
+    inspector.follow(null);
+    expect(pi.groups).toEqual((await a.doc.table.inspect(kp.ID)).groups);
+
+    // Given a feed with no editor, it makes one then, and takes it away on dispose().
+    const pages = new Set<(page: { groups: [] }) => void>();
+    const bare = connectInspector(pi, null);
+    bare.follow({ onPage: (l) => (pages.add(l), () => void pages.delete(l)), matrix: async (nodeId) => ({ nodeId, message: 'none' }) });
+    expect(document.querySelectorAll('dex-variable-editor')).toHaveLength(1);
+    bare.dispose();
+    expect(document.querySelectorAll('dex-variable-editor')).toHaveLength(0);
+    expect(pages.size).toBe(0);
   });
 });
 

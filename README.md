@@ -115,7 +115,8 @@ app's, on the handle: `handle.on('navigate', ({ link }) => …)` for a link to
 another document or a file, `handle.on('select', (rowIds) => …)`,
 `handle.selectByName(name)` for a link that arrives from another table, and
 `menuItems` for the app's own menu items. The table's `readonly` stays the
-app's to set.
+app's to set. One inspector beside several tables follows the active one with
+`follow(handle)`, and shows its empty state after `follow(null)`.
 
 When the file changes, `doc.reload(bytes)` reads it again and the table
 repaints. A document's uri is its identity, in every row id: by default
