@@ -33,6 +33,7 @@ export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export type { GalleryCategory, GalleryTile, SectionKey } from './ids/addCatalog.js';
 export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
+export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export type { GraphNode, GraphSource, GroupKind, NodeKind, SourceType } from './hierarchy/graphModel.js';
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from './hierarchy/health.js';
@@ -45,6 +46,8 @@ export type { ChildRows, InspectorFeed, InspectorView, MatrixPage, TableChange, 
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+export { projectPageMessage, readProjectPage } from './source/projectPage.js';
+export type { SetProjectMessage } from './source/projectPage.js';
 export { annotateModelViewRows, annotateVariableRows, buildUsageGraph, buildUsageGraphFromSummaries, } from './usage/usageCells.js';
 export type { BlockLink, ParamLink, RawSource, UsageGraph } from './usage/usageCells.js';
 export { parseFileTarget, parseNavTarget, resolveNavSource } from './usage/navTarget.js';

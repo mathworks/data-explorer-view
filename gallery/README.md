@@ -21,7 +21,7 @@ npm run test:gallery    # the browser tests (see below)
 | `variable-editor.html` | `<dex-variable-editor>` on a matrix, a 3-D array and a 4-D one |
 | `context-menu.html` | `<dex-context-menu>`, from a right-click and from the keyboard |
 | `error-dialog.html` | `<dex-error-dialog>`: an error, and a refused edit with Revert |
-| `project-page.html` | a MATLAB project's page, from its project store |
+| `project-page.html` | `<dex-project-page>`: a MATLAB project's page, from its project store, its links followed |
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
 | `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, a search finds an entry by name, the selection fills the inspector, the matrix glyph opens the editor |
 | `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`) |
@@ -87,8 +87,10 @@ widgets to the document's table source:
   `folderReader(port)`, through which the page reads the files it opens too. The table's
   `resolveLink` is the hierarchy's, and each file it opens is revealed in the tree.
 
-The project page is an HTML string; `src/wiring/projectWiring.ts` reads the project store, puts
-the page in the document and handles its filters and links.
+- `project-page.ts`: `<dex-project-page>`, given the message `projectPageMessage` builds from a
+  project's store (`src/projects.ts` reads the fixture's XML files, bundled by Vite); its
+  `dex-project-open` names the link followed. The page is in the element's shadow root, with
+  its stylesheet adopted, so the strict policy holds without the page's CSS in the document.
 
 ## Tests
 

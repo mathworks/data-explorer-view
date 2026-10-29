@@ -26,7 +26,7 @@ import { sourceFiles } from './tools/moduleGraph.js';
 const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
 const TAGS = ['dex-add-gallery', 'dex-column-filter', 'dex-context-menu', 'dex-error-dialog', 'dex-filter-bar', 'dex-hierarchy', 'dex-icon',
-  'dex-matrix-grid', 'dex-matrix-open', 'dex-property-inspector', 'dex-tree-table', 'dex-variable-editor'];
+  'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-tree-table', 'dex-variable-editor'];
 
 interface ModuleEvents {
   /** Event name → the type argument of each `new CustomEvent<…>` that dispatches it. */
@@ -77,9 +77,9 @@ const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((f
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 24 events from 12 widgets: a parse that found none would pass everything below.
+    // 25 events from 13 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(24);
+    expect(new Set(names).size).toBe(25);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -146,7 +146,7 @@ let customElementsObserved: Map<string, string[]>;
 beforeAll(async () => {
   const { execFileSync } = await import('node:child_process');
   const script = `
-    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'hierarchy', 'icon'];
+    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'hierarchy', 'project-page', 'icon'];
     const out = {};
     for (const e of entries) {
       const m = await import('data-explorer-view/' + e);
@@ -181,6 +181,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { defineContextMenu } from 'data-explorer-view/context-menu';
     import { defineErrorDialog } from 'data-explorer-view/error-dialog';
     import { connectHierarchy, defineHierarchy, type HierarchyHandle, type HierarchySelectDetail } from 'data-explorer-view/hierarchy';
+    import { defineProjectPage, type ProjectOpenDetail } from 'data-explorer-view/project-page';
     import { defineIcon } from 'data-explorer-view/icon';
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
@@ -188,17 +189,19 @@ describe('an app written in TypeScript, against the built package', () => {
     import { childRowsMessage } from 'data-explorer-view/host';
     import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import { FolderHierarchy, type GraphReader, type HierarchyItem } from 'data-explorer-view/model';
+    import { projectPageMessage, readProjectPage, type SetProjectMessage } from 'data-explorer-view/model';
     import { folderReader, serveFolder, type FolderReader, type FolderReads, type FolderServer, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
 
-    defineTreeTable(); definePropertyInspector(); defineVariableEditor(); defineContextMenu(); defineErrorDialog(); defineHierarchy(); defineIcon();
+    defineTreeTable(); definePropertyInspector(); defineVariableEditor(); defineContextMenu(); defineErrorDialog(); defineHierarchy(); defineProjectPage(); defineIcon();
     const table = document.createElement('dex-tree-table');
     const inspector = document.createElement('dex-property-inspector');
     const menu = document.createElement('dex-context-menu');
     const dialog = document.createElement('dex-error-dialog');
     const tree = document.createElement('dex-hierarchy');
+    const project = document.createElement('dex-project-page');
     const bar = document.createElement('dex-filter-bar');
     const popup = document.createElement('dex-column-filter');
     const gallery = document.createElement('dex-add-gallery');
@@ -232,6 +235,13 @@ describe('an app written in TypeScript, against the built package', () => {
     menu.addEventListener('dex-menu-closed', (e) => none(e.detail));
     dialog.addEventListener('dex-revert', (e) => none(e.detail));
     tree.addEventListener('dex-hierarchy-select', (e) => { const d: HierarchySelectDetail = e.detail; s(d.uri ?? d.key); s(d.item.label); });
+    project.addEventListener('dex-project-open', (e) => { const d: ProjectOpenDetail = e.detail; s(d.path); b(d.preferProject ?? false); });
+    {
+      const message: SetProjectMessage = projectPageMessage({}, '/w/P/P.prj', '/w/P');
+      project.payload = message;
+      project.error = '';
+      void readProjectPage('/w/P/P.prj', { readText: async () => '', list: async () => [] }).then((m) => (project.payload = m));
+    }
     // @ts-expect-error a select's uri may be null: a row that is no file
     tree.addEventListener('dex-hierarchy-select', (e) => s(e.detail.uri));
     // They bubble and are composed, so the document and the window hear them, typed.
