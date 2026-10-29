@@ -23,7 +23,7 @@
 
 /** The one method of a webview this needs. */
 export interface PostTarget {
-  postMessage(message: unknown): Thenable<boolean>;
+  postMessage(message: unknown): PromiseLike<boolean>;
 }
 
 /**
