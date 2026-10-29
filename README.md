@@ -174,27 +174,35 @@ extension's sidebar draws for the same folder.
 The Usage column says who uses each variable of a dictionary or a MAT-file,
 and where each parameter of a model's blocks comes from: answers that are in
 the files around a document, not in it. A workspace fills it from the folder
-when it is given a `usage` source, the usage graph for a document, which core's
-`planSummaries` scopes to just the files that can reach it:
+when it is given a `usage` source. `UsageGraphs` is one: a usage graph per
+document, over just the files that can reach it (core's `planSummaries`), kept
+until the folder changes:
 
 ```js
-import { isGraphPath, planSummaries } from 'data-explorer-core';
-import { buildUsageGraphFromSummaries, createWorkspace } from 'data-explorer-view/model';
+import { isGraphPath } from 'data-explorer-core';
+import { UsageGraphs, createUsageRepostHub, createWorkspace } from 'data-explorer-view/model';
 
 const graphFiles = files.filter((f) => isGraphPath(f.path)); // no projects
-const reader = readerFor(graphFiles);
-const ws = createWorkspace({
-  usage: { graphFor: async (uri) => buildUsageGraphFromSummaries(await planSummaries(cache, reader, graphFiles, uri)) },
+const graphs = new UsageGraphs({
+  inputs: { inputsKey: () => '', candidates: async () => graphFiles, readerFor },
+  cache: hierarchy.cache, // read the folder once for the tree and the column
 });
+const reposts = createUsageRepostHub({ watch: watchCreatesAndDeletes, graphs });
+const ws = createWorkspace({ usage: graphs, usageReposts: reposts });
 await ws.open(bytes, name, sourceUri(path)); // the uri the folder lists it by
 ```
 
 Every paint and every fetch of rows is filled, as the extension fills its
-tables; pass the hierarchy's `cache` so the folder is read once for both. A
-click on a Usage link reaches `handle.on('navigate')`: `resolveNavSource(source,
-referrer, { scoped: hierarchy.resolveReference, firstMatch })` names the file
-to open, by the rule the hierarchy draws with, and `selectByName` the row (a
-block by its key). `parseNavTarget` reads a link target on its own.
+tables. When a file of the folder changes, `graphs.invalidate()` (only what
+changed is read again). A model created or deleted can change what a
+dictionary's or a MAT-file's column says, so the repost hub, given the app's
+watch on the folder (held only while such a table is open), drops the graphs
+and repaints each of those tables once per burst. An editor that also reads
+its open files names them in `inputsKey` and `candidates`. A click on a Usage
+link reaches `handle.on('navigate')`: `resolveNavSource(source, referrer, {
+scoped: hierarchy.resolveReference, firstMatch })` names the file to open, by
+the rule the hierarchy draws with, and `selectByName` the row (a block by its
+key). `parseNavTarget` reads a link target on its own.
 
 ## What is in it
 
