@@ -12,9 +12,11 @@ model into what they display.
 
 ## Status
 
-Version 0.x: the API will change. Today every module is reachable by its path;
-designed entry points (one for the model, one per widget) replace that before
-1.0.0. Pin a tag, and read the release notes before you move the pin.
+Version 0.x: the API will change. Import from the entry points below, one for
+the model and one per widget. The module paths of 0.1.0
+(`data-explorer-view/model/<path>.js`, `data-explorer-view/widgets/<path>.js`)
+still work during 0.x and go before 1.0.0. Pin a tag, and read the release
+notes before you move the pin.
 
 ## Using it
 
@@ -33,6 +35,41 @@ would break. This release accepts core `^1.47.0` and lit `^3.2.0`.
 
 Releases are tags, and `dist/` is committed, so installing needs no build step.
 
+## Using a widget
+
+Each widget has an entry of its own, which exports its class, its define
+function and the types of what it takes and sends:
+
+```js
+import 'data-explorer-view/theme.css';
+import { setIconBase } from 'data-explorer-view/icon';
+import { defineTreeTable } from 'data-explorer-view/tree-table';
+import { definePropertyInspector } from 'data-explorer-view/property-inspector';
+import { defineVariableEditor } from 'data-explorer-view/variable-editor';
+
+setIconBase('./icons/'); // where your app serves icons/ (see below)
+defineTreeTable();       // <dex-tree-table>, and the filter bar, column filter and Add gallery it draws
+definePropertyInspector();
+defineVariableEditor();
+```
+
+| Entry | What it holds |
+|---|---|
+| `data-explorer-view/model` | the view model: rows, inspector pages, matrix cells, the rules for actions |
+| `data-explorer-view/tree-table` | `<dex-tree-table>` and its parts, and the items of its context menu |
+| `data-explorer-view/property-inspector` | `<dex-property-inspector>` |
+| `data-explorer-view/variable-editor` | `<dex-variable-editor>` and the grid inside it |
+| `data-explorer-view/context-menu` | `<dex-context-menu>` |
+| `data-explorer-view/error-dialog` | `<dex-error-dialog>` |
+| `data-explorer-view/project-page` | a project's page, as HTML and the stylesheet it is drawn with |
+| `data-explorer-view/icon` | `<dex-icon>` and `setIconBase` |
+| `data-explorer-view/theme.css` | the colour, font and size tokens |
+| `data-explorer-view/icons/<id>.svg` | the icons |
+
+Nothing runs on import, and the package says so (`sideEffects` in
+`package.json` names only the stylesheets), so a bundler keeps only the
+modules your app uses.
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's
@@ -42,20 +79,20 @@ acts on. It uses no DOM and no Node, so it runs in a page, a worker or a
 terminal UI.
 
 ```js
-import { buildRows } from 'data-explorer-view/model/rows/rowBuilder.js';
+import { buildRows, COLUMNS, COLUMN_LABELS } from 'data-explorer-view/model';
 ```
 
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with
 its filter bar, column filter and Add gallery), the property inspector, the
 variable editor, the context menu, the error dialog and the project page.
 Importing a widget defines nothing: call its define function before the
-first element is created. It defines the parts the widget draws (the table's
+first element is created, as above. It defines the parts the widget draws (the table's
 filter bar, for example) under their default names, then the widget, under
 the name you pass or its default. A name already defined by a different class
 throws, naming both.
 
 ```js
-import { defineTreeTable } from 'data-explorer-view/widgets/tree-table/dex-tree-table.js';
+import { defineTreeTable } from 'data-explorer-view/tree-table';
 
 defineTreeTable(); // <dex-tree-table>; or defineTreeTable('my-table')
 ```
@@ -70,7 +107,7 @@ copies the folder to where it serves its assets and says where, before the
 first icon renders:
 
 ```js
-import { setIconBase } from 'data-explorer-view/widgets/shared/dex-icon.js';
+import { setIconBase } from 'data-explorer-view/icon';
 
 setIconBase('./icons/'); // a folder URL; relative ones resolve against the page
 ```
