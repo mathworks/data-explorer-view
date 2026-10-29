@@ -6,8 +6,9 @@
 // Two rules, each one the package's edge:
 //   * a file in src imports only src, `data-explorer-core`, `lit` and `lit/…` — not a Node
 //     built-in, not any other package, and not core's Node-only entry;
-//   * a file in src/model imports neither src/widgets nor lit. The model is the DOM-free
-//     half, which a worker or a terminal UI can load without a browser page.
+//   * a file in src/model or src/host imports neither src/widgets nor lit. The model is the
+//     DOM-free half, which a worker or a terminal UI can load without a browser page, and the
+//     host entry is the model's plumbing for a host, which runs in Node.
 //
 // Type-only imports count. A consumer has to resolve them too, and `import type` is how a type
 // from elsewhere quietly becomes something the package cannot be built without.
@@ -20,7 +21,9 @@ import ts from 'typescript';
 const ROOT = join(import.meta.dirname, '..');
 const VIEW = 'src';
 const MODEL = 'src/model/';
+const HOST = 'src/host/';
 const WIDGETS = 'src/widgets/';
+const domFree = (file) => file.startsWith(MODEL) || file.startsWith(HOST);
 
 const toPosix = (p) => p.split(sep).join('/');
 const isLit = (spec) => spec === 'lit' || spec.startsWith('lit/');
@@ -46,14 +49,14 @@ function resolve(from, spec) {
 function violation(file, spec) {
   if (!spec.startsWith('.')) {
     if (spec === 'data-explorer-core') return null;
-    if (isLit(spec)) return file.startsWith(MODEL) ? 'the model is DOM-free and may not use lit' : null;
+    if (isLit(spec)) return domFree(file) ? 'the model is DOM-free and may not use lit' : null;
     if (spec.startsWith('data-explorer-core/')) return 'only core\'s browser entry, `data-explorer-core`, is allowed';
     return 'not a dependency of this package';
   }
   const target = resolve(file, spec);
   if (!target) return 'resolves to no file';
   if (!target.startsWith(`${VIEW}/`)) return `reaches ${target}, outside ${VIEW}/`;
-  if (file.startsWith(MODEL) && target.startsWith(WIDGETS)) return `the model may not import a widget (${target})`;
+  if (domFree(file) && target.startsWith(WIDGETS)) return `the model may not import a widget (${target})`;
   return null;
 }
 

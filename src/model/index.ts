@@ -9,7 +9,9 @@
 // The list is what the VS Code extension and the desktop app import, and the types their
 // signatures name, so an app can write down what it is handed. What only this package's own
 // tests and widgets reach (the filter grammar, the row stamps, the catalog's bookkeeping) stays
-// out: it can change without a consumer noticing.
+// out: it can change without a consumer noticing. What only a host serving the wire format uses
+// (the module-level document registry, the webview-posting answers, the inspector's page) is
+// data-explorer-view/host's; the last block below still exports it here, deprecated, until 1.0.
 //
 // Nothing here runs on import, and nothing here reaches a widget or lit (test/entries.test.ts),
 // so a bundler keeps only what an app uses and a worker or a terminal can load all of it.
@@ -25,25 +27,17 @@ export { rowPlannerFor } from './rows/rowPlanner.js';
 export type { PlanOptions, RowPlanner } from './rows/rowPlanner.js';
 export { LAZY_ROW_BUDGET, lazyRowsBanner } from './rows/lazyRows.js';
 export type { PlannedRow, RowPlan } from './rows/lazyRows.js';
-export { MAX_TABLE_ROWS, capRows, rowCapBanner } from './rows/rowCap.js';
-export type { CappedRows } from './rows/rowCap.js';
-export { answerChildRequest, childRowsMessage } from './rows/childRequest.js';
-export type { UsageFiller } from './rows/childRequest.js';
 export { refuseIfUnreadable, sourceWarnings, warningBanner } from './rows/parseWarnings.js';
 export type { WarningBanner } from './rows/parseWarnings.js';
-export { postOrFallback, postOrReport } from './rows/postPayload.js';
-export type { PostTarget } from './rows/postPayload.js';
 
 // The property inspector's pages, and which row it shows.
 export { buildPropertyGroups } from './inspector/piBuilder.js';
 export type { PropertyGroup, PropertyRow } from './inspector/piBuilder.js';
 export type { PIPropertyGroup, PIPropertyRow } from './inspector/piBuilder.js';
-export { InspectorPage } from './inspector/inspectorPage.js';
 export { InspectorSelection } from './inspector/inspectorSelection.js';
 export type { FindNode, Inspector } from './inspector/inspectorSelection.js';
 
 // The variable editor's cells.
-export { answerMatrixRequest, matrixCellsMessage } from './matrix/matrixRequest.js';
 export type { MatrixDescriptor, MatrixPayload } from './matrix/matrixPayload.js';
 
 // Actions: which rows a menu item, a drop or a paste acts on, and what a table does with the
@@ -120,19 +114,81 @@ export type {
   UpdateEntryRowsMessage,
 } from './source/wire.js';
 
-// The workspace: the documents open in core's session, and a dictionary's parts read off disk.
+// A dictionary's parts read off disk, under the read policy (a source that cannot be read is a
+// failure, not an empty dictionary).
+export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
+
+// DEPRECATED HERE: a host's plumbing, which is data-explorer-view/host's. Each name below is the
+// same export that entry has, kept here so that nothing importing it from ./model breaks during
+// 0.x; it leaves ./model at 1.0. An app needs none of it: it opens files with createWorkspace and
+// wires widgets with connectTable and connectInspector.
 export {
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   findNode,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   getModel,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   getModelForBinaryTab,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   getModelFromBytes,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   getModelFromParsed,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   invalidate,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   openSourceView,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   parseDetached,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   peekModel,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   releaseIfUnviewed,
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
   releaseSourceView,
 } from './workspace/SlddModel.js';
-export type { TabSources } from './workspace/SlddModel.js';
-export { readSlddContent, readSlddParts, scanSldd } from './workspace/slddContent.js';
+export type {
+  /** @deprecated A host's document registry: import it from data-explorer-view/host. */
+  TabSources,
+} from './workspace/SlddModel.js';
+export {
+  /** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
+  answerChildRequest,
+  /** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
+  childRowsMessage,
+} from './rows/childRequest.js';
+export type {
+  /** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
+  UsageFiller,
+} from './rows/childRequest.js';
+export {
+  /** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
+  answerMatrixRequest,
+  /** @deprecated A host's answer to a webview: import it from data-explorer-view/host. */
+  matrixCellsMessage,
+} from './matrix/matrixRequest.js';
+export {
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  postOrFallback,
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  postOrReport,
+} from './rows/postPayload.js';
+export type {
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  PostTarget,
+} from './rows/postPayload.js';
+export {
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  MAX_TABLE_ROWS,
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  capRows,
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  rowCapBanner,
+} from './rows/rowCap.js';
+export type {
+  /** @deprecated A host's posting: import it from data-explorer-view/host. */
+  CappedRows,
+} from './rows/rowCap.js';
+export {
+  /** @deprecated A host's inspector page: import it from data-explorer-view/host. */
+  InspectorPage,
+} from './inspector/inspectorPage.js';
