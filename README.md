@@ -155,21 +155,8 @@ import { useIconAssets } from 'data-explorer-view/icon-assets';
 useIconAssets(); // before the first icon renders
 ```
 
-In Vite's dev server, leave the package out of dependency pre-bundling: a
-pre-bundled copy of the module is no longer beside the icons. Vite then does
-not look inside the package for what it imports either, so name those for
-pre-bundling. Otherwise the dev server finds them as the first page loads,
-and reloads that page:
-
-```js
-optimizeDeps: {
-  exclude: ['data-explorer-view'],
-  include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
-},
-```
-
-Vite turns icons smaller than its `build.assetsInlineLimit` into `data:` URLs,
-so a Content-Security-Policy needs `img-src data:` unless that limit is 0.
+With a bundler, two of its settings matter here: see [Icons with a
+bundler](#icons-with-a-bundler).
 
 **`theme.css`** holds every colour, font and size token the widgets read: light
 defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
@@ -185,6 +172,41 @@ import 'data-explorer-view/theme.css';
 
 `theme/global.css` still works during 0.x (the tokens plus a full-window page
 layout) and goes before 1.0.0.
+
+## Icons with a bundler
+
+With `useIconAssets()` the bundler copies the icons, and two settings decide how
+it serves them. With Vite:
+
+- **Dev server: `optimizeDeps`.** Leave the package out of dependency
+  pre-bundling: a pre-bundled copy of the module is no longer beside the icons.
+  Vite then does not look inside the package for what it imports either, so
+  name those for pre-bundling. Otherwise the dev server finds them as the first
+  page loads, and reloads that page.
+- **Build: `build.assetsInlineLimit`.** Vite turns each asset smaller than this
+  (4 KB by default) into a `data:` URL in the bundle. Nearly every icon is
+  smaller, so by default the page carries the whole icon set as text, and its
+  Content-Security-Policy has to allow `img-src data:`. At `0` the icons stay
+  files the page loads only when it draws them, under `img-src 'self'`. A
+  function keeps your own small assets inlined and the icons files.
+
+```js
+// vite.config.js
+export default {
+  optimizeDeps: {
+    exclude: ['data-explorer-view'],
+    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+  },
+  build: {
+    assetsInlineLimit: 0,
+    // or: never inline the icons, and decide the rest as Vite would
+    // assetsInlineLimit: (file) => (file.includes('/data-explorer-view/icons/') ? false : undefined),
+  },
+};
+```
+
+The [gallery](gallery/README.md) is built this way and runs under
+`style-src 'self'; img-src 'self'` in Chromium, Firefox and WebKit.
 
 ## Developing
 

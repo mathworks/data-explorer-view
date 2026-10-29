@@ -9,6 +9,8 @@ const DEV = 'http://localhost:4792';
 const vite = 'npx vite --config vite.config.ts';
 // About the dev server's configuration, not a page: once is enough.
 const DEV_ONLY = /devServer\.spec\.ts$/;
+// The built pages' policy, which the dev server relaxes for its injected styles.
+const BUILT_ONLY = /csp\.spec\.ts$/;
 
 export default defineConfig({
   testDir: 'tests',
@@ -21,7 +23,7 @@ export default defineConfig({
     { name: 'chromium', testIgnore: DEV_ONLY, use: { ...devices['Desktop Chrome'], baseURL: BUILT } },
     { name: 'firefox', testIgnore: DEV_ONLY, use: { ...devices['Desktop Firefox'], baseURL: BUILT } },
     { name: 'webkit', testIgnore: DEV_ONLY, use: { ...devices['Desktop Safari'], baseURL: BUILT } },
-    { name: 'chromium-dev', use: { ...devices['Desktop Chrome'], baseURL: DEV } },
+    { name: 'chromium-dev', testIgnore: BUILT_ONLY, use: { ...devices['Desktop Chrome'], baseURL: DEV } },
   ],
   webServer: [
     {
