@@ -29,7 +29,12 @@ const A = file('a.sldd');
 const B = file('b.sldd');
 const bytes = (text: string): ArrayBuffer => new TextEncoder().encode(text).buffer as ArrayBuffer;
 const text = (buffer: ArrayBuffer | null): string | null => (buffer ? new TextDecoder().decode(buffer) : null);
-const tick = () => new Promise((done) => setTimeout(done, 5));
+/**
+ * Until `test` holds: for an answer that is on its way. Never a fixed wait, which a loaded machine
+ * outruns; a test that something did NOT happen waits for an answer sent after it instead (a
+ * channel delivers in order).
+ */
+const until = (test: () => boolean): Promise<void> => expect.poll(test, { timeout: 10_000, interval: 5 }).toBe(true);
 
 /** What the host's reader was asked, by path. */
 let read: string[] = [];
@@ -167,11 +172,13 @@ describe('a folder across a channel', () => {
     const heard: string[] = [];
     const stop = reader.onChange(() => heard.push('changed'));
     server.changed();
-    await tick();
-    expect(heard).toEqual(['changed']);
+    await until(() => heard.length === 1);
     stop();
+    // A listener still listening hears the next change: the one let go of heard the same message.
+    const still: string[] = [];
+    reader.onChange(() => still.push('changed'));
     server.changed();
-    await tick();
+    await until(() => still.length === 1);
     expect(heard).toEqual(['changed']);
   });
 
@@ -216,16 +223,28 @@ describe('a folder across a channel', () => {
     const sent: unknown[] = [];
     const recording: TablePort = { postMessage: (m) => (sent.push(m), host.postMessage(m)), onMessage: (l) => host.onMessage(l) };
     const server = serveFolder(memoryFolder({}), recording);
-    // A table's messages, and a request with no id, are not the folder's.
+    const answered = new Set<unknown>();
+    stops.push(page.onMessage((m) => void answered.add((m as { id?: unknown }).id)));
+    const delivered: unknown[] = [];
+    stops.push(host.onMessage((m) => void delivered.push(m)));
+    // A table's messages, and a request with no id, are not the folder's. A list asked after them
+    // is, and its answer, which would come after any of theirs, is the only one.
     page.postMessage({ type: 'ready' });
     page.postMessage({ type: 'folderRequest', ask: 'list' });
-    await tick();
-    expect(sent).toEqual([]);
+    page.postMessage({ type: 'folderRequest', id: 9_000, ask: 'list' });
+    await until(() => answered.has(9_000));
+    expect(sent).toEqual([{ type: 'folderAnswer', id: 9_000, value: [A, B] }]);
+    sent.length = 0;
 
     const reader = folderReader(page);
     const waiting = reader.list();
     server.dispose();
-    await tick();
+    // Once the reader's question has reached the host's end, another host there answers a list
+    // asked after it: an answer the disposed one still sent would have come first.
+    await until(() => delivered.some((m) => (m as { id?: unknown }).id === 1));
+    stops.push(serveFolder(memoryFolder({}), host).dispose);
+    page.postMessage({ type: 'folderRequest', id: 9_001, ask: 'list' });
+    await until(() => answered.has(9_001));
     expect(sent).toEqual([]);
     reader.dispose();
     await expect(waiting).rejects.toThrow('This folder reader is closed.');
@@ -283,7 +302,7 @@ describe('what changed', () => {
   it('carries the uris the host names, as it names them', async () => {
     const touched = Object.freeze([A.uriString, sourceUri('/w/my plant@corp.slx')]);
     const { heard, raw } = await hearing([touched]);
-    await tick();
+    await until(() => heard.length === 1);
     expect(heard).toEqual([{ args: 1, uris: [A.uriString, 'file:///w/my%20plant%40corp.slx'] }]);
     expect(raw).toEqual([{ type: 'folderChanged', uris: [A.uriString, 'file:///w/my%20plant%40corp.slx'] }]);
   });
@@ -291,7 +310,7 @@ describe('what changed', () => {
   it('leaves them absent when the host names none: something changed', async () => {
     const { server, heard, raw } = await hearing();
     server.changed();
-    await tick();
+    await until(() => heard.length === 1);
     expect(heard).toEqual([{ args: 0, uris: undefined }]);
     expect(raw).toEqual([{ type: 'folderChanged' }]);
   });
@@ -300,7 +319,7 @@ describe('what changed', () => {
     const { server, heard } = await hearing([[A.uriString], [B.uriString], [A.uriString, B.uriString]]);
     server.changed();
     server.changed([]);
-    await tick();
+    await until(() => heard.length === 5);
     expect(heard.map((h) => h.uris)).toEqual([[A.uriString], [B.uriString], [A.uriString, B.uriString], undefined, []]);
   });
 
@@ -312,7 +331,7 @@ describe('what changed', () => {
     reader.onChange((uris) => void heard.push(uris));
     host.postMessage({ type: 'folderChanged', uris: 'file:///w/a.sldd' });
     host.postMessage({ type: 'folderChanged', uris: [A.uriString, 7, null] });
-    await tick();
+    await until(() => heard.length === 2);
     expect(heard).toEqual([undefined, [A.uriString]]);
   });
 });
@@ -375,22 +394,25 @@ describe('look-alikes of a listed file', () => {
     for (const [i, ask] of ['bytes', 'version', 'projectStore'].entries()) {
       page.postMessage({ type: 'folderRequest', id: 10_000 + i, ask, ...uri });
     }
-    await tick();
+    // Then a question that is answered by a read: by its answer, theirs have all been handled.
+    page.postMessage({ type: 'folderRequest', id: 10_003, ask: 'bytes', uri: A.uriString });
+    await until(() => answers.has(10_003));
     for (const i of [0, 1, 2]) {
       expect(answers.get(10_000 + i)).toEqual({ type: 'folderAnswer', id: 10_000 + i, refused: 'Not a file of the folder.' });
     }
-    expect(read).toEqual([]);
+    expect(read).toEqual(['bytes /w/a.sldd']);
   });
 
   it.each(['list2', 'constructor', '__proto__'])('an ask the wire does not have (%s) is answered with no value, and nothing read', async (ask) => {
     const { page } = await listedA();
     const answers = rawAnswers(page);
     page.postMessage({ type: 'folderRequest', id: 10_000, ask, uri: A.uriString });
-    await tick();
+    page.postMessage({ type: 'folderRequest', id: 10_001, ask: 'bytes', uri: A.uriString });
+    await until(() => answers.has(10_001));
     // Refused rather than left unanswered, so a page that sent it is not left waiting: no value
-    // either way.
+    // either way. The only read is the question after it.
     expect(answers.get(10_000)).toEqual({ type: 'folderAnswer', id: 10_000, refused: 'Not a file of the folder.' });
-    expect(read).toEqual([]);
+    expect(read).toEqual(['bytes /w/a.sldd']);
   });
 });
 
@@ -448,7 +470,7 @@ describe('the boundary: the host reads only the files it listed', () => {
     return async (request: Record<string, unknown>): Promise<Record<string, unknown>> => {
       const id = ++lastId;
       page.postMessage({ type: 'folderRequest', id, ...request });
-      for (let i = 0; i < 400 && !answers.has(id); i++) await tick();
+      await until(() => answers.has(id));
       return answers.get(id)!;
     };
   }
