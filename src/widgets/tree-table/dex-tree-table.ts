@@ -4238,7 +4238,7 @@ export class DexTreeTable extends LitElement {
         <!-- A drawn plus, not the ⊞ this shipped with: at 12px that glyph is a small
              square with a cross inside it, which is very close to what the MATLAB-variable
              row icon looks like a few pixels below in the same table. Inline rather than a
-             media/icons asset because that folder is core's ROW-icon vocabulary, and
+             icons/ asset because that folder is core's ROW-icon vocabulary, and
              stroking in currentColor is what keeps it visible under forced colors. -->
         <svg class="add-glyph" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
           <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />

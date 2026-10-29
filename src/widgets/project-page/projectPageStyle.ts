@@ -170,7 +170,7 @@ body {
 .dex-page .msp .note:last-child { margin-bottom: 0; }
 
 /* The badge that carries a new concept's NAME -- 'interface', 'private', 'component'.
-   A WORD and not an icon: media/icons/ ships simulink_component.svg and
+   A WORD and not an icon: icons/ ships simulink_component.svg and
    serviceInterfaces.svg, but every icon there paints itself through var(--mw-icon-*)
    tokens this extension never defines, so all of them render at their light-theme
    fallback (white fill, grey stroke) in every theme -- and an <img> gets no

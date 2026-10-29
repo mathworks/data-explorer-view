@@ -69,6 +69,9 @@
      one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the
      blur so the shade stays a band to the right of the column. */
   --dex-frozen-shade: 8px 0 6px -3px rgba(0, 0, 0, 0.28);
+  /* A CSS filter over every icon (<dex-icon>). The icons are drawn for a light background, so
+     the light sets leave them as they are. */
+  --dex-icon-filter: none;
 
   /* A text field (the project page's section filters). */
   --dex-input-fg: #333;
@@ -169,6 +172,12 @@
   --dex-add-gallery-tint: #1e1e1e;
   --dex-add-gallery-bg: #1e1e1e;
   --dex-add-gallery-header-bg: #1e1e1e;
+
+  /* The icons' white tiles would glare here, and their grey strokes all but vanish. Inverting
+     the lightness turns a tile near the background (white to #262626) and a stroke light, and
+     the half turn of hue puts each colour back where it was: a blue stroke stays blue, a green
+     tick green. */
+  --dex-icon-filter: invert(0.85) hue-rotate(180deg);
 }
 
 [data-theme="high-contrast"] {
@@ -202,6 +211,9 @@
   /* No shade: a hard line is the high-contrast idiom. Still a whole layer, so the scrolled
      and unscrolled values keep the same number of layers and transition into each other. */
   --dex-frozen-shade: 0 0 0 0 transparent;
+  /* A light set: the icons as drawn. Declared so a high-contrast block inside a dark one does
+     not inherit the dark set's inversion. */
+  --dex-icon-filter: none;
 
   --dex-input-fg: #000;
   --dex-input-bg: #fff;
