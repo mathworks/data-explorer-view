@@ -15,6 +15,9 @@ All four read **one listing** of the folder (`files.list()`, asked once when fir
 once per change) through **one reader** (`reader(files)`) and **one cache**, so a file is read
 once whichever part asks first, and a change is one listing for all of them.
 
+`has(uri)` says whether the last listing holds a file: whether a document the app has open is the
+folder's, and so whether to fill its Usage column from the folder.
+
 ## Options
 
 | Option | |

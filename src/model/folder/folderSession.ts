@@ -70,6 +70,13 @@ export interface FolderSession {
    * listing. Resolves when everything is.
    */
   changed(uris?: readonly string[]): Promise<void>;
+  /**
+   * Whether the folder's last listing holds the file of `uri`: for an app deciding whether a
+   * document it has open is one of the folder's (and so whether its Usage column is filled from
+   * the folder). False before the folder has been listed; while a change is being listed, the
+   * listing before it.
+   */
+  has(uri: string): boolean;
   /** Stop: the watch is let go, reposts stop, and a later change does nothing. */
   dispose(): void;
 }
@@ -99,8 +106,9 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
   // The listing everything reads: asked once, when first needed, and again on each change. Handed
   // on as it came, not copied, so a listing cut short still says so to the hierarchy.
   let listing: Promise<FolderFileList> | null = null;
-  // The last listing that answered, to diff the next one against.
+  // The last listing that answered, to diff the next one against, and its uris, for has().
   let listed: readonly SourceFile[] | null = null;
+  let listedUris = new Set<string>();
   let disposed = false;
 
   const current = (): Promise<FolderFileList> => {
@@ -109,7 +117,9 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
       listing = asking;
       asking.then(
         (files) => {
-          if (listing === asking) listed = files;
+          if (listing !== asking) return;
+          listed = files;
+          listedUris = new Set(files.map((f) => f.uriString));
         },
         // A listing that failed is not kept: the next ask lists again.
         () => {
@@ -226,6 +236,7 @@ export function createFolderSession(options: FolderSessionOptions): FolderSessio
     reposts,
     cache,
     changed,
+    has: (uri) => listedUris.has(uri),
     dispose() {
       if (disposed) return;
       disposed = true;

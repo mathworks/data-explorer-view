@@ -170,6 +170,26 @@ describe('a folder session', () => {
     expect(reads).toEqual([]);
   });
 
+  it('says whether a file is in the last listing, across a file created and then deleted', async () => {
+    const s = session();
+    const copy = file('copyA.slx').uriString;
+    // Nothing listed yet: nothing is the folder's.
+    expect(s.has(DICT)).toBe(false);
+    await tree(s);
+    expect(s.has(DICT)).toBe(true);
+    expect(s.has(copy)).toBe(false);
+    expect(s.has('file:///elsewhere/sharedParams.sldd')).toBe(false);
+    put('copyA.slx', disk('ctrlA.slx'));
+    await s.changed([copy]);
+    expect(s.has(copy)).toBe(true);
+    folder.delete('copyA.slx');
+    await s.changed([copy]);
+    expect(s.has(copy)).toBe(false);
+    expect(s.has(DICT)).toBe(true);
+    // It answers from what was listed, and lists nothing itself.
+    expect(lists).toBe(3);
+  });
+
   it('owes a data table one repost for a model deleted, and none for a dictionary saved', async () => {
     const s = session();
     await Promise.all([tree(s), users(s)]);

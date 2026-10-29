@@ -34,16 +34,19 @@ export function createFolderSession(options) {
     // The listing everything reads: asked once, when first needed, and again on each change. Handed
     // on as it came, not copied, so a listing cut short still says so to the hierarchy.
     let listing = null;
-    // The last listing that answered, to diff the next one against.
+    // The last listing that answered, to diff the next one against, and its uris, for has().
     let listed = null;
+    let listedUris = new Set();
     let disposed = false;
     const current = () => {
         if (!listing) {
             const asking = options.files.list();
             listing = asking;
             asking.then((files) => {
-                if (listing === asking)
-                    listed = files;
+                if (listing !== asking)
+                    return;
+                listed = files;
+                listedUris = new Set(files.map((f) => f.uriString));
             }, 
             // A listing that failed is not kept: the next ask lists again.
             () => {
@@ -164,6 +167,7 @@ export function createFolderSession(options) {
         reposts,
         cache,
         changed,
+        has: (uri) => listedUris.has(uri),
         dispose() {
             if (disposed)
                 return;
