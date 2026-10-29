@@ -10,8 +10,8 @@ import workspaceParams from '../../test-integration/fixtures/workspace/params.sl
 import usageCtrlA from '../../test-integration/fixtures/usageorder/ctrlA.slx?url';
 import usagePlantB from '../../test-integration/fixtures/usageorder/plantB.slx?url';
 import usageShared from '../../test-integration/fixtures/usageorder/sharedParams.sldd?url';
-import { isGraphPath, newSourceCache, planSummaries, type SourceCache, type SourceFile } from 'data-explorer-core';
-import { buildUsageGraphFromSummaries, FolderHierarchy, type GraphReader, type UsageSource } from 'data-explorer-view/model';
+import { isGraphPath, newSourceCache, type SourceCache, type SourceFile } from 'data-explorer-core';
+import { FolderHierarchy, UsageGraphs, type GraphReader } from 'data-explorer-view/model';
 import { FIXTURES } from './fixtures';
 
 /** A folder: its path, and each file's name and URL. */
@@ -96,12 +96,15 @@ export function folderHierarchy(reading: Reading, isDirty?: (uri: string) => boo
 }
 
 /**
- * Who uses what, over the folders: the Usage graph for a document, from the summaries of just the
- * files that can reach it (core's planSummaries), as a workspace's `usage` takes it.
+ * Who uses what, over the folders: a usage graph per document, from the summaries of just the
+ * files that can reach it, as a workspace's `usage` takes it. Through the hierarchy's cache.
  */
-export function folderUsage(reading: Reading): UsageSource {
+export function folderUsage(reading: Reading): UsageGraphs {
   // The files a usage graph reads: no projects, which define no variables.
   const files = reading.files.filter((f) => isGraphPath(f.path));
-  const reader = reading.reader(files);
-  return { graphFor: async (uri) => buildUsageGraphFromSummaries(await planSummaries(reading.cache, reader, files, uri)) };
+  return new UsageGraphs({
+    // A page's folder and nothing else: no open editors to key the graphs by.
+    inputs: { inputsKey: () => '', candidates: async () => files, readerFor: reading.reader },
+    cache: reading.cache,
+  });
 }

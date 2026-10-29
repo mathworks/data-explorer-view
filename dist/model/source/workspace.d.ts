@@ -19,6 +19,20 @@ export interface WorkspaceOptions {
      * only what the file itself says (a model's blocks, by name).
      */
     usage?: UsageSource;
+    /**
+     * When a dictionary's or a MAT-file's Usage column is owed a repaint because a model appeared
+     * or went away in the folder: each such document subscribes while it is open, and repaints its
+     * table (a `replaceAll`, refilled from `usage`) when told to. A usage repost hub
+     * (createUsageRepostHub) over the app's watch on the folder. Unset, a column changes only when
+     * its own file does.
+     */
+    usageReposts?: UsageReposts;
+}
+/** What a workspace's data documents subscribe to for a Usage repaint: a usage repost hub. */
+export interface UsageReposts {
+    subscribe(repost: () => void): {
+        dispose(): void;
+    };
 }
 /**
  * The usage graphs a workspace fills its tables' Usage column from: one that can answer for a

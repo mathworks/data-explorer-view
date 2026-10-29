@@ -121,7 +121,8 @@ export function healthOf(node: GraphNode, dirty: boolean): HealthState | null {
  */
 export class FolderHierarchy {
   private graph: Promise<RelGraph> | null = null;
-  private readonly cache: SourceCache;
+  /** The cache its reads go through: hand it to the app's other folder passes (UsageGraphs), to read the folder once. */
+  readonly cache: SourceCache;
   private readonly nodes = new WeakMap<HierarchyItem, GraphNode>();
   private readonly listeners = new Set<() => void>();
 

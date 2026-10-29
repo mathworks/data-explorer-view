@@ -43,6 +43,10 @@ class InPageDoc {
         this.listeners = new Set();
         this.disposed = false;
         this.read(bytes);
+        // A data file's Usage names blocks in the models around it, which come and go; a model's names
+        // its own blocks and its own workspace, which no other model changes.
+        if (kind === 'dictionary' || kind === 'mat')
+            this.reposts = shared.usageReposts?.subscribe(() => void this.repostUsage());
         this.table = {
             open: async () => this.open(),
             children: (rowId) => this.children(rowId),
@@ -60,6 +64,21 @@ class InPageDoc {
         this.read(arrayBufferOf(bytes));
         if (this.kind === 'project')
             return;
+        await this.repaint();
+    }
+    /**
+     * The folder changed under the Usage column: paint again from the same read, refilled, for a
+     * table that is showing it. With none subscribed, the next `open()` paints afresh.
+     */
+    async repostUsage() {
+        if (this.disposed || !this.reading)
+            return;
+        this.painted = undefined;
+        if (this.listeners.size > 0)
+            await this.repaint();
+    }
+    /** Tell every subscriber the paint there is now: a `replaceAll`, or the `error` it failed with. */
+    async repaint() {
         let change;
         try {
             change = { kind: 'replaceAll', view: await this.open() };
@@ -67,6 +86,8 @@ class InPageDoc {
         catch (err) {
             change = { kind: 'error', message: messageOf(err) };
         }
+        if (this.disposed)
+            return;
         for (const listener of [...this.listeners]) {
             try {
                 listener(change);
@@ -83,6 +104,7 @@ class InPageDoc {
         if (this.disposed)
             return;
         this.disposed = true;
+        this.reposts?.dispose();
         this.unload();
         this.listeners.clear();
         this.shared.closed(this);
@@ -213,6 +235,7 @@ export function createWorkspace(options = {}) {
         registry: new DocumentRegistry(session),
         budget,
         usage: options.usage,
+        usageReposts: options.usageReposts,
         closed: (doc) => {
             if (docs.get(doc.uri) === doc)
                 docs.delete(doc.uri);
