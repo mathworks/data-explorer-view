@@ -30,7 +30,7 @@ async function colours(page: Page, probe: string | undefined): Promise<string[]>
 }
 
 for (const path of PAGES) {
-  test(`${path}: the theme switch changes the colours`, async ({ page, network }) => {
+  test(`${path}: the theme switch changes the colours`, async ({ page }) => {
     await page.goto(path);
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     const probe = PROBES[path];
@@ -48,8 +48,7 @@ for (const path of PAGES) {
     expect(contrast[1]).toBe(TEXT['high-contrast']);
     if (probe) expect(contrast[2]).not.toBe(light[2]);
 
-    // The widgets may still be loading icons (a table's rows, a tree's), which a reload would abort.
-    await network.settled();
+    // The page fixture lets what the widgets are still loading finish first (tests/gallery.ts).
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'high-contrast');
     await expect(page.getByLabel('Theme', { exact: true })).toHaveValue('high-contrast');
