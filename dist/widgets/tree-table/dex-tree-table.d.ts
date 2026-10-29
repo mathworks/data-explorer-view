@@ -84,6 +84,7 @@ export declare class DexTreeTable extends LitElement {
     canAdd: boolean;
     addClasses: readonly string[] | null;
     rowDrag: boolean;
+    storageKey: string | null;
     get selectedRowId(): string;
     set selectedRowId(id: string);
     private _expandedIds;
@@ -154,6 +155,7 @@ export declare class DexTreeTable extends LitElement {
     private _boundOnWindowBlur;
     private _onWindowBlur;
     private _onDocumentClick;
+    private _loadedStorageKey;
     private _loadPersistedState;
     private _readKnownColumns;
     private _persistOrder;

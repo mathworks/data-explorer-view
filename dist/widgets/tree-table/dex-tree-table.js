@@ -110,8 +110,9 @@ const DEFAULT_HIDDEN_COLUMNS = ['Kind', 'Class', 'dimensions', 'dimensionsMode',
 // The built-in columns (DEFAULT_COLUMN_ORDER) as they were when the column state was
 // last saved. A saved hidden set says nothing about a column that did not exist yet, so
 // on load a default-hidden column missing from this record gets its default, hidden.
-// See _loadPersistedState.
-const KNOWN_COLUMNS_KEY = 'dex-known-columns';
+// See _loadPersistedState. Kept beside the order and the hidden set, under the table's
+// storageKey: `dex-known-columns` by default.
+const KNOWN_COLUMNS_KEY = 'known-columns';
 // The columns where an empty read-only cell means "this property does not exist for this
 // kind of object" rather than "this property is unset". Only these get the not-applicable
 // wash; see _cellStateClass for the measurement that picked them, and issue #26.
@@ -252,6 +253,15 @@ export class DexTreeTable extends LitElement {
         // read-only (table-main sets it from setRows' `editable`): no row is draggable, and a drag from
         // another table draws no drop target here, on a row or on the empty body.
         this.rowDrag = true;
+        // Where the user's column choices (which are shown, and their order) are kept: the page's
+        // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
+        // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
+        // so a layout saved before this existed carries over — and every table on the page that keeps
+        // the default shares one layout. An app gives each kind of table a key of its own, or null
+        // (or '') to keep the choices for this element's life only, with localStorage never touched.
+        // They are read when the table is connected, so a key set before then is the only one read; one
+        // set later reads again, from that key.
+        this.storageKey = 'dex';
         this._expandedIds = new Set();
         this._filterText = '';
         // Not @state: derived from _filterText, and keyed by it so it cannot go stale.
@@ -357,6 +367,9 @@ export class DexTreeTable extends LitElement {
         this._lastRowsRef = null;
         this._boundOnDocClick = null;
         this._boundOnWindowBlur = null;
+        // The storageKey the column choices were last read under, so a key set after the element was
+        // connected (an app that appends first and configures after) reads them again, from that key.
+        this._loadedStorageKey = undefined;
         // Keep _viewportHeight in sync with the actual container height. It can't be
         // measured reliably in firstUpdated: the first paint is often the empty-state
         // template (no `.table-container`) or a zero-height panel, so the height would
@@ -1569,8 +1582,12 @@ export class DexTreeTable extends LitElement {
         }
     }
     _loadPersistedState() {
+        const key = this.storageKey;
+        this._loadedStorageKey = key;
+        if (!key)
+            return;
         try {
-            const orderJson = localStorage.getItem('dex-column-order');
+            const orderJson = localStorage.getItem(`${key}-column-order`);
             if (orderJson) {
                 const arr = JSON.parse(orderJson);
                 if (Array.isArray(arr) && arr.length > 0) {
@@ -1582,7 +1599,7 @@ export class DexTreeTable extends LitElement {
             /* ignore */
         }
         try {
-            const hiddenJson = localStorage.getItem('dex-hidden-columns');
+            const hiddenJson = localStorage.getItem(`${key}-hidden-columns`);
             if (hiddenJson) {
                 const arr = JSON.parse(hiddenJson);
                 if (Array.isArray(arr)) {
@@ -1593,7 +1610,7 @@ export class DexTreeTable extends LitElement {
                     // existed is left exactly as it is, because a current user may have chosen to
                     // keep the columns that leaked into view then. Reset columns is how such a user
                     // gets today's defaults back.
-                    const known = this._readKnownColumns();
+                    const known = this._readKnownColumns(key);
                     if (known) {
                         for (const c of DEFAULT_HIDDEN_COLUMNS) {
                             if (!known.has(c))
@@ -1618,23 +1635,30 @@ export class DexTreeTable extends LitElement {
     // no record (state saved before it existed) or the record cannot be read. Its own
     // try/catch, so an unreadable record is treated as absent rather than discarding the
     // saved hidden set with it.
-    _readKnownColumns() {
+    _readKnownColumns(key) {
         try {
-            const arr = JSON.parse(localStorage.getItem(KNOWN_COLUMNS_KEY) ?? 'null');
+            const arr = JSON.parse(localStorage.getItem(`${key}-${KNOWN_COLUMNS_KEY}`) ?? 'null');
             return Array.isArray(arr) ? new Set(arr.filter((c) => typeof c === 'string')) : null;
         }
         catch {
             return null;
         }
     }
-    // Both writers also record the built-in columns this state was saved against.
+    // Both writers also record the built-in columns this state was saved against. Neither
+    // writes anything for a table whose choices are not kept (storageKey null or '').
     _persistOrder() {
-        localStorage.setItem('dex-column-order', JSON.stringify(this._columnOrder));
-        localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+        const key = this.storageKey;
+        if (!key)
+            return;
+        localStorage.setItem(`${key}-column-order`, JSON.stringify(this._columnOrder));
+        localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
     }
     _persistHidden() {
-        localStorage.setItem('dex-hidden-columns', JSON.stringify([...this._hiddenColumns]));
-        localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+        const key = this.storageKey;
+        if (!key)
+            return;
+        localStorage.setItem(`${key}-hidden-columns`, JSON.stringify([...this._hiddenColumns]));
+        localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
     }
     // The set of columns this document supports. When the host provides `columns`
     // that is authoritative; otherwise fall back to the built-in default order.
@@ -3608,6 +3632,12 @@ export class DexTreeTable extends LitElement {
         return html ``;
     }
     willUpdate(changedProps) {
+        // A new key is another layout: the defaults, then whatever that key holds.
+        if (changedProps.has('storageKey') && this.storageKey !== this._loadedStorageKey) {
+            this._columnOrder = [...DEFAULT_COLUMN_ORDER];
+            this._hiddenColumns = new Set(DEFAULT_HIDDEN_COLUMNS);
+            this._loadPersistedState();
+        }
         if (changedProps.has('rows')) {
             this._invalidateCache();
             this._buildCaches();
@@ -4104,6 +4134,9 @@ __decorate([
 __decorate([
     property({ type: Boolean })
 ], DexTreeTable.prototype, "rowDrag", void 0);
+__decorate([
+    property({ type: String, attribute: 'storage-key' })
+], DexTreeTable.prototype, "storageKey", void 0);
 __decorate([
     state()
 ], DexTreeTable.prototype, "_expandedIds", void 0);

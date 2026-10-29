@@ -217,8 +217,9 @@ const DEFAULT_HIDDEN_COLUMNS = ['Kind', 'Class', 'dimensions', 'dimensionsMode',
 // The built-in columns (DEFAULT_COLUMN_ORDER) as they were when the column state was
 // last saved. A saved hidden set says nothing about a column that did not exist yet, so
 // on load a default-hidden column missing from this record gets its default, hidden.
-// See _loadPersistedState.
-const KNOWN_COLUMNS_KEY = 'dex-known-columns';
+// See _loadPersistedState. Kept beside the order and the hidden set, under the table's
+// storageKey: `dex-known-columns` by default.
+const KNOWN_COLUMNS_KEY = 'known-columns';
 
 // The columns where an empty read-only cell means "this property does not exist for this
 // kind of object" rather than "this property is unset". Only these get the not-applicable
@@ -1488,6 +1489,16 @@ export class DexTreeTable extends LitElement {
   // another table draws no drop target here, on a row or on the empty body.
   @property({ type: Boolean }) rowDrag = true;
 
+  // Where the user's column choices (which are shown, and their order) are kept: the page's
+  // localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
+  // `<storageKey>-known-columns`. The default, 'dex', is the keys every table has always used,
+  // so a layout saved before this existed carries over — and every table on the page that keeps
+  // the default shares one layout. An app gives each kind of table a key of its own, or null
+  // (or '') to keep the choices for this element's life only, with localStorage never touched.
+  // They are read when the table is connected, so a key set before then is the only one read; one
+  // set later reads again, from that key.
+  @property({ type: String, attribute: 'storage-key' }) storageKey: string | null = 'dex';
+
   get selectedRowId(): string {
     return this.selectedRowIds[this.selectedRowIds.length - 1] || '';
   }
@@ -1694,9 +1705,16 @@ export class DexTreeTable extends LitElement {
     }
   }
 
+  // The storageKey the column choices were last read under, so a key set after the element was
+  // connected (an app that appends first and configures after) reads them again, from that key.
+  private _loadedStorageKey: string | null | undefined = undefined;
+
   private _loadPersistedState(): void {
+    const key = this.storageKey;
+    this._loadedStorageKey = key;
+    if (!key) return;
     try {
-      const orderJson = localStorage.getItem('dex-column-order');
+      const orderJson = localStorage.getItem(`${key}-column-order`);
       if (orderJson) {
         const arr = JSON.parse(orderJson) as string[];
         if (Array.isArray(arr) && arr.length > 0) {
@@ -1708,7 +1726,7 @@ export class DexTreeTable extends LitElement {
     }
 
     try {
-      const hiddenJson = localStorage.getItem('dex-hidden-columns');
+      const hiddenJson = localStorage.getItem(`${key}-hidden-columns`);
       if (hiddenJson) {
         const arr = JSON.parse(hiddenJson) as string[];
         if (Array.isArray(arr)) {
@@ -1719,7 +1737,7 @@ export class DexTreeTable extends LitElement {
           // existed is left exactly as it is, because a current user may have chosen to
           // keep the columns that leaked into view then. Reset columns is how such a user
           // gets today's defaults back.
-          const known = this._readKnownColumns();
+          const known = this._readKnownColumns(key);
           if (known) {
             for (const c of DEFAULT_HIDDEN_COLUMNS) {
               if (!known.has(c)) hidden.add(c);
@@ -1743,24 +1761,29 @@ export class DexTreeTable extends LitElement {
   // no record (state saved before it existed) or the record cannot be read. Its own
   // try/catch, so an unreadable record is treated as absent rather than discarding the
   // saved hidden set with it.
-  private _readKnownColumns(): Set<string> | null {
+  private _readKnownColumns(key: string): Set<string> | null {
     try {
-      const arr = JSON.parse(localStorage.getItem(KNOWN_COLUMNS_KEY) ?? 'null') as unknown;
+      const arr = JSON.parse(localStorage.getItem(`${key}-${KNOWN_COLUMNS_KEY}`) ?? 'null') as unknown;
       return Array.isArray(arr) ? new Set(arr.filter((c): c is string => typeof c === 'string')) : null;
     } catch {
       return null;
     }
   }
 
-  // Both writers also record the built-in columns this state was saved against.
+  // Both writers also record the built-in columns this state was saved against. Neither
+  // writes anything for a table whose choices are not kept (storageKey null or '').
   private _persistOrder(): void {
-    localStorage.setItem('dex-column-order', JSON.stringify(this._columnOrder));
-    localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+    const key = this.storageKey;
+    if (!key) return;
+    localStorage.setItem(`${key}-column-order`, JSON.stringify(this._columnOrder));
+    localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
   }
 
   private _persistHidden(): void {
-    localStorage.setItem('dex-hidden-columns', JSON.stringify([...this._hiddenColumns]));
-    localStorage.setItem(KNOWN_COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMN_ORDER));
+    const key = this.storageKey;
+    if (!key) return;
+    localStorage.setItem(`${key}-hidden-columns`, JSON.stringify([...this._hiddenColumns]));
+    localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
   }
 
   // The set of columns this document supports. When the host provides `columns`
@@ -3901,6 +3924,12 @@ export class DexTreeTable extends LitElement {
   }
 
   override willUpdate(changedProps: Map<string, unknown>): void {
+    // A new key is another layout: the defaults, then whatever that key holds.
+    if (changedProps.has('storageKey') && this.storageKey !== this._loadedStorageKey) {
+      this._columnOrder = [...DEFAULT_COLUMN_ORDER];
+      this._hiddenColumns = new Set(DEFAULT_HIDDEN_COLUMNS);
+      this._loadPersistedState();
+    }
     if (changedProps.has('rows')) {
       this._invalidateCache();
       this._buildCaches();
