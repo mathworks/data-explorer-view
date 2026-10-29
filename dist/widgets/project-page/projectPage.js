@@ -400,7 +400,7 @@ const MSP_NO_PRIVATE = 'A shared-interface project keeps no private values.';
  * `PrivateDictionary 1` — which name no file, open nothing, and sit among five built-in
  * labels that say nothing about this project. The fact is present and unusable.
  *
- * A BADGE, NOT AN ICON. The page has no icons at all today, and `media/icons/` ships
+ * A BADGE, NOT AN ICON. The page has no icons at all today, and `icons/` ships
  * both `simulink_component.svg` and `serviceInterfaces.svg` — but every icon there
  * colours itself through `var(--mw-icon-*, <light fallback>)` tokens that nothing in
  * this extension defines, so they render white-filled in every theme, and an `<img>`

@@ -60,16 +60,28 @@ import { defineTreeTable } from 'data-explorer-view/widgets/tree-table/dex-tree-
 defineTreeTable(); // <dex-tree-table>; or defineTreeTable('my-table')
 ```
 
-Icons are loaded from `icons/<id>.svg` under the page's base URL
-(`import.meta.env.BASE_URL`, which Vite sets); this release does not ship the
-icon files.
+**`icons/`** holds the SVG files the widgets draw
+(`data-explorer-view/icons/<id>.svg`): every icon a row, an Add gallery tile or
+a button can ask for. By default a widget loads them from the package's own
+`icons/` folder, found from the module's URL, which works wherever the
+package's files are served as installed (a static server, an import map). A
+bundler moves the widgets into a chunk of its own, so an app that bundles
+copies the folder to where it serves its assets and says where, before the
+first icon renders:
+
+```js
+import { setIconBase } from 'data-explorer-view/widgets/shared/dex-icon.js';
+
+setIconBase('./icons/'); // a folder URL; relative ones resolve against the page
+```
 
 **`theme.css`** holds every colour, font and size token the widgets read: light
 defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
 (put the attribute on `<html>`). Each widget falls back to the light value of
 every token it reads, so a widget is readable on a page that loads no theme at
-all. To match your app, declare the `--dex-*` tokens after this file, or map
-them onto your own design system's variables.
+all. The icons are drawn for a light background, and the dark set turns them
+over with `--dex-icon-filter`. To match your app, declare the `--dex-*` tokens
+after this file, or map them onto your own design system's variables.
 
 ```js
 import 'data-explorer-view/theme.css';
