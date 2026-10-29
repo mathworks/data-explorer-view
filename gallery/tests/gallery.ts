@@ -14,6 +14,7 @@ export const PAGES = [
   'project-page.html',
   'hierarchy.html',
   'composed.html',
+  'folder.html',
 ] as const;
 
 export const test = base.extend<{ problems: string[] }>({
