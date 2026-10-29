@@ -184,7 +184,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import type { MatrixPayload as ModelPayload, MatrixDescriptor as ModelDescriptor } from 'data-explorer-view/model';
     import type { MatrixPayload as EditorPayload, MatrixDescriptor as EditorDescriptor } from 'data-explorer-view/variable-editor';
     import { rowPlannerFor, childRowsMessage, buildPropertyGroups } from 'data-explorer-view/model';
-    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
+    import { createWorkspace, inspectorFeed, messageSource, serveTable, sourceUri, uriPath, type Doc, type DocKind, type MatrixPage, type TableChange, type TablePort, type TableSource, type TableView } from 'data-explorer-view/model';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow, PIPropertyGroup } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
     import type { PropertyGroup as InspectorGroup, PropertyRow as InspectorRow } from 'data-explorer-view/property-inspector';
@@ -268,6 +268,7 @@ describe('an app written in TypeScript, against the built package', () => {
     void (async () => {
       const ws = createWorkspace({ rowBudget: 1000 });
       const doc: Doc = await ws.open(new Uint8Array(0), 'plant.sldd', sourceUri('/work/plant.sldd'));
+      s(uriPath(doc.uri));
       const kind: DocKind = doc.kind;
       s(kind);
       const source: TableSource = doc.table;

@@ -122,6 +122,9 @@ When the file changes, `doc.reload(bytes)` reads it again and the table
 repaints. A document's uri is its identity, in every row id: by default
 `file:///<name>`; to open two files that share a name, pass each one's
 `sourceUri(path)` as the third argument, which spells a path as VS Code does.
+`uriPath(uri)` reads one back into the path, Windows paths included, and takes
+a link's `source` as it comes: the file to open for a link to another
+document.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
 what the VS Code extension shows for the same file, read-only; editing comes in
 a later release, and so does the page a project (`doc.kind === 'project'`)
