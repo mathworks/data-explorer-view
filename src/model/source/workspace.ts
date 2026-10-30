@@ -693,7 +693,7 @@ class EditableBinaryDoc extends EditableDoc<BinarySave> {
 
 /**
  * The document the page edits `bytes` as, or null where it edits none: a MAT-file, and a compressed
- * dictionary that reads as one (one that does not opens read-only, and says why).
+ * dictionary with a data part (one with none opens read-only, and says why).
  */
 function editableDoc(shared: Shared, uri: string, name: string, kind: DocKind, bytes: ArrayBuffer | Uint8Array): HeldDoc | null {
   if (kind === 'mat') return new EditableMatDoc(shared, uri, name, arrayBufferOf(bytes));

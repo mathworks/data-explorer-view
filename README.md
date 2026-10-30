@@ -215,8 +215,10 @@ async function save() {
   another and the original goes.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
-- JSON dictionaries open read-only for now, and so does a compressed one that
-  does not read (its table says why).
+- JSON dictionaries open read-only for now, and so does a compressed one with no
+  data part (its table says why). One whose data part does not read opens
+  editable, as the VS Code extension's editor opens it: its table says why it
+  cannot be shown, and `serialize()` refuses.
 
 ## Show a folder
 

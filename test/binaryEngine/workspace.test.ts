@@ -57,7 +57,7 @@ describe('createWorkspace({editing}): a compressed dictionary edited in the page
     const { zipSync } = await import('fflate');
     const empty = await ws.open(zipSync({ 'metadata/mwcoreProperties.xml': new Uint8Array([60, 97, 47, 62]) }), 'empty.sldd');
     assert.strictEqual(empty.editable, false);
-    await assert.rejects(empty.table.open());
+    await assert.rejects(empty.table.open(), { message: 'Failed to parse empty.sldd: Missing data/chunk0.xml in binary SLDD' });
   });
 
   it('an edit makes it dirty, its undo clean, and a save of it clean, said each time it changes', async () => {

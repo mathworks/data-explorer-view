@@ -76,10 +76,11 @@ const shown = (o: Opened): string[] => {
 describe('binary dictionary engine: the save gate vs the hot-exit backup', () => {
   it('a save refuses a payload that does not re-parse, and hands back nothing to write', async () => {
     const o = await open(WORKSPACE_BINARY);
+    rename(o, 'Ki');
     setChunk(o, UNREADABLE);
-    assert.throws(() => o.engine.beginSave(), /Refusing to save/, 'the gate refuses the write');
+    assert.throws(() => o.engine.beginSave(), /Refusing to save/, 'the gate refuses the write: there are no bytes to write');
     assert.throws(() => o.engine.serialize(), /Refusing to save/, 'and a Save As to another file too');
-    assert.strictEqual(o.disk(), o.original, 'and the bytes on disk are untouched — the whole point of refusing');
+    assert.strictEqual(o.index.dirty, true, 'and the document is still unsaved — the whole point of refusing');
   });
 
   it('a backup skips the gate, and still restores the payload it snapshotted', async () => {
@@ -190,8 +191,7 @@ describe('binary dictionary engine: a backup, a Save As and a revert of the user
     rename(o, 'Ki');
     const other = o.engine.serialize();
     assert.ok(chunkOf(other).includes('>Ki<'), 'the copy holds the edit');
-    assert.strictEqual(o.disk(), o.original, 'the document’s own file is as it was');
-    assert.strictEqual(o.index.dirty, true, 'and the document is still unsaved');
+    assert.strictEqual(o.index.dirty, true, 'the document is still unsaved: a Save As to another file moves no save point');
     assert.strictEqual((o.engine as any).savedChunk.xml, read, 'still held to the file it read');
     assert.ok(chunkOf(o.save()).includes('>Ki<'), 'and its own save still writes the edit');
   });

@@ -69,10 +69,11 @@ describe('binary dictionary engine: open, paint, save', () => {
   ] as const) {
     it(`the save gate rejects ${label} chunkXml and hands back nothing`, async () => {
       const o = await open(WORKSPACE_BINARY);
+      o.view.send({ type: 'edit', rowId: entryRow(o.view.posts, 'Kp').ID, columnId: 'Name', oldValue: 'Kp', newValue: 'Ki' });
       (o.engine as any).chunk = chunk;
       assert.throws(() => o.engine.beginSave(), /^Error: Refusing to save/);
       assert.throws(() => o.engine.serialize(), /^Error: Refusing to save/);
-      assert.strictEqual(o.disk(), o.original, 'nothing was written');
+      assert.strictEqual(o.index.dirty, true, 'nothing was handed back to write, and the edit is still unsaved');
     });
   }
 

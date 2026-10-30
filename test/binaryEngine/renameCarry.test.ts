@@ -140,8 +140,11 @@ describe('Architectural rename carries into the System Composer catalog', () => 
     const original = partsOf(bytes);
     const o = await open(SERVICE_BINARY, bytes, { as: 'arch_rename_function_save.sldd' });
     assert.deepStrictEqual(problemsIn(rename(o, { entry: 'ServiceInterface', fn: 'f', to: 'compute' })), []);
+    const held = o.engine.parts[SC_PART_XML];
+    assert.notDeepStrictEqual(held, original.zipMeta[SC_PART_XML], 'the edit swapped the catalog member on the document');
     const saved = o.save();
     const parts = partsOf(saved);
+    assert.deepStrictEqual(parts.zipMeta[SC_PART_XML], held, 'and the save wrote the member the document held');
     assert.ok(parts.chunkXml.includes('>compute<'), 'the saved chunk spells the new name');
     assert.ok(parts.chunkXml.includes('y = compute(u)'), 'and the Prototype that declares it');
     // Exactly the function's two sites: the data interface named f and g's argument g stay.
