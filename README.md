@@ -137,9 +137,8 @@ repaints. A document's uri is its identity, in every row id: by default
 a link's `source` as it comes: the file to open for a link to another
 document.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
-what the VS Code extension shows for the same file, read-only; editing a
-document in the page comes in a later release (the contract it will keep is
-below). A project (`doc.kind === 'project'`) opens on a page rather
+what the VS Code extension shows for the same file, read-only, unless the
+workspace edits (below). A project (`doc.kind === 'project'`) opens on a page rather
 than in a table: `<dex-project-page>` draws the message `readProjectPage(markerPath,
 fs)` reads from its store (core's `StoreFs`; `nodeStoreFs` from
 `data-explorer-core/node` in Electron or Node), the message the extension's
@@ -170,7 +169,50 @@ in `/model` too:
 - `createRegisters()`: a window's clipboard, drag register and source deleters;
 - `runTransfer`: what a paste or a drop means;
 - the refusals' wording;
-- the hooks a source is given (`EditSink`, `EditIndex`, `TextStore`, `Notify`).
+- `Notify`, where a source says what the table cannot show.
+
+The MAT-file engine behind `createWorkspace({ editing: true })`, and the hooks it is
+given (`EditSink`, `EditIndex`, `TextStore`), are the VS Code extension's, on
+`data-explorer-view/host`.
+
+## Edit a file
+
+A workspace made with `editing: true` edits a MAT-file in the page, as the VS
+Code extension's MAT-file editor does: its `doc.editable` is true, and its table
+is an `EditableTableSource` for `connectTable(table, doc.table, { editing: true })`.
+Every edit goes through core's session, as one step of the document's own undo
+stack. The table's Undo and Redo walk that stack.
+
+```js
+const ws = createWorkspace({ editing: true, notify: ({ message }) => showToast(message) });
+const doc = await ws.open(bytes, 'gains.mat', sourceUri(path));
+connectTable(table, doc.table, { editing: true });
+doc.onDirty((dirty) => markTab(dirty));
+
+async function save() {
+  const { bytes, at } = doc.serialize(); // synchronous: the document as the save was asked for
+  try {
+    await writeFile(path, bytes);
+    doc.saved(at);                      // clean as of then; the Status column moves
+  } catch (err) {
+    doc.notSaved(at);
+    throw err;
+  }
+}
+```
+
+- `serialize()` throws core's refusal, in its words, when the file as it stands
+  cannot be written. Nothing is then to be written.
+- An edit made while the bytes are being written stays unsaved.
+- `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack.
+- A file laid out in a way a save could not keep opens read-only, and its
+  `notice` says why.
+- The documents of a workspace share one clipboard and drag register
+  (`registers`, `createRegisters()` by default), so a cut in one pastes into
+  another and the original goes.
+- What a table does not show (a move that left its original behind, an undo of
+  an edit made before a reload) goes to `notify`.
+- Dictionaries open read-only for now.
 
 ## Show a folder
 

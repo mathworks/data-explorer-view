@@ -92,9 +92,9 @@ export type {
   TableSource,
   TableView,
 } from './source/tableSource.js';
-export { isEditable } from './source/tableSource.js';
+export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
-export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
@@ -191,10 +191,10 @@ export type {
   ValidationErrorMessage,
 } from './source/wire.js';
 
-// Editing: what an editable source is given (hooks: where its edits go to be undone, its save
-// point, its text, where it says what the table cannot), the registers a window's documents
-// share, what a paste or a drop means (transfer), and the answers every editor gives alike.
-export type { Edit, EditIndex, EditSink, Notice, Notify, RangeReplacement, TextStore } from './edit/hooks.js';
+// Editing: where an editable source says what the table cannot (Notify), the registers a window's
+// documents share, what a paste or a drop means (transfer), and the answers every editor gives
+// alike. The engines and the hooks they are given are the extension's, on ./host.
+export type { Notice, Notify } from './edit/hooks.js';
 export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
 export type {
   ClipboardBroadcast,

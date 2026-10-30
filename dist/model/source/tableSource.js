@@ -1,3 +1,19 @@
+/**
+ * Why an answer never came: the source was closed while it was being asked (a table of a document
+ * that closed during its paint). Whoever relays a source's answers (serveTable, connectTable) says
+ * nothing of it, as there is no one left to tell.
+ */
+export class SourceClosed extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'SourceClosed';
+    }
+}
+/**
+ * Whether `err` is a SourceClosed. By its name, not `instanceof`, as serveTable tells one: the serve
+ * entry loads no module of the model, this one included.
+ */
+export const isSourceClosed = (err) => err?.name === 'SourceClosed';
 /** The commands an EditableTableSource takes, by name. */
 const COMMANDS = [
     'edit',

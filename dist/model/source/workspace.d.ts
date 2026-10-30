@@ -1,4 +1,6 @@
 import { type UsageGraph } from '../usage/usageCells.js';
+import type { Notify } from '../edit/hooks.js';
+import { type Registers } from '../edit/registers.js';
 import { type DocKind } from './readDocument.js';
 import type { TableSource } from './tableSource.js';
 export type { DocKind } from './readDocument.js';
@@ -27,6 +29,25 @@ export interface WorkspaceOptions {
      * its own file does.
      */
     usageReposts?: UsageReposts;
+    /**
+     * Edit in the page what the page can edit: a MAT-file, for now. Its table is then an
+     * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
+     * stack of its own, and it saves through the Doc's `serialize` and `saved`. Default false: every
+     * document is read-only, as before.
+     */
+    editing?: boolean;
+    /**
+     * With `editing`: the clipboard and drag register the workspace's documents share (and the
+     * deleters a move between them asks), for a page that shares one with other workspaces.
+     * Default: one of the workspace's own (createRegisters).
+     */
+    registers?: Registers;
+    /**
+     * With `editing`: where a document says what its table does not show — a move that left its
+     * original behind, an undo of an edit made before a reload, an undo that failed. Default:
+     * nowhere.
+     */
+    notify?: Notify;
 }
 /** What a workspace's data documents subscribe to for a Usage repaint: a usage repost hub. */
 export interface UsageReposts {
@@ -60,8 +81,32 @@ export interface Doc {
      * rejects, saying so.
      */
     readonly kind: DocKind;
-    /** What its table shows, and how it answers. */
+    /** What its table shows, and how it answers. An EditableTableSource where `editable`. */
     readonly table: TableSource;
+    /**
+     * Whether the page edits it (a MAT-file, in a workspace made with `editing`): its table takes
+     * edits, and it saves through `serialize` and `saved`. Whether a given file can be edited is its
+     * view's `editable` (a MAT-file laid out in a way a save could not keep opens read-only).
+     */
+    readonly editable: boolean;
+    /** Whether it holds edits its file does not: false for a document the page does not edit. */
+    readonly dirty: boolean;
+    /** Hear `dirty` change, until the returned function is called. */
+    onDirty(listener: (dirty: boolean) => void): () => void;
+    /**
+     * Start a save: the bytes to write, read synchronously, so that they are the document as the
+     * save was asked for, and `at`, which `saved` (or `notSaved`) is handed once they are written
+     * (or are not). Throws why it cannot be written (core's refusal, in its words), and for a
+     * document the page does not edit.
+     */
+    serialize(): {
+        bytes: Uint8Array;
+        at: SaveToken;
+    };
+    /** The bytes of the save `at` began are on disk: it is clean as of then, and its Status column moves. */
+    saved(at: SaveToken): void;
+    /** The bytes of the save `at` began were never written: nothing about the document moves. */
+    notSaved(at: SaveToken): void;
     /**
      * The file changed: read `bytes` in place of what it held. The table's subscribers hear the
      * outcome: a `replaceAll` with the new paint, or an `error` saying why the file could not be
@@ -77,6 +122,10 @@ export interface Doc {
     repaint(): Promise<void>;
     /** Close it: its tree leaves the session, and its table answers nothing more. */
     dispose(): void;
+}
+/** What `Doc.serialize` hands back with its bytes, for `saved`: which save of the document they are. */
+export interface SaveToken {
+    readonly at: number;
 }
 /**
  * The documents a page has open. An app is handed one and does not implement it, so a release may

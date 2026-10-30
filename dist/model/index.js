@@ -48,7 +48,7 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
-export { isEditable } from './source/tableSource.js';
+export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.

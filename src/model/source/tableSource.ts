@@ -14,7 +14,7 @@
 // envelope, and its answers arrive as more TableChanges. A read-only source implements this one
 // alone.
 //
-// Types, and isEditable.
+// Types, isEditable, and SourceClosed.
 import type { DropFacts } from '../actions/dropFacts.js';
 import type { SectionRule } from '../actions/sectionRules.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
@@ -197,6 +197,13 @@ export interface TableSource {
   inspect(selection: string | readonly string[]): Promise<InspectorView>;
   /** Hear every change after `open()`, until the returned function is called. */
   subscribe(listener: (change: TableChange) => void): () => void;
+  /**
+   * The answer of the last `open()` has been shown: a table painted it (connectTable), or a channel
+   * posted it (serveTable). A source that has more to say after a paint (an editable one's drop
+   * rules and clipboard) says it now, as changes, so that they arrive after the rows they are about.
+   * Optional; a read-only source has nothing to add.
+   */
+  opened?(): void;
 }
 
 /** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */
@@ -259,6 +266,24 @@ export interface EditableTableSource extends TableSource {
   /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
   requestEditText(rowId: string): void;
 }
+
+/**
+ * Why an answer never came: the source was closed while it was being asked (a table of a document
+ * that closed during its paint). Whoever relays a source's answers (serveTable, connectTable) says
+ * nothing of it, as there is no one left to tell.
+ */
+export class SourceClosed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SourceClosed';
+  }
+}
+
+/**
+ * Whether `err` is a SourceClosed. By its name, not `instanceof`, as serveTable tells one: the serve
+ * entry loads no module of the model, this one included.
+ */
+export const isSourceClosed = (err: unknown): boolean => (err as { name?: unknown } | null)?.name === 'SourceClosed';
 
 /** The commands an EditableTableSource takes, by name. */
 const COMMANDS = [

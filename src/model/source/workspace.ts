@@ -8,7 +8,10 @@
 // one: a workspace neither reads nor writes it.
 //
 // What a document's table answers is what the extension's host sends its table for the same file,
-// built by the same functions from the same route (readDocument.ts), read-only.
+// built by the same functions from the same route (readDocument.ts), read-only. With `editing`, a
+// MAT-file is edited in the page: its table is the MAT-file engine's (edit/matEngine.ts, the
+// extension's MAT-file editor lifted), over an undo stack of the page's own, and the document saves
+// through the Doc's save half (`serialize`, `saved`).
 import { createSession } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
@@ -21,9 +24,13 @@ import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { annotateModelViewRows, annotateVariableRows, type UsageGraph } from '../usage/usageCells.js';
 import { DocumentRegistry } from '../workspace/SlddModel.js';
+import { EditStack, EditStackIndex } from '../edit/editStack.js';
+import type { EditIndex, Notify } from '../edit/hooks.js';
+import { MatEngine, type MatSave } from '../edit/matEngine.js';
+import { createRegisters, type Registers } from '../edit/registers.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
-import type { ChildRows, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
+import type { ChildRows, EditableTableSource, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 
 export type { DocKind } from './readDocument.js';
@@ -53,6 +60,25 @@ export interface WorkspaceOptions {
    * its own file does.
    */
   usageReposts?: UsageReposts;
+  /**
+   * Edit in the page what the page can edit: a MAT-file, for now. Its table is then an
+   * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
+   * stack of its own, and it saves through the Doc's `serialize` and `saved`. Default false: every
+   * document is read-only, as before.
+   */
+  editing?: boolean;
+  /**
+   * With `editing`: the clipboard and drag register the workspace's documents share (and the
+   * deleters a move between them asks), for a page that shares one with other workspaces.
+   * Default: one of the workspace's own (createRegisters).
+   */
+  registers?: Registers;
+  /**
+   * With `editing`: where a document says what its table does not show — a move that left its
+   * original behind, an undo of an edit made before a reload, an undo that failed. Default:
+   * nowhere.
+   */
+  notify?: Notify;
 }
 
 /** What a workspace's data documents subscribe to for a Usage repaint: a usage repost hub. */
@@ -87,8 +113,29 @@ export interface Doc {
    * rejects, saying so.
    */
   readonly kind: DocKind;
-  /** What its table shows, and how it answers. */
+  /** What its table shows, and how it answers. An EditableTableSource where `editable`. */
   readonly table: TableSource;
+  /**
+   * Whether the page edits it (a MAT-file, in a workspace made with `editing`): its table takes
+   * edits, and it saves through `serialize` and `saved`. Whether a given file can be edited is its
+   * view's `editable` (a MAT-file laid out in a way a save could not keep opens read-only).
+   */
+  readonly editable: boolean;
+  /** Whether it holds edits its file does not: false for a document the page does not edit. */
+  readonly dirty: boolean;
+  /** Hear `dirty` change, until the returned function is called. */
+  onDirty(listener: (dirty: boolean) => void): () => void;
+  /**
+   * Start a save: the bytes to write, read synchronously, so that they are the document as the
+   * save was asked for, and `at`, which `saved` (or `notSaved`) is handed once they are written
+   * (or are not). Throws why it cannot be written (core's refusal, in its words), and for a
+   * document the page does not edit.
+   */
+  serialize(): { bytes: Uint8Array; at: SaveToken };
+  /** The bytes of the save `at` began are on disk: it is clean as of then, and its Status column moves. */
+  saved(at: SaveToken): void;
+  /** The bytes of the save `at` began were never written: nothing about the document moves. */
+  notSaved(at: SaveToken): void;
   /**
    * The file changed: read `bytes` in place of what it held. The table's subscribers hear the
    * outcome: a `replaceAll` with the new paint, or an `error` saying why the file could not be
@@ -104,6 +151,11 @@ export interface Doc {
   repaint(): Promise<void>;
   /** Close it: its tree leaves the session, and its table answers nothing more. */
   dispose(): void;
+}
+
+/** What `Doc.serialize` hands back with its bytes, for `saved`: which save of the document they are. */
+export interface SaveToken {
+  readonly at: number;
 }
 
 /**
@@ -157,11 +209,21 @@ interface Shared {
   budget: number;
   usage: UsageSource | undefined;
   usageReposts: UsageReposts | undefined;
-  closed(doc: InPageDoc): void;
+  registers: Registers;
+  notify: Notify | undefined;
+  closed(doc: Doc): void;
 }
 
-class InPageDoc implements Doc {
+/** What every workspace document is to the workspace that holds it. */
+interface HeldDoc extends Doc {
+  subscribeReposts(): void;
+  refillUsage(): Promise<void>;
+}
+
+class InPageDoc implements HeldDoc {
   readonly table: TableSource;
+  readonly editable = false;
+  readonly dirty = false;
   /** The current read, or undefined when it failed (`failure` says why) or the document is closed. */
   private reading: Reading | undefined;
   private failure = '';
@@ -193,6 +255,18 @@ class InPageDoc implements Doc {
       },
     };
   }
+
+  onDirty(): () => void {
+    return () => {};
+  }
+
+  serialize(): never {
+    throw new Error(`${this.name} is not edited in this workspace.`);
+  }
+
+  saved(): void {}
+
+  notSaved(): void {}
 
   async reload(bytes: ArrayBuffer | Uint8Array): Promise<void> {
     if (this.disposed) throw new Error(`${this.name} is closed.`);
@@ -368,6 +442,170 @@ class InPageDoc implements Doc {
 }
 
 /**
+ * A MAT-file edited in the page: the MAT-file engine (edit/matEngine.ts) over an undo stack of its
+ * own, its one table the engine's view, and its saves the engine's.
+ */
+class EditableMatDoc implements HeldDoc {
+  readonly kind = 'mat' as const;
+  readonly editable = true;
+  readonly table: EditableTableSource;
+  private readonly engine: MatEngine;
+  private readonly view: EditableTableSource & { dispose(): void; repaintAll(): Promise<void> };
+  private readonly stack = new EditStack();
+  private readonly index = new EditStackIndex();
+  private readonly dirtyListeners = new Set<(dirty: boolean) => void>();
+  private wasDirty = false;
+  private dirtyCheck = false;
+  private disposed = false;
+  private reposts: { dispose(): void } | undefined;
+  /** The usage graph the last fill used, for a narrow repaint's. */
+  private graph: UsageGraph | undefined;
+
+  constructor(
+    private readonly shared: Shared,
+    readonly uri: string,
+    readonly name: string,
+    bytes: ArrayBuffer,
+  ) {
+    // The stack's position, as the engine moves it. Whoever listens for `dirty` is told once the
+    // step that moved it, and its replay on core's stack, are done: never from inside one, where a
+    // listener that threw would leave the two stacks out of step.
+    const index = this.index;
+    const watched: EditIndex = {
+      get dirty() {
+        return index.dirty;
+      },
+      get moves() {
+        return index.moves;
+      },
+      here: () => index.here(),
+      pushed: () => this.moved(() => index.pushed()),
+      undone: () => this.moved(() => index.undone()),
+      redone: () => this.moved(() => index.redone()),
+      saved: (at) => this.moved(() => index.saved(at)),
+      reverted: () => this.moved(() => index.reverted()),
+    };
+    this.engine = new MatEngine({
+      session: shared.registry.session,
+      uri,
+      name,
+      bytes,
+      sink: this.stack,
+      index: watched,
+      registers: shared.registers,
+      notify: shared.notify,
+      budget: shared.budget,
+      // Every change to the tree ends here, once the step and every view are done with it.
+      changed: () => this.tellDirty(),
+      usage: {
+        fill: async (rows) => {
+          const usage = this.shared.usage;
+          if (!usage || rows.length === 0) return;
+          this.graph = await usage.graphFor(this.uri);
+          annotateVariableRows(this.uri, rows, this.graph);
+        },
+        fillNow: (rows) => {
+          if (this.graph && rows.length > 0) annotateVariableRows(this.uri, rows, this.graph);
+        },
+      },
+    });
+    this.view = this.engine.view();
+    this.table = this.view;
+    this.subscribeReposts();
+  }
+
+  get dirty(): boolean {
+    return this.index.dirty;
+  }
+
+  onDirty(listener: (dirty: boolean) => void): () => void {
+    this.dirtyListeners.add(listener);
+    return () => void this.dirtyListeners.delete(listener);
+  }
+
+  // The stack moved: tell `dirty`'s listeners once the step is done (tellDirty, from the engine's
+  // `changed`), or a turn later where no change to the tree follows (an undo of an edit from before
+  // a reload, which does nothing to the tree).
+  private moved(move: () => void): void {
+    move();
+    if (this.dirtyCheck) return;
+    this.dirtyCheck = true;
+    queueMicrotask(() => this.tellDirty());
+  }
+
+  /** Tell each listener of `dirty` that it changed, if it did, each on its own terms. */
+  private tellDirty(): void {
+    this.dirtyCheck = false;
+    const dirty = this.index.dirty;
+    if (dirty === this.wasDirty || this.disposed) return;
+    this.wasDirty = dirty;
+    for (const listener of [...this.dirtyListeners]) {
+      try {
+        listener(dirty);
+      } catch (err) {
+        // One listener's failure is its own: the others still hear the change.
+        queueMicrotask(() => {
+          throw err;
+        });
+      }
+    }
+  }
+
+  serialize(): { bytes: Uint8Array; at: SaveToken } {
+    if (this.disposed) throw new Error(`${this.name} is closed.`);
+    const save = this.engine.beginSave();
+    return { bytes: save.bytes, at: save };
+  }
+
+  saved(at: SaveToken): void {
+    if (this.disposed) return;
+    const save = at as MatSave;
+    this.engine.saved(save);
+    this.index.saved(save.at);
+    this.tellDirty();
+  }
+
+  notSaved(at: SaveToken): void {
+    if (this.disposed) return;
+    this.engine.notSaved(at as MatSave);
+  }
+
+  async reload(bytes: ArrayBuffer | Uint8Array): Promise<void> {
+    if (this.disposed) throw new Error(`${this.name} is closed.`);
+    // A new tree: no edit made before has anything to undo on it, and it holds what the disk does.
+    this.stack.clear();
+    this.index.reverted();
+    this.tellDirty();
+    this.graph = undefined;
+    await this.engine.replace(arrayBufferOf(bytes));
+  }
+
+  async repaint(): Promise<void> {
+    if (this.disposed) return;
+    this.graph = undefined;
+    await this.view.repaintAll();
+  }
+
+  subscribeReposts(): void {
+    this.reposts?.dispose();
+    this.reposts = this.disposed ? undefined : this.shared.usageReposts?.subscribe(() => void this.refillUsage());
+  }
+
+  async refillUsage(): Promise<void> {
+    await this.repaint();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.reposts?.dispose();
+    this.engine.dispose();
+    this.dirtyListeners.clear();
+    this.shared.closed(this);
+  }
+}
+
+/**
  * A workspace: the documents of a page, read by core in the page.
  *
  * ```ts
@@ -380,12 +618,14 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
   const budget = options.rowBudget ?? LAZY_ROW_BUDGET;
   if (!(budget >= 1)) throw new RangeError(`rowBudget must be at least 1, not ${String(options.rowBudget)}.`);
   const session = createSession();
-  const docs = new Map<string, InPageDoc>();
+  const docs = new Map<string, HeldDoc>();
   const shared: Shared = {
     registry: new DocumentRegistry(session),
     budget,
     usage: options.usage,
     usageReposts: options.usageReposts,
+    registers: options.registers ?? createRegisters(),
+    notify: options.notify,
     closed: (doc) => {
       if (docs.get(doc.uri) === doc) docs.delete(doc.uri);
     },
@@ -402,7 +642,10 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
         );
       }
       if (docs.has(id)) throw new Error(`${id} is already open in this workspace.`);
-      const doc = new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
+      const doc: HeldDoc =
+        kind === 'mat' && options.editing
+          ? new EditableMatDoc(shared, id, name, arrayBufferOf(bytes))
+          : new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
       docs.set(id, doc);
       return doc;
     },

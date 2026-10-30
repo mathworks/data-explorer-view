@@ -7,7 +7,8 @@
 //
 // A copy says what it copies in its header, one line per file:
 //   // Copied from data-explorer-vscode src/host/transfer.ts at c73da3c.
-// and a ported test the same way, with `Ported from`.
+// and a ported test the same way, with `Ported from`, and code lifted out of a larger file with
+// `Lifted from`.
 //
 //   node scripts/copied-drift.mjs <the extension's checkout>
 import { execFileSync } from 'node:child_process';
@@ -15,7 +16,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
-const STAMP = /(?:Copied|Ported) from data-explorer-vscode (\S+) at ([0-9a-f]{7,40})\b/g;
+const STAMP = /(?:Copied|Ported|Lifted) from data-explorer-vscode (\S+) at ([0-9a-f]{7,40})\b/g;
 
 function files(dir) {
   const found = [];

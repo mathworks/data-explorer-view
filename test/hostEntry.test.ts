@@ -18,16 +18,27 @@ import * as model from '../src/model/index.js';
 const ROOT = join(import.meta.dirname, '..');
 
 const VALUES = [
+  'CopyRefused',
   'DECORATIONS',
+  'EditStack',
+  'EditStackIndex',
   'HEALTH_QUERY',
   'InspectorPage',
   'MAX_TABLE_ROWS',
+  'MatEngine',
+  'SaveMarks',
   'answerChildRequest',
   'answerMatrixRequest',
   'binaryEditSrcId',
+  'buildClipboardSnapshot',
+  'buildDragSnapshot',
   'capRows',
   'childRowsMessage',
+  'clipMarkChange',
+  'clipMarkOfDoc',
+  'copyEntriesToClipboard',
   'decode',
+  'dragEntries',
   'encode',
   'findNode',
   'getModel',
@@ -43,9 +54,32 @@ const VALUES = [
   'postOrReport',
   'releaseIfUnviewed',
   'releaseSourceView',
+  'replacementsIn',
   'rowCapBanner',
+  'sameClipMark',
+  'sourceSectionOf',
 ];
-const TYPES = ['CappedRows', 'HealthDecoration', 'PostTarget', 'TabSources', 'UsageFiller'];
+const TYPES = [
+  'CappedRows',
+  'CopyDeps',
+  'Edit',
+  'EditIndex',
+  'EditSink',
+  'HealthDecoration',
+  'MarkedEdit',
+  'MarkedEntry',
+  'MatEngineOptions',
+  'MatSave',
+  'PostTarget',
+  'RangeReplacement',
+  'SaveMark',
+  'SaveSnapshot',
+  'SnapshotSession',
+  'TabSources',
+  'TextStore',
+  'UsageFill',
+  'UsageFiller',
+];
 
 describe('data-explorer-view/host', () => {
   it('exports the host plumbing, and only that', () => {

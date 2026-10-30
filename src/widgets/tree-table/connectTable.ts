@@ -25,6 +25,7 @@ import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget, type LinkTarget } from '../../model/ids/linkTarget.js';
 import {
   isEditable,
+  isSourceClosed,
   type InspectorFeed,
   type InspectorView,
   type MatrixPage,
@@ -422,8 +423,14 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   /** The table and its source are out of step: ask for the whole table again. */
   const reopen = (): void => {
     source.open().then(
-      (v) => !disposed && paint(v),
-      (err) => !disposed && failed(messageOf(err)),
+      (v) => {
+        if (disposed) return;
+        paint(v);
+        // What the source says after a paint (an editable one's drop rules) follows the rows.
+        source.opened?.();
+      },
+      // A source closed while it was asked has nothing to show, and no banner to say it in.
+      (err) => !disposed && !isSourceClosed(err) && failed(messageOf(err)),
     );
   };
 

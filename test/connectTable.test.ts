@@ -17,7 +17,15 @@ import {
 } from '../src/widgets/tree-table/index.js';
 import type { DexVariableEditor } from '../src/widgets/variable-editor/index.js';
 import { defineContextMenu, type DexContextMenu } from '../src/widgets/context-menu/index.js';
-import { createWorkspace, messageSource, type TableChange, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
+import {
+  SourceClosed,
+  createWorkspace,
+  messageSource,
+  type TableChange,
+  type TablePort,
+  type TableSource,
+  type Workspace,
+} from '../src/model/index.js';
 
 defineTreeTable();
 
@@ -96,6 +104,27 @@ describe('the first paint', () => {
     };
     handles.push(connectTable(table, never, { variableEditor: fakeEditor().editor }));
     expect(table.loading).toBe(true);
+  });
+
+  it('says nothing of a source closed while it was asked (SourceClosed), and shows any other failure', async () => {
+    const answers: [Error, string | null][] = [
+      [new SourceClosed('a.mat is closed.'), null],
+      [new Error('the read broke'), 'the read broke'],
+    ];
+    for (const [err, banner] of answers) {
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const failing: TableSource = {
+        open: () => Promise.reject(err),
+        children: async (nodeId) => ({ nodeId, rows: [], truncated: 0 }),
+        matrix: async (nodeId) => ({ nodeId, message: 'none' }),
+        inspect: async () => ({ groups: [] }),
+        subscribe: () => () => {},
+      };
+      handles.push(connectTable(table, failing, { variableEditor: fakeEditor().editor }));
+      await settle(table);
+      expect(table.banners?.error ?? null, err.message).toBe(banner);
+    }
   });
 
   it("draws the paint's banners in the table's strip: what the paint held back", async () => {
