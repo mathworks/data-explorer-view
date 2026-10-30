@@ -1,6 +1,7 @@
 export { DexTreeTable, defineTreeTable } from './dex-tree-table.js';
 export { connectTable } from './connectTable.js';
 export type { ConnectTableOptions, CopyFailure, NavigateRequest, TableAction, TableHandle, TableHandleEventMap, TableMenuContext, } from './connectTable.js';
+export type { TableTextView } from './editingWire.js';
 export type { AddEntryDetail, EditCompletedDetail, EditTextRequestDetail, LinkClickedDetail, RequestChildrenDetail, RowDragStartDetail, RowDropDetail, RowSelectedDetail, TableBanners, TableContextMenuDetail, TreeTableEventMap, TreeTableRow, } from './dex-tree-table.js';
 export { DexFilterBar, defineFilterBar } from './dex-filter-bar.js';
 export type { FilterAppliedDetail, FilterBarEventMap } from './dex-filter-bar.js';

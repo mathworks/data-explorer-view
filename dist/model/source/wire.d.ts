@@ -42,6 +42,10 @@ export interface SetRowsMessage {
     notice?: string;
     /** What the read could not read, and what the paint held back (TableView.warnings). */
     warnings?: WarningBanner;
+    /** What the Add gallery offers, where it is not every tile (TableView.add). */
+    add?: {
+        classes: readonly string[];
+    };
 }
 /**
  * The rows of one entry, the entry's row first, replacing the rows of the entry the table shows

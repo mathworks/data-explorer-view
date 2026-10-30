@@ -110,6 +110,10 @@ export function messageSource(port, options = {}) {
             editable: !!m.editable,
             ...(typeof m.notice === 'string' ? { notice: m.notice } : {}),
             ...(isRecord(m.warnings) ? { warnings: m.warnings } : {}),
+            // A list of classes, and only the names in it: anything else is no list, every tile.
+            ...(isRecord(m.add) && Array.isArray(m.add.classes)
+                ? { add: { classes: m.add.classes.filter((c) => typeof c === 'string') } }
+                : {}),
         };
     };
     /** Send a command: nothing waits for an answer. */

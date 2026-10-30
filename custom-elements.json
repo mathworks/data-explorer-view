@@ -3332,6 +3332,40 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/tree-table/editingWire.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "wireEditing",
+          "return": {
+            "type": {
+              "text": "EditingWire"
+            }
+          },
+          "parameters": [
+            {
+              "name": "host",
+              "type": {
+                "text": "EditingHost"
+              }
+            }
+          ],
+          "description": "Wire the editing half: the listeners go on through `host.listen`, the state stays in here."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "wireEditing",
+          "declaration": {
+            "name": "wireEditing",
+            "module": "dist/widgets/tree-table/editingWire.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/tree-table/index.js",
       "declarations": [],
       "exports": [
@@ -3413,6 +3447,14 @@
           "declaration": {
             "name": "TableMenuContext",
             "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableTextView",
+          "declaration": {
+            "name": "TableTextView",
+            "module": "./editingWire.js"
           }
         },
         {

@@ -1,8 +1,10 @@
 import { type ContextMenuItem, type DexContextMenu } from '../context-menu/dex-context-menu.js';
 import { type DexVariableEditor } from '../variable-editor/dex-variable-editor.js';
+import { type DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { type LinkTarget } from '../../model/ids/linkTarget.js';
-import type { InspectorFeed, TableSource, TableView } from '../../model/source/tableSource.js';
+import { type InspectorFeed, type TableSource, type TableView } from '../../model/source/tableSource.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
+import { type TableTextView } from './editingWire.js';
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
 export interface TableMenuContext {
     /** The row right-clicked, or null for the space under the rows. */
@@ -74,6 +76,25 @@ export interface ConnectTableOptions {
      * to `navigate`.
      */
     resolveLink?: (link: LinkTarget, fromUri: string) => string | null | undefined | Promise<string | null | undefined>;
+    /**
+     * Wire the table to edit, through the source's commands (an EditableTableSource's): a cell edit,
+     * the Add gallery, a row drag and drop, and a context menu of editing items (Copy, Cut, Paste,
+     * Add Child, Delete, Undo, Redo) with their chords, in place of Copy Name and Copy Value. A
+     * refused edit opens the error dialog. Whether a document may be edited is still its view's
+     * `editable`: a read-only one gets no menu, no cell editor, no `+ Add` and no row drag. A source
+     * that takes no edits (isEditable false) is wired as a read-only document. Default false.
+     */
+    editing?: boolean;
+    /**
+     * With `editing`: a plain-text view of the document a row can be shown in. The editing menu then
+     * offers Location in Text, in its place among the other items, and Cmd/Ctrl+L does what it does.
+     */
+    textView?: TableTextView;
+    /**
+     * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
+     * `<body>`, and takes away again on dispose().
+     */
+    errorDialog?: DexErrorDialog;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -143,6 +164,17 @@ export interface TableHandle extends InspectorFeed {
     selectByName(name: string): void;
     /** Open the Name editor on `rowId`, now or when a repaint brings the row. */
     beginRename(rowId: string): void;
+    /**
+     * The Add gallery, as if its `+ Add` button were clicked: it opens, or closes if it is open,
+     * and nothing happens on a table that cannot add. For a keyboard accelerator of the app's.
+     */
+    toggleAddGallery(): void;
+    /**
+     * With `editing`: the editing menu for the current selection (or `selection`), anchored at
+     * `anchorRowId` (null for no row), as a right-click there would show it. For a chord of the
+     * app's to do exactly what its item would, when it is enabled. Without `editing`, none.
+     */
+    menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
     /** Stop: the table keeps what it shows and hears nothing more. */
     dispose(): void;
 }

@@ -158,6 +158,10 @@ export function messageSource(port: TablePort, options: MessageSourceOptions = {
       editable: !!m.editable,
       ...(typeof m.notice === 'string' ? { notice: m.notice } : {}),
       ...(isRecord(m.warnings) ? { warnings: m.warnings as WarningBanner } : {}),
+      // A list of classes, and only the names in it: anything else is no list, every tile.
+      ...(isRecord(m.add) && Array.isArray(m.add.classes)
+        ? { add: { classes: m.add.classes.filter((c: unknown): c is string => typeof c === 'string') } }
+        : {}),
     };
   };
 
