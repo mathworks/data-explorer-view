@@ -1,4 +1,6 @@
 import type { SourceFile } from 'data-explorer-core';
+import type { DropFacts } from '../actions/dropFacts.js';
+import type { SectionRule } from '../actions/sectionRules.js';
 import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
@@ -114,6 +116,173 @@ export interface RequestMatrixMessage {
 }
 /** Every message a table's (or an inspector's) end sends its host. */
 export type TableClientMessage = ReadyMessage | SelectMessage | RequestChildrenMessage | RequestMatrixMessage;
+/** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */
+export interface EditMessage {
+    type: 'edit';
+    rowId: string;
+    columnId: string;
+    oldValue: string;
+    newValue: string;
+}
+/**
+ * Copy the selection's entries to the clipboard. Copy, Cut and Delete carry the whole selection,
+ * because the gesture was made over it; the host resolves what that means (whole entries for copy
+ * and cut, rows for delete).
+ */
+export interface CopyMessage {
+    type: 'copy';
+    rowIds: string[];
+}
+/** Cut the selection's entries: a copy whose originals go when it is pasted (a lazy cut). */
+export interface CutMessage {
+    type: 'cut';
+    rowIds: string[];
+}
+/** Delete the selection's rows. */
+export interface DeleteMessage {
+    type: 'delete';
+    rowIds: string[];
+}
+/**
+ * Paste the clipboard into the section of the row it is anchored at. '' is no row, the document
+ * itself: sent only by a table whose document is one target (a MAT-file, whose host sent a
+ * whole-file `sectionRules` rule), for a right-click on its empty body or Cmd+V with nothing
+ * selected.
+ */
+export interface PasteMessage {
+    type: 'paste';
+    rowId: string;
+}
+/** Add a child to the row: an element to a struct, a cell or an array. */
+export interface AddChildMessage {
+    type: 'addChild';
+    rowId: string;
+}
+/**
+ * Create one new default entry, from the Add gallery: the section it goes in (core's key, `design`,
+ * `arch` or `config`; '' for a MAT-file), the class to create, and whether its Name cell should open
+ * for a rename once it is there.
+ */
+export interface AddEntryMessage {
+    type: 'addEntry';
+    section: string;
+    className: string;
+    rename: boolean;
+}
+/** Undo or redo the document's last edit. */
+export interface UndoRedoMessage {
+    type: 'undo' | 'redo';
+}
+/** Rows are being dragged: the host takes them into its drag register. */
+export interface DragStartMessage {
+    type: 'dragStart';
+    rowIds: string[];
+}
+/** The drag of this table's rows ended, dropped or not: the host lets its drag register go. */
+export interface DragEndMessage {
+    type: 'dragEnd';
+}
+/**
+ * The drag was let go over a row: move or copy what it carries there. '' is the table's empty
+ * body, for the reason a paste's row can be ''.
+ */
+export interface DropMessage {
+    type: 'drop';
+    rowId: string;
+    mode: 'copy' | 'move';
+}
+/**
+ * The whole text of a Value the row shows as a summary for its size (`<1x500 double>`), asked for
+ * as its editor opens: the row carries only a marker that there is one (`_hasEditText`). Answered
+ * by `editText`.
+ */
+export interface RequestEditTextMessage {
+    type: 'requestEditText';
+    rowId: string;
+}
+/** Every editing message a table's end sends its host. */
+export type TableEditClientMessage = EditMessage | CopyMessage | CutMessage | DeleteMessage | PasteMessage | AddChildMessage | AddEntryMessage | UndoRedoMessage | DragStartMessage | DragEndMessage | DropMessage | RequestEditTextMessage;
+/** How the clipboard holds its entries: a cut moves them when they are pasted, a copy does not. */
+export type ClipboardMode = 'cut' | 'copy';
+/**
+ * A drag in flight, as every table hears of it: the document it started in and the facts each
+ * item is judged by where it is dropped, never the entries themselves (dropDecision's DragSource).
+ */
+export interface DragDescriptor {
+    docUri: string;
+    items: (DropFacts & {
+        sectionName: string;
+    })[];
+}
+/** The rules each section of the document holds a drop or a paste to, for the table to predict one. */
+export interface SectionRulesMessage {
+    type: 'sectionRules';
+    docUri: string;
+    rules: SectionRule[];
+}
+/**
+ * What the clipboard holds, sent to every table whenever it changes, so each can offer Paste
+ * without asking: payload-free, the same facts a drag descriptor carries. `sectionName` is the
+ * section each entry was taken from ('' for a MAT-file's variable), and `sourceDocUri` the document:
+ * with both, a cut pasted back where it came from is known to change nothing.
+ */
+export interface ClipboardStateMessage {
+    type: 'clipboardState';
+    canPaste: boolean;
+    mode: ClipboardMode | null;
+    items: (DropFacts & {
+        sectionName?: string;
+    })[];
+    sourceDocUri?: string;
+}
+/** The drag in flight, sent to every table, or null when it ends. */
+export interface DragStateMessage {
+    type: 'dragState';
+    descriptor: DragDescriptor | null;
+}
+/**
+ * Select these rows: what an edit just made the answer to "where am I" (a rename's row, a delete's
+ * survivor, every entry a paste added). Applied as soon as the rows are there.
+ */
+export interface SelectRowsMessage {
+    type: 'selectRows';
+    rowIds: string[];
+}
+/** Open the Name editor on a row: an entry the Add gallery just created, whose name the user says next. */
+export interface BeginRenameMessage {
+    type: 'beginRename';
+    rowId: string;
+}
+/** A cell edit refused: shown in a dialog, with the value refused and the one the cell keeps. */
+export interface ValidationErrorMessage {
+    type: 'validationError';
+    reason: string;
+    invalidValue: unknown;
+    previousValue: unknown;
+}
+/**
+ * A gesture refused before it changed anything (Add Child, Delete, Add): shown in the dialog a
+ * refused cell edit is, titled by the gesture (`Cannot Add Child`, `Cannot Delete`, `Cannot Add`),
+ * with why. A dialog, not the banner, because the next repaint clears the banner.
+ */
+export interface RefusedMessage {
+    type: 'refused';
+    title: string;
+    reason: string;
+}
+/**
+ * The answer to `requestEditText`: the whole text of the row's Value, which the editor opens on, or
+ * null where there is none to edit (the value changed under the request), with why where core
+ * says.
+ */
+export interface EditTextMessage {
+    type: 'editText';
+    rowId: string;
+    text: string | null;
+    reason?: string;
+}
+/** Every editing message a host sends a table's end. */
+export type TableEditHostMessage = SectionRulesMessage | ClipboardStateMessage | DragStateMessage | SelectRowsMessage | BeginRenameMessage | ValidationErrorMessage | RefusedMessage | EditTextMessage;
 /** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
 export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
 /**

@@ -48,6 +48,7 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
+export { isEditable } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
@@ -75,6 +76,12 @@ export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRe
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).
 export { inspectorFeed, messageSource } from './source/messageSource.js';
+export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
+// transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
+// (above), under a name of its own.
+export { TransferRefused, fileNameOf, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
+export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
+export { answerEditTextRequest } from './edit/editText.js';
 // A folder across a message channel, for a hierarchy where its files are not: the page's end
 // (folderReader), in the same wire format as the host's (serveFolder, on data-explorer-view/serve).
 export { folderReader } from './source/folderReader.js';

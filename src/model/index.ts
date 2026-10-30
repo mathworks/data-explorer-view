@@ -80,14 +80,19 @@ export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hiera
 // the inspector's page, and what changes after), and the workspace that opens documents in the
 // page.
 export type {
+  CellEdit,
   ChildRows,
+  ClipboardStatus,
+  EditableTableSource,
   InspectorFeed,
   InspectorView,
   MatrixPage,
+  NewEntry,
   TableChange,
   TableSource,
   TableView,
 } from './source/tableSource.js';
+export { isEditable } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
@@ -137,8 +142,24 @@ export type { SearchItem } from './search/searchItems.js';
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).
 export { inspectorFeed, messageSource } from './source/messageSource.js';
+export type { MessageSourceOptions } from './source/messageSource.js';
 export type {
+  AddChildMessage,
+  AddEntryMessage,
+  BeginRenameMessage,
   ChildRowsMessage,
+  ClipboardMode,
+  ClipboardStateMessage,
+  CopyMessage,
+  CutMessage,
+  DeleteMessage,
+  DragDescriptor,
+  DragEndMessage,
+  DragStartMessage,
+  DragStateMessage,
+  DropMessage,
+  EditMessage,
+  EditTextMessage,
   EmptyMessage,
   ErrorMessage,
   FolderAnswerMessage,
@@ -149,17 +170,71 @@ export type {
   FolderRequestMessage,
   InsertEntryRowsMessage,
   MatrixCellsMessage,
+  PasteMessage,
   ReadyMessage,
+  RefusedMessage,
   RequestChildrenMessage,
+  RequestEditTextMessage,
   RequestMatrixMessage,
+  SectionRulesMessage,
   SelectMessage,
+  SelectRowsMessage,
   SetRowsMessage,
   ShowPropsMessage,
   TableClientMessage,
+  TableEditClientMessage,
+  TableEditHostMessage,
   TableHostMessage,
   TablePort,
+  UndoRedoMessage,
   UpdateEntryRowsMessage,
+  ValidationErrorMessage,
 } from './source/wire.js';
+
+// Editing: what an editable source is given (hooks: where its edits go to be undone, its save
+// point, its text, where it says what the table cannot), the registers a window's documents
+// share, what a paste or a drop means (transfer), and the answers every editor gives alike.
+export type { Edit, EditIndex, EditSink, Notice, Notify, RangeReplacement, TextStore } from './edit/hooks.js';
+export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
+export type {
+  ClipboardBroadcast,
+  ClipboardEntry,
+  ClipboardItem,
+  DeleteTarget,
+  DragEntry,
+  DragRegisterItem,
+  RegisterListener,
+  Registers,
+  SourceDeleter,
+} from './edit/registers.js';
+// transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
+// (above), under a name of its own.
+export {
+  TransferRefused,
+  fileNameOf,
+  isNoopMove as isNoopTransfer,
+  runTransfer,
+  sharedNameRefusal,
+  sourceKeptMessage,
+} from './edit/transfer.js';
+export type {
+  SourceDeleteResult,
+  SourceSelector,
+  TransferAdapter,
+  TransferCommit,
+  TransferContents,
+  TransferDeps,
+  TransferItem,
+  TransferLabel,
+  TransferOutcome,
+  TransferRegister,
+  TransferRequest,
+  TransferTarget,
+} from './edit/transfer.js';
+export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
+export type { RefusalSession, RefusedGesture } from './edit/refusal.js';
+export { answerEditTextRequest } from './edit/editText.js';
+export type { EditTextSession } from './edit/editText.js';
 
 // A folder across a message channel, for a hierarchy where its files are not: the page's end
 // (folderReader), in the same wire format as the host's (serveFolder, on data-explorer-view/serve).

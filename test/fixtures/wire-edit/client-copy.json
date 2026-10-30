@@ -1,0 +1,7 @@
+{
+  "type": "copy",
+  "rowIds": [
+    "file:///fx/test/fixtures/params.sldd/design/charStr",
+    "file:///fx/test/fixtures/params.sldd/design/pInt16"
+  ]
+}

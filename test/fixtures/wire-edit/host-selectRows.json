@@ -1,0 +1,7 @@
+{
+  "type": "selectRows",
+  "rowIds": [
+    "file:///fx/test/fixtures/params.sldd/design/Kp",
+    "file:///fx/test/fixtures/params.sldd/design/Ki"
+  ]
+}

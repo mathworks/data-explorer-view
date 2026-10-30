@@ -137,8 +137,9 @@ repaints. A document's uri is its identity, in every row id: by default
 a link's `source` as it comes: the file to open for a link to another
 document.
 `doc.dispose()` closes a document, `ws.dispose()` all of them. A source answers
-what the VS Code extension shows for the same file, read-only; editing comes in
-a later release. A project (`doc.kind === 'project'`) opens on a page rather
+what the VS Code extension shows for the same file, read-only; editing a
+document in the page comes in a later release (the contract it will keep is
+below). A project (`doc.kind === 'project'`) opens on a page rather
 than in a table: `<dex-project-page>` draws the message `readProjectPage(markerPath,
 fs)` reads from its store (core's `StoreFs`; `nodeStoreFs` from
 `data-explorer-core/node` in Electron or Node), the message the extension's
@@ -152,6 +153,24 @@ process holding the documents: `serveTable(doc.table, port)`
 any `{ postMessage, onMessage }` (`TablePort`). The messages
 are the extension's own table protocol (`TableHostMessage`,
 `TableClientMessage`), and the table behaves as it does beside its source.
+
+Editing is the other half of a source. An `EditableTableSource` (`isEditable(source)`)
+takes one command per gesture (`edit`, `copy`, `cut`, `delete`, `paste`, `addChild`,
+`addEntry`, `undo`, `redo`, `dragStart`, `dragEnd`, `drop`, `requestEditText`). None
+returns anything: what a command did comes back through `subscribe`, as the repaints of
+what it changed and as editing changes (`select`, `beginRename`, `invalid`, `refused`,
+`editText`, and the `clipboard`, `drag` and `sectionRules` a table predicts a paste or a
+drop with). Across a channel the commands are the extension's editing messages
+(`TableEditClientMessage`, `TableEditHostMessage`). `messageSource` sends them, and
+`serveTable` hands each one to its source as it arrives, with nothing awaited first, so
+the source sees gestures in the order they were made. A host that speaks more than the
+wire passes `serveTable(source, port, { extra })` to receive its own messages and add
+fields of its own to each `setRows`. The pieces an editable source is built from are
+in `/model` too:
+- `createRegisters()`: a window's clipboard, drag register and source deleters;
+- `runTransfer`: what a paste or a drop means;
+- the refusals' wording;
+- the hooks a source is given (`EditSink`, `EditIndex`, `TextStore`, `Notify`).
 
 ## Show a folder
 

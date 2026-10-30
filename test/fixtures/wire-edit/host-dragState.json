@@ -1,0 +1,16 @@
+{
+  "type": "dragState",
+  "descriptor": {
+    "docUri": "binedit:file:///fx/test/fixtures/arch_binary.sldd",
+    "items": [
+      {
+        "sectionName": "arch",
+        "className": "Simulink.Bus",
+        "arrayClass": "",
+        "kind": "Data Interface",
+        "isMatlabVariable": false,
+        "isScalarNumeric": false
+      }
+    ]
+  }
+}
