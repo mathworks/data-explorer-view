@@ -136,10 +136,10 @@ export interface MatSave {
   readonly at: number;
 }
 
-/** What a save took of the Status column with its bytes: its snapshot, and the marks before it. */
+/** What a save took of the Status column with its bytes: its snapshot, and its place among the saves begun. */
 interface TakenMarks {
   snapshot: SaveSnapshot;
-  before: ReadonlyMap<any, SaveMark>;
+  seq: number;
 }
 
 /**
@@ -290,6 +290,10 @@ export class MatEngine {
 
   /** What each save in flight took of the Status column, by the save. */
   private readonly taken = new WeakMap<MatSave, TakenMarks>();
+  // The saves begun, and the latest of them to land: one that lands after a later one has left the
+  // file holding an older document than that one wrote (`saved`'s answer).
+  private saveSeq = 0;
+  private landedSeq = 0;
 
   /** The document as its views reach it. */
   private readonly document: MatDocument;
@@ -428,11 +432,10 @@ export class MatEngine {
    * nothing to write and nothing to hand back.
    */
   beginSave(): MatSave {
-    const before = this.marks.marks();
     const bytes = this.serialize();
     const snapshot = this.marks.snapshot();
     const save: MatSave = { bytes, at: this.options.index.here() };
-    this.taken.set(save, { snapshot, before });
+    this.taken.set(save, { snapshot, seq: ++this.saveSeq });
     return save;
   }
 
@@ -440,15 +443,25 @@ export class MatEngine {
    * The bytes of `save` are on disk: the Status column is measured from them from now on. The
    * edit stack's save point is the caller's to move (EditIndex.saved), once, where its own rule
    * says: VS Code's moves when the save it asked for resolves.
+   *
+   * True when it landed behind a save begun after it, which had already landed: the file now holds
+   * an older document than that newer save wrote. A host whose save point moved with the newer save
+   * (VS Code's) shows the document clean over it, and writes it again (open-questions 16 B).
    */
-  saved(save: MatSave): void {
+  saved(save: MatSave): boolean {
     const taken = this.taken.get(save);
-    if (!taken) return;
+    if (!taken) return false;
     this.taken.delete(save);
+    const behind = taken.seq < this.landedSeq;
+    if (!behind) this.landedSeq = taken.seq;
+    // The rows whose Status the commit moves, against what they show now: a save that lands behind
+    // a newer one marks again what the newer one's landing cleared.
+    const before = this.marks.marks();
     this.marks.commit(taken.snapshot);
     // The Status column moved with it, which a paint on its await built before: it builds again.
     this.treeVersion++;
-    this.repaintMarks(taken.before);
+    this.repaintMarks(before);
+    return behind;
   }
 
   /** The bytes of `save` were never written: the Status column stays measured from the last save. */

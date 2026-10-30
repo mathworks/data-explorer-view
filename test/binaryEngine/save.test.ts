@@ -155,7 +155,9 @@ describe('binary dictionary engine: the save gate vs the hot-exit backup', () =>
 
     const root: any = o.model();
     assert.strictEqual(firstEntry(root).name, 'Kz', 'the registered tree describes the document, not the read the gate happened to have');
-    assert.deepStrictEqual([...(o.engine as any).baseline.modified(root)], [], 'and the baseline was captured from that same tree');
+    // The baseline is the file the save wrote, which lacks the edit: the row says so until a save
+    // writes it (open-questions 16 B; it was the tree, and the edit read as saved).
+    assert.deepStrictEqual([...(o.engine as any).baseline.modified(root)], ['Kz'], 'and the baseline is the file it wrote, which lacks the edit');
     assert.strictEqual(chunkOf(save.bytes), gated, 'the write is of the gated text');
   });
 });

@@ -107,10 +107,32 @@ export class SaveMarks {
                 }
                 this.hold(entry);
             }
+            // An edit made after the snapshot was taken is not in the file this save wrote, whatever a
+            // newer save that committed first wrote of it: a save that lands behind a newer one leaves
+            // it unsaved again (open-questions 16 B). In order, none of these was ever saved.
+            for (const entry of [...this.entries]) {
+                if (entry.epoch !== this.epoch || entry.seq < taken.takenAt || !entry.atSave)
+                    continue;
+                for (const other of this.inFlight) {
+                    if (entry.seq < other.takenAt && !other.applied.has(entry))
+                        other.applied.set(entry, entry.atSave);
+                }
+                entry.atSave = false;
+                this.hold(entry);
+            }
         }
+        // Held too while a save taken before it is in flight, which may still commit and so leave it
+        // out of the file again.
         for (const entry of this.entries)
-            entry.held = entry.applied !== entry.atSave;
+            entry.held = entry.applied !== entry.atSave || this.olderInFlight(entry);
         this.entries = this.entries.filter((e) => e.held);
+    }
+    /** Whether a save taken before `entry` was made is in flight. */
+    olderInFlight(entry) {
+        for (const snapshot of this.inFlight)
+            if (snapshot.takenAt <= entry.seq)
+                return true;
+        return false;
     }
     /** The save of `snapshot` wrote nothing: it is never committed. */
     release(snapshot) {

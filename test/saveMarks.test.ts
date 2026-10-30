@@ -156,17 +156,23 @@ class EveryEdit {
     this.entries.push(entry);
     return { undone: () => void (entry.applied = false), redone: () => void (entry.applied = true) };
   }
+  private epoch = 0;
+  private readonly epochOf = new WeakMap<Map<object, boolean>, number>();
   snapshot() {
-    return new Map(this.entries.map((e) => [e, e.applied]));
+    const snapshot = new Map(this.entries.map((e) => [e, e.applied]));
+    this.epochOf.set(snapshot, this.epoch);
+    return snapshot;
   }
   commit(snapshot: Map<object, boolean>) {
-    for (const entry of this.entries) {
-      const applied = snapshot.get(entry);
-      if (applied !== undefined) entry.atSave = applied;
-    }
+    // One taken before the last clear is no save of this tree.
+    if (this.epochOf.get(snapshot) !== this.epoch) return;
+    // The file holds what the snapshot held: an edit made after it was taken is not in it, whatever
+    // a newer save that committed first wrote of it (open-questions 16 B).
+    for (const entry of this.entries) entry.atSave = snapshot.get(entry) ?? false;
   }
   clear() {
     this.entries = [];
+    this.epoch++;
   }
   differing(): number {
     return this.entries.filter((e) => e.applied !== e.atSave).length;

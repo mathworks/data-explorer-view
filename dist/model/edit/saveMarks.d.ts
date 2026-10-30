@@ -33,6 +33,8 @@ export declare class SaveMarks<T> {
     snapshot(): SaveSnapshot;
     /** The save of `snapshot` is on disk: what it held is what every later edit is measured from. */
     commit(snapshot: SaveSnapshot): void;
+    /** Whether a save taken before `entry` was made is in flight. */
+    private olderInFlight;
     /** The save of `snapshot` wrote nothing: it is never committed. */
     release(snapshot: SaveSnapshot): void;
     /**
