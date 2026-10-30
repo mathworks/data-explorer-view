@@ -1,8 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // Copied from data-explorer-vscode src/host/slddBaseline.ts at c73da3c (its captureBaseline,
-// computeModified, isEntryModified and clearBaseline). With the baseline held by the document's
-// engine rather than in a map keyed by uri at module level. The extension keeps its own copy until
+// computeModified, isEntryModified, clearBaseline, BaselineSource, baselineOwed, diskBaselineUsable,
+// DiskStamp and sameDiskStamp). With the baseline held by the document's engine rather than in a
+// map keyed by uri at module level. The extension keeps its own copy until
 // its editors move onto view's engines; keep the two alike (view's CI reports a vscode commit to
 // that file).
 //
@@ -79,4 +80,32 @@ export class EntryBaseline {
     clear() {
         this.baseline = undefined;
     }
+}
+/**
+ * Whether a repaint that read the document at `versionRead` has to capture the baseline from what
+ * it read: when there is none yet and none is on its way from the disk, and when this is a version
+ * known to read what the file says that the baseline is not already of. While the disk read is
+ * pending, only the second.
+ */
+export function baselineOwed(source, versionRead) {
+    if (source.pending)
+        return source.cleanAt === versionRead;
+    if (!source.captured)
+        return true;
+    return source.cleanAt === versionRead && source.version !== versionRead;
+}
+/**
+ * Whether the file's bytes, read for a document opened dirty, may still become its baseline:
+ * `cleanAtBefore` is what `cleanAt` was when the read began. Not once a baseline has been taken,
+ * and not once the document turned clean in that time even if none was.
+ */
+export function diskBaselineUsable(source, cleanAtBefore) {
+    return !source.captured && source.cleanAt === cleanAtBefore;
+}
+/**
+ * Whether the file is as it was when `known` was taken — so a change to a document that read the
+ * same as it then cannot have been a reload of it. An unknown stamp proves nothing.
+ */
+export function sameDiskStamp(known, now) {
+    return known !== null && known.mtime === now.mtime && known.size === now.size;
 }

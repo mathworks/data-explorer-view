@@ -177,8 +177,8 @@ given (`EditSink`, `EditIndex`, `TextStore`), are the VS Code extension's, on
 
 ## Edit a file
 
-A workspace made with `editing: true` edits a MAT-file and a compressed (zip)
-dictionary in the page, as the VS Code extension's editors of them do: its
+A workspace made with `editing: true` edits a MAT-file and a dictionary (JSON or
+compressed) in the page, as the VS Code extension's editors of them do: its
 `doc.editable` is true, and its table is an `EditableTableSource` for
 `connectTable(table, doc.table, { editing: true })`. Every edit is one step of
 the document's own undo stack, and the table's Undo and Redo walk that stack.
@@ -215,10 +215,12 @@ async function save() {
   another and the original goes.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
-- JSON dictionaries open read-only for now, and so does a compressed one with no
-  data part (its table says why). One whose data part does not read opens
-  editable, as the VS Code extension's editor opens it: its table says why it
-  cannot be shown, and `serialize()` refuses.
+- A JSON dictionary's text is the document: an edit patches the entry's own
+  span of it, so the bytes of every other entry stay as they were, and undo is
+  the text's. One too large for the extension's table editor opens read-only,
+  and so does a compressed one with no data part (its table says why). One whose
+  data part does not read opens editable, as the VS Code extension's editor
+  opens it: its table says why it cannot be shown, and `serialize()` refuses.
 
 ## Show a folder
 

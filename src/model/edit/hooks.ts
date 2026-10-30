@@ -74,24 +74,51 @@ export interface RangeReplacement {
 
 /**
  * The text of a document whose text is the truth (a JSON dictionary): what a source reads, writes
- * a gesture's patches to, and hears every change of, its own and anyone else's. In the page, a
- * string with an undo of its own; in the VS Code extension, the TextDocument, which a text view of
- * the same file edits too, and whose undo is the table's.
+ * a gesture's patches to, undoes and redoes, and hears every change of, its own and anyone else's.
+ * In the page, a string with an undo stack of its own (createTextStore); in the VS Code extension,
+ * the TextDocument, which a text view of the same file edits too, and whose undo is the table's.
  *
- * A change is heard after it is applied, and never during `apply`: as a TextDocument reports one,
- * so a source handles its own writes' echoes the same way in both homes.
+ * It behaves as a TextDocument does, because the JSON engine's rules are the extension's, written
+ * against one:
+ *  - an edit lands, and is heard, after `apply` returns, and before its promise resolves; until it
+ *    lands, `text` and `version` are what they were;
+ *  - every change is heard: an edit, an undo or a redo (`reason`), another writer's;
+ *  - `dirty`, read while a change is heard, is what it was before that change; when the change
+ *    moved it, a change with no replacements follows, read with the new value. A save that turns
+ *    it clean is heard as one of those, and on `onSave`.
  */
 export interface TextStore {
   /** The text as it stands. */
   readonly text: string;
+  /** Moved by every change: what a reading of `text` is a reading of. */
+  readonly version: number;
+  /** Whether the text differs from the file it was read from or last saved to. */
+  readonly dirty: boolean;
   /**
-   * Make one gesture's patches ONE edit (one undo step): each patch's offsets are in the text as it
-   * stands now, and no two overlap. Resolves with whether the edit landed: false when the text
-   * moved under it, which a WorkspaceEdit refuses.
+   * Make these patches ONE edit (one undo step): each patch's offsets are in the text as it stands
+   * now, and no two overlap. Resolves with whether the edit landed: false when the text moved
+   * under it, which a WorkspaceEdit refuses, or when two patches overlap.
    */
-  apply(patches: readonly TextPatch[], label: string): Promise<boolean>;
-  /** Hear every change, until the returned function is called: the replacements it made, in the text before it. */
-  onChange(listener: (changes: readonly RangeReplacement[]) => void): () => void;
+  apply(patches: readonly TextPatch[], label?: string): Promise<boolean>;
+  /** Undo the newest edit there is, as the editor's Undo does. */
+  undo(): void;
+  /** Redo the edit undone last. */
+  redo(): void;
+  /** Hear every change, until the returned function is called. */
+  onChange(listener: (change: TextStoreChange) => void): () => void;
+  /** Hear every save of the text, until the returned function is called. */
+  onSave(listener: () => void): () => void;
+}
+
+/** One change of a TextStore, as a TextDocument's change event reports it. */
+export interface TextStoreChange {
+  /**
+   * The replacements it made, each in the text before it, from the end of the text backwards (as
+   * a TextDocument lists them). None for a change of `dirty` alone.
+   */
+  readonly changes: readonly RangeReplacement[];
+  /** An undo or a redo; absent for any other change. */
+  readonly reason?: 'undo' | 'redo';
 }
 
 /**

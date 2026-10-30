@@ -182,25 +182,46 @@ describe('reload', () => {
     ws.dispose();
   });
 
-  it('keeps telling the other subscribers when one throws', async () => {
-    const ws = createWorkspace();
+  it('keeps telling the other subscribers when one throws, and says the throw', async () => {
+    const notices: unknown[] = [];
+    const ws = createWorkspace({ notify: (n) => void notices.push(n) });
     const doc = await ws.open(fixture('params.sldd'), 'params.sldd');
     const heard: string[] = [];
     doc.table.subscribe(() => {
       throw new Error('a listener of its own');
     });
     doc.table.subscribe((c) => heard.push(c.kind));
-    // Its error is thrown again on its own, out of the reload, where the page reports it.
-    const later: (() => void)[] = [];
-    vi.stubGlobal('queueMicrotask', (task: () => void) => later.push(task));
+    // Its error is said as an error notice, as VS Code's emitter logs it: never thrown again,
+    // which a Node or Electron host would take for a crash.
+    const later = vi.fn();
+    vi.stubGlobal('queueMicrotask', later);
     try {
       await doc.reload(fixture('params.sldd'));
     } finally {
       vi.unstubAllGlobals();
     }
     expect(heard).toEqual(['replaceAll']);
-    expect(later).toHaveLength(1);
-    expect(later[0]).toThrow('a listener of its own');
+    expect(notices).toEqual([{ level: 'error', message: 'A listener of params.sldd failed: a listener of its own' }]);
+    expect(later).not.toHaveBeenCalled();
+    ws.dispose();
+  });
+
+  it('with no notify, says a subscriber\'s throw on the console', async () => {
+    const ws = createWorkspace();
+    const doc = await ws.open(fixture('params.sldd'), 'params.sldd');
+    const thrown = new Error('a listener of its own');
+    doc.table.subscribe(() => {
+      throw thrown;
+    });
+    const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let calls: unknown[][];
+    try {
+      await doc.reload(fixture('params.sldd'));
+    } finally {
+      calls = [...said.mock.calls];
+      said.mockRestore();
+    }
+    expect(calls).toEqual([[thrown]]);
     ws.dispose();
   });
 });

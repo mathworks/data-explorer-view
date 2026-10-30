@@ -135,8 +135,9 @@ describe('binary dictionary engine: open, paint, save', () => {
   });
 
   // The extension hands a JSON dictionary that reached this editor back to the view that routes on
-  // the bytes. An engine is never made of one: it throws, and the workspace opens it read-only.
-  it('is not made of a JSON-text .sldd: the workspace opens one read-only', async () => {
+  // the bytes. An engine is never made of one: it throws, and the workspace opens it on the JSON
+  // dictionary engine instead.
+  it('is not made of a JSON-text .sldd: the workspace opens one on the JSON engine', async () => {
     const json = file('test/fixtures/params.sldd');
     assert.throws(
       () =>
@@ -152,8 +153,9 @@ describe('binary dictionary engine: open, paint, save', () => {
     const ws = createWorkspace({ editing: true });
     try {
       const doc = await ws.open(json, 'data.sldd');
-      assert.strictEqual(doc.editable, false);
-      assert.strictEqual((await doc.table.open()).editable, false);
+      assert.strictEqual(doc.editable, true);
+      assert.strictEqual((await doc.table.open()).docUri, doc.uri);
+      assert.ok(!('engine' in doc) || !((doc as any).engine instanceof BinaryEngine), 'not on the binary engine');
     } finally {
       ws.dispose();
     }
@@ -223,6 +225,23 @@ describe('binary dictionary engine: undo and redo', () => {
     o.redo();
     assert.deepStrictEqual(o.names().slice(0, 1), ['Ki']);
     assert.strictEqual(o.index.dirty, true);
+  });
+
+  it('a listener of the table that throws costs the others nothing, and is no failed edit', async () => {
+    const o = await open(WORKSPACE_BINARY);
+    o.view.source.subscribe((change) => {
+      if (change.kind === 'updateEntry') throw new Error('the panel is gone');
+    });
+    const from = o.view.posts.length;
+    o.view.send({ type: 'edit', rowId: entryRow(o.view.posts, 'Kp').ID, columnId: 'Name', oldValue: 'Kp', newValue: 'Ki' });
+    const after = o.view.posts.slice(from);
+    assert.deepStrictEqual(
+      after.map((p) => p.type),
+      ['updateEntryRows', 'selectRows'],
+      'the table served beside it got the rows and the renamed row selected, and no error',
+    );
+    assert.strictEqual(after[0].rows[0].Name.label, 'Ki');
+    assert.strictEqual(o.events.length, 1);
   });
 
   // A document repaints EVERY view, and chooses the narrow repaint only when the edit carried a

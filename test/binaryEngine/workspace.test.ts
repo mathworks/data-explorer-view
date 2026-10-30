@@ -44,7 +44,7 @@ const entryId = (doc: Doc, name: string) => `binedit:${doc.uri}/design/${name}`;
 const valueIn = (bytes: Uint8Array, name: string) => readSldd(bytes, (dict) => String(entryOf(dict, name)?.toRow().Value));
 
 describe('createWorkspace({editing}): a compressed dictionary edited in the page', () => {
-  it('opens a compressed dictionary to edit; a JSON one, and one that does not read, stay read-only', async () => {
+  it('opens a compressed dictionary to edit, and a JSON one on its own engine; one that does not read stays read-only', async () => {
     const ws = workspace();
     const doc = await ws.open(file(PARAMS), 'params.sldd');
     assert.strictEqual(doc.kind, 'dictionary');
@@ -52,7 +52,7 @@ describe('createWorkspace({editing}): a compressed dictionary edited in the page
     assert.ok(isEditable(doc.table));
     assert.strictEqual((await doc.table.open()).editable, true);
     const json = await ws.open(file('test/fixtures/params.sldd'), 'text.sldd');
-    assert.strictEqual(json.editable, false, 'a JSON dictionary waits for its engine');
+    assert.strictEqual((await json.table.open()).editable, true, 'a JSON dictionary opens on its own engine');
     // A zip with no data part: still opens, read-only, and its table says why.
     const { zipSync } = await import('fflate');
     const empty = await ws.open(zipSync({ 'metadata/mwcoreProperties.xml': new Uint8Array([60, 97, 47, 62]) }), 'empty.sldd');

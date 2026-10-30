@@ -17,6 +17,8 @@ import type * as ExtDrag from './src/host/dragState.js';
 import type * as ExtHub from './src/host/editorHub.js';
 import type * as ExtMarks from './src/host/saveMarks.js';
 import type * as ExtClipMarks from './src/host/clipMarks.js';
+import type * as ExtBaseline from './src/host/slddBaseline.js';
+import type * as ExtWide from './src/host/wideRepaint.js';
 import type { EditStackMirror } from './src/host/diskConflict.js';
 
 /** Each assignable to the other, with the same keys. */
@@ -91,6 +93,11 @@ export type Copies = [
   Is<Same<Host.SaveSnapshot, ExtMarks.SaveSnapshot>>,
   Is<Same<Host.SaveMark, ExtMarks.SaveMark>>,
   Is<Same<Host.MarkedEntry, ExtClipMarks.MarkedEntry>>,
+  // slddBaseline.ts's disk half and wideRepaint.ts, copied for the JSON dictionary engine (on ./host).
+  Is<Same<Host.BaselineSource, ExtBaseline.BaselineSource>>,
+  Is<Same<Host.DiskStamp, ExtBaseline.DiskStamp>>,
+  Is<Same<Host.WideState, ExtWide.WideState>>,
+  Is<Same<Host.WideLanding, ExtWide.WideLanding>>,
 ];
 
 // The hooks the extension's editors will be plugged into: what it has today must fit them.

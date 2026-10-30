@@ -370,6 +370,21 @@ describe('MAT-file engine: edit, undo, save', () => {
     assert.match(o.view.posts.filter((p) => p.type === 'error').pop().message, /the lookup failed/);
   });
 
+  it('a listener of the table that throws costs the others nothing, and is no failed edit', async () => {
+    const o = await open('cases.mat');
+    o.view.source.subscribe((change) => {
+      if (change.kind === 'updateEntry') throw new Error('the panel is gone');
+    });
+    const from = o.view.posts.length;
+    edit(o, 'scalarD', 'Value', '42');
+    // Time for the repaint and the report that a throw taken for a failed edit would send.
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+    const after = o.view.posts.slice(from);
+    assert.deepStrictEqual(after.map((p) => p.type), ['updateEntryRows'], 'the table served beside it got the rows, and no error');
+    assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '42');
+    assert.strictEqual(o.events.length, 1);
+  });
+
   it('a backup core refuses says so once, naming who restores the one kept', async () => {
     const o = await open('cases.mat');
     edit(o, 'scalarD', 'Value', '42');

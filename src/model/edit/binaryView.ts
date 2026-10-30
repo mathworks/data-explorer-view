@@ -134,9 +134,11 @@ export class BinaryView implements EditableTableSource {
     return this.doc.session;
   }
 
+  // Each listener on its own terms: one that throws (a post to a closed panel) costs the others
+  // nothing, and costs the engine nothing, which would otherwise take it for a failed repaint.
   private emit(change: TableChange): void {
     if (this.closed) return;
-    for (const listener of [...this.listeners]) listener(change);
+    for (const listener of [...this.listeners]) reach(() => listener(change));
   }
 
   private error(message: string): void {

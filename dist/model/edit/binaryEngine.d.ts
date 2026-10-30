@@ -108,6 +108,10 @@ export declare class BinaryEngine {
     private readonly baseline;
     /** What each save in flight took with its bytes, by the save. */
     private readonly taken;
+    private saveSeq;
+    private readonly outstanding;
+    private landedSeq;
+    private readonly landedEdits;
     /** The document as its views reach it. */
     private readonly document;
     /**
@@ -219,6 +223,7 @@ export declare class BinaryEngine {
     saved(save: BinarySave): void;
     /** The bytes of `save` were never written: the edits it took are unsaved again. */
     notSaved(save: BinarySave): void;
+    private forgetLanded;
     /**
      * The bytes a hot-exit backup holds: the document zipped as it stands, ungated (a scratch copy of
      * what the editor already holds proves nothing the save gate will not prove again before the

@@ -9,11 +9,11 @@
 //
 // What a document's table answers is what the extension's host sends its table for the same file,
 // built by the same functions from the same route (readDocument.ts), read-only. With `editing`, a
-// MAT-file and a compressed dictionary are edited in the page: the table is an engine's (the
-// extension's editor of the format lifted: edit/matEngine.ts, edit/binaryEngine.ts), over an undo
-// stack of the page's own, and the document saves through the Doc's save half (`serialize`,
-// `saved`).
-import { createSession, isZipBytes } from 'data-explorer-core';
+// MAT-file and a dictionary are edited in the page: the table is an engine's (the extension's
+// editor of the format lifted: edit/matEngine.ts, edit/binaryEngine.ts, edit/jsonEngine.ts), over
+// an undo stack of the page's own (a JSON dictionary's is its text's), and the document saves
+// through the Doc's save half (`serialize`, `saved`).
+import { createSession, exceedsTextSyncLimit, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
@@ -28,6 +28,9 @@ import { DocumentRegistry } from '../workspace/SlddModel.js';
 import { EditStack, EditStackIndex } from '../edit/editStack.js';
 import type { EditIndex, Notify } from '../edit/hooks.js';
 import { BinaryEngine, type BinarySave } from '../edit/binaryEngine.js';
+import { JsonEngine, type JsonUsageReposts } from '../edit/jsonEngine.js';
+import type { DiskStamp } from '../edit/slddBaseline.js';
+import { createTextStore, type PageTextStore } from '../edit/textStore.js';
 import { MatEngine, type MatSave } from '../edit/matEngine.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
@@ -63,9 +66,10 @@ export interface WorkspaceOptions {
    */
   usageReposts?: UsageReposts;
   /**
-   * Edit in the page what the page can edit: a MAT-file and a compressed (zip) dictionary, for
-   * now. Its table is then an EditableTableSource (connectTable's `editing` wires a table to it),
-   * its edits go on an undo stack of its own, and it saves through the Doc's `serialize` and
+   * Edit in the page what the page can edit: a MAT-file and a dictionary, JSON (within the text
+   * limit the extension's table editor has) or compressed. Its table is then an
+   * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
+   * stack of its own (a JSON dictionary's text's), and it saves through the Doc's `serialize` and
    * `saved`. Default false: every document is read-only, as before.
    */
   editing?: boolean;
@@ -118,10 +122,10 @@ export interface Doc {
   /** What its table shows, and how it answers. An EditableTableSource where `editable`. */
   readonly table: TableSource;
   /**
-   * Whether the page edits it (a MAT-file or a compressed dictionary, in a workspace made with
-   * `editing`): its table takes edits, and it saves through `serialize` and `saved`. Whether a given
-   * file can be edited is its view's `editable` (a MAT-file laid out in a way a save could not keep
-   * opens read-only).
+   * Whether the page edits it (a MAT-file or a dictionary, in a workspace made with `editing`):
+   * its table takes edits, and it saves through `serialize` and `saved`. Whether a given file can be
+   * edited is its view's `editable` (a MAT-file laid out in a way a save could not keep opens
+   * read-only).
    */
   readonly editable: boolean;
   /** Whether it holds edits its file does not: false for a document the page does not edit. */
@@ -197,6 +201,22 @@ export interface Workspace {
 }
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/**
+ * Where a listener's failure goes, as VS Code's emitter logs one: the host's notify, as an error,
+ * or the console. Never thrown again, which a Node or Electron host would take for a crash; and a
+ * notify that throws is not asked twice.
+ */
+function listenerFailure(notify: Notify | undefined, name: string): (err: unknown) => void {
+  return (err) => {
+    try {
+      if (notify) return notify({ level: 'error', message: `A listener of ${name} failed: ${messageOf(err)}` });
+    } catch {
+      // Said to the console instead.
+    }
+    console.error(err);
+  };
+}
 
 /** The bytes as core takes them: an ArrayBuffer holding exactly them. */
 function arrayBufferOf(bytes: ArrayBuffer | Uint8Array): ArrayBuffer {
@@ -317,14 +337,13 @@ class InPageDoc implements HeldDoc {
       change = { kind: 'error', message: messageOf(err) };
     }
     if (this.disposed) return;
+    const report = listenerFailure(this.shared.notify, this.name);
     for (const listener of [...this.listeners]) {
       try {
         listener(change);
       } catch (err) {
         // One listener's failure is its own: the others still hear the change.
-        queueMicrotask(() => {
-          throw err;
-        });
+        report(err);
       }
     }
   }
@@ -444,6 +463,37 @@ class InPageDoc implements HeldDoc {
   }
 }
 
+/** Who hears a document's `dirty` change: each listener told on its own terms, once per change. */
+class DirtyBell {
+  private readonly listeners = new Set<(dirty: boolean) => void>();
+  private was = false;
+
+  constructor(private readonly report: (err: unknown) => void) {}
+
+  listen(listener: (dirty: boolean) => void): () => void {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  /** Tell each listener that `dirty` changed, if it did. */
+  tell(dirty: boolean): void {
+    if (dirty === this.was) return;
+    this.was = dirty;
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(dirty);
+      } catch (err) {
+        // One listener's failure is its own: the others still hear the change.
+        this.report(err);
+      }
+    }
+  }
+
+  clear(): void {
+    this.listeners.clear();
+  }
+}
+
 /** What an engine-backed document asks of its engine for a save, and to close. */
 interface SavingEngine<S extends SaveToken & { readonly bytes: Uint8Array }> {
   beginSave(): S;
@@ -470,8 +520,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
    * threw would leave the two stacks out of step.
    */
   protected readonly watched: EditIndex;
-  private readonly dirtyListeners = new Set<(dirty: boolean) => void>();
-  private wasDirty = false;
+  private readonly bell: DirtyBell;
   private dirtyCheck = false;
   protected disposed = false;
 
@@ -480,6 +529,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
     readonly uri: string,
     readonly name: string,
   ) {
+    this.bell = new DirtyBell(listenerFailure(shared.notify, name));
     const index = this.index;
     this.watched = {
       get dirty() {
@@ -507,8 +557,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   }
 
   onDirty(listener: (dirty: boolean) => void): () => void {
-    this.dirtyListeners.add(listener);
-    return () => void this.dirtyListeners.delete(listener);
+    return this.bell.listen(listener);
   }
 
   // The stack moved: tell `dirty`'s listeners once the step is done (tellDirty, from the engine's
@@ -524,19 +573,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   /** Tell each listener of `dirty` that it changed, if it did, each on its own terms. */
   protected tellDirty(): void {
     this.dirtyCheck = false;
-    const dirty = this.index.dirty;
-    if (dirty === this.wasDirty || this.disposed) return;
-    this.wasDirty = dirty;
-    for (const listener of [...this.dirtyListeners]) {
-      try {
-        listener(dirty);
-      } catch (err) {
-        // One listener's failure is its own: the others still hear the change.
-        queueMicrotask(() => {
-          throw err;
-        });
-      }
-    }
+    if (!this.disposed) this.bell.tell(this.index.dirty);
   }
 
   serialize(): { bytes: Uint8Array; at: SaveToken } {
@@ -573,7 +610,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
     if (this.disposed) return;
     this.disposed = true;
     this.engine.dispose();
-    this.dirtyListeners.clear();
+    this.bell.clear();
     this.shared.closed(this);
   }
 }
@@ -691,15 +728,197 @@ class EditableBinaryDoc extends EditableDoc<BinarySave> {
   }
 }
 
+/** What a save of a JSON dictionary took: the text's version, and the bytes written. */
+interface JsonSave extends SaveToken {
+  readonly bytes: Uint8Array;
+  readonly text: string;
+}
+
+type JsonTable = ReturnType<JsonEngine['view']>;
+
+const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
+const hasUtf8Bom = (bytes: Uint8Array): boolean => bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+const withUtf8Bom = (bytes: Uint8Array): Uint8Array => {
+  const out = new Uint8Array(UTF8_BOM.length + bytes.length);
+  out.set(UTF8_BOM);
+  out.set(bytes, UTF8_BOM.length);
+  return out;
+};
+
 /**
- * The document the page edits `bytes` as, or null where it edits none: a MAT-file, and a compressed
- * dictionary with a data part (one with none opens read-only, and says why).
+ * A JSON dictionary edited in the page: the JSON dictionary engine (edit/jsonEngine.ts) over a text
+ * of the page's own (createTextStore), whose undo stack, dirty state and saves are the document's.
+ * The file behind it is what the workspace last opened, reloaded or saved, which the engine's
+ * baseline reads (a stamp moved by each). Its Usage column is filled from the workspace's `usage`.
+ */
+class EditableJsonDoc implements HeldDoc {
+  readonly kind = 'dictionary' as const;
+  readonly editable = true;
+  readonly table: EditableTableSource;
+  private readonly text: PageTextStore;
+  private readonly engine: JsonEngine;
+  private readonly view: JsonTable;
+  private readonly bell: DirtyBell;
+  private disposed = false;
+  /** Whether the file starts with a UTF-8 byte order mark, which a save writes back (as VS Code's utf8bom). */
+  private bom: boolean;
+  /** The file as the workspace last read or wrote it, and its stamp (moved by each). */
+  private disk: { bytes: Uint8Array; stamp: DiskStamp };
+  private generation = 0;
+  /** The usage graph the last fill used, for a narrow repaint's. */
+  private graph: UsageGraph | undefined;
+  /** The table's repost and when it is held back (the engine subscribes once), and the hub's subscription. */
+  private repost: { repost: () => void; busy?: () => boolean } | null = null;
+  private reposts: { dispose(): void } | undefined;
+  private readonly stopListening: () => void;
+
+  constructor(
+    private readonly shared: Shared,
+    readonly uri: string,
+    readonly name: string,
+    bytes: Uint8Array,
+  ) {
+    this.disk = { bytes, stamp: { mtime: this.generation, size: bytes.length } };
+    this.bom = hasUtf8Bom(bytes);
+    const report = listenerFailure(shared.notify, name);
+    this.bell = new DirtyBell(report);
+    // TextDecoder drops the byte order mark: the text is what follows it.
+    this.text = createTextStore(new TextDecoder().decode(bytes), report);
+    this.engine = new JsonEngine({
+      registry: shared.registry,
+      uri,
+      name,
+      text: this.text,
+      registers: shared.registers,
+      notify: shared.notify,
+      budget: shared.budget,
+      usage: {
+        fill: async (rows) => {
+          const usage = this.shared.usage;
+          if (!usage || rows.length === 0) return;
+          this.graph = await usage.graphFor(this.uri);
+          annotateVariableRows(this.uri, rows, this.graph);
+        },
+        fillNow: (rows) => {
+          if (!this.shared.usage || rows.length === 0) return true;
+          if (!this.graph) return false;
+          annotateVariableRows(this.uri, rows, this.graph);
+          return true;
+        },
+      },
+      // One subscription for the engine's table, kept across the workspace's hubs (setUsage).
+      usageReposts: {
+        subscribe: (repost, busy) => {
+          this.repost = { repost, ...(busy ? { busy } : {}) };
+          return { dispose: () => void (this.repost = null) };
+        },
+      },
+      disk: {
+        stat: async () => this.disk.stamp,
+        read: async () => this.disk.bytes,
+      },
+    });
+    this.view = this.engine.view();
+    this.table = this.view;
+    // Its dirty state as the text says it: told with every change that moves it.
+    this.stopListening = this.text.onChange((change) => {
+      if (change.changes.length === 0) this.bell.tell(this.text.dirty);
+    });
+    this.subscribeReposts();
+  }
+
+  get dirty(): boolean {
+    return this.text.dirty;
+  }
+
+  onDirty(listener: (dirty: boolean) => void): () => void {
+    return this.bell.listen(listener);
+  }
+
+  // The text as it stands, as the bytes a save writes: UTF-8, as the extension saves a dictionary,
+  // behind the byte order mark the file was read with, if it had one.
+  serialize(): { bytes: Uint8Array; at: SaveToken } {
+    if (this.disposed) throw new Error(`${this.name} is closed.`);
+    const text = this.text.text;
+    const encoded = new TextEncoder().encode(text);
+    const bytes = this.bom ? withUtf8Bom(encoded) : encoded;
+    const save: JsonSave = { at: this.text.version, bytes, text };
+    return { bytes, at: save };
+  }
+
+  saved(at: SaveToken): void {
+    if (this.disposed) return;
+    const save = at as JsonSave;
+    this.disk = { bytes: save.bytes, stamp: { mtime: ++this.generation, size: save.bytes.length } };
+    // Clean if the text is still the one written. Otherwise dirty until the next save, whatever
+    // saves landed before this one (one that lands late leaves the file older than the text), and
+    // the Status column is measured from what was written.
+    const current = this.text.version === save.at;
+    this.text.saved(save.at);
+    if (!current) this.engine.fileHolds(save.text);
+  }
+
+  notSaved(_at: SaveToken): void {
+    // Nothing moved for a save until its bytes were written.
+  }
+
+  async reload(bytes: ArrayBuffer | Uint8Array): Promise<void> {
+    if (this.disposed) throw new Error(`${this.name} is closed.`);
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    this.disk = { bytes: view, stamp: { mtime: ++this.generation, size: view.length } };
+    this.bom = hasUtf8Bom(view);
+    this.graph = undefined;
+    // The text the file holds now, with an empty undo stack and nothing unsaved.
+    await this.text.reset(new TextDecoder().decode(view));
+  }
+
+  async repaint(): Promise<void> {
+    if (this.disposed) return;
+    this.graph = undefined;
+    await this.view.repaintAll();
+  }
+
+  subscribeReposts(): void {
+    this.reposts?.dispose();
+    const hub = this.shared.usageReposts as JsonUsageReposts | undefined;
+    this.reposts = this.disposed
+      ? undefined
+      : hub?.subscribe(
+          () => {
+            this.graph = undefined;
+            this.repost?.repost();
+          },
+          () => this.repost?.busy?.() ?? false,
+        );
+  }
+
+  async refillUsage(): Promise<void> {
+    await this.repaint();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.reposts?.dispose();
+    this.stopListening();
+    this.engine.dispose();
+    this.bell.clear();
+    this.shared.closed(this);
+  }
+}
+
+/**
+ * The document the page edits `bytes` as, or null where it edits none: a MAT-file, a JSON
+ * dictionary the extension's table editor would edit, and a compressed dictionary with a data part
+ * (one with none opens read-only, and says why).
  */
 function editableDoc(shared: Shared, uri: string, name: string, kind: DocKind, bytes: ArrayBuffer | Uint8Array): HeldDoc | null {
   if (kind === 'mat') return new EditableMatDoc(shared, uri, name, arrayBufferOf(bytes));
   if (kind !== 'dictionary') return null;
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (!isZipBytes(view)) return null;
+  // A JSON dictionary the extension's table editor opens: one that parses, within the text-sync
+  // limit (the extension keeps a larger one read-only).
+  if (!isZipBytes(view)) return isEditableJsonSlddBytes(view) && !exceedsTextSyncLimit(view) ? new EditableJsonDoc(shared, uri, name, view) : null;
   try {
     return new EditableBinaryDoc(shared, uri, name, view);
   } catch {

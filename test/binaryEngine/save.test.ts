@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { unzipSync, zipSync } from 'fflate';
-import { chunkOf, entryRow, file, open, WORKSPACE_BINARY, type Opened } from './harness.js';
+import { chunkOf, entryOf, entryRow, file, open, PARAMS, readSldd, WORKSPACE_BINARY, type Opened } from './harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -170,6 +170,46 @@ describe('binary dictionary engine: an edit landing on a save', () => {
     await settledSave(o, (bytes) => (disk = bytes), () => (o.engine as any).pushEdit('Edit Name', before, after));
     assert.strictEqual(chunkOf(disk), after, 'the edit that landed is on disk');
     assert.strictEqual(o.index.dirty, false, 'as VS Code, which calls the document saved, shows it');
+  });
+});
+
+// The page's own: VS Code runs a document's saves one at a time, and a page may land them in any
+// order. The file then holds the last to land, and the document what it holds.
+describe('binary dictionary engine: saves that land out of order', () => {
+  it('leave it dirty over the older file, and the next save writes the newest edit', async () => {
+    const o = await open(PARAMS);
+    const gravity = (bytes: Uint8Array): string => readSldd(bytes, (dict) => String(entryOf(dict, 'gravity').toRow().Value));
+    const edit = (value: string): void => {
+      const row = entryRow(o.view.posts, 'gravity');
+      o.view.send({ type: 'edit', rowId: row.ID, columnId: 'Value', oldValue: String(row.Value), newValue: value });
+    };
+    const land = (save: ReturnType<typeof o.engine.beginSave>): void => {
+      o.engine.saved(save);
+      o.index.saved(save.at);
+    };
+    edit('1');
+    const a = o.engine.beginSave();
+    edit('2');
+    const b = o.engine.beginSave();
+    edit('3');
+    const c = o.engine.beginSave();
+    // The newest lands first, then the oldest, then the one between: the file holds b's bytes, and
+    // no edit since the last of them was begun says the entry differs from it.
+    land(c);
+    land(a);
+    land(b);
+    assert.strictEqual(gravity(b.bytes), '2');
+    assert.strictEqual(o.index.dirty, true, 'the file is older than the document');
+    let next: ReturnType<typeof o.engine.beginSave> | undefined;
+    assert.doesNotThrow(() => (next = o.engine.beginSave()), 'the gate takes the edits the file does not hold');
+    land(next!);
+    assert.strictEqual(gravity(next!.bytes), '3');
+    assert.strictEqual(o.index.dirty, false);
+    // Nothing left over: the save after it is held to it, as one save after another is.
+    edit('4');
+    const last = o.engine.beginSave();
+    land(last);
+    assert.strictEqual(gravity(last.bytes), '4');
   });
 });
 

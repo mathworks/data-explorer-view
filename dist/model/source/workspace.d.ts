@@ -30,9 +30,10 @@ export interface WorkspaceOptions {
      */
     usageReposts?: UsageReposts;
     /**
-     * Edit in the page what the page can edit: a MAT-file and a compressed (zip) dictionary, for
-     * now. Its table is then an EditableTableSource (connectTable's `editing` wires a table to it),
-     * its edits go on an undo stack of its own, and it saves through the Doc's `serialize` and
+     * Edit in the page what the page can edit: a MAT-file and a dictionary, JSON (within the text
+     * limit the extension's table editor has) or compressed. Its table is then an
+     * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
+     * stack of its own (a JSON dictionary's text's), and it saves through the Doc's `serialize` and
      * `saved`. Default false: every document is read-only, as before.
      */
     editing?: boolean;
@@ -84,10 +85,10 @@ export interface Doc {
     /** What its table shows, and how it answers. An EditableTableSource where `editable`. */
     readonly table: TableSource;
     /**
-     * Whether the page edits it (a MAT-file or a compressed dictionary, in a workspace made with
-     * `editing`): its table takes edits, and it saves through `serialize` and `saved`. Whether a given
-     * file can be edited is its view's `editable` (a MAT-file laid out in a way a save could not keep
-     * opens read-only).
+     * Whether the page edits it (a MAT-file or a dictionary, in a workspace made with `editing`):
+     * its table takes edits, and it saves through `serialize` and `saved`. Whether a given file can be
+     * edited is its view's `editable` (a MAT-file laid out in a way a save could not keep opens
+     * read-only).
      */
     readonly editable: boolean;
     /** Whether it holds edits its file does not: false for a document the page does not edit. */
