@@ -217,21 +217,44 @@ export function connectTable(table, source, options = {}) {
         table.loading = false;
         showError(message);
     };
+    // What the source says while a paint is being asked for: held from the ask until the paint, and
+    // what follows it (opened), are in, and then taken in the order it was said. Taken before the
+    // rows, it would land on a table that has not got them, and the rows would land over it.
+    let held = null;
+    const release = () => {
+        const queued = held ?? [];
+        held = null;
+        for (const change of queued)
+            onChange(change);
+    };
     /** The table and its source are out of step: ask for the whole table again. */
     const reopen = () => {
+        held ??= [];
         source.open().then((v) => {
             if (disposed)
                 return;
+            const queued = held;
+            held = null;
             paint(v);
             // What the source says after a paint (an editable one's drop rules) follows the rows.
             source.opened?.();
+            held = queued;
+            release();
         }, 
         // A source closed while it was asked has nothing to show, and no banner to say it in.
-        (err) => !disposed && !isSourceClosed(err) && failed(messageOf(err)));
+        (err) => {
+            if (!disposed && !isSourceClosed(err))
+                failed(messageOf(err));
+            release();
+        });
     };
     const onChange = (change) => {
         if (disposed)
             return;
+        if (held) {
+            held.push(change);
+            return;
+        }
         switch (change.kind) {
             case 'replaceAll':
                 return paint(change.view);

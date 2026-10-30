@@ -29,7 +29,9 @@ export interface ServeTableOptions {
  * - `select` with `showProps` for the selection's first row, or `empty`;
  * - and every change the source makes, as it makes it: `setRows`, `updateEntryRows`,
  *   `insertEntryRows` or `error`, and an editable source's `sectionRules`, `clipboardState`,
- *   `dragState`, `selectRows`, `beginRename`, `validationError`, `refused` and `editText`.
+ *   `dragState`, `selectRows`, `beginRename`, `validationError`, `refused` and `editText`. What it
+ *   says while a `ready` is being answered is held until the `setRows` and what follows it are
+ *   out, and then sent in the order it was said.
  *
  * An editing message (`edit`, `copy`, `cut`, `delete`, `paste`, `addChild`, `addEntry`, `undo`,
  * `redo`, `dragStart`, `dragEnd`, `drop`, `requestEditText`) is handed to the source's command of

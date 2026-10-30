@@ -211,6 +211,7 @@ export interface TableSource {
      * The answer of the last `open()` has been shown: a table painted it (connectTable), or a channel
      * posted it (serveTable). A source that has more to say after a paint (an editable one's drop
      * rules and clipboard) says it now, as changes, so that they arrive after the rows they are about.
+     * What it says between the ask and this reaches the table after both, in the order it was said.
      * Optional; a read-only source has nothing to add.
      */
     opened?(): void;

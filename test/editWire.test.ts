@@ -255,6 +255,29 @@ describe('serveTable hands each command on', () => {
     }
   });
 
+  it('sends what the source says while a ready is answered after the rows and what follows them, in order', async () => {
+    const { port, posted, send } = syncPort();
+    const listeners = new Set<(c: TableChange) => void>();
+    let answer: (v: any) => void = () => {};
+    const source = {
+      open: () => new Promise((resolve) => (answer = resolve)),
+      opened: () => {
+        for (const l of listeners) l({ kind: 'sectionRules', docUri: VIEW.docUri, rules: [] });
+      },
+      children: async (nodeId: string) => ({ nodeId, rows: [], truncated: 0 }),
+      matrix: async (nodeId: string) => ({ nodeId, message: 'none' }),
+      inspect: async () => ({ groups: [] }),
+      subscribe: (l: (c: TableChange) => void) => (listeners.add(l), () => void listeners.delete(l)),
+    } as unknown as TableSource;
+    serveTable(source, port);
+    send({ type: 'ready' });
+    for (const l of listeners) l({ kind: 'select', rowIds: ['a'] });
+    for (const l of listeners) l({ kind: 'updateEntry', entryRowId: 'a', rows: [] });
+    answer(VIEW);
+    await tick();
+    expect(posted.map((m: any) => m.type)).toEqual(['setRows', 'sectionRules', 'selectRows', 'updateEntryRows']);
+  });
+
   it("answers a question with an id that is not a string as the extension's host does, without asking the source", async () => {
     const { port, posted, send } = syncPort();
     const asked: string[] = [];

@@ -11,7 +11,7 @@ import { applyEntryOps, createSession, entryRecord } from 'data-explorer-core';
 import { describe, it } from 'vitest';
 import { createRegisters, createWorkspace, type Registers } from '../../src/model/index.js';
 import { BinaryEngine, EditStack, EditStackIndex } from '../../src/host/index.js';
-import { chunkOf, entryRow, file, membersOf, open, PARAMS, WORKSPACE_BINARY, waitFor } from './harness.js';
+import { chunkOf, entryRow, file, membersOf, open, PARAMS, tableOf, viewOf, WORKSPACE_BINARY, waitFor } from './harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -76,6 +76,24 @@ describe('binary dictionary engine: open, paint, save', () => {
       assert.strictEqual(o.index.dirty, true, 'nothing was handed back to write, and the edit is still unsaved');
     });
   }
+
+  it('what the engine says while a table is being painted reaches it after the rows, which it does not undo', async () => {
+    const o = await open(PARAMS);
+    const second = viewOf(o.engine);
+    // The rows are built as the table asks for them; an edit in another table lands before they arrive.
+    second.send({ type: 'ready' });
+    o.view.send({ type: 'edit', rowId: entryRow(o.view.posts, 'gravity').ID, columnId: 'Value', oldValue: '9.81', newValue: '9.8' });
+    await waitFor('the second table painted', () => second.posts.some((p) => p.type === 'setRows'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const types = second.posts.map((p) => p.type);
+    assert.deepStrictEqual(types.slice(0, 3), ['setRows', 'sectionRules', 'clipboardState'], 'the rows first, and what follows them');
+    assert.ok(types.indexOf('updateEntryRows') > 2, 'and the edit after them');
+    assert.strictEqual(
+      tableOf(second.posts).find((r: any) => r.parent === 'section:design' && r.Name?.label === 'gravity').Value,
+      '9.8',
+      'the rows built before the edit do not land over it',
+    );
+  });
 
   it('a throw in what follows a paint is said as the paint failing, after the rows, and goes no further', async () => {
     const inner = createRegisters();
