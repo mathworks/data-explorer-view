@@ -9,10 +9,11 @@
 //
 // What a document's table answers is what the extension's host sends its table for the same file,
 // built by the same functions from the same route (readDocument.ts), read-only. With `editing`, a
-// MAT-file is edited in the page: its table is the MAT-file engine's (edit/matEngine.ts, the
-// extension's MAT-file editor lifted), over an undo stack of the page's own, and the document saves
-// through the Doc's save half (`serialize`, `saved`).
-import { createSession } from 'data-explorer-core';
+// MAT-file and a compressed dictionary are edited in the page: the table is an engine's (the
+// extension's editor of the format lifted: edit/matEngine.ts, edit/binaryEngine.ts), over an undo
+// stack of the page's own, and the document saves through the Doc's save half (`serialize`,
+// `saved`).
+import { createSession, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
@@ -25,6 +26,7 @@ import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { annotateModelViewRows, annotateVariableRows } from '../usage/usageCells.js';
 import { DocumentRegistry } from '../workspace/SlddModel.js';
 import { EditStack, EditStackIndex } from '../edit/editStack.js';
+import { BinaryEngine } from '../edit/binaryEngine.js';
 import { MatEngine } from '../edit/matEngine.js';
 import { createRegisters } from '../edit/registers.js';
 import { docKindOf, readDocument } from './readDocument.js';
@@ -249,15 +251,15 @@ class InPageDoc {
     }
 }
 /**
- * A MAT-file edited in the page: the MAT-file engine (edit/matEngine.ts) over an undo stack of its
- * own, its one table the engine's view, and its saves the engine's.
+ * A document edited in the page through one of the engines: an undo stack of its own and where it
+ * stands (its save point, and so `dirty`), its one table the engine's view, and its saves the
+ * engine's.
  */
-class EditableMatDoc {
-    constructor(shared, uri, name, bytes) {
+class EditableDoc {
+    constructor(shared, uri, name) {
         this.shared = shared;
         this.uri = uri;
         this.name = name;
-        this.kind = 'mat';
         this.editable = true;
         this.stack = new EditStack();
         this.index = new EditStackIndex();
@@ -265,11 +267,8 @@ class EditableMatDoc {
         this.wasDirty = false;
         this.dirtyCheck = false;
         this.disposed = false;
-        // The stack's position, as the engine moves it. Whoever listens for `dirty` is told once the
-        // step that moved it, and its replay on core's stack, are done: never from inside one, where a
-        // listener that threw would leave the two stacks out of step.
         const index = this.index;
-        const watched = {
+        this.watched = {
             get dirty() {
                 return index.dirty;
             },
@@ -283,35 +282,10 @@ class EditableMatDoc {
             saved: (at) => this.moved(() => index.saved(at)),
             reverted: () => this.moved(() => index.reverted()),
         };
-        this.engine = new MatEngine({
-            session: shared.registry.session,
-            uri,
-            name,
-            bytes,
-            sink: this.stack,
-            index: watched,
-            registers: shared.registers,
-            notify: shared.notify,
-            budget: shared.budget,
-            // Every change to the tree ends here, once the step and every view are done with it.
-            changed: () => this.tellDirty(),
-            usage: {
-                fill: async (rows) => {
-                    const usage = this.shared.usage;
-                    if (!usage || rows.length === 0)
-                        return;
-                    this.graph = await usage.graphFor(this.uri);
-                    annotateVariableRows(this.uri, rows, this.graph);
-                },
-                fillNow: (rows) => {
-                    if (this.graph && rows.length > 0)
-                        annotateVariableRows(this.uri, rows, this.graph);
-                },
-            },
-        });
-        this.view = this.engine.view();
-        this.table = this.view;
-        this.subscribeReposts();
+    }
+    /** Its one table: the engine's view. */
+    get table() {
+        return this.view;
     }
     get dirty() {
         return this.index.dirty;
@@ -368,6 +342,60 @@ class EditableMatDoc {
             return;
         this.engine.notSaved(at);
     }
+    async repaint() {
+        if (this.disposed)
+            return;
+        await this.view.repaintAll();
+    }
+    subscribeReposts() { }
+    async refillUsage() { }
+    dispose() {
+        if (this.disposed)
+            return;
+        this.disposed = true;
+        this.engine.dispose();
+        this.dirtyListeners.clear();
+        this.shared.closed(this);
+    }
+}
+/**
+ * A MAT-file edited in the page: the MAT-file engine (edit/matEngine.ts) over an undo stack of its
+ * own, its one table the engine's view, and its saves the engine's. Its Usage column is filled
+ * from the workspace's `usage`, and repainted on its reposts.
+ */
+class EditableMatDoc extends EditableDoc {
+    constructor(shared, uri, name, bytes) {
+        super(shared, uri, name);
+        this.kind = 'mat';
+        this.engine = new MatEngine({
+            session: shared.registry.session,
+            uri,
+            name,
+            bytes,
+            sink: this.stack,
+            index: this.watched,
+            registers: shared.registers,
+            notify: shared.notify,
+            budget: shared.budget,
+            // Every change to the tree ends here, once the step and every view are done with it.
+            changed: () => this.tellDirty(),
+            usage: {
+                fill: async (rows) => {
+                    const usage = this.shared.usage;
+                    if (!usage || rows.length === 0)
+                        return;
+                    this.graph = await usage.graphFor(this.uri);
+                    annotateVariableRows(this.uri, rows, this.graph);
+                },
+                fillNow: (rows) => {
+                    if (this.graph && rows.length > 0)
+                        annotateVariableRows(this.uri, rows, this.graph);
+                },
+            },
+        });
+        this.view = this.engine.view();
+        this.subscribeReposts();
+    }
     async reload(bytes) {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
@@ -382,7 +410,7 @@ class EditableMatDoc {
         if (this.disposed)
             return;
         this.graph = undefined;
-        await this.view.repaintAll();
+        await super.repaint();
     }
     subscribeReposts() {
         this.reposts?.dispose();
@@ -394,11 +422,63 @@ class EditableMatDoc {
     dispose() {
         if (this.disposed)
             return;
-        this.disposed = true;
         this.reposts?.dispose();
-        this.engine.dispose();
-        this.dirtyListeners.clear();
-        this.shared.closed(this);
+        super.dispose();
+    }
+}
+/**
+ * A compressed (zip) dictionary edited in the page: the binary dictionary engine
+ * (edit/binaryEngine.ts) over an undo stack of its own. As the VS Code extension's binary
+ * dictionary editor, it fills no Usage column.
+ */
+class EditableBinaryDoc extends EditableDoc {
+    /** Throws for bytes that are not a compressed dictionary (a zip with no data part). */
+    constructor(shared, uri, name, bytes) {
+        super(shared, uri, name);
+        this.kind = 'dictionary';
+        this.engine = new BinaryEngine({
+            session: shared.registry.session,
+            uri,
+            name,
+            bytes,
+            sink: this.stack,
+            index: this.watched,
+            registers: shared.registers,
+            notify: shared.notify,
+            budget: shared.budget,
+            // Every repaint of the document ends here, once the step and every view are done with it.
+            changed: () => this.tellDirty(),
+        });
+        this.view = this.engine.view();
+    }
+    async reload(bytes) {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        // Read first: bytes that are not a dictionary reject, and the document keeps what it held.
+        this.engine.replace(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+        // It holds what the disk does, and no edit made before has anything to undo on it.
+        this.stack.clear();
+        this.index.reverted();
+        this.tellDirty();
+    }
+}
+/**
+ * The document the page edits `bytes` as, or null where it edits none: a MAT-file, and a compressed
+ * dictionary that reads as one (one that does not opens read-only, and says why).
+ */
+function editableDoc(shared, uri, name, kind, bytes) {
+    if (kind === 'mat')
+        return new EditableMatDoc(shared, uri, name, arrayBufferOf(bytes));
+    if (kind !== 'dictionary')
+        return null;
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    if (!isZipBytes(view))
+        return null;
+    try {
+        return new EditableBinaryDoc(shared, uri, name, view);
+    }
+    catch {
+        return null;
     }
 }
 /**
@@ -440,9 +520,7 @@ export function createWorkspace(options = {}) {
             }
             if (docs.has(id))
                 throw new Error(`${id} is already open in this workspace.`);
-            const doc = kind === 'mat' && options.editing
-                ? new EditableMatDoc(shared, id, name, arrayBufferOf(bytes))
-                : new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
+            const doc = (options.editing && editableDoc(shared, id, name, kind, bytes)) || new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
             docs.set(id, doc);
             return doc;
         },

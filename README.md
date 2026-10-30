@@ -177,11 +177,11 @@ given (`EditSink`, `EditIndex`, `TextStore`), are the VS Code extension's, on
 
 ## Edit a file
 
-A workspace made with `editing: true` edits a MAT-file in the page, as the VS
-Code extension's MAT-file editor does: its `doc.editable` is true, and its table
-is an `EditableTableSource` for `connectTable(table, doc.table, { editing: true })`.
-Every edit goes through core's session, as one step of the document's own undo
-stack. The table's Undo and Redo walk that stack.
+A workspace made with `editing: true` edits a MAT-file and a compressed (zip)
+dictionary in the page, as the VS Code extension's editors of them do: its
+`doc.editable` is true, and its table is an `EditableTableSource` for
+`connectTable(table, doc.table, { editing: true })`. Every edit is one step of
+the document's own undo stack, and the table's Undo and Redo walk that stack.
 
 ```js
 const ws = createWorkspace({ editing: true, notify: ({ message }) => showToast(message) });
@@ -202,9 +202,12 @@ async function save() {
 ```
 
 - `serialize()` throws core's refusal, in its words, when the file as it stands
-  cannot be written. Nothing is then to be written.
+  cannot be written. Nothing is then to be written. A dictionary's save keeps
+  every entry no edit touched byte for byte, and refuses one that would not.
 - An edit made while the bytes are being written stays unsaved.
-- `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack.
+- `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack. A
+  dictionary keeps what it held, and the reload rejects, for bytes that are not
+  one.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why.
 - The documents of a workspace share one clipboard and drag register
@@ -212,7 +215,8 @@ async function save() {
   another and the original goes.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
-- Dictionaries open read-only for now.
+- JSON dictionaries open read-only for now, and so does a compressed one that
+  does not read (its table says why).
 
 ## Show a folder
 

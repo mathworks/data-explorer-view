@@ -1,16 +1,18 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// A MAT-file edited in the page against the VS Code extension's golden payloads, editing fields
-// and all. inPage.test.ts holds every in-page source to the goldens with a read-only source's
-// fields; here every MAT-file the extension pins is opened in a workspace made with `editing`, on
-// the MAT-file engine (src/model/edit/matEngine.ts), and served across a channel as the
-// extension's host serves its table. Its first paint must be what the extension's MAT-file editor
-// posts, message for message and key for key: the `setRows` with `editable` and the Add gallery's
-// classes, then the drop rules and the clipboard. Its inspector pages, matrices and lazy children
-// must be the goldens' too, since the engine answers them itself.
+// A MAT-file and a compressed dictionary edited in the page against the VS Code extension's golden
+// payloads, editing fields and all. inPage.test.ts holds every in-page source to the goldens with a
+// read-only source's fields; here every MAT-file and every compressed (zip) dictionary the
+// extension pins is opened in a workspace made with `editing`, on its engine
+// (src/model/edit/matEngine.ts, src/model/edit/binaryEngine.ts), and served across a channel as the
+// extension's host serves its table. Its first paint must be what the extension's editor of it
+// posts, message for message and key for key: the `setRows` with `editable` (and, for a MAT-file,
+// the Add gallery's classes), then the drop rules and the clipboard. Its inspector pages, matrices
+// and lazy children must be the goldens' too, since the engine answers them itself.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { isZipBytes } from 'data-explorer-core';
 import { createWorkspace, isSectionRowId, type TableSource } from '../../src/model/index.js';
 import { serveTable } from '../../src/serve/index.js';
 import { digestRows, snapshotText } from './snapshotText.js';
@@ -24,7 +26,7 @@ const SMALL_BUDGET = 5;
 const FIXTURES = readdirSync(SNAPSHOTS)
   .filter((key) => existsSync(join(SNAPSHOTS, key, 'table.json')))
   .map((key) => key.split('__').join('/'))
-  .filter((rel) => rel.endsWith('.mat'))
+  .filter((rel) => rel.endsWith('.mat') || (rel.endsWith('.sldd') && isZipBytes(new Uint8Array(readFileSync(join(REPO, rel))))))
   .sort();
 
 const snapshotFile = (rel: string, kind: string): string => join(SNAPSHOTS, rel.split('/').join('__'), `${kind}.json`);
@@ -75,9 +77,10 @@ async function withEditable(rel: string, budget: number | undefined, use: (table
   }
 }
 
-describe("a MAT-file edited in the page answers what the extension's MAT-file editor sends", { timeout: 60_000 }, () => {
-  it('has the MAT-files the extension pins', () => {
-    expect(FIXTURES.length).toBeGreaterThan(10);
+describe("a file edited in the page answers what the extension's editor of it sends", { timeout: 60_000 }, () => {
+  it('has the MAT-files and the compressed dictionaries the extension pins', () => {
+    expect(FIXTURES.filter((rel) => rel.endsWith('.mat')).length).toBeGreaterThan(10);
+    expect(FIXTURES.filter((rel) => rel.endsWith('.sldd')).length).toBeGreaterThan(5);
   });
 
   for (const rel of FIXTURES) {
