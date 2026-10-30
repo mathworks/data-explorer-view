@@ -627,11 +627,13 @@ class MatView {
     get session() {
         return this.doc.session;
     }
+    // Each listener on its own terms: one that throws (a post to a closed panel) costs the others
+    // nothing, and costs the engine nothing, which would otherwise take it for a failed repaint.
     emit(change) {
         if (this.closed)
             return;
         for (const listener of [...this.listeners])
-            listener(change);
+            reach(() => listener(change));
     }
     error(message) {
         this.emit({ kind: 'error', message });

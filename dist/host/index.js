@@ -43,13 +43,15 @@ export { binaryEditSrcId } from '../model/ids/srcId.js';
 // (`DECORATIONS`).
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/health.js';
 // The editors a table source is built from, for the extension to move its own onto (step 6b): the
-// MAT-file engine (its MatEditorProvider, lifted), the binary dictionary engine (its
-// BinarySlddEditorProvider, lifted), the hooks an engine is given (where its edits go to be undone,
-// its save point, the text it keeps as the truth), the in-page undo stack and its save point, the
-// Status column's marks, the clipboard's mark, and the copy, the cut and a drag's start with the
-// snapshots they take. An app edits through createWorkspace({ editing }) instead.
+// MAT-file engine (its MatEditorProvider, lifted), the binary and JSON dictionary engines (its
+// BinarySlddEditorProvider and SlddTextEditorProvider, lifted), the hooks an engine is given (where
+// its edits go to be undone, its save point, the text it keeps as the truth), the in-page undo
+// stack and its save point, the Status column's marks, the clipboard's mark, and the copy, the cut
+// and a drag's start with the snapshots they take. An app edits through createWorkspace({ editing })
+// instead.
 export { MatEngine } from '../model/edit/matEngine.js';
 export { BinaryEngine } from '../model/edit/binaryEngine.js';
+export { JsonEngine } from '../model/edit/jsonEngine.js';
 export { EditStack, EditStackIndex } from '../model/edit/editStack.js';
 export { SaveMarks, replacementsIn } from '../model/edit/saveMarks.js';
 export { clipMarkChange, clipMarkOfDoc, sameClipMark } from '../model/edit/clipMarks.js';
