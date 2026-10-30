@@ -1,4 +1,4 @@
-import { type EntrySelector } from 'data-explorer-core';
+import { TransferRefused, type EntrySelector } from 'data-explorer-core';
 /** One entry a transfer carries: what to paste, and the section it was taken from. */
 export interface TransferItem {
     payload: Record<string, unknown>;
@@ -147,15 +147,14 @@ export interface TransferRequest {
     rowId: string;
 }
 /**
- * A refusal that changed nothing: a message, and no repair.
+ * A refusal that changed nothing: a message, and no repair. Core's class, re-exported: core's
+ * paste rules throw it, and an adapter does too.
  *
  * Thrown by an adapter (or the policy) only while the document, its model and its rows are all
  * still exactly as they were — the cut stays on the clipboard for another try, and no repaint
  * is spent putting back what was never moved.
  */
-export declare class TransferRefused extends Error {
-    constructor(message: string);
-}
+export { TransferRefused };
 /** How a transfer ended. Callers need not read it; it is what the policy's branches are tested by. */
 export type TransferOutcome = {
     kind: 'guarded';
