@@ -20,8 +20,9 @@
 //     dictionary's next section (Architectural Data). The vscode cases pasted back into the
 //     source's own section, which their hand-built composition allowed; the provider (and the
 //     engine, transfer.ts) answers that as a no-op and writes nothing, so a move that lands is
-//     between two sections. The engine removes the sources first, in the same write, so the
-//     copies keep their names;
+//     between two sections (pinned by "a cut pasted back into its own section writes nothing",
+//     which is view's own case, not a vscode one). The engine removes the sources first, in the
+//     same write, so the copies keep their names;
 //   - Cmd+Z and its redo: the table's `undo` and `redo`, recognised from the ops the engine kept;
 //   - paintOps: the engine's updateEntryRows and insertEntryRows folded into the rows the last
 //     whole paint posted, each one asserted to land, as the webview folds them;
@@ -285,6 +286,23 @@ describe('JSON .sldd structural edit — narrow === wide', () => {
     expect(undo.recognised, 'the inverses the host kept are what is replayed').toBe(true);
     const undone = d.onScreen();
     expect(undone, 'undo of a two-source move').toEqual(await d.widePaint());
+  });
+
+  // What the vscode cases' composition allowed and the engine does not do: a cut pasted back into
+  // the section it came from is a move to where the entry already is, and writes nothing.
+  it('a cut pasted back into its own section writes nothing', async () => {
+    const d = await open('struct-move-same.sldd');
+    const source = d.entryNamed('PI');
+    const textBefore = d.doc.text;
+    const versionBefore = d.o.text.version;
+    d.o.view.send({ type: 'cut', rowIds: [source.id] });
+    await settle();
+    d.o.view.send({ type: 'paste', rowId: d.sectionRowOf(source.parent) });
+    await settle(12);
+    expect(d.o.text.version, 'no write reached the text').toBe(versionBefore);
+    expect(d.doc.text, 'the text is as it was').toBe(textBefore);
+    expect(d.entryNamed('PI'), 'the entry is still there').toBeTruthy();
+    expect(d.o.view.posts.filter((p) => p.type === 'error'), 'and nothing failed').toEqual([]);
   });
 });
 
