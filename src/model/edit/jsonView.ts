@@ -93,7 +93,7 @@ import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { sectionTarget, type SectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
 import type { RangeReplacement, TextStoreChange } from './hooks.js';
-import type { JsonDocState, JsonDocument } from './jsonEngine.js';
+import type { JsonDocState, JsonDocument, JsonTableOptions } from './jsonEngine.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
 import { baselineOwed, diskBaselineUsable, sameDiskStamp, type DiskStamp } from './slddBaseline.js';
@@ -154,6 +154,9 @@ export class JsonView implements EditableTableSource {
   private pendingOpen: { resolve(view: TableView): void; reject(err: unknown): void } | null = null;
   // What follows the paint `open()` last answered, until it is delivered (`opened`).
   private after: Trailer | null = null;
+  // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+  // delivered (`opened`), and the repaint waiting on it (told whether it all went out).
+  private awaiting: { view: TableView; trailer: Trailer; done?: (sent: boolean) => void }[] = [];
   /** What the table edit in flight will need when its own change arrives (spent by the next change). */
   private hostEdit: HostEdit | null = null;
   /** A write whose rows are ALREADY on screen, so the change it fires has nothing left to paint. */
@@ -167,7 +170,10 @@ export class JsonView implements EditableTableSource {
   /** Structural edits, one text state at a time (queueStructural). */
   private structuralChain: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly doc: JsonDocument) {
+  constructor(
+    private readonly doc: JsonDocument,
+    private readonly table: JsonTableOptions = {},
+  ) {
     this.name = doc.name;
     this.uri = doc.uri;
     this.planner = rowPlannerFor(this.name);
@@ -249,8 +255,10 @@ export class JsonView implements EditableTableSource {
     return this.doc.options.usage ? this.doc.options.usage.fillNow(rows) : true;
   }
 
+  // This table's own hook if it has one (a host whose tables answer to different owners), else the engine's.
   private changed(): void {
-    this.doc.options.changed?.();
+    if (this.table.changed) this.table.changed();
+    else this.doc.options.changed?.();
   }
 
   // A narrow repaint: one entry's run of rows replaced, removed or added. Counted, because a wide
@@ -303,10 +311,10 @@ export class JsonView implements EditableTableSource {
 
   /**
    * Rebuild the model from the text and paint every row: on open, on every change of the text that
-   * is not a single entry's, and on save. Resolves when the rows are sent; a repaint whose rows are
-   * dropped (wideLanding) resolves when the rows that replace them are. Resolves false when what
-   * follows the rows threw (sendTrailer): what a caller says after the repaint is then not said, as
-   * the extension's rejected repaint skips it.
+   * is not a single entry's, and on save. Resolves when the rows are sent (with trailerAfterDelivery,
+   * once what follows them is); a repaint whose rows are dropped (wideLanding) resolves when the rows
+   * that replace them are. Resolves false when what follows the rows threw (sendTrailer): what a
+   * caller says after the repaint is then not said, as the extension's rejected repaint skips it.
    */
   private post(): Promise<boolean> {
     // A closed table repaints nothing, and a table not yet asked for its rows is painted when it is.
@@ -372,9 +380,18 @@ export class JsonView implements EditableTableSource {
           if (opening) {
             // The rows `open()` asked for: answered, and what follows them sent once they are shown.
             this.pendingOpen = null;
-            this.after = trailer;
+            if (this.doc.options.trailerAfterDelivery) this.awaiting.push({ view, trailer });
+            else this.after = trailer;
             opening.resolve(view);
             return true;
+          }
+          if (this.doc.options.trailerAfterDelivery) {
+            // What follows these rows waits for the host to deliver them (`opened(view)`), and so does
+            // what is said after this repaint.
+            return new Promise<boolean>((done) => {
+              this.awaiting.push({ view, trailer, done });
+              this.emit({ kind: 'replaceAll', view });
+            });
           }
           this.emit({ kind: 'replaceAll', view });
           return this.sendTrailer(trailer);
@@ -1387,8 +1404,21 @@ export class JsonView implements EditableTableSource {
     return answer;
   }
 
-  /** The answer of the last `open()` has been shown: send what follows its paint. */
-  opened(): void {
+  /**
+   * The answer of the last `open()` has been shown: send what follows its paint. With
+   * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+   * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+   * sent, and its repaint resolves.
+   */
+  opened(view?: TableView): void {
+    if (this.doc.options.trailerAfterDelivery) {
+      const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+      const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
+      if (!next) return;
+      const sent = this.sendTrailer(next.trailer);
+      next.done?.(sent);
+      return;
+    }
     const after = this.after;
     this.after = null;
     if (after) this.sendTrailer(after);
@@ -1508,6 +1538,9 @@ export class JsonView implements EditableTableSource {
     this.doc.views.delete(this);
     this.pendingOpen?.reject(new SourceClosed(`${this.name} is closed.`));
     this.pendingOpen = null;
+    // A repaint whose rows can no longer be delivered has nothing more to wait for (and a closed
+    // table's trailer is no failure, as sendTrailer answers for one).
+    for (const { done } of this.awaiting.splice(0)) done?.(true);
     // Per table, paired with the open: the last one drops the tree it held.
     this.doc.registry.releaseSourceView(this.uri);
     // Only once the LAST table of this document closes.

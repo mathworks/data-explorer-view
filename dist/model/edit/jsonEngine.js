@@ -87,12 +87,12 @@ export class JsonEngine {
     /**
      * A table of the document: an EditableTableSource, until its `dispose()`. Its `locateInText` is
      * where a row's entry is in the text, for a host with a text view to show it (null when it cannot
-     * be found, which the table says).
+     * be found, which the table says). `table` is what this table has of its own (its `changed`).
      */
-    view() {
+    view(table = {}) {
         if (this.closed)
             throw new Error(`${this.name} is closed.`);
-        return new JsonView(this.document);
+        return new JsonView(this.document, table);
     }
     /** Close the document: every table closes, and the last releases the tree it held. */
     dispose() {

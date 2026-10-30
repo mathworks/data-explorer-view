@@ -1,8 +1,9 @@
 import { type CellEdit, type ChildRows, type EditableTableSource, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
-import type { JsonDocument } from './jsonEngine.js';
+import type { JsonDocument, JsonTableOptions } from './jsonEngine.js';
 /** One table of a JSON dictionary: resolveCustomTextEditor's view, as an EditableTableSource. */
 export declare class JsonView implements EditableTableSource {
     private readonly doc;
+    private readonly table;
     private readonly listeners;
     private readonly name;
     private readonly uri;
@@ -27,6 +28,7 @@ export declare class JsonView implements EditableTableSource {
     private latestPost;
     private pendingOpen;
     private after;
+    private awaiting;
     /** What the table edit in flight will need when its own change arrives (spent by the next change). */
     private hostEdit;
     /** A write whose rows are ALREADY on screen, so the change it fires has nothing left to paint. */
@@ -39,7 +41,7 @@ export declare class JsonView implements EditableTableSource {
     private lastByHistory;
     /** Structural edits, one text state at a time (queueStructural). */
     private structuralChain;
-    constructor(doc: JsonDocument);
+    constructor(doc: JsonDocument, table?: JsonTableOptions);
     private get session();
     private emit;
     private error;
@@ -62,10 +64,10 @@ export declare class JsonView implements EditableTableSource {
     private rebuildModel;
     /**
      * Rebuild the model from the text and paint every row: on open, on every change of the text that
-     * is not a single entry's, and on save. Resolves when the rows are sent; a repaint whose rows are
-     * dropped (wideLanding) resolves when the rows that replace them are. Resolves false when what
-     * follows the rows threw (sendTrailer): what a caller says after the repaint is then not said, as
-     * the extension's rejected repaint skips it.
+     * is not a single entry's, and on save. Resolves when the rows are sent (with trailerAfterDelivery,
+     * once what follows them is); a repaint whose rows are dropped (wideLanding) resolves when the rows
+     * that replace them are. Resolves false when what follows the rows threw (sendTrailer): what a
+     * caller says after the repaint is then not said, as the extension's rejected repaint skips it.
      */
     private post;
     /** The wide repaint as a REPAIR, out of step from the moment the rows are known not to say what the text does. */
@@ -211,8 +213,13 @@ export declare class JsonView implements EditableTableSource {
     private baselineFromDisk;
     private onTextChange;
     open(): Promise<TableView>;
-    /** The answer of the last `open()` has been shown: send what follows its paint. */
-    opened(): void;
+    /**
+     * The answer of the last `open()` has been shown: send what follows its paint. With
+     * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+     * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+     * sent, and its repaint resolves.
+     */
+    opened(view?: TableView): void;
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
     inspect(selection: string | readonly string[]): Promise<InspectorView>;

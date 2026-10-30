@@ -23,8 +23,10 @@
 
 // The document registry over core's module-level session (DataModel): which tree is held for
 // which uri, how many views hold it, and a node by its row id. createWorkspace keeps one of its
-// own per workspace instead.
+// own per workspace instead. `defaultRegistry` is that registry itself, for an engine that is to
+// hold its trees in it (JsonEngineOptions.registry).
 export {
+  defaultRegistry,
   findNode,
   getModel,
   getModelForBinaryTab,
@@ -37,7 +39,7 @@ export {
   releaseIfUnviewed,
   releaseSourceView,
 } from '../model/workspace/SlddModel.js';
-export type { TabSources } from '../model/workspace/SlddModel.js';
+export type { DocumentRegistry, TabSources } from '../model/workspace/SlddModel.js';
 
 // The answers to a webview's questions, as messages: built (childRowsMessage, matrixCellsMessage)
 // and posted on the webview that asked (answerChildRequest, answerMatrixRequest).
@@ -78,7 +80,7 @@ export type { MatEngineOptions, MatSave, UsageFill } from '../model/edit/matEngi
 export { BinaryEngine } from '../model/edit/binaryEngine.js';
 export type { BinaryEngineOptions, BinarySave } from '../model/edit/binaryEngine.js';
 export { JsonEngine } from '../model/edit/jsonEngine.js';
-export type { JsonDisk, JsonEngineOptions, JsonUsageFill, JsonUsageReposts } from '../model/edit/jsonEngine.js';
+export type { JsonDisk, JsonEngineOptions, JsonTableOptions, JsonUsageFill, JsonUsageReposts } from '../model/edit/jsonEngine.js';
 // slddBaseline.ts's disk half and wideRepaint.ts, copied for the JSON dictionary engine: their types
 // here so the extension's own copies can be held to them.
 export type { BaselineSource, DiskStamp } from '../model/edit/slddBaseline.js';
