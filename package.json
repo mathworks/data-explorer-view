@@ -1,6 +1,6 @@
 {
   "name": "data-explorer-view",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Widgets and view model for Simulink data files, built on data-explorer-core",
   "license": "BSD-3-Clause",
   "type": "module",
