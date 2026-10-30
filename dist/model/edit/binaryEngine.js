@@ -141,7 +141,8 @@ export class BinaryEngine {
          * write), push an edit as a gesture pushes one, replace its pass-through parts from a zip's
          * members as a reload does, and reach the set of tables a repaint reaches (where a suite puts a
          * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran; closing the document closes
-         * only the tables that are real). None repaints anything.
+         * only the tables that are real), and read what the Status column marks against the baseline a
+         * save took. None repaints anything.
          */
         this.forTests = {
             setChunk: (xml) => {
@@ -149,6 +150,16 @@ export class BinaryEngine {
             },
             pushEdit: (label, before, after, patch, part) => this.pushEdit(label, before, after, patch, part),
             resetParts: (members) => this.resetParts(members),
+            /**
+             * The entries the Status column marks Modified in `node` (by default the tree the session
+             * holds for the document), against its baseline: what a paint would stamp. Throws when no
+             * baseline has been taken, which would mark nothing and so prove nothing.
+             */
+            modified: (node = this.session.getDataSource(this.srcId)) => {
+                if (!this.baseline.captured)
+                    throw new Error(`No baseline has been taken for ${this.metaPath}.`);
+                return this.baseline.modified(node);
+            },
             views: this.views,
         };
         this.options = options;

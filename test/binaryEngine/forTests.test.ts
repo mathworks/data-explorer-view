@@ -65,6 +65,25 @@ describe("the compressed dictionary engine's seam for the extension's suites", (
     );
   });
 
+  it('reads what the Status column marks against the baseline a save took, and refuses to say before one is taken', async () => {
+    const { engine, index } = document();
+    assert.throws(() => engine.forTests.modified(), /^Error: No baseline has been taken for params_binary\.sldd\.$/);
+    // The first paint takes the baseline; an edit, repainted, differs from it; a save takes it again.
+    const table = engine.view();
+    await table.open();
+    assert.deepStrictEqual([...engine.forTests.modified()], []);
+    const before = engine.chunkXml;
+    const at = before.indexOf('>gravity<');
+    const after = before.slice(0, at) + before.slice(at).replace('>9.81<', '>9.7<');
+    engine.forTests.pushEdit('Edit Value', before, after);
+    await table.repaintAll();
+    assert.deepStrictEqual([...engine.forTests.modified()], ['gravity'], 'what differs from the file');
+    const save = engine.beginSave();
+    engine.saved(save);
+    index.saved(save.at);
+    assert.deepStrictEqual([...engine.forTests.modified()], [], 'the save took its baseline from what it wrote');
+  });
+
   it('reaches the tables a repaint reaches, where a stand-in sees which repaint ran', async () => {
     const { engine } = document();
     const calls: string[] = [];
