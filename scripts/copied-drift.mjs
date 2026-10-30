@@ -8,7 +8,8 @@
 // A copy says what it copies in its header, one line per file:
 //   // Copied from data-explorer-vscode src/host/transfer.ts at c73da3c.
 // and a ported test the same way, with `Ported from`, and code lifted out of a larger file with
-// `Lifted from`.
+// `Lifted from`. A file the extension has since deleted (its editors use view's copy now) is no copy
+// to keep up to date: it is said once, as retired, and not as drift.
 //
 //   node scripts/copied-drift.mjs <the extension's checkout>
 import { execFileSync } from 'node:child_process';
@@ -43,7 +44,20 @@ function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-/** What each stamp's file has had since its commit, in `vscode`; null where the commit is not there to ask. */
+/** Whether `path` is a file of the extension's checked-out commit. */
+function present(vscode, path) {
+  try {
+    git(['cat-file', '-e', `HEAD:${path}`], vscode);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What each stamp's file has had since its commit, in `vscode`; null where the commit is not there
+ * to ask; `retired` where the extension no longer has the file.
+ */
 export function drift(vscode, list = stamps()) {
   return list.map((s) => {
     try {
@@ -51,6 +65,7 @@ export function drift(vscode, list = stamps()) {
     } catch {
       return { ...s, commits: null };
     }
+    if (!present(vscode, s.path)) return { ...s, commits: [], retired: true };
     const log = git(['log', '--oneline', `${s.commit}..HEAD`, '--', s.path], vscode);
     return { ...s, commits: log ? log.split('\n') : [] };
   });
@@ -68,11 +83,16 @@ function main(args) {
   const results = drift(vscode);
   const moved = results.filter((r) => r.commits && r.commits.length);
   const unknown = results.filter((r) => r.commits === null);
+  const retired = results.filter((r) => r.retired);
   for (const r of moved) {
     say('warning', 'Copy behind the extension', `${r.copy} copies ${r.path} as of ${r.commit}, which has changed since:\n${r.commits.join('\n')}`);
   }
   for (const r of unknown) say('notice', 'Copy not checked', `${r.copy}: ${r.commit} is not in the extension's checkout, so ${r.path} cannot be compared`);
-  say('notice', 'Copies of the extension', `${results.length} stamp(s); ${moved.length} behind, ${unknown.length} not checked`);
+  if (retired.length) {
+    const gone = [...new Set(retired.map((r) => r.path))].sort();
+    say('notice', 'Copies the extension retired', `${gone.length} file(s) the extension no longer has, so view's copy is the only one: ${gone.join(', ')}`);
+  }
+  say('notice', 'Copies of the extension', `${results.length} stamp(s); ${moved.length} behind, ${unknown.length} not checked, ${retired.length} retired`);
 }
 
 try {
