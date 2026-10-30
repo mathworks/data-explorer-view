@@ -25,8 +25,8 @@ release notes before you move the pin.
 
 ```json
 "dependencies": {
-  "data-explorer-view": "github:mathworks/data-explorer-view#v1.1.0",
-  "data-explorer-core": "github:mathworks/data-explorer-core#v1.53.0",
+  "data-explorer-view": "github:mathworks/data-explorer-view#v1.2.0",
+  "data-explorer-core": "github:mathworks/data-explorer-core#v1.54.0",
   "lit": "^3.2.0"
 }
 ```
@@ -171,9 +171,9 @@ in `/model` too:
 - the refusals' wording;
 - `Notify`, where a source says what the table cannot show.
 
-The MAT-file engine behind `createWorkspace({ editing: true })`, and the hooks it is
-given (`EditSink`, `EditIndex`, `TextStore`), are the VS Code extension's, on
-`data-explorer-view/host`.
+The engines behind `createWorkspace({ editing: true })` (the MAT-file, compressed
+dictionary and JSON dictionary engines), and the hooks they are given (`EditSink`,
+`EditIndex`, `TextStore`), are the VS Code extension's, on `data-explorer-view/host`.
 
 ## Edit a file
 
