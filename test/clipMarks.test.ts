@@ -7,15 +7,8 @@
 // carry it, and which of them a clipboard broadcast moves. One module for the JSON and binary
 // dictionary views and the MAT-file view, so these are the rules of all three.
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  clipMarkChange,
-  clipMarkKey,
-  clipMarkOfDoc as clipMarkOf,
-  createRegisters,
-  sameClipMark,
-  type ClipMark,
-  type ClipboardItem,
-} from '../src/model/index.js';
+import { clipMarkChange, clipMarkOfDoc as clipMarkOf, sameClipMark } from '../src/host/index.js';
+import { clipMarkKey, createRegisters, type ClipMark, type ClipboardItem } from '../src/model/index.js';
 
 // The extension's clipboard is a module-level singleton; view's is a createRegisters() one.
 const registers = createRegisters();

@@ -18,8 +18,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DataModel } from 'data-explorer-core';
-import { buildRows, copyEntriesToClipboard, createRegisters } from '../src/model/index.js';
-import { getModel, findNode, invalidate } from '../src/host/index.js';
+import { buildRows, createRegisters } from '../src/model/index.js';
+import { copyEntriesToClipboard, getModel, findNode, invalidate } from '../src/host/index.js';
 
 // The extension's clipboard is a module-level singleton, and its copy reads core's module-level
 // session; view's clipboard is a createRegisters() instance's, and its copy is given both.

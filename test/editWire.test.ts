@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { serveTable } from '../src/serve/index.js';
 import {
+  SourceClosed,
   isEditable,
   messageSource,
   type EditableTableSource,
@@ -230,6 +231,27 @@ describe('serveTable hands each command on', () => {
     serveTable(readOnly, port);
     for (const [, json] of fixtures('client')) expect(() => send(JSON.parse(json))).not.toThrow();
     expect(posted).toEqual([]);
+  });
+
+  it('says nothing of an open that settles as SourceClosed, and says any other failure', async () => {
+    const answers: [Error, unknown[]][] = [
+      [new SourceClosed('a.mat is closed.'), []],
+      [new Error('the read broke'), [{ type: 'error', message: 'the read broke' }]],
+    ];
+    for (const [err, said] of answers) {
+      const { port, posted, send } = syncPort();
+      const failing: TableSource = {
+        open: () => Promise.reject(err),
+        children: async (nodeId) => ({ nodeId, rows: [], truncated: 0 }),
+        matrix: async (nodeId) => ({ nodeId, message: 'none' }),
+        inspect: async () => ({ groups: [] }),
+        subscribe: () => () => {},
+      };
+      serveTable(failing, port);
+      send({ type: 'ready' });
+      await tick();
+      expect(posted, err.message).toEqual(said);
+    }
   });
 
   it("passes a command's fields on as the table sent them: the source judges them", () => {

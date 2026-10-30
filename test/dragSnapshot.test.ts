@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DataModel } from 'data-explorer-core';
 import { getModel, findNode, invalidate } from '../src/host/index.js';
-import { buildDragSnapshot as buildWith } from '../src/model/index.js';
+import { buildDragSnapshot as buildWith } from '../src/host/index.js';
 
 // The extension's builder reads core's module-level session; view's is given it.
 const buildDragSnapshot = (rowIds: unknown, find: (rowId: string) => any) => buildWith(DataModel, rowIds, find);

@@ -14,7 +14,7 @@
 // envelope, and its answers arrive as more TableChanges. A read-only source implements this one
 // alone.
 //
-// Types, and isEditable.
+// Types, isEditable, and SourceClosed.
 import type { DropFacts } from '../actions/dropFacts.js';
 import type { SectionRule } from '../actions/sectionRules.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
@@ -266,6 +266,24 @@ export interface EditableTableSource extends TableSource {
   /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
   requestEditText(rowId: string): void;
 }
+
+/**
+ * Why an answer never came: the source was closed while it was being asked (a table of a document
+ * that closed during its paint). Whoever relays a source's answers (serveTable, connectTable) says
+ * nothing of it, as there is no one left to tell.
+ */
+export class SourceClosed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SourceClosed';
+  }
+}
+
+/**
+ * Whether `err` is a SourceClosed. By its name, not `instanceof`, as serveTable tells one: the serve
+ * entry loads no module of the model, this one included.
+ */
+export const isSourceClosed = (err: unknown): boolean => (err as { name?: unknown } | null)?.name === 'SourceClosed';
 
 /** The commands an EditableTableSource takes, by name. */
 const COMMANDS = [

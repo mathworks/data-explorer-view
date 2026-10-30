@@ -110,11 +110,11 @@ describe('MAT-file engine: the Add gallery', () => {
       const back = topRow(again.view.posts, t.name);
       assert.strictEqual(back.Class, row.Class);
       assert.strictEqual(back.Value, row.Value);
-      o.events[0].undo();
+      o.undo();
       await waitFor('the added row gone', () => !topRowOrNull(o.view.posts, t.name));
       assert.ok(!recordsOf(o.save()).has(t.name), 'the undone variable is not saved');
       keptUntouched(o.original, o.disk(), []);
-      o.events[0].redo();
+      o.redo();
       await waitFor('the row back', () => !!topRowOrNull(o.view.posts, t.name));
       const copy = o.engine.serialize();
       assert.ok(recordsOf(copy).has(t.name), 'Save As writes the new variable');
@@ -142,7 +142,7 @@ describe('MAT-file engine: the Add gallery', () => {
     assert.strictEqual(topRow(again.view.posts, 'kp').Class, 'string');
     assert.strictEqual(topRow(again.view.posts, 'kp').Value, '"abc"');
     assert.deepStrictEqual(order(again.view.posts), before, 'and in its place in the file');
-    o.events[0].undo();
+    o.undo();
     await waitFor('kp back as it was', () => topRowOrNull(o.view.posts, 'kp')?.Class === row.Class);
     assert.strictEqual(topRow(o.view.posts, 'kp').Value, row.Value);
     keptUntouched(o.original, o.save(), []);
@@ -164,7 +164,7 @@ describe('MAT-file engine: the Add gallery', () => {
     assert.strictEqual(topRow(again.view.posts, 'strScalar').Class, 'double');
     assert.strictEqual(topRow(again.view.posts, 'strScalar').Value, '0');
     assert.deepStrictEqual(order(again.view.posts), before, 'and in its place in the file');
-    o.events[0].undo();
+    o.undo();
     await waitFor('strScalar a string again', () => topRowOrNull(o.view.posts, 'strScalar')?.Class === 'string');
     assert.strictEqual(topRow(o.view.posts, 'strScalar').Value, row.Value);
     keptUntouched(o.original, o.save(), []);
@@ -180,7 +180,7 @@ describe('MAT-file engine: the Add gallery', () => {
     const u = await open('plain.mat', plainMat());
     add(u, 'Simulink.Signal', false);
     await waitFor('the Signal row', () => !!topRowOrNull(u.view.posts, 'Signal'));
-    u.events[0].undo();
+    u.undo();
     await waitFor('the Signal row gone', () => !topRowOrNull(u.view.posts, 'Signal'));
     assert.ok(same(u.save(), u.original), 'no subsystem is written for an object no longer there');
   });

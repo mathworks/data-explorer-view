@@ -80,11 +80,11 @@ describe('MAT-file engine: struct field rename', () => {
     const select = o.view.posts.filter((p) => p.type === 'selectRows').pop();
     assert.deepStrictEqual(select?.rowIds, [rowAt(o.view.posts, ['structScalar', 'alpha']).ID], 'the renamed row is selected by its new id');
     assert.strictEqual(topRow(o.view.posts, 'structScalar').Status, 'Modified', 'the variable is marked as modified');
-    o.events[0].undo();
+    o.undo();
     await waitFor('the old name back', () => childNames(o.view.posts, ['structScalar']).includes('a'));
     assert.deepStrictEqual(childNames(o.view.posts, ['structScalar']), ['a', 'b']);
     assert.strictEqual(o.index.dirty, false);
-    o.events[0].redo();
+    o.redo();
     await waitFor('the new name again', () => childNames(o.view.posts, ['structScalar']).includes('alpha'));
     assert.strictEqual(o.index.dirty, true);
   });

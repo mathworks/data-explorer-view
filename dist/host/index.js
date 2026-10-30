@@ -7,7 +7,8 @@
 // module-level session, the answers to a webview's requestChildren and requestMatrix posted on
 // the webview they came from, posting with a fallback for a payload too large to deliver, the
 // property inspector's page as a ready/post cycle, the srcId an editable binary file registers
-// under, and a hierarchy row's health mark as file decorations carry it.
+// under, a hierarchy row's health mark as file decorations carry it, and the editors (the MAT-file
+// engine and what it is built from) the extension's own are to move onto.
 //
 // An app does not need any of it. It opens files with createWorkspace and wires its widgets with
 // connectTable and connectInspector, and an app whose documents live elsewhere serves them with
@@ -41,3 +42,13 @@ export { binaryEditSrcId } from '../model/ids/srcId.js';
 // query (`HEALTH_QUERY`, `encode`, `decode`), drawn as a badge, a theme colour id and a tooltip
 // (`DECORATIONS`).
 export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/health.js';
+// The editors a table source is built from, for the extension to move its own onto (step 6b): the
+// MAT-file engine (its MatEditorProvider, lifted), the hooks an engine is given (where its edits go
+// to be undone, its save point, the text it keeps as the truth), the in-page undo stack and its
+// save point, the Status column's marks, the clipboard's mark, and the copy, the cut and a drag's
+// start with the snapshots they take. An app edits through createWorkspace({ editing }) instead.
+export { MatEngine } from '../model/edit/matEngine.js';
+export { EditStack, EditStackIndex } from '../model/edit/editStack.js';
+export { SaveMarks, replacementsIn } from '../model/edit/saveMarks.js';
+export { clipMarkChange, clipMarkOfDoc, sameClipMark } from '../model/edit/clipMarks.js';
+export { CopyRefused, buildClipboardSnapshot, buildDragSnapshot, copyEntriesToClipboard, dragEntries, sourceSectionOf, } from '../model/edit/clipboardAction.js';

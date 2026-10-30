@@ -3,8 +3,8 @@
 // Copied from data-explorer-vscode src/host/clipboardAction.ts at c73da3c.
 // Copied from data-explorer-vscode src/host/structuralEdit.ts at c73da3c (its register snapshots:
 // owningEntriesOf, CopyRefused, sourceSectionOf, refuseUncopyable, entriesSharingAName,
-// registerItemsOf, buildDragSnapshot, buildClipboardSnapshot and cloneForPaste).
-// Copied from data-explorer-vscode src/host/entryOps.ts at c73da3c (its recordCopy).
+// entryNameCounts, registerItemsOf, buildDragSnapshot, buildClipboardSnapshot and cloneForPaste).
+// Copied from data-explorer-vscode src/host/entryOps.ts at c73da3c (its recordCopy and copyAt).
 // With core's session and the registers passed in rather than read from the extension's
 // module-level ones. The extension keeps its own copies until its editors move onto view's
 // sources; keep them alike (view's CI reports a vscode commit to any of those files).
@@ -302,7 +302,7 @@ export function cloneForPaste(payload: Record<string, unknown>): Record<string, 
  * in an array), a `toJSON` is asked, and a `__proto__` key stays a key. A BigInt is refused with a
  * TypeError naming where it stands.
  */
-export function recordCopy(value: unknown): unknown {
+function recordCopy(value: unknown): unknown {
   return copyAt(value, '');
 }
 

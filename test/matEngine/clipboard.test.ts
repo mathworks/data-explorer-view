@@ -2,16 +2,19 @@
 //
 // Ported from data-explorer-vscode test-integration/suite/matClipboard.test.ts at c73da3c: the
 // MAT-file editor's clipboard and row drags, run against view's MAT-file engine, every document of
-// a case on one session and one set of registers, as a window's are. The cases between a MAT-file
-// and a dictionary wait for the dictionary engines (they come with core's JSON and XML pieces);
-// where a case's other document was a dictionary only to be somewhere else to paste or to copy
-// from, it is a second MAT-file here.
+// a case on one set of registers, as a window's are. The dictionary engines are still the
+// extension's, so a dictionary's half of a case is what its table puts on the registers (view's
+// copy and drag over core's read of the extension's own dictionaries, openDictionary) and, for a
+// paste into one, the transfer its editor runs; where a case's other document was a dictionary
+// only to be somewhere else to paste or to copy from, it is a second MAT-file here.
 import * as assert from 'node:assert';
 import { createSession } from 'data-explorer-core';
 import { describe, it } from 'vitest';
-import { createRegisters, type Registers } from '../../src/model/index.js';
+import { createRegisters, runTransfer, type Registers } from '../../src/model/index.js';
 import {
   emptyMat,
+  keptUntouched,
+  openDictionary,
   errorsIn,
   fixture,
   namesOf,
@@ -54,6 +57,35 @@ function windowOf(): { registers: Registers; session: ReturnType<typeof createSe
   return { registers, session, open: (as, bytes) => open(as, bytes, { as, registers, session }) };
 }
 
+/** Only `columns` of each row of `cells`. */
+function columnsOf(cells: Record<string, Record<string, string>>, columns: string[]): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    Object.entries(cells).map(([at, row]) => [at, Object.fromEntries(columns.filter((c) => c in row).map((c) => [c, row[c]]))]),
+  );
+}
+
+// What a value IS, as either format's table shows it: the columns both formats' rows carry.
+const VALUE_COLUMNS = ['Name', 'Value', 'Class', 'DataType', 'Min', 'Max', 'Unit', 'Description', 'dimensions', 'complexity'];
+
+/**
+ * A paste into the dictionary `docUri`'s design section, as its editor runs one (runTransfer): what
+ * lands there is kept in `landed`, and a move then asks its source to take the originals out.
+ */
+function pasteIntoDictionary(registers: Registers, docUri: string, landed: any[], said: string[] = []) {
+  return runTransfer(
+    { rowId: 'section:design' },
+    registers.clipboardRegister(),
+    {
+      docUri,
+      resolveTarget: () => ({ sectionName: 'design' }),
+      commit: ({ payloads }) => void landed.push(...payloads),
+      onFailure: () => {},
+      report: (message) => void said.push(message),
+    },
+    { deleteFromSource: (uri, selectors) => registers.deleteFromSource(uri, selectors) },
+  );
+}
+
 /** `cells` with the entry's own row named `name`, as a duplicate's is. */
 function renamed(cells: Record<string, Record<string, string>>, name: string): Record<string, Record<string, string>> {
   return Object.fromEntries(Object.entries(cells).map(([at, row]) => [at, at === '.' ? { ...row, Name: name } : row]));
@@ -93,10 +125,10 @@ describe('MAT-file engine: clipboard and row drags, within one file', () => {
     await waitFor('the duplicate painted', () => tableOf(m.view.posts).some((r) => r.parent == null && r.Name?.label === 'x1'));
     assert.strictEqual(variableRow(m.view.posts, 'x1').Status, 'New');
 
-    m.events[0].undo();
+    m.undo();
     assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str', 'x']);
     assert.strictEqual(m.index.dirty, false, 'undone: clean');
-    m.events[0].redo();
+    m.redo();
     assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str', 'x', 'x1']);
     assert.strictEqual(m.index.dirty, true);
   });
@@ -128,7 +160,7 @@ describe('MAT-file engine: clipboard and row drags, within one file', () => {
     assert.strictEqual(m.events.length, 1);
     assert.deepStrictEqual(selected(m.view.posts), [variableOf(m, 'x1').id, variableOf(m, 'p1').id], 'both are selected');
     assert.deepStrictEqual(shownCells(variableOf(m, 'p1')), renamed(shownCells(variableOf(m, 'p')), 'p1'));
-    m.events[0].undo();
+    m.undo();
     assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str', 'x']);
     assert.strictEqual(m.index.dirty, false);
   });
@@ -233,12 +265,108 @@ describe('MAT-file engine: clipboard and row drags, between two MAT-files', () =
   });
 });
 
+describe('MAT-file engine: clipboard and row drags, between a MAT-file and a dictionary', () => {
+  for (const [format, file] of [
+    ['JSON', 'params.sldd'],
+    ['binary', 'params_binary.sldd'],
+  ] as const) {
+    it(`${format} dictionary entries pasted into a MAT-file: a plain value, a struct, a Parameter with its properties, a Bus with its elements, as ONE edit, saved and read back`, async () => {
+      const w = windowOf();
+      const m = await w.open('gains.mat', fixture('pv_basic.mat'));
+      const d = openDictionary(w.registers, file);
+      const names = ['charStr', 'myStruct', 'gravity', 'MyBus'];
+      assert.ok(d.copy(names), d.said.join());
+      await onMat(m, { type: 'paste', rowId: variableRow(m.view.posts, 'q').ID });
+      assert.deepStrictEqual(errorsIn(m.view.posts), []);
+      assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str', 'x', ...names]);
+      assert.strictEqual(m.events.length, 1, 'ONE edit for the four');
+      const copied = (name: string) => columnsOf(shownCells(d.entry(name)), VALUE_COLUMNS);
+      for (const name of names) {
+        assert.deepStrictEqual(columnsOf(shownCells(variableOf(m, name)), VALUE_COLUMNS), copied(name), `${name} is what was copied`);
+      }
+      const gravity = shownCells(variableOf(m, 'gravity'))['.'];
+      assert.deepStrictEqual([gravity.Value, gravity.Min, gravity.Max, gravity.Unit, gravity.Description], ['9.81', '0', '100', 'm/s^2', 'gravity accel']);
+      assert.deepStrictEqual(Object.values(shownCells(variableOf(m, 'MyBus'))).map((r) => r.Name), ['MyBus', 'x', 'y'], 'the Bus came with its elements');
+
+      const saved = m.save();
+      for (const name of names) {
+        assert.deepStrictEqual(
+          readMat(saved, (mat) => columnsOf(shownCells(mat.children.find((v: any) => v.name === name)), VALUE_COLUMNS)),
+          copied(name),
+          `${name}, saved into the MAT-file and read back`,
+        );
+      }
+      // Every variable that was there is the bytes it was; the subsystem holds the new objects too.
+      keptUntouched(m.original, saved, ['']);
+
+      // A cut: the entry leaves the dictionary once it has landed here.
+      const fresh = await w.open('fresh.mat', emptyMat());
+      assert.ok(d.copy(['gravity'], 'cut'));
+      await onMat(fresh, { type: 'paste', rowId: '' });
+      await waitFor('the original taken out of the dictionary', () => !d.names().includes('gravity'));
+      assert.deepStrictEqual(errorsIn(fresh.view.posts), []);
+      assert.deepStrictEqual(namesOf(fresh), ['gravity']);
+      assert.deepStrictEqual(d.deleted, ['gravity']);
+    });
+  }
+
+  it("a MAT-file cut pasted into a dictionary moves the variable: its removal is the MAT-file's own undo step, whose undo leaves it clean", async () => {
+    const w = windowOf();
+    const m = await w.open('gains.mat', fixture('pv_basic.mat'));
+    m.view.send({ type: 'cut', rowIds: [variableRow(m.view.posts, 'x').ID] });
+    const landed: any[] = [];
+    const said: string[] = [];
+    assert.deepStrictEqual(await pasteIntoDictionary(w.registers, 'file:///work/target.sldd', landed, said), { kind: 'done' });
+    assert.deepStrictEqual(said, []);
+    assert.deepStrictEqual(landed.map((p) => p.name), ['x'], 'the paste landed');
+    await waitFor('the original taken out', () => !namesOf(m).includes('x'));
+    assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str']);
+    assert.strictEqual(m.events.length, 1, 'ONE edit in the MAT-file');
+    assert.strictEqual(m.events[0].label, 'Move (remove source)');
+    assert.strictEqual(m.index.dirty, true);
+    m.undo();
+    assert.deepStrictEqual(namesOf(m), ['p', 'q', 'str', 'x'], 'its undo puts the original back');
+    assert.strictEqual(m.index.dirty, false);
+    await waitFor('the original painted back', () => tableOf(m.view.posts).some((r) => r.parent == null && r.Name?.label === 'x'));
+  });
+});
+
 describe('MAT-file engine: pastes and drops refused', () => {
   const unchanged = (m: Opened, names: string[]) => {
     assert.strictEqual(m.events.length, 0, 'no edit reached the stack');
     assert.strictEqual(m.index.dirty, false);
     assert.deepStrictEqual(namesOf(m), names);
   };
+
+  it("what a MAT-file cannot take is refused in core's words, nothing changes, and a cut keeps its source", async () => {
+    const w = windowOf();
+    const m = await w.open('gains.mat', fixture('pv_basic.mat'));
+    const d = openDictionary(w.registers, 'params.sldd');
+    const was = namesOf(m);
+
+    assert.ok(d.copy(['MyEnum']));
+    await onMat(m, { type: 'paste', rowId: '' });
+    assert.deepStrictEqual(errorsIn(m.view.posts), [
+      'Cannot paste "MyEnum" into "gains.mat": it is an enumeration\'s definition, which a MAT-file does not hold: ' +
+        'MATLAB defines an enumeration in a class file or a data dictionary. Nothing was pasted.',
+    ]);
+    unchanged(m, was);
+
+    assert.ok(d.copy(['MyLUT'], 'cut'));
+    await onMat(m, { type: 'paste', rowId: '' });
+    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "MyLUT" into "gains\.mat": it is a Simulink\.LookupTable, /);
+    unchanged(m, was);
+    assert.strictEqual(w.registers.getClipboard()?.mode, 'cut', 'the cut is kept for another try');
+    await quiet();
+    assert.deepStrictEqual(d.deleted, [], 'no source delete');
+    assert.ok(d.names().includes('MyLUT'), 'and its source keeps the entry');
+
+    // All of them or none: a value core will not make as it was copied refuses the whole paste.
+    assert.ok(d.copy(['charStr', 'pInt16']));
+    await onMat(m, { type: 'paste', rowId: '' });
+    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "pInt16" into "gains\.mat": pInt16\.Value is a 1x1 int16/);
+    unchanged(m, was);
+  });
 
   it('a read-only MAT-file is no target, and says why', async () => {
     const w = windowOf();
@@ -327,7 +455,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
     assert.deepStrictEqual(errorsIn(t.view.posts), [], 'no "remove it there by hand" for an original that is gone');
     assert.ok(namesOf(t).includes('x'));
     assert.strictEqual(a.events.length, 1, 'the delete is an edit the stack was handed');
-    a.events[0].undo();
+    a.undo();
     assert.ok(namesOf(a).includes('x'), 'and its undo puts the original back');
   });
 
@@ -390,7 +518,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
 
     a.view.send({ type: 'cut', rowIds: [variableRow(a.view.posts, 'p').ID] });
     await onMat(a, { type: 'delete', rowIds: [variableOf(a, 'p').id] });
-    a.events[a.events.length - 1].undo();
+    a.undo();
     assert.ok(namesOf(a).includes('p'), 'the delete is undone');
     await onMat(t, { type: 'paste', rowId: '' });
     await waitFor('the cut to be spent', () => w.registers.getClipboard() === null);
@@ -401,19 +529,19 @@ describe('MAT-file engine: pastes and drops refused', () => {
 
   it('the drag register is let go of after a drop that landed, one refused, and one that failed', async () => {
     const w = windowOf();
-    const m = await w.open('gains.mat', emptyMat());
-    const s = await w.open('source.mat', fixture('pv_basic.mat'));
-    const ro = await w.open('tail.mat', new Uint8Array([...fixture('pv_basic.mat'), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]));
+    const m = await w.open('gains.mat', fixture('pv_basic.mat'));
+    const d = openDictionary(w.registers, 'params.sldd');
 
-    s.view.send({ type: 'dragStart', rowIds: [variableRow(s.view.posts, 'x').ID] });
+    d.drag(['charStr']);
     await onMat(m, { type: 'drop', rowId: '', mode: 'copy' });
     assert.deepStrictEqual(errorsIn(m.view.posts), []);
-    assert.ok(namesOf(m).includes('x'));
+    assert.ok(namesOf(m).includes('charStr'));
     assert.strictEqual(w.registers.getDrag(), null, 'landed');
 
-    s.view.send({ type: 'dragStart', rowIds: [variableRow(s.view.posts, 'str').ID] });
-    await onMat(ro, { type: 'drop', rowId: '', mode: 'copy' });
-    assert.match(errorsIn(ro.view.posts)[0], /^Read-only: /);
+    // Refused by core as it makes the variable: what the file is told is core's word.
+    d.drag(['MyEnum']);
+    await onMat(m, { type: 'drop', rowId: '', mode: 'copy' });
+    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "MyEnum" into "gains\.mat"/);
     assert.strictEqual(w.registers.getDrag(), null, 'refused');
 
     const session = w.session as any;
@@ -422,7 +550,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
       throw new Error('the paste broke');
     };
     try {
-      s.view.send({ type: 'dragStart', rowIds: [variableRow(s.view.posts, 'q').ID] });
+      d.drag(['myStruct']);
       m.view.posts.length = 0;
       m.view.send({ type: 'drop', rowId: '', mode: 'move' });
       await waitFor('the failure said', () => errorsIn(m.view.posts).length > 0);
@@ -431,6 +559,8 @@ describe('MAT-file engine: pastes and drops refused', () => {
     }
     assert.deepStrictEqual(errorsIn(m.view.posts), ['Failed to apply edit: the paste broke']);
     assert.strictEqual(w.registers.getDrag(), null, 'failed');
-    assert.ok(namesOf(s).includes('q'), 'a failed move takes nothing out of its source');
+    assert.ok(d.names().includes('myStruct'), 'a failed move takes nothing out of its source');
+    assert.deepStrictEqual(d.deleted, []);
   });
+
 });

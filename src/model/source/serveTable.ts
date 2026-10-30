@@ -151,7 +151,10 @@ export function serveTable(source: TableSource, port: TablePort, options: ServeT
             // What the source says after a paint follows the rows it is about.
             if (!stopped) source.opened?.();
           },
-          (err) => post({ type: 'error', message: messageOf(err) }),
+          // A source closed while it was asked has no one to say it to (SourceClosed).
+          (err) => {
+            if ((err as { name?: unknown } | null)?.name !== 'SourceClosed') post({ type: 'error', message: messageOf(err) });
+          },
         );
         return;
       case 'requestChildren':

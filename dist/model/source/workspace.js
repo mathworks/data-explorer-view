@@ -263,8 +263,11 @@ class EditableMatDoc {
         this.index = new EditStackIndex();
         this.dirtyListeners = new Set();
         this.wasDirty = false;
+        this.dirtyCheck = false;
         this.disposed = false;
-        // The stack's position, as the engine moves it, told to whoever listens for `dirty`.
+        // The stack's position, as the engine moves it. Whoever listens for `dirty` is told once the
+        // step that moved it, and its replay on core's stack, are done: never from inside one, where a
+        // listener that threw would leave the two stacks out of step.
         const index = this.index;
         const watched = {
             get dirty() {
@@ -290,6 +293,8 @@ class EditableMatDoc {
             registers: shared.registers,
             notify: shared.notify,
             budget: shared.budget,
+            // Every change to the tree ends here, once the step and every view are done with it.
+            changed: () => this.tellDirty(),
             usage: {
                 fill: async (rows) => {
                     const usage = this.shared.usage;
@@ -315,14 +320,34 @@ class EditableMatDoc {
         this.dirtyListeners.add(listener);
         return () => void this.dirtyListeners.delete(listener);
     }
+    // The stack moved: tell `dirty`'s listeners once the step is done (tellDirty, from the engine's
+    // `changed`), or a turn later where no change to the tree follows (an undo of an edit from before
+    // a reload, which does nothing to the tree).
     moved(move) {
         move();
+        if (this.dirtyCheck)
+            return;
+        this.dirtyCheck = true;
+        queueMicrotask(() => this.tellDirty());
+    }
+    /** Tell each listener of `dirty` that it changed, if it did, each on its own terms. */
+    tellDirty() {
+        this.dirtyCheck = false;
         const dirty = this.index.dirty;
-        if (dirty === this.wasDirty)
+        if (dirty === this.wasDirty || this.disposed)
             return;
         this.wasDirty = dirty;
-        for (const listener of [...this.dirtyListeners])
-            listener(dirty);
+        for (const listener of [...this.dirtyListeners]) {
+            try {
+                listener(dirty);
+            }
+            catch (err) {
+                // One listener's failure is its own: the others still hear the change.
+                queueMicrotask(() => {
+                    throw err;
+                });
+            }
+        }
     }
     serialize() {
         if (this.disposed)
@@ -335,7 +360,8 @@ class EditableMatDoc {
             return;
         const save = at;
         this.engine.saved(save);
-        this.moved(() => this.index.saved(save.at));
+        this.index.saved(save.at);
+        this.tellDirty();
     }
     notSaved(at) {
         if (this.disposed)
@@ -347,7 +373,8 @@ class EditableMatDoc {
             throw new Error(`${this.name} is closed.`);
         // A new tree: no edit made before has anything to undo on it, and it holds what the disk does.
         this.stack.clear();
-        this.moved(() => this.index.reverted());
+        this.index.reverted();
+        this.tellDirty();
         this.graph = undefined;
         await this.engine.replace(arrayBufferOf(bytes));
     }

@@ -41,7 +41,6 @@
 import { toEntrySelector } from 'data-explorer-core';
 import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
-import { basename } from '../ids/pathUtil.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
@@ -53,13 +52,14 @@ import { buildMatVariableRows } from '../rows/matRowBuilder.js';
 import { refuseIfUnreadable, sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
+import { SourceClosed, } from '../source/tableSource.js';
 import { cloneForPaste, copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './refusal.js';
 import { NOT_FOUND_REASON } from './registers.js';
 import { replacementsIn, SaveMarks } from './saveMarks.js';
-import { runTransfer, TransferRefused, } from './transfer.js';
+import { fileNameOf, runTransfer, TransferRefused, } from './transfer.js';
 // O(variables) a gesture, for the id map and the order: 10 ms on a file of 100,000 variables,
 // against the 300 ms the payload of such a file takes to build.
 function observe(session, mat, srcId, run) {
@@ -132,8 +132,7 @@ const messageOf = (err) => (err instanceof Error ? err.message : String(err));
 /** One open MAT-file: its tree, its edits, its saves, and the tables that show it. */
 export class MatEngine {
     constructor(options) {
-        this.options = options;
-        this.disposed = false;
+        this.closed = false;
         /**
          * Moved by every tree registered from the disk (a reload). An edit made on one generation's tree
          * has nothing to undo on another's: its steps were on the stack that left with the old tree, so
@@ -147,23 +146,54 @@ export class MatEngine {
         this.version = 0;
         /** Which variables differ from the file as last saved, for the Status column. */
         this.marks = new SaveMarks();
-        /** @internal The tables that show it. */
+        /** The tables that show it. */
         this.views = new Set();
+        /** What each save in flight took of the Status column, by the save. */
+        this.taken = new WeakMap();
         /** The registered tree, or why there is none. Null until the first `model()`. */
         this.loaded = null;
-        /** A backup was refused, and the user was told; reset by the next backup that succeeds. */
+        /** A backup was refused, and the user was told; reset once a backup is written (`backupWritten`). */
         this.backupRefusalShown = false;
         // Keyed weakly by the node: a token keeps no variable alive, and a variable gone keeps no token.
         this.origins = new WeakMap();
+        this.options = options;
         this.uri = options.uri;
         this.srcId = binaryEditSrcId(options.uri);
-        this.metaPath = options.name ?? (basename(options.uri) || 'document');
+        // The last segment of the uri's path, decoded, as `basename(uri.path)` names a VS Code uri.
+        this.metaPath = options.name ?? (fileNameOf(options.uri) || 'document');
         this.bytes = options.bytes;
+        const engine = this;
+        this.document = {
+            uri: this.uri,
+            srcId: this.srcId,
+            metaPath: this.metaPath,
+            options,
+            session: options.session,
+            marks: this.marks,
+            views: this.views,
+            get disposed() {
+                return engine.closed;
+            },
+            get version() {
+                return engine.version;
+            },
+            model: () => this.model(),
+            describe: (err) => this.describe(err),
+            describeBanner: (banner) => this.describeBanner(banner),
+            serialize: () => this.serialize(),
+            record: (label, run, touched) => this.record(label, run, touched),
+            originOf: (variable) => this.originOf(variable),
+            deleteMoved: (targets) => this.deleteMoved(targets),
+            notify: (level, message, ms) => this.notify(level, message, ms),
+        };
+    }
+    /** Whether `dispose()` has closed it. */
+    get disposed() {
+        return this.closed;
     }
     get session() {
         return this.options.session;
     }
-    /** @internal */
     notify(level, message, ms) {
         this.options.notify?.({ level, message, ...(ms === undefined ? {} : { ms }) });
     }
@@ -241,7 +271,9 @@ export class MatEngine {
         const before = this.marks.marks();
         const bytes = this.serialize();
         const snapshot = this.marks.snapshot();
-        return { bytes, at: this.options.index.here(), snapshot, before };
+        const save = { bytes, at: this.options.index.here() };
+        this.taken.set(save, { snapshot, before });
+        return save;
     }
     /**
      * The bytes of `save` are on disk: the Status column is measured from them from now on. The
@@ -249,26 +281,32 @@ export class MatEngine {
      * says: VS Code's moves when the save it asked for resolves.
      */
     saved(save) {
-        this.marks.commit(save.snapshot);
+        const taken = this.taken.get(save);
+        if (!taken)
+            return;
+        this.taken.delete(save);
+        this.marks.commit(taken.snapshot);
         // The Status column moved with it, which a paint on its await built before: it builds again.
         this.version++;
-        this.repaintMarks(save.before);
+        this.repaintMarks(taken.before);
     }
     /** The bytes of `save` were never written: the Status column stays measured from the last save. */
     notSaved(save) {
-        this.marks.release(save.snapshot);
+        const taken = this.taken.get(save);
+        if (!taken)
+            return;
+        this.taken.delete(save);
+        this.marks.release(taken.snapshot);
     }
     /**
      * The bytes a hot-exit backup holds: the whole file as a save would write it, with no save point
      * moved. Where core refuses to write the tree as it stands, says so once (through `notify`),
-     * until a backup succeeds again, and throws: `kept`, an earlier backup still standing, is then
-     * what a restart restores, which the notice says.
+     * until a backup is written again (`backupWritten`), and throws: `kept`, an earlier backup still
+     * standing, is then what a restart restores, which the notice says.
      */
     backup(kept) {
         try {
-            const bytes = this.serialize();
-            this.backupRefusalShown = false;
-            return bytes;
+            return this.serialize();
         }
         catch (err) {
             if (!this.backupRefusalShown) {
@@ -278,6 +316,10 @@ export class MatEngine {
             }
             throw err;
         }
+    }
+    /** The bytes `backup` handed back are written: a refusal after this one is said again. */
+    backupWritten() {
+        this.backupRefusalShown = false;
     }
     /**
      * Push one gesture's undo steps onto the edit stack as one edit, and record which variables it
@@ -517,13 +559,13 @@ export class MatEngine {
     }
     /** A table of the document: an EditableTableSource, until its `dispose()`. */
     view() {
-        return new MatView(this);
+        return new MatView(this.document);
     }
     /** Close the document: its tree leaves the session. Its views answer nothing more. */
     dispose() {
-        if (this.disposed)
+        if (this.closed)
             return;
-        this.disposed = true;
+        this.closed = true;
         for (const view of [...this.views])
             view.dispose();
         this.session.removeDataSource(this.srcId);
@@ -536,9 +578,20 @@ class ParseFailure extends Error {
 class Closed extends Error {
 }
 /**
- * One table of a MAT-file: resolveCustomEditor's view, as an EditableTableSource.
- * @internal
+ * Run one listener's half of a broadcast, keeping whatever it throws — now or, as a rejection,
+ * later — from the other half and from the loop that serves every other table (editorHub's reach).
  */
+function separately(run) {
+    try {
+        const result = run();
+        if (result && typeof result.then === 'function')
+            Promise.resolve(result).catch(() => { });
+    }
+    catch {
+        /* this half misses this broadcast; the next one it gets is complete */
+    }
+}
+/** One table of a MAT-file: resolveCustomEditor's view, as an EditableTableSource. */
 class MatView {
     constructor(doc) {
         this.doc = doc;
@@ -549,7 +602,8 @@ class MatView {
         // writes as read — so an edit that changes it, or the undo or redo of one, repaints the whole
         // table, which tells the gallery again (refreshGallery).
         this.lastClasses = [];
-        // What follows the last paint, once it is delivered (`opened`, or a repaint's own emit).
+        // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
+        // sends its own after its own rows.
         this.after = null;
         // A row's node, as the commands resolve it: a lookup that throws is a command that throws, and
         // is said as one (handle).
@@ -572,9 +626,10 @@ class MatView {
         // a drag's reaches it to predict the drop. A move whose source is this file, pasted or
         // dropped in another document, takes its originals out of this file through the document.
         this.unlisten = registers.listen({
+            // The state and the repaint each on its own terms, as editorHub's broadcast reaches a view.
             clipboard: (state) => {
-                this.emit({ kind: 'clipboard', state });
-                this.repaintClipMark();
+                separately(() => this.emit({ kind: 'clipboard', state }));
+                separately(() => this.repaintClipMark());
             },
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         });
@@ -631,7 +686,7 @@ class MatView {
             throw new ParseFailure(`Failed to parse ${this.name}: ${this.doc.describe(err)}`);
         }
     }
-    /** The whole table, built from the tree; what follows it is kept for `opened`. */
+    /** The whole table, built from the tree, and what follows it once it is delivered. */
     async paint() {
         let mat = this.tree();
         try {
@@ -663,8 +718,7 @@ class MatView {
                 add: { classes: (this.lastClasses = allowedClasses(mat)) },
                 ...(warnings === undefined ? {} : { warnings }),
             };
-            this.after = { notice, mat, clipMark: built.clipMark };
-            return view;
+            return { view, trailer: { notice, mat, clipMark: built.clipMark } };
         }
         catch (err) {
             if (err instanceof Closed || err instanceof ParseFailure)
@@ -676,10 +730,8 @@ class MatView {
     // land (the whole file, one target, admitting what core says it does), and what the clipboard
     // holds. A read-only file is no target: its empty admitted list would read as "no restriction"
     // (sectionRules.wholeFileRules), so it sends no rule at all.
-    afterPaint() {
-        const after = this.after;
-        this.after = null;
-        if (!after || this.closed)
+    sendTrailer(after) {
+        if (this.closed)
             return;
         this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : wholeFileRules(after.mat, this.name) });
         this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
@@ -691,9 +743,9 @@ class MatView {
     }
     /** Every row painted again from the tree, and what follows a paint. */
     repaintAll() {
-        return this.paint().then((view) => {
+        return this.paint().then(({ view, trailer }) => {
             this.emit({ kind: 'replaceAll', view });
-            this.afterPaint();
+            this.sendTrailer(trailer);
         }, (err) => {
             if (!(err instanceof Closed))
                 this.error(messageOf(err));
@@ -838,14 +890,24 @@ class MatView {
         }
     }
     // --- The read half ---------------------------------------------------------------------------
+    // A paint cut off by the view's close settles silently, as the extension's does: SourceClosed,
+    // which whoever relays the answer says nothing of.
     open() {
         if (this.closed)
-            return Promise.reject(new Error(`${this.name} is closed.`));
-        return this.paint();
+            return Promise.reject(new SourceClosed(`${this.name} is closed.`));
+        return this.paint().then(({ view, trailer }) => {
+            this.after = trailer;
+            return view;
+        }, (err) => {
+            throw err instanceof Closed ? new SourceClosed(`${this.name} is closed.`) : err;
+        });
     }
-    /** The answer of the last `open()` has been shown: send what follows a paint. */
+    /** The answer of the last `open()` has been shown: send what follows its paint. */
     opened() {
-        this.afterPaint();
+        const after = this.after;
+        this.after = null;
+        if (after)
+            this.sendTrailer(after);
     }
     async children(rowId) {
         // Stamped as the payload was, so a fetched row's menu offers what its siblings' does.
@@ -1036,19 +1098,19 @@ class MatView {
     // refused here, as every edit of one is.
     copy(rowIds) {
         this.handle('copy', () => {
-            copyEntriesToClipboard(rowIds, 'copy', this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastClipboardState));
+            copyEntriesToClipboard(rowIds, 'copy', this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastClipboardState()));
         });
     }
     cut(rowIds) {
         this.handle('cut', () => {
             if (!this.editableTree())
                 return;
-            copyEntriesToClipboard(rowIds, 'cut', this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastClipboardState));
+            copyEntriesToClipboard(rowIds, 'cut', this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastClipboardState()));
         });
     }
     dragStart(rowIds) {
         this.handle('dragStart', () => {
-            dragEntries(rowIds, this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastDragState));
+            dragEntries(rowIds, this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastDragState()));
         });
     }
     dragEnd() {
@@ -1130,13 +1192,13 @@ class MatView {
     paste(rowId) {
         this.handle('paste', () => {
             const registers = this.doc.options.registers;
-            this.transferred(runTransfer({ rowId }, registers.clipboardRegister(registers.broadcastClipboardState), this.transferAdapter(), this.transferDeps()));
+            this.transferred(runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps()));
         });
     }
     drop(rowId, mode) {
         this.handle('drop', () => {
             const registers = this.doc.options.registers;
-            this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, registers.broadcastDragState), this.transferAdapter(), this.transferDeps()));
+            this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()));
         });
     }
     // --- Undo, redo, and the whole text of a Value --------------------------------------------------

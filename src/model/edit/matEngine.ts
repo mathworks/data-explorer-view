@@ -41,7 +41,6 @@
 import { toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
 import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
-import { basename } from '../ids/pathUtil.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
@@ -55,15 +54,16 @@ import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor, type PlanOptions, type RowPlanner } from '../rows/rowPlanner.js';
 import type { ClipMark } from '../rows/rowStamp.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
-import type {
-  CellEdit,
-  ChildRows,
-  EditableTableSource,
-  InspectorView,
-  MatrixPage,
-  NewEntry,
-  TableChange,
-  TableView,
+import {
+  SourceClosed,
+  type CellEdit,
+  type ChildRows,
+  type EditableTableSource,
+  type InspectorView,
+  type MatrixPage,
+  type NewEntry,
+  type TableChange,
+  type TableView,
 } from '../source/tableSource.js';
 import { cloneForPaste, copyEntriesToClipboard, dragEntries, type CopyDeps } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
@@ -73,6 +73,7 @@ import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refuse
 import { NOT_FOUND_REASON, type DeleteTarget, type Registers } from './registers.js';
 import { replacementsIn, SaveMarks, type SaveMark, type SaveSnapshot } from './saveMarks.js';
 import {
+  fileNameOf,
   runTransfer,
   TransferRefused,
   type SourceDeleteResult,
@@ -97,7 +98,7 @@ export interface MatEngineOptions {
   uri: string;
   /** The file's bytes. */
   bytes: ArrayBuffer;
-  /** Its name, for what is said of it. Default: the uri's last segment. */
+  /** Its name, for what is said of it. Default: the last segment of the uri's path, decoded. */
   name?: string;
   /** Where each gesture's edit goes. */
   sink: EditSink;
@@ -123,10 +124,36 @@ export interface MatSave {
   readonly bytes: Uint8Array;
   /** Where the edit stack stood when they were read: what a save point is moved to (EditIndex.saved). */
   readonly at: number;
-  /** @internal The Status column's snapshot, and the marks before it. */
-  readonly snapshot: SaveSnapshot;
-  /** @internal */
-  readonly before: ReadonlyMap<any, SaveMark>;
+}
+
+/** What a save took of the Status column with its bytes: its snapshot, and the marks before it. */
+interface TakenMarks {
+  snapshot: SaveSnapshot;
+  before: ReadonlyMap<any, SaveMark>;
+}
+
+/**
+ * The document as its views reach it: what a table needs of the engine, kept off the engine's own
+ * surface, which is the host's.
+ */
+interface MatDocument {
+  readonly uri: string;
+  readonly srcId: string;
+  readonly metaPath: string;
+  readonly options: MatEngineOptions;
+  readonly session: Session;
+  readonly marks: SaveMarks<any>;
+  readonly views: Set<MatView>;
+  readonly disposed: boolean;
+  readonly version: number;
+  model(): any;
+  describe(err: unknown): string;
+  describeBanner(banner: WarningBanner | undefined): WarningBanner | undefined;
+  serialize(): Uint8Array;
+  record(label: string, run: (mat: any) => void, touched?: () => Iterable<any>): Observed;
+  originOf(variable: any): object;
+  deleteMoved(targets: readonly DeleteTarget[]): SourceDeleteResult;
+  notify(level: 'warning' | 'error' | 'status', message: string, ms?: number): void;
 }
 
 /**
@@ -222,50 +249,91 @@ const messageOf = (err: unknown): string => (err instanceof Error ? err.message 
 
 /** One open MAT-file: its tree, its edits, its saves, and the tables that show it. */
 export class MatEngine {
+  /** The uri the document is opened under. */
   readonly uri: string;
+  /** The id its tree is registered under in the session: `binedit:` + the uri. */
   readonly srcId: string;
+  /** Its name, as what is said of it names it. */
   readonly metaPath: string;
-  disposed = false;
+
+  private readonly options: MatEngineOptions;
+  private closed = false;
 
   /**
    * Moved by every tree registered from the disk (a reload). An edit made on one generation's tree
    * has nothing to undo on another's: its steps were on the stack that left with the old tree, so
    * its undo and redo check this first.
    */
-  generation = 0;
+  private generation = 0;
 
   /**
    * Moved by every change to the tree, and by every save (which moves the Status column), so a
    * paint that awaited can tell it is stale.
    */
-  version = 0;
+  private version = 0;
 
   /** Which variables differ from the file as last saved, for the Status column. */
-  readonly marks = new SaveMarks<any>();
+  private readonly marks = new SaveMarks<any>();
 
-  /** @internal The tables that show it. */
-  readonly views = new Set<MatView>();
+  /** The tables that show it. */
+  private readonly views = new Set<MatView>();
+
+  /** What each save in flight took of the Status column, by the save. */
+  private readonly taken = new WeakMap<MatSave, TakenMarks>();
+
+  /** The document as its views reach it. */
+  private readonly document: MatDocument;
 
   /** The file's bytes, until the first paint registers them (`model`). */
   private bytes: ArrayBuffer | null;
   /** The registered tree, or why there is none. Null until the first `model()`. */
   private loaded: { node: any } | { error: Error } | null = null;
-  /** A backup was refused, and the user was told; reset by the next backup that succeeds. */
+  /** A backup was refused, and the user was told; reset once a backup is written (`backupWritten`). */
   private backupRefusalShown = false;
 
-  constructor(readonly options: MatEngineOptions) {
+  constructor(options: MatEngineOptions) {
+    this.options = options;
     this.uri = options.uri;
     this.srcId = binaryEditSrcId(options.uri);
-    this.metaPath = options.name ?? (basename(options.uri) || 'document');
+    // The last segment of the uri's path, decoded, as `basename(uri.path)` names a VS Code uri.
+    this.metaPath = options.name ?? (fileNameOf(options.uri) || 'document');
     this.bytes = options.bytes;
+    const engine = this;
+    this.document = {
+      uri: this.uri,
+      srcId: this.srcId,
+      metaPath: this.metaPath,
+      options,
+      session: options.session,
+      marks: this.marks,
+      views: this.views,
+      get disposed() {
+        return engine.closed;
+      },
+      get version() {
+        return engine.version;
+      },
+      model: () => this.model(),
+      describe: (err) => this.describe(err),
+      describeBanner: (banner) => this.describeBanner(banner),
+      serialize: () => this.serialize(),
+      record: (label, run, touched) => this.record(label, run, touched),
+      originOf: (variable) => this.originOf(variable),
+      deleteMoved: (targets) => this.deleteMoved(targets),
+      notify: (level, message, ms) => this.notify(level, message, ms),
+    };
   }
 
-  get session(): Session {
+  /** Whether `dispose()` has closed it. */
+  get disposed(): boolean {
+    return this.closed;
+  }
+
+  private get session(): Session {
     return this.options.session;
   }
 
-  /** @internal */
-  notify(level: 'warning' | 'error' | 'status', message: string, ms?: number): void {
+  private notify(level: 'warning' | 'error' | 'status', message: string, ms?: number): void {
     this.options.notify?.({ level, message, ...(ms === undefined ? {} : { ms }) });
   }
 
@@ -275,7 +343,7 @@ export class MatEngine {
    * none: a `-v7.3` file (HDF5), a file that is not a MAT-file, one the reader could not read at
    * all (refused, rather than shown as an empty file a save would then write).
    */
-  model(): any {
+  private model(): any {
     if (this.loaded) {
       if ('error' in this.loaded) throw this.loaded.error;
       return this.loaded.node;
@@ -305,12 +373,12 @@ export class MatEngine {
    * as a node's id, which a message can carry, begins with it. Every message shown of core's comes
    * through here.
    */
-  describe(err: unknown): string {
+  private describe(err: unknown): string {
     return describeSource(this.srcId, this.metaPath)(err instanceof Error ? err.message : String(err));
   }
 
   /** A warning banner with core's messages described (see `describe`). */
-  describeBanner(banner: WarningBanner | undefined): WarningBanner | undefined {
+  private describeBanner(banner: WarningBanner | undefined): WarningBanner | undefined {
     return banner && { headline: this.describe(banner.headline), details: banner.details.map((d) => this.describe(d)) };
   }
 
@@ -343,7 +411,9 @@ export class MatEngine {
     const before = this.marks.marks();
     const bytes = this.serialize();
     const snapshot = this.marks.snapshot();
-    return { bytes, at: this.options.index.here(), snapshot, before };
+    const save: MatSave = { bytes, at: this.options.index.here() };
+    this.taken.set(save, { snapshot, before });
+    return save;
   }
 
   /**
@@ -352,28 +422,32 @@ export class MatEngine {
    * says: VS Code's moves when the save it asked for resolves.
    */
   saved(save: MatSave): void {
-    this.marks.commit(save.snapshot);
+    const taken = this.taken.get(save);
+    if (!taken) return;
+    this.taken.delete(save);
+    this.marks.commit(taken.snapshot);
     // The Status column moved with it, which a paint on its await built before: it builds again.
     this.version++;
-    this.repaintMarks(save.before);
+    this.repaintMarks(taken.before);
   }
 
   /** The bytes of `save` were never written: the Status column stays measured from the last save. */
   notSaved(save: MatSave): void {
-    this.marks.release(save.snapshot);
+    const taken = this.taken.get(save);
+    if (!taken) return;
+    this.taken.delete(save);
+    this.marks.release(taken.snapshot);
   }
 
   /**
    * The bytes a hot-exit backup holds: the whole file as a save would write it, with no save point
    * moved. Where core refuses to write the tree as it stands, says so once (through `notify`),
-   * until a backup succeeds again, and throws: `kept`, an earlier backup still standing, is then
-   * what a restart restores, which the notice says.
+   * until a backup is written again (`backupWritten`), and throws: `kept`, an earlier backup still
+   * standing, is then what a restart restores, which the notice says.
    */
   backup(kept: boolean): Uint8Array {
     try {
-      const bytes = this.serialize();
-      this.backupRefusalShown = false;
-      return bytes;
+      return this.serialize();
     } catch (err) {
       if (!this.backupRefusalShown) {
         this.backupRefusalShown = true;
@@ -385,6 +459,11 @@ export class MatEngine {
       }
       throw err;
     }
+  }
+
+  /** The bytes `backup` handed back are written: a refusal after this one is said again. */
+  backupWritten(): void {
+    this.backupRefusalShown = false;
   }
 
   /**
@@ -434,7 +513,7 @@ export class MatEngine {
    * and not the edit before it. A gesture that threw is not repainted here: whatever core did
    * before it threw is in the tree, and the caller paints every row again and says why.
    */
-  record(label: string, run: (mat: any) => void, touched: () => Iterable<any> = () => []): Observed {
+  private record(label: string, run: (mat: any) => void, touched: () => Iterable<any> = () => []): Observed {
     const mat = this.model();
     const observed = observe(this.session, mat, this.srcId, () => run(mat));
     if (observed.steps > 0) this.pushEdit(label, observed, touched());
@@ -461,7 +540,7 @@ export class MatEngine {
    * to any more (renamed or deleted since the cut) is skipped, and only when none answers is that
    * the answer.
    */
-  deleteMoved(targets: readonly DeleteTarget[]): SourceDeleteResult {
+  private deleteMoved(targets: readonly DeleteTarget[]): SourceDeleteResult {
     let mat: any;
     try {
       mat = this.model();
@@ -516,7 +595,7 @@ export class MatEngine {
    * edits of it, a rename, and the undo of its delete, which puts the node itself back. A variable
    * made since (an Add, a paste, a reload of the file) is another node, with another token.
    */
-  originOf(variable: any): object {
+  private originOf(variable: any): object {
     let token = this.origins.get(variable);
     if (!token) this.origins.set(variable, (token = {}));
     return token;
@@ -617,13 +696,13 @@ export class MatEngine {
 
   /** A table of the document: an EditableTableSource, until its `dispose()`. */
   view(): EditableTableSource & { dispose(): void; repaintAll(): Promise<void> } {
-    return new MatView(this);
+    return new MatView(this.document);
   }
 
   /** Close the document: its tree leaves the session. Its views answer nothing more. */
   dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
+    if (this.closed) return;
+    this.closed = true;
     for (const view of [...this.views]) view.dispose();
     this.session.removeDataSource(this.srcId);
   }
@@ -634,10 +713,27 @@ class ParseFailure extends Error {}
 /** Thrown by a paint whose view closed while it awaited: it has nowhere to go. */
 class Closed extends Error {}
 
+/** What follows a paint, once its rows are delivered: the drop rules, the clipboard, the clip mark. */
+interface Trailer {
+  notice: string | undefined;
+  mat: any;
+  clipMark: ClipMark | undefined;
+}
+
 /**
- * One table of a MAT-file: resolveCustomEditor's view, as an EditableTableSource.
- * @internal
+ * Run one listener's half of a broadcast, keeping whatever it throws — now or, as a rejection,
+ * later — from the other half and from the loop that serves every other table (editorHub's reach).
  */
+function separately(run: () => unknown): void {
+  try {
+    const result = run() as { then?: unknown } | undefined;
+    if (result && typeof result.then === 'function') Promise.resolve(result).catch(() => {});
+  } catch {
+    /* this half misses this broadcast; the next one it gets is complete */
+  }
+}
+
+/** One table of a MAT-file: resolveCustomEditor's view, as an EditableTableSource. */
 class MatView implements EditableTableSource {
   private readonly listeners = new Set<(change: TableChange) => void>();
   private readonly name: string;
@@ -651,10 +747,11 @@ class MatView implements EditableTableSource {
   private lastClasses: readonly string[] = [];
   // The clipboard mark the rows last painted whole carry (repaintClipMark).
   private paintedMark: ClipMark | undefined;
-  // What follows the last paint, once it is delivered (`opened`, or a repaint's own emit).
-  private after: { notice: string | undefined; mat: any; clipMark: ClipMark | undefined } | null = null;
+  // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
+  // sends its own after its own rows.
+  private after: Trailer | null = null;
 
-  constructor(private readonly doc: MatEngine) {
+  constructor(private readonly doc: MatDocument) {
     this.name = doc.metaPath;
     // The MAT planner (rowPlanner.ts): the payload and the answer to a fetch are one walk.
     this.planner = rowPlannerFor(this.name);
@@ -663,9 +760,10 @@ class MatView implements EditableTableSource {
     // a drag's reaches it to predict the drop. A move whose source is this file, pasted or
     // dropped in another document, takes its originals out of this file through the document.
     this.unlisten = registers.listen({
+      // The state and the repaint each on its own terms, as editorHub's broadcast reaches a view.
       clipboard: (state) => {
-        this.emit({ kind: 'clipboard', state });
-        this.repaintClipMark();
+        separately(() => this.emit({ kind: 'clipboard', state }));
+        separately(() => this.repaintClipMark());
       },
       drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
     });
@@ -738,8 +836,8 @@ class MatView implements EditableTableSource {
     }
   }
 
-  /** The whole table, built from the tree; what follows it is kept for `opened`. */
-  private async paint(): Promise<TableView> {
+  /** The whole table, built from the tree, and what follows it once it is delivered. */
+  private async paint(): Promise<{ view: TableView; trailer: Trailer }> {
     let mat = this.tree();
     try {
       let built = this.build(mat);
@@ -769,8 +867,7 @@ class MatView implements EditableTableSource {
         add: { classes: (this.lastClasses = allowedClasses(mat)) },
         ...(warnings === undefined ? {} : { warnings }),
       };
-      this.after = { notice, mat, clipMark: built.clipMark };
-      return view;
+      return { view, trailer: { notice, mat, clipMark: built.clipMark } };
     } catch (err) {
       if (err instanceof Closed || err instanceof ParseFailure) throw err;
       throw new Error(`Failed to show ${this.name}: ${this.doc.describe(err)}`);
@@ -781,10 +878,8 @@ class MatView implements EditableTableSource {
   // land (the whole file, one target, admitting what core says it does), and what the clipboard
   // holds. A read-only file is no target: its empty admitted list would read as "no restriction"
   // (sectionRules.wholeFileRules), so it sends no rule at all.
-  private afterPaint(): void {
-    const after = this.after;
-    this.after = null;
-    if (!after || this.closed) return;
+  private sendTrailer(after: Trailer): void {
+    if (this.closed) return;
     this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : wholeFileRules(after.mat, this.name) });
     this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
     // The mark these rows CARRY. A copy or a cut that landed while they were being built
@@ -797,9 +892,9 @@ class MatView implements EditableTableSource {
   /** Every row painted again from the tree, and what follows a paint. */
   repaintAll(): Promise<void> {
     return this.paint().then(
-      (view) => {
+      ({ view, trailer }) => {
         this.emit({ kind: 'replaceAll', view });
-        this.afterPaint();
+        this.sendTrailer(trailer);
       },
       (err) => {
         if (!(err instanceof Closed)) this.error(messageOf(err));
@@ -941,14 +1036,26 @@ class MatView implements EditableTableSource {
 
   // --- The read half ---------------------------------------------------------------------------
 
+  // A paint cut off by the view's close settles silently, as the extension's does: SourceClosed,
+  // which whoever relays the answer says nothing of.
   open(): Promise<TableView> {
-    if (this.closed) return Promise.reject(new Error(`${this.name} is closed.`));
-    return this.paint();
+    if (this.closed) return Promise.reject(new SourceClosed(`${this.name} is closed.`));
+    return this.paint().then(
+      ({ view, trailer }) => {
+        this.after = trailer;
+        return view;
+      },
+      (err) => {
+        throw err instanceof Closed ? new SourceClosed(`${this.name} is closed.`) : err;
+      },
+    );
   }
 
-  /** The answer of the last `open()` has been shown: send what follows a paint. */
+  /** The answer of the last `open()` has been shown: send what follows its paint. */
   opened(): void {
-    this.afterPaint();
+    const after = this.after;
+    this.after = null;
+    if (after) this.sendTrailer(after);
   }
 
   async children(rowId: string): Promise<ChildRows> {
@@ -1141,20 +1248,20 @@ class MatView implements EditableTableSource {
   // refused here, as every edit of one is.
   copy(rowIds: readonly string[]): void {
     this.handle('copy', () => {
-      copyEntriesToClipboard(rowIds, 'copy', this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastClipboardState));
+      copyEntriesToClipboard(rowIds, 'copy', this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastClipboardState()));
     });
   }
 
   cut(rowIds: readonly string[]): void {
     this.handle('cut', () => {
       if (!this.editableTree()) return;
-      copyEntriesToClipboard(rowIds, 'cut', this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastClipboardState));
+      copyEntriesToClipboard(rowIds, 'cut', this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastClipboardState()));
     });
   }
 
   dragStart(rowIds: readonly string[]): void {
     this.handle('dragStart', () => {
-      dragEntries(rowIds, this.doc.uri, this.copyDeps(this.doc.options.registers.broadcastDragState));
+      dragEntries(rowIds, this.doc.uri, this.copyDeps(() => this.doc.options.registers.broadcastDragState()));
     });
   }
 
@@ -1238,14 +1345,14 @@ class MatView implements EditableTableSource {
   paste(rowId: string): void {
     this.handle('paste', () => {
       const registers = this.doc.options.registers;
-      this.transferred(runTransfer({ rowId }, registers.clipboardRegister(registers.broadcastClipboardState), this.transferAdapter(), this.transferDeps()));
+      this.transferred(runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps()));
     });
   }
 
   drop(rowId: string, mode: 'copy' | 'move'): void {
     this.handle('drop', () => {
       const registers = this.doc.options.registers;
-      this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, registers.broadcastDragState), this.transferAdapter(), this.transferDeps()));
+      this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()));
     });
   }
 

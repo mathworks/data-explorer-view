@@ -169,7 +169,11 @@ in `/model` too:
 - `createRegisters()`: a window's clipboard, drag register and source deleters;
 - `runTransfer`: what a paste or a drop means;
 - the refusals' wording;
-- the hooks a source is given (`EditSink`, `EditIndex`, `TextStore`, `Notify`).
+- `Notify`, where a source says what the table cannot show.
+
+The MAT-file engine behind `createWorkspace({ editing: true })`, and the hooks it is
+given (`EditSink`, `EditIndex`, `TextStore`), are the VS Code extension's, on
+`data-explorer-view/host`.
 
 ## Edit a file
 

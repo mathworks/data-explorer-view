@@ -52,14 +52,14 @@ describe('MAT-file engine: edit, undo, save', () => {
     edit(o, 'scalarD', 'Value', '42');
     edit(o, 'kp', 'Name', 'gain');
     assert.strictEqual(o.events.length, 2);
-    o.events[1].undo();
+    o.undo();
     assert.ok(tableOf(o.view.posts).some((r) => nameOf(r) === 'kp'), 'the rename is undone');
-    o.events[0].undo();
+    o.undo();
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '3.141592653589793', 'the value is undone');
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, '', 'and no longer differs from the file');
     assert.strictEqual(o.index.dirty, false, 'both undone: clean');
-    o.events[0].redo();
-    o.events[1].redo();
+    o.redo();
+    o.redo();
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '42');
     assert.ok(tableOf(o.view.posts).some((r) => nameOf(r) === 'gain'));
     const back = valuesOf(o.save());
@@ -72,8 +72,8 @@ describe('MAT-file engine: edit, undo, save', () => {
     const o = await open('cases.mat');
     edit(o, 'scalarD', 'Value', '42');
     assert.strictEqual(valuesOf(o.save()).get('scalarD').Value, '42');
-    assert.strictEqual(o.engine.generation, 0, 'the save keeps the tree');
-    o.events[0].undo();
+    assert.strictEqual((o.engine as any).generation, 0, 'the save keeps the tree');
+    o.undo();
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '3.141592653589793');
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, 'Modified', 'differs from the file as saved');
     assert.strictEqual(o.index.dirty, true);
@@ -103,11 +103,11 @@ describe('MAT-file engine: edit, undo, save', () => {
   it('a paint in flight across a save paints the Status the save left', async () => {
     const o = await open('cases.mat');
     edit(o, 'scalarD', 'Value', '42');
-    const version = o.engine.version;
+    const version = (o.engine as any).version;
     const from = o.view.posts.length;
     o.view.send({ type: 'ready' });
     o.save();
-    assert.ok(o.engine.version > version, 'the save moved the version a paint checks after its await');
+    assert.ok((o.engine as any).version > version, 'the save moved the version a paint checks after its await');
     await waitFor('the paint', () => o.view.posts.slice(from).some((p) => p.type === 'setRows'));
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, '', 'not the Modified it built before the save');
   });
@@ -141,10 +141,10 @@ describe('MAT-file engine: edit, undo, save', () => {
     const mat: any = o.session.getDataSource(o.engine.srcId);
     mat.getAllowedTypes = () => ['MatlabVariable'];
     try {
-      o.events[0].undo();
+      o.undo();
       await waitFor('the gallery told of the undo', () => classes().length === 1);
       delete mat.getAllowedTypes;
-      o.events[0].redo();
+      o.redo();
       await waitFor('and of the redo', () => classes().length === offered.length);
     } finally {
       delete mat.getAllowedTypes;
@@ -205,9 +205,9 @@ describe('MAT-file engine: edit, undo, save', () => {
     o.view.send({ type: 'delete', rowIds: [kids[0].ID, kids[2].ID] });
     assert.strictEqual(o.events.length, 1, 'one gesture, one edit');
     assert.strictEqual(topRow(o.view.posts, 'rowVec').Value, '2');
-    o.events[0].undo();
+    o.undo();
     assert.strictEqual(topRow(o.view.posts, 'rowVec').Value, '[1 2 3]', 'one undo puts both back');
-    o.events[0].redo();
+    o.redo();
     assert.strictEqual(valuesOf(o.save()).get('rowVec').Value, '2');
     keptUntouched(o.original, o.disk(), ['rowVec']);
   });
@@ -287,12 +287,12 @@ describe('MAT-file engine: edit, undo, save', () => {
     edit(o, 'scalarD', 'Value', '42');
     const saved = o.save();
     edit(o, 'negD', 'Value', '7');
-    (o.engine.options as any).changed = () => changed.push(1);
+    (o.engine as any).options.changed = () => changed.push(1);
     await o.engine.replace(buffer(saved));
     assert.deepStrictEqual(changed, [1], 'told the tree changed, once');
     await waitFor('the reloaded rows', () => topRow(o.view.posts, 'negD').Value === '-2.5');
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '42', 'the disk holds the save');
-    o.events[0].undo();
+    o.undo();
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '42', 'the old tree’s edit does nothing to this one');
     const mat: any = o.session.getDataSource(o.engine.srcId);
     assert.strictEqual(mat.children.find((c: any) => c.name === 'scalarD').toRow().Value, '42');
@@ -323,10 +323,10 @@ describe('MAT-file engine: edit, undo, save', () => {
     await waitFor('the rows as core left them', () => topRow(o.view.posts, 'rowVec').Value === '[2 3]');
     await waitFor('the error, after the paint, which clears the banner', () => saidAfterPaint(o.view.posts.slice(from)));
     assert.match(o.view.posts.filter((p) => p.type === 'error').pop().message, /the second step failed/);
-    o.events[1].undo();
+    o.undo();
     await waitFor('the delete undone', () => topRow(o.view.posts, 'rowVec').Value === '[1 2 3]');
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '42', 'and only the delete');
-    o.events[0].undo();
+    o.undo();
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Value, '3.141592653589793');
     assert.strictEqual(o.index.dirty, false);
   });
@@ -378,6 +378,8 @@ describe('MAT-file engine: edit, undo, save', () => {
     assert.strictEqual(o.index.dirty, true, 'and moves no save point');
     edit(o, 'negD', 'Value', '7');
     const mat: any = o.session.getDataSource(o.engine.srcId);
+    const header = mat.headerBytes;
+    mat.headerBytes = header.slice();
     structuredClone(mat.headerBytes.buffer, { transfer: [mat.headerBytes.buffer] });
     assert.throws(() => o.engine.backup(true));
     assert.throws(() => o.engine.backup(true));
@@ -385,6 +387,19 @@ describe('MAT-file engine: edit, undo, save', () => {
     assert.match(o.notices[0].message, /^Cannot save "cases\.mat": /);
     assert.match(o.notices[0].message, /If VS Code restarts now, it restores cases\.mat as it was before the latest edits\.$/);
     assert.strictEqual(o.notices[0].level, 'warning');
+
+    // Bytes handed back are not yet a backup: only the host's write landing says it again.
+    mat.headerBytes = header;
+    o.engine.backup(true);
+    structuredClone((mat.headerBytes = header.slice()).buffer, { transfer: [mat.headerBytes.buffer] });
+    assert.throws(() => o.engine.backup(true));
+    assert.strictEqual(o.notices.length, 1, 'a backup whose write never landed re-arms nothing');
+    mat.headerBytes = header;
+    o.engine.backup(true);
+    o.engine.backupWritten();
+    structuredClone((mat.headerBytes = header.slice()).buffer, { transfer: [mat.headerBytes.buffer] });
+    assert.throws(() => o.engine.backup(true));
+    assert.strictEqual(o.notices.length, 2, 'once a backup is written, the next refusal is said again');
   });
 
   it('a hot-exit backup is a whole MAT-file, and restoring it restores the edits', async () => {

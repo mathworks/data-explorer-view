@@ -48,7 +48,7 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
-export { isEditable } from './source/tableSource.js';
+export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
@@ -82,14 +82,6 @@ export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
 export { TransferRefused, fileNameOf, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
 export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
 export { answerEditTextRequest } from './edit/editText.js';
-// The in-page undo stack and its save point, and the Status column's marks it is measured with.
-export { EditStack, EditStackIndex } from './edit/editStack.js';
-export { SaveMarks, replacementsIn } from './edit/saveMarks.js';
-// The copy, the cut and the start of a drag every table source shares, and the clipboard's mark.
-export { CopyRefused, buildClipboardSnapshot, buildDragSnapshot, cloneForPaste, copyEntriesToClipboard, dragEntries, recordCopy, sourceSectionOf, } from './edit/clipboardAction.js';
-export { clipMarkChange, clipMarkOfDoc, sameClipMark } from './edit/clipMarks.js';
-// The MAT-file editor: a document over core's session, and each table of it an EditableTableSource.
-export { MatEngine } from './edit/matEngine.js';
 // A folder across a message channel, for a hierarchy where its files are not: the page's end
 // (folderReader), in the same wire format as the host's (serveFolder, on data-explorer-view/serve).
 export { folderReader } from './source/folderReader.js';

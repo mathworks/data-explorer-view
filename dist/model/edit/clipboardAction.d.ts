@@ -87,10 +87,3 @@ export declare function dragEntries(rowIds: readonly string[], uriString: string
  * recordCopy, and not a JSON round trip, which turns a bare Inf, NaN or -0 into null or 0.
  */
 export declare function cloneForPaste(payload: Record<string, unknown>): Record<string, unknown>;
-/**
- * A deep copy of a record as JSON would carry it, but keeping a number JSON has no spelling for
- * (an Inf, a NaN, a -0) as itself: an `undefined`, a function or a symbol member is dropped (null
- * in an array), a `toJSON` is asked, and a `__proto__` key stays a key. A BigInt is refused with a
- * TypeError naming where it stands.
- */
-export declare function recordCopy(value: unknown): unknown;

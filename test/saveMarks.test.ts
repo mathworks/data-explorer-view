@@ -6,7 +6,7 @@
 // kept beside VS Code's edit stack (src/host/saveMarks.ts). Core's own marks outlive a save,
 // because they are what make a save write an edit; these are what the column shows.
 import { describe, it, expect } from 'vitest';
-import { SaveMarks, replacementsIn, type MarkedEdit, type SaveSnapshot } from '../src/model/index.js';
+import { SaveMarks, replacementsIn, type MarkedEdit, type SaveSnapshot } from '../src/host/index.js';
 
 const a = { name: 'a' };
 const b = { name: 'b' };

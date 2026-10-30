@@ -23,7 +23,7 @@ import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRo
 import { resolveOperands } from '../../model/actions/operands.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget } from '../../model/ids/linkTarget.js';
-import { isEditable, } from '../../model/source/tableSource.js';
+import { isEditable, isSourceClosed, } from '../../model/source/tableSource.js';
 import { wireEditing } from './editingWire.js';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
@@ -225,7 +225,9 @@ export function connectTable(table, source, options = {}) {
             paint(v);
             // What the source says after a paint (an editable one's drop rules) follows the rows.
             source.opened?.();
-        }, (err) => !disposed && failed(messageOf(err)));
+        }, 
+        // A source closed while it was asked has nothing to show, and no banner to say it in.
+        (err) => !disposed && !isSourceClosed(err) && failed(messageOf(err)));
     };
     const onChange = (change) => {
         if (disposed)

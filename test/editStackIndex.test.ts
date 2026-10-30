@@ -10,7 +10,7 @@
 // and "keep the edits". The VS Code half is exercised end to end in
 // test-integration/suite/binarySlddOutsideChange.test.ts.
 import { describe, it, expect } from 'vitest';
-import { EditStackIndex as EditStackMirror } from '../src/model/index.js';
+import { EditStackIndex as EditStackMirror } from '../src/host/index.js';
 
 describe('EditStackMirror: VS Code’s dirty flag for a custom document', () => {
   it('starts clean, and dirty when restored from a hot-exit backup', () => {

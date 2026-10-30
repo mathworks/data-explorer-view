@@ -274,6 +274,19 @@ export interface EditableTableSource extends TableSource {
     requestEditText(rowId: string): void;
 }
 /**
+ * Why an answer never came: the source was closed while it was being asked (a table of a document
+ * that closed during its paint). Whoever relays a source's answers (serveTable, connectTable) says
+ * nothing of it, as there is no one left to tell.
+ */
+export declare class SourceClosed extends Error {
+    constructor(message: string);
+}
+/**
+ * Whether `err` is a SourceClosed. By its name, not `instanceof`, as serveTable tells one: the serve
+ * entry loads no module of the model, this one included.
+ */
+export declare const isSourceClosed: (err: unknown) => boolean;
+/**
  * Whether `source` takes edits: it has every command of an EditableTableSource. Whether its
  * table may edit what it shows now is the view's `editable`, which can be false for a source that
  * takes edits (a MAT-file opened for viewing only).

@@ -9,6 +9,7 @@
 //
 // Not compiled here: it imports the extension's files, which this repository does not have.
 import type * as View from 'data-explorer-view/model';
+import type * as Host from 'data-explorer-view/host';
 import type * as Ext from './src/common/protocol.js';
 import type * as ExtTransfer from './src/host/transfer.js';
 import type * as ExtClipboard from './src/host/clipboard.js';
@@ -85,12 +86,12 @@ export type Copies = [
   Is<Same<View.DragDescriptor, ExtDrag.DragDescriptor>>,
   Is<Same<View.DeleteTarget, ExtHub.DeleteTarget>>,
   Is<Same<View.SourceDeleter, ExtHub.SourceDeleter>>,
-  // saveMarks.ts and clipMarks.ts, copied for the MAT-file engine.
-  Is<Same<View.MarkedEdit, ExtMarks.MarkedEdit>>,
-  Is<Same<View.SaveSnapshot, ExtMarks.SaveSnapshot>>,
-  Is<Same<View.SaveMark, ExtMarks.SaveMark>>,
-  Is<Same<View.MarkedEntry, ExtClipMarks.MarkedEntry>>,
+  // saveMarks.ts and clipMarks.ts, copied for the MAT-file engine (on ./host, the extension's).
+  Is<Same<Host.MarkedEdit, ExtMarks.MarkedEdit>>,
+  Is<Same<Host.SaveSnapshot, ExtMarks.SaveSnapshot>>,
+  Is<Same<Host.SaveMark, ExtMarks.SaveMark>>,
+  Is<Same<Host.MarkedEntry, ExtClipMarks.MarkedEntry>>,
 ];
 
 // The hooks the extension's editors will be plugged into: what it has today must fit them.
-export type Hooks = [Is<Fits<EditStackMirror, View.EditIndex>>];
+export type Hooks = [Is<Fits<EditStackMirror, Host.EditIndex>>];
