@@ -15,7 +15,6 @@ import type * as ExtTransfer from './src/host/transfer.js';
 import type * as ExtClipboard from './src/host/clipboard.js';
 import type * as ExtDrag from './src/host/dragState.js';
 import type * as ExtHub from './src/host/editorHub.js';
-import type * as ExtMarks from './src/host/saveMarks.js';
 import type * as ExtClipMarks from './src/host/clipMarks.js';
 import type * as ExtBaseline from './src/host/slddBaseline.js';
 import type * as ExtWide from './src/host/wideRepaint.js';
@@ -68,7 +67,7 @@ export type HostToTable = [
   Is<Fits<View.TableEditHostMessage, Ext.HostToTableMessage>>,
 ];
 
-// The copied modules' types: transfer.ts, clipboard.ts, dragState.ts, editorHub.ts, saveMarks.ts, clipMarks.ts.
+// The copied modules' types: transfer.ts, clipboard.ts, dragState.ts, editorHub.ts, clipMarks.ts.
 export type Copies = [
   Is<Same<View.TransferItem, ExtTransfer.TransferItem>>,
   Is<Same<View.SourceSelector, ExtTransfer.SourceSelector>>,
@@ -88,10 +87,8 @@ export type Copies = [
   Is<Same<View.DragDescriptor, ExtDrag.DragDescriptor>>,
   Is<Same<View.DeleteTarget, ExtHub.DeleteTarget>>,
   Is<Same<View.SourceDeleter, ExtHub.SourceDeleter>>,
-  // saveMarks.ts and clipMarks.ts, copied for the MAT-file engine (on ./host, the extension's).
-  Is<Same<Host.MarkedEdit, ExtMarks.MarkedEdit>>,
-  Is<Same<Host.SaveSnapshot, ExtMarks.SaveSnapshot>>,
-  Is<Same<Host.SaveMark, ExtMarks.SaveMark>>,
+  // clipMarks.ts, copied for the MAT-file engine (on ./host, the extension's). Its saveMarks.ts is
+  // gone: the extension's MAT-file editor runs on this engine, and its Status column is view's.
   Is<Same<Host.MarkedEntry, ExtClipMarks.MarkedEntry>>,
   // slddBaseline.ts's disk half and wideRepaint.ts, copied for the JSON dictionary engine (on ./host).
   Is<Same<Host.BaselineSource, ExtBaseline.BaselineSource>>,

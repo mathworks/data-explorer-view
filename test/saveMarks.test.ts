@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// Ported from data-explorer-vscode test/saveMarks.test.ts at c73da3c: the same cases, run against view's copy
-// of saveMarks.ts (src/model/edit).
+// First ported from the VS Code extension's test/saveMarks.test.ts at c73da3c: the same cases, run against
+// view's saveMarks.ts (src/model/edit), which the extension now uses and no longer copies.
 // The Status column of the MAT-file editor: which variables differ from the file as last saved,
 // kept beside VS Code's edit stack (src/host/saveMarks.ts). Core's own marks outlive a save,
 // because they are what make a save write an edit; these are what the column shows.

@@ -1,8 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// Copied from data-explorer-vscode src/host/saveMarks.ts at c73da3c. The extension keeps its own
-// copy until its editors move onto view's sources; keep the two alike (view's CI reports a vscode
-// commit to that file).
+// First copied from the VS Code extension's src/host/saveMarks.ts at c73da3c. The extension has no
+// copy of its own any more: its MAT-file editor runs on view's engine, and this is the one there is.
 //
 // Which variables of an open MAT-file differ from the file as last saved, for the Status column.
 //
