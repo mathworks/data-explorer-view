@@ -106,6 +106,31 @@ describe('the first paint', () => {
     expect(table.loading).toBe(true);
   });
 
+  it('takes what the source says while it paints after the rows and what follows them, which do not land over it', async () => {
+    const row = (value: string) => ({ ID: 'a', parent: null, Name: { label: 'a' }, Value: value }) as any;
+    const view = { docUri: 'file:///w/a.sldd', rows: [row('old')], columns: ['Name', 'Value'], columnLabels: {}, columnGroups: {}, editable: false };
+    const listeners = new Set<(c: TableChange) => void>();
+    let answer: (v: any) => void = () => {};
+    const order: string[] = [];
+    const source: TableSource = {
+      open: () => new Promise((resolve) => (answer = resolve)),
+      opened: () => void order.push('opened'),
+      children: async (nodeId) => ({ nodeId, rows: [], truncated: 0 }),
+      matrix: async (nodeId) => ({ nodeId, message: 'none' }),
+      inspect: async () => ({ groups: [] }),
+      subscribe: (l) => (listeners.add(l), () => void listeners.delete(l)),
+    } as TableSource & { opened(): void };
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, source, { variableEditor: fakeEditor().editor }));
+    // The row changes while the rows painted before it are on their way.
+    for (const l of listeners) l({ kind: 'updateEntry', entryRowId: 'a', rows: [row('new')] });
+    answer(view);
+    await settle(table);
+    expect(order).toEqual(['opened']);
+    expect(table.rows.find((r) => r.ID === 'a')?.Value).toBe('new');
+  });
+
   it('says nothing of a source closed while it was asked (SourceClosed), and shows any other failure', async () => {
     const answers: [Error, string | null][] = [
       [new SourceClosed('a.mat is closed.'), null],
@@ -714,5 +739,23 @@ describe('against a host across a channel', () => {
     send({ type: 'setRows', ...view });
     await settle(table);
     expect(table.banners?.error).toBeUndefined();
+  });
+
+  // The host says things in its own order: an entry it repainted before it answered `ready` is
+  // older than the rows that answer it. Taken as it arrives, as view 1.0.0 took it, and never held
+  // until the rows are in, where it would land over them. (Held only for a source that is told the
+  // paint has been shown: an in-page engine, served by serveTable or connected directly.)
+  it('takes what the host says before the rows as it arrives, as view 1.0.0 did', async () => {
+    const row = (value: string) => ({ ID: 'a', parent: null, Name: { label: 'a' }, Value: value }) as any;
+    const { port, posted, send } = hostPort();
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, messageSource(port), { variableEditor: fakeEditor().editor }));
+    send({ type: 'updateEntryRows', entryRowId: 'a', rows: [row('older')] });
+    send({ type: 'setRows', docUri: 'file:///w/a.sldd', rows: [row('newer')], columns: ['Name', 'Value'] });
+    await settle(table);
+    expect(table.rows.map((r) => r.Value)).toEqual(['newer']);
+    // The entry it could not apply asked for the whole table again, as it does after the rows.
+    expect(posted).toEqual([{ type: 'ready' }, { type: 'ready' }]);
   });
 });

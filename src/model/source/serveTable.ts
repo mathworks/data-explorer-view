@@ -115,7 +115,9 @@ const WIRE_CLIENT_TYPES = new Set([
  * - `select` with `showProps` for the selection's first row, or `empty`;
  * - and every change the source makes, as it makes it: `setRows`, `updateEntryRows`,
  *   `insertEntryRows` or `error`, and an editable source's `sectionRules`, `clipboardState`,
- *   `dragState`, `selectRows`, `beginRename`, `validationError`, `refused` and `editText`.
+ *   `dragState`, `selectRows`, `beginRename`, `validationError`, `refused` and `editText`. What it
+ *   says while a `ready` is being answered is held until the `setRows` and what follows it are
+ *   out, and then sent in the order it was said.
  *
  * An editing message (`edit`, `copy`, `cut`, `delete`, `paste`, `addChild`, `addEntry`, `undo`,
  * `redo`, `dragStart`, `dragEnd`, `drop`, `requestEditText`) is handed to the source's command of
@@ -138,9 +140,20 @@ export function serveTable(source: TableSource, port: TablePort, options: ServeT
   const answer = <T>(question: Promise<T>, toMessage: (value: T) => TableHostMessage): void => {
     question.then((value) => post(toMessage(value)), () => {});
   };
-  const unsubscribe = source.subscribe((change) =>
-    post(change.kind === 'replaceAll' ? setRows(change.view) : changeMessage(change)),
-  );
+  // What the source says while a `ready` is being answered: held from the ask until the paint, and
+  // what follows it (opened), have gone out, and then sent in the order it was said. Said before
+  // the rows, it would reach a table that has not got them, and the rows would land over it.
+  let held: (TableHostMessage | TableEditHostMessage)[] | null = null;
+  const unsubscribe = source.subscribe((change) => {
+    const message = change.kind === 'replaceAll' ? setRows(change.view) : changeMessage(change);
+    if (held) held.push(message);
+    else post(message);
+  });
+  const release = (): void => {
+    const queued = held ?? [];
+    held = null;
+    for (const message of queued) post(message);
+  };
   // The commands, where the source has them. Read once: a source is what it is.
   const editing = source as Partial<EditableTableSource>;
   const unlisten = port.onMessage((m) => {
@@ -152,15 +165,22 @@ export function serveTable(source: TableSource, port: TablePort, options: ServeT
     }
     switch (msg.type) {
       case 'ready':
+        held ??= [];
         source.open().then(
           (view) => {
+            // The rows, then what the source says after a paint (it follows the rows it is about),
+            // then whatever it said meanwhile.
+            const queued = held;
+            held = null;
             post(setRows(view));
-            // What the source says after a paint follows the rows it is about.
             if (!stopped) source.opened?.();
+            held = queued;
+            release();
           },
           // A source closed while it was asked has no one to say it to (SourceClosed).
           (err) => {
             if ((err as { name?: unknown } | null)?.name !== 'SourceClosed') post({ type: 'error', message: messageOf(err) });
+            release();
           },
         );
         return;

@@ -173,6 +173,20 @@ describe('MAT-file engine: paints', () => {
     assert.deepStrictEqual(unbound, []);
   });
 
+  it('what the engine says while a table is being painted reaches it after the rows and what follows them', async () => {
+    const o = await open('cases.mat');
+    const second = viewOf(o.engine);
+    second.send({ type: 'ready' });
+    // An edit in another table of the document, while this one's rows are on their way.
+    edit(o, 'scalarD', 'Value', '42');
+    await waitFor('the second table painted', () => second.posts.some((p) => p.type === 'setRows'));
+    await quiet();
+    const types = second.posts.map((p) => p.type);
+    assert.deepStrictEqual(types.slice(0, 3), ['setRows', 'sectionRules', 'clipboardState'], 'the rows first, and what follows them');
+    assert.ok(types.indexOf('updateEntryRows') > 2, 'and the edit after them');
+    assert.strictEqual(tableOf(second.posts).find((r) => r.parent == null && r.Name?.label === 'scalarD').Value, '42');
+  });
+
   it('a throw in what follows a paint is said as the paint failing, after the rows, and goes no further', async () => {
     const inner = createRegisters();
     let broken = false;
