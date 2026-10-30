@@ -363,7 +363,8 @@ export class BinaryEngine {
    * chunk as though an edit had written it (to hold the save gate to a chunk no edit could
    * write), push an edit as a gesture pushes one, replace its pass-through parts from a zip's
    * members as a reload does, and reach the set of tables a repaint reaches (where a suite puts a
-   * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran). None repaints anything.
+   * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran; closing the document closes
+   * only the tables that are real). None repaints anything.
    */
   readonly forTests = {
     setChunk: (xml: string): void => {
@@ -691,7 +692,8 @@ export class BinaryEngine {
   dispose(): void {
     if (this.closed) return;
     this.closed = true;
-    for (const view of [...this.views]) view.dispose();
+    // A stand-in a suite put in the set (forTests.views) has no table to close.
+    for (const view of [...this.views]) (view as { dispose?(): void }).dispose?.();
     this.session.removeDataSource(this.srcId);
   }
 }

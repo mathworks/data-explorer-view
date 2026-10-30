@@ -65,11 +65,16 @@ describe("the compressed dictionary engine's seam for the extension's suites", (
     );
   });
 
-  it('reaches the tables a repaint reaches, where a stand-in sees which repaint ran', () => {
+  it('reaches the tables a repaint reaches, where a stand-in sees which repaint ran', async () => {
     const { engine } = document();
     const calls: string[] = [];
     engine.forTests.views.add({ repaintAll: (from) => calls.push(`all ${from ?? 'chunk'}`), repaintOps: () => calls.push('ops') });
     engine.repaintAll('registered');
     assert.deepStrictEqual(calls, ['all registered']);
+    // Closing the document closes its real tables, and leaves the stand-in, which has none.
+    const real = engine.view();
+    engine.dispose();
+    assert.strictEqual(engine.disposed, true);
+    await assert.rejects(real.open(), /is closed/);
   });
 });
