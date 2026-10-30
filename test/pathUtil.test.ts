@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // Unit tests for the shared path utilities in src/model/ids/pathUtil.ts.
 import { describe, it, expect } from 'vitest';
-import { basename, dirname, projectPathSegments, uriBasename } from '../src/model/ids/pathUtil.js';
+import { basename, dirname, projectPathSegments, uriBasename, uriPathBasename } from '../src/model/ids/pathUtil.js';
 
 describe('pathUtil', () => {
   describe('basename', () => {
@@ -74,6 +74,30 @@ describe('pathUtil', () => {
 
     it('strips #hash before extracting basename', () => {
       expect(uriBasename('file:///a/b/c.mat#section')).toBe('c.mat');
+    });
+  });
+
+  // What `basename(uri.path)` gives a VS Code uri, whose path is decoded: the engines name their
+  // document by it.
+  describe('uriPathBasename', () => {
+    it('is the last segment of the path, decoded, without the query or fragment', () => {
+      expect(uriPathBasename('file:///work/my%20params.sldd')).toBe('my params.sldd');
+      expect(uriPathBasename('file:///work/my%20gains%231.mat?x=1#y')).toBe('my gains#1.mat');
+      expect(uriPathBasename('file://server/share/a.sldd')).toBe('a.sldd');
+    });
+
+    it('decodes before it splits, so an encoded separator splits as a decoded path does', () => {
+      expect(uriPathBasename('file:///work/a%5Cb.sldd')).toBe('b.sldd');
+      expect(uriPathBasename('file:///work/a%2Fb.sldd')).toBe('b.sldd');
+    });
+
+    it('takes a uri with no authority, and is empty where the path ends in a separator', () => {
+      expect(uriPathBasename('untitled:Untitled-1')).toBe('Untitled-1');
+      expect(uriPathBasename('file:///')).toBe('');
+    });
+
+    it('keeps a malformed escape as written', () => {
+      expect(uriPathBasename('file:///work/100%.sldd')).toBe('100%.sldd');
     });
   });
 });

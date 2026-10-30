@@ -41,3 +41,20 @@ export function projectPathSegments(relPath: string): string[] {
 export function uriBasename(uriString: string): string {
   return basename(uriString.split(/[?#]/)[0]);
 }
+
+/**
+ * The last segment of a uri's path, decoded: what `basename(uri.path)` gives for a VS Code uri, whose
+ * `path` is decoded. The path is the uri after its scheme and authority, before any `?query` or
+ * `#fragment`; decoded first and split after (on both separators, as `basename` splits), so an
+ * encoded separator in it splits as VS Code's does. Empty for a uri whose path ends in `/`.
+ */
+export function uriPathBasename(uriString: string): string {
+  const path = uriString.split(/[?#]/)[0].replace(/^[a-z][a-z0-9+.-]*:(\/\/[^/]*)?/i, '');
+  let decoded = path;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    /* a malformed escape: the path as written */
+  }
+  return basename(decoded);
+}

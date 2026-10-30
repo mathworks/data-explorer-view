@@ -19,3 +19,10 @@ export declare function dirname(p: string): string;
 export declare function projectPathSegments(relPath: string): string[];
 /** Basename of a URI string, stripping any `?query` or `#hash` first. */
 export declare function uriBasename(uriString: string): string;
+/**
+ * The last segment of a uri's path, decoded: what `basename(uri.path)` gives for a VS Code uri, whose
+ * `path` is decoded. The path is the uri after its scheme and authority, before any `?query` or
+ * `#fragment`; decoded first and split after (on both separators, as `basename` splits), so an
+ * encoded separator in it splits as VS Code's does. Empty for a uri whose path ends in `/`.
+ */
+export declare function uriPathBasename(uriString: string): string;

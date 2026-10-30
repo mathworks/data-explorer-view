@@ -189,9 +189,12 @@ export interface Registers {
   broadcastDragState(): void;
 }
 
-// Run one listener's half of a broadcast, keeping whatever it throws — now or, for a post that
-// answers a promise, later as a rejection — from reaching the loop that serves every other one.
-function reach(run: () => unknown): void {
+/**
+ * Run one listener's half of a broadcast, keeping whatever it throws — now or, for a post that
+ * answers a promise, later as a rejection — from reaching the loop that serves every other one.
+ * An engine's own listener runs each half of its answer through it too, as editorHub reaches a view.
+ */
+export function reach(run: () => unknown): void {
   try {
     const result = run() as { then?: unknown } | undefined;
     if (result && typeof result.then === 'function') {

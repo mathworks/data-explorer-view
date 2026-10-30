@@ -1,4 +1,10 @@
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
+/**
+ * What a matrix page says of a node it cannot read as a table: matrixRequest.ts's one message,
+ * spelled here as the serve entry loads no module of the model (test/editWire.test.ts holds the two
+ * alike).
+ */
+const NO_MATRIX = 'This value could not be read as a table.';
 /** A change as the message that carries it. */
 function changeMessage(change) {
     switch (change.kind) {
@@ -115,16 +121,18 @@ export function serveTable(source, port, options = {}) {
                         post({ type: 'error', message: messageOf(err) });
                 });
                 return;
+            // A question the source cannot be asked (an id that is not a string) is answered as the
+            // extension's host answers it, with no node: the id echoed as it came, and nothing in it.
             case 'requestChildren':
                 if (typeof msg.nodeId !== 'string')
-                    return;
+                    return post({ type: 'childRows', nodeId: msg.nodeId, rows: [], truncated: 0 });
                 answer(source.children(msg.nodeId), (rows) => ({ type: 'childRows', ...rows }));
                 return;
-            case 'requestMatrix': {
-                const nodeId = typeof msg.nodeId === 'string' ? msg.nodeId : '';
-                answer(source.matrix(nodeId), (page) => ({ type: 'matrixCells', ...page }));
+            case 'requestMatrix':
+                if (typeof msg.nodeId !== 'string')
+                    return post({ type: 'matrixCells', nodeId: msg.nodeId, message: NO_MATRIX });
+                answer(source.matrix(msg.nodeId), (page) => ({ type: 'matrixCells', ...page }));
                 return;
-            }
             case 'select': {
                 const rowIds = Array.isArray(msg.rowIds) ? msg.rowIds.filter((id) => typeof id === 'string') : [];
                 answer(source.inspect(rowIds), (page) => page.rowId === undefined ? { type: 'empty' } : { type: 'showProps', groups: page.groups });
@@ -155,7 +163,10 @@ export function serveTable(source, port, options = {}) {
                 return editing.dragEnd?.();
             case 'drop':
                 return editing.drop?.(msg.rowId, msg.mode);
+            // Asked only of a row, as the extension's host asks it: anything else has no answer.
             case 'requestEditText':
+                if (typeof msg.rowId !== 'string')
+                    return;
                 return editing.requestEditText?.(msg.rowId);
         }
     });

@@ -18,6 +18,7 @@ import {
   type TableSource,
 } from '../src/model/index.js';
 import { channel } from './goldens/channel.js';
+import { matrixCellsMessage } from '../src/model/matrix/matrixRequest.js';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures', 'wire-edit');
 const fixtures = (side: 'client' | 'host') =>
@@ -252,6 +253,28 @@ describe('serveTable hands each command on', () => {
       await tick();
       expect(posted, err.message).toEqual(said);
     }
+  });
+
+  it("answers a question with an id that is not a string as the extension's host does, without asking the source", async () => {
+    const { port, posted, send } = syncPort();
+    const asked: string[] = [];
+    const { source } = recordingSource();
+    const watched: EditableTableSource = {
+      ...source,
+      children: async (nodeId) => (asked.push('children'), { nodeId, rows: [], truncated: 0 }),
+      matrix: async (nodeId) => (asked.push('matrix'), { nodeId, message: 'none' }),
+      requestEditText: () => void asked.push('requestEditText'),
+    };
+    serveTable(watched, port);
+    send({ type: 'requestChildren', nodeId: 7 });
+    send({ type: 'requestMatrix', nodeId: null });
+    send({ type: 'requestEditText', rowId: 5 });
+    await tick();
+    expect(asked).toEqual([]);
+    expect(posted).toEqual([
+      { type: 'childRows', nodeId: 7, rows: [], truncated: 0 },
+      { type: 'matrixCells', nodeId: null, message: matrixCellsMessage('', null).message },
+    ]);
   });
 
   it("passes a command's fields on as the table sent them: the source judges them", () => {
