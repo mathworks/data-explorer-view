@@ -139,12 +139,12 @@ export class MatEngine {
          * has nothing to undo on another's: its steps were on the stack that left with the old tree, so
          * its undo and redo check this first.
          */
-        this.generation = 0;
+        this.treeGeneration = 0;
         /**
          * Moved by every change to the tree, and by every save (which moves the Status column), so a
          * paint that awaited can tell it is stale.
          */
-        this.version = 0;
+        this.treeVersion = 0;
         /** Which variables differ from the file as last saved, for the Status column. */
         this.marks = new SaveMarks();
         /** The tables that show it. */
@@ -191,6 +191,14 @@ export class MatEngine {
     /** Whether `dispose()` has closed it. */
     get disposed() {
         return this.closed;
+    }
+    /** How many trees have been registered from the disk since it opened (each `replace`). */
+    get generation() {
+        return this.treeGeneration;
+    }
+    /** Moved by every change to the tree and by every save: what a paint that awaited checks it against. */
+    get version() {
+        return this.treeVersion;
     }
     get session() {
         return this.options.session;
@@ -288,7 +296,7 @@ export class MatEngine {
         this.taken.delete(save);
         this.marks.commit(taken.snapshot);
         // The Status column moved with it, which a paint on its await built before: it builds again.
-        this.version++;
+        this.treeVersion++;
         this.repaintMarks(taken.before);
     }
     /** The bytes of `save` were never written: the Status column stays measured from the last save. */
@@ -329,23 +337,23 @@ export class MatEngine {
      */
     pushEdit(label, observed, touched = []) {
         const steps = observed.steps;
-        const generation = this.generation;
+        const generation = this.treeGeneration;
         const mark = this.marks.push([...observed.touched, ...touched], observed.added, observed.replaced);
         const { index, sink } = this.options;
-        this.version++;
+        this.treeVersion++;
         index.pushed();
         sink.push({
             label,
             undo: () => {
                 index.undone();
-                if (generation !== this.generation)
+                if (generation !== this.treeGeneration)
                     return this.staleEdit('undone');
                 mark.undone();
                 this.replay('undo', steps);
             },
             redo: () => {
                 index.redone();
-                if (generation !== this.generation)
+                if (generation !== this.treeGeneration)
                     return this.staleEdit('redone');
                 mark.redone();
                 this.replay('redo', steps);
@@ -375,7 +383,7 @@ export class MatEngine {
         if (observed.steps > 0)
             this.pushEdit(label, observed, touched());
         if (observed.error) {
-            this.version++;
+            this.treeVersion++;
             // Whatever core did before it threw is in the tree, which the caller paints again.
             this.options.changed?.();
             return observed;
@@ -474,7 +482,7 @@ export class MatEngine {
                     this.session.redo();
             }
         });
-        this.version++;
+        this.treeVersion++;
         if (observed.error) {
             // Core's own step threw part-way: the tree is whatever it left, so every row is painted
             // again from it, and the user is told. Nothing can put the two stacks back in step.
@@ -545,8 +553,8 @@ export class MatEngine {
         this.session.removeDataSource(this.srcId);
         this.bytes = bytes;
         this.loaded = null;
-        this.generation++;
-        this.version++;
+        this.treeGeneration++;
+        this.treeVersion++;
         this.marks.clear();
         // Registered now rather than at the paint, so that what asks the session next finds the new
         // tree. A file that no longer reads says so at the paint.
@@ -592,6 +600,9 @@ class MatView {
         // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
         // sends its own after its own rows.
         this.after = null;
+        // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+        // delivered (`opened`), and the repaint waiting on it.
+        this.awaiting = [];
         // A row's node, as the commands resolve it: a lookup that throws is a command that throws, and
         // is said as one (handle).
         this.findNode = (rowId) => this.session.findNodeById?.(rowId) ?? null;
@@ -741,6 +752,12 @@ class MatView {
     /** Every row painted again from the tree, and what follows a paint. */
     repaintAll() {
         return this.paint().then(({ view, trailer }) => {
+            if (this.doc.options.trailerAfterDelivery) {
+                return new Promise((done) => {
+                    this.awaiting.push({ trailer, done });
+                    this.emit({ kind: 'replaceAll', view });
+                });
+            }
             this.emit({ kind: 'replaceAll', view });
             this.sendTrailer(trailer);
         }, (err) => {
@@ -893,14 +910,29 @@ class MatView {
         if (this.closed)
             return Promise.reject(new SourceClosed(`${this.name} is closed.`));
         return this.paint().then(({ view, trailer }) => {
-            this.after = trailer;
+            if (this.doc.options.trailerAfterDelivery)
+                this.awaiting.push({ trailer });
+            else
+                this.after = trailer;
             return view;
         }, (err) => {
             throw err instanceof Closed ? new SourceClosed(`${this.name} is closed.`) : err;
         });
     }
-    /** The answer of the last `open()` has been shown: send what follows its paint. */
+    /**
+     * The answer of the last `open()` has been shown: send what follows its paint. With
+     * trailerAfterDelivery, the oldest whole paint not yet said to be delivered (an `open()` answer
+     * or a `replaceAll`) has been: what follows it is sent, and its repaint resolves.
+     */
     opened() {
+        if (this.doc.options.trailerAfterDelivery) {
+            const next = this.awaiting.shift();
+            if (!next)
+                return;
+            this.sendTrailer(next.trailer);
+            next.done?.();
+            return;
+        }
         const after = this.after;
         this.after = null;
         if (after)
@@ -1218,6 +1250,9 @@ class MatView {
         this.doc.views.delete(this);
         this.unlisten();
         this.listeners.clear();
+        // A repaint whose rows can no longer be delivered has nothing more to wait for.
+        for (const { done } of this.awaiting.splice(0))
+            done?.();
         const registers = this.doc.options.registers;
         // A drag that started in this view and is still on goes with it, so that a drop elsewhere
         // cannot complete against a source no view shows.

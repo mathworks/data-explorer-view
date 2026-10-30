@@ -36,6 +36,15 @@ export interface MatEngineOptions {
     appName?: string;
     /** Called after every change to the tree, once every view is told: a gesture, an undo, a redo, a reload. */
     changed?: () => void;
+    /**
+     * The host delivers every whole paint's rows itself, and calls the view's `opened()` once they
+     * are: a repaint's trailer (the drop rules, the clipboard, the clip-mark repaint) then waits for
+     * that call, as `open()`'s does, and the repaint resolves after it, so that what is said after a
+     * repaint follows its trailer. One `opened()` per whole paint (each `open()` answered and each
+     * `replaceAll`), in the order they were sent. The VS Code extension's, whose post of the rows is
+     * awaited before what follows them. Default: false, a repaint's trailer follows its rows at once.
+     */
+    trailerAfterDelivery?: boolean;
 }
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
 export interface MatSave {
@@ -59,12 +68,12 @@ export declare class MatEngine {
      * has nothing to undo on another's: its steps were on the stack that left with the old tree, so
      * its undo and redo check this first.
      */
-    private generation;
+    private treeGeneration;
     /**
      * Moved by every change to the tree, and by every save (which moves the Status column), so a
      * paint that awaited can tell it is stale.
      */
-    private version;
+    private treeVersion;
     /** Which variables differ from the file as last saved, for the Status column. */
     private readonly marks;
     /** The tables that show it. */
@@ -82,6 +91,10 @@ export declare class MatEngine {
     constructor(options: MatEngineOptions);
     /** Whether `dispose()` has closed it. */
     get disposed(): boolean;
+    /** How many trees have been registered from the disk since it opened (each `replace`). */
+    get generation(): number;
+    /** Moved by every change to the tree and by every save: what a paint that awaited checks it against. */
+    get version(): number;
     private get session();
     private notify;
     /**
