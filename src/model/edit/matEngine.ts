@@ -116,6 +116,15 @@ export interface MatEngineOptions {
   appName?: string;
   /** Called after every change to the tree, once every view is told: a gesture, an undo, a redo, a reload. */
   changed?: () => void;
+  /**
+   * The host delivers every whole paint's rows itself, and calls the view's `opened()` once they
+   * are: a repaint's trailer (the drop rules, the clipboard, the clip-mark repaint) then waits for
+   * that call, as `open()`'s does, and the repaint resolves after it, so that what is said after a
+   * repaint follows its trailer. One `opened()` per whole paint (each `open()` answered and each
+   * `replaceAll`), in the order they were sent. The VS Code extension's, whose post of the rows is
+   * awaited before what follows them. Default: false, a repaint's trailer follows its rows at once.
+   */
+  trailerAfterDelivery?: boolean;
 }
 
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
@@ -264,13 +273,13 @@ export class MatEngine {
    * has nothing to undo on another's: its steps were on the stack that left with the old tree, so
    * its undo and redo check this first.
    */
-  private generation = 0;
+  private treeGeneration = 0;
 
   /**
    * Moved by every change to the tree, and by every save (which moves the Status column), so a
    * paint that awaited can tell it is stale.
    */
-  private version = 0;
+  private treeVersion = 0;
 
   /** Which variables differ from the file as last saved, for the Status column. */
   private readonly marks = new SaveMarks<any>();
@@ -327,6 +336,16 @@ export class MatEngine {
   /** Whether `dispose()` has closed it. */
   get disposed(): boolean {
     return this.closed;
+  }
+
+  /** How many trees have been registered from the disk since it opened (each `replace`). */
+  get generation(): number {
+    return this.treeGeneration;
+  }
+
+  /** Moved by every change to the tree and by every save: what a paint that awaited checks it against. */
+  get version(): number {
+    return this.treeVersion;
   }
 
   private get session(): Session {
@@ -427,7 +446,7 @@ export class MatEngine {
     this.taken.delete(save);
     this.marks.commit(taken.snapshot);
     // The Status column moved with it, which a paint on its await built before: it builds again.
-    this.version++;
+    this.treeVersion++;
     this.repaintMarks(taken.before);
   }
 
@@ -473,22 +492,22 @@ export class MatEngine {
    */
   private pushEdit(label: string, observed: Observed, touched: Iterable<any> = []): void {
     const steps = observed.steps;
-    const generation = this.generation;
+    const generation = this.treeGeneration;
     const mark = this.marks.push([...observed.touched, ...touched], observed.added, observed.replaced);
     const { index, sink } = this.options;
-    this.version++;
+    this.treeVersion++;
     index.pushed();
     sink.push({
       label,
       undo: () => {
         index.undone();
-        if (generation !== this.generation) return this.staleEdit('undone');
+        if (generation !== this.treeGeneration) return this.staleEdit('undone');
         mark.undone();
         this.replay('undo', steps);
       },
       redo: () => {
         index.redone();
-        if (generation !== this.generation) return this.staleEdit('redone');
+        if (generation !== this.treeGeneration) return this.staleEdit('redone');
         mark.redone();
         this.replay('redo', steps);
       },
@@ -518,7 +537,7 @@ export class MatEngine {
     const observed = observe(this.session, mat, this.srcId, () => run(mat));
     if (observed.steps > 0) this.pushEdit(label, observed, touched());
     if (observed.error) {
-      this.version++;
+      this.treeVersion++;
       // Whatever core did before it threw is in the tree, which the caller paints again.
       this.options.changed?.();
       return observed;
@@ -615,7 +634,7 @@ export class MatEngine {
         else this.session.redo();
       }
     });
-    this.version++;
+    this.treeVersion++;
     if (observed.error) {
       // Core's own step threw part-way: the tree is whatever it left, so every row is painted
       // again from it, and the user is told. Nothing can put the two stacks back in step.
@@ -681,8 +700,8 @@ export class MatEngine {
     this.session.removeDataSource(this.srcId);
     this.bytes = bytes;
     this.loaded = null;
-    this.generation++;
-    this.version++;
+    this.treeGeneration++;
+    this.treeVersion++;
     this.marks.clear();
     // Registered now rather than at the paint, so that what asks the session next finds the new
     // tree. A file that no longer reads says so at the paint.
@@ -737,6 +756,9 @@ class MatView implements EditableTableSource {
   // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
   // sends its own after its own rows.
   private after: Trailer | null = null;
+  // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+  // delivered (`opened`), and the repaint waiting on it.
+  private awaiting: { trailer: Trailer; done?: () => void }[] = [];
 
   constructor(private readonly doc: MatDocument) {
     this.name = doc.metaPath;
@@ -889,6 +911,12 @@ class MatView implements EditableTableSource {
   repaintAll(): Promise<void> {
     return this.paint().then(
       ({ view, trailer }) => {
+        if (this.doc.options.trailerAfterDelivery) {
+          return new Promise<void>((done) => {
+            this.awaiting.push({ trailer, done });
+            this.emit({ kind: 'replaceAll', view });
+          });
+        }
         this.emit({ kind: 'replaceAll', view });
         this.sendTrailer(trailer);
       },
@@ -1038,7 +1066,8 @@ class MatView implements EditableTableSource {
     if (this.closed) return Promise.reject(new SourceClosed(`${this.name} is closed.`));
     return this.paint().then(
       ({ view, trailer }) => {
-        this.after = trailer;
+        if (this.doc.options.trailerAfterDelivery) this.awaiting.push({ trailer });
+        else this.after = trailer;
         return view;
       },
       (err) => {
@@ -1047,8 +1076,19 @@ class MatView implements EditableTableSource {
     );
   }
 
-  /** The answer of the last `open()` has been shown: send what follows its paint. */
+  /**
+   * The answer of the last `open()` has been shown: send what follows its paint. With
+   * trailerAfterDelivery, the oldest whole paint not yet said to be delivered (an `open()` answer
+   * or a `replaceAll`) has been: what follows it is sent, and its repaint resolves.
+   */
   opened(): void {
+    if (this.doc.options.trailerAfterDelivery) {
+      const next = this.awaiting.shift();
+      if (!next) return;
+      this.sendTrailer(next.trailer);
+      next.done?.();
+      return;
+    }
     const after = this.after;
     this.after = null;
     if (after) this.sendTrailer(after);
@@ -1375,6 +1415,8 @@ class MatView implements EditableTableSource {
     this.doc.views.delete(this);
     this.unlisten();
     this.listeners.clear();
+    // A repaint whose rows can no longer be delivered has nothing more to wait for.
+    for (const { done } of this.awaiting.splice(0)) done?.();
     const registers = this.doc.options.registers;
     // A drag that started in this view and is still on goes with it, so that a drop elsewhere
     // cannot complete against a source no view shows.
