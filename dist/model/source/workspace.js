@@ -8,7 +8,10 @@
 // one: a workspace neither reads nor writes it.
 //
 // What a document's table answers is what the extension's host sends its table for the same file,
-// built by the same functions from the same route (readDocument.ts), read-only.
+// built by the same functions from the same route (readDocument.ts), read-only. With `editing`, a
+// MAT-file is edited in the page: its table is the MAT-file engine's (edit/matEngine.ts, the
+// extension's MAT-file editor lifted), over an undo stack of the page's own, and the document saves
+// through the Doc's save half (`serialize`, `saved`).
 import { createSession } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
@@ -21,6 +24,9 @@ import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { annotateModelViewRows, annotateVariableRows } from '../usage/usageCells.js';
 import { DocumentRegistry } from '../workspace/SlddModel.js';
+import { EditStack, EditStackIndex } from '../edit/editStack.js';
+import { MatEngine } from '../edit/matEngine.js';
+import { createRegisters } from '../edit/registers.js';
 import { docKindOf, readDocument } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
@@ -39,6 +45,8 @@ class InPageDoc {
         this.uri = uri;
         this.name = name;
         this.kind = kind;
+        this.editable = false;
+        this.dirty = false;
         this.failure = '';
         this.listeners = new Set();
         this.disposed = false;
@@ -57,6 +65,14 @@ class InPageDoc {
             },
         };
     }
+    onDirty() {
+        return () => { };
+    }
+    serialize() {
+        throw new Error(`${this.name} is not edited in this workspace.`);
+    }
+    saved() { }
+    notSaved() { }
     async reload(bytes) {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
@@ -233,6 +249,132 @@ class InPageDoc {
     }
 }
 /**
+ * A MAT-file edited in the page: the MAT-file engine (edit/matEngine.ts) over an undo stack of its
+ * own, its one table the engine's view, and its saves the engine's.
+ */
+class EditableMatDoc {
+    constructor(shared, uri, name, bytes) {
+        this.shared = shared;
+        this.uri = uri;
+        this.name = name;
+        this.kind = 'mat';
+        this.editable = true;
+        this.stack = new EditStack();
+        this.index = new EditStackIndex();
+        this.dirtyListeners = new Set();
+        this.wasDirty = false;
+        this.disposed = false;
+        // The stack's position, as the engine moves it, told to whoever listens for `dirty`.
+        const index = this.index;
+        const watched = {
+            get dirty() {
+                return index.dirty;
+            },
+            get moves() {
+                return index.moves;
+            },
+            here: () => index.here(),
+            pushed: () => this.moved(() => index.pushed()),
+            undone: () => this.moved(() => index.undone()),
+            redone: () => this.moved(() => index.redone()),
+            saved: (at) => this.moved(() => index.saved(at)),
+            reverted: () => this.moved(() => index.reverted()),
+        };
+        this.engine = new MatEngine({
+            session: shared.registry.session,
+            uri,
+            name,
+            bytes,
+            sink: this.stack,
+            index: watched,
+            registers: shared.registers,
+            notify: shared.notify,
+            budget: shared.budget,
+            usage: {
+                fill: async (rows) => {
+                    const usage = this.shared.usage;
+                    if (!usage || rows.length === 0)
+                        return;
+                    this.graph = await usage.graphFor(this.uri);
+                    annotateVariableRows(this.uri, rows, this.graph);
+                },
+                fillNow: (rows) => {
+                    if (this.graph && rows.length > 0)
+                        annotateVariableRows(this.uri, rows, this.graph);
+                },
+            },
+        });
+        this.view = this.engine.view();
+        this.table = this.view;
+        this.subscribeReposts();
+    }
+    get dirty() {
+        return this.index.dirty;
+    }
+    onDirty(listener) {
+        this.dirtyListeners.add(listener);
+        return () => void this.dirtyListeners.delete(listener);
+    }
+    moved(move) {
+        move();
+        const dirty = this.index.dirty;
+        if (dirty === this.wasDirty)
+            return;
+        this.wasDirty = dirty;
+        for (const listener of [...this.dirtyListeners])
+            listener(dirty);
+    }
+    serialize() {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        const save = this.engine.beginSave();
+        return { bytes: save.bytes, at: save };
+    }
+    saved(at) {
+        if (this.disposed)
+            return;
+        const save = at;
+        this.engine.saved(save);
+        this.moved(() => this.index.saved(save.at));
+    }
+    notSaved(at) {
+        if (this.disposed)
+            return;
+        this.engine.notSaved(at);
+    }
+    async reload(bytes) {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        // A new tree: no edit made before has anything to undo on it, and it holds what the disk does.
+        this.stack.clear();
+        this.moved(() => this.index.reverted());
+        this.graph = undefined;
+        await this.engine.replace(arrayBufferOf(bytes));
+    }
+    async repaint() {
+        if (this.disposed)
+            return;
+        this.graph = undefined;
+        await this.view.repaintAll();
+    }
+    subscribeReposts() {
+        this.reposts?.dispose();
+        this.reposts = this.disposed ? undefined : this.shared.usageReposts?.subscribe(() => void this.refillUsage());
+    }
+    async refillUsage() {
+        await this.repaint();
+    }
+    dispose() {
+        if (this.disposed)
+            return;
+        this.disposed = true;
+        this.reposts?.dispose();
+        this.engine.dispose();
+        this.dirtyListeners.clear();
+        this.shared.closed(this);
+    }
+}
+/**
  * A workspace: the documents of a page, read by core in the page.
  *
  * ```ts
@@ -252,6 +394,8 @@ export function createWorkspace(options = {}) {
         budget,
         usage: options.usage,
         usageReposts: options.usageReposts,
+        registers: options.registers ?? createRegisters(),
+        notify: options.notify,
         closed: (doc) => {
             if (docs.get(doc.uri) === doc)
                 docs.delete(doc.uri);
@@ -269,7 +413,9 @@ export function createWorkspace(options = {}) {
             }
             if (docs.has(id))
                 throw new Error(`${id} is already open in this workspace.`);
-            const doc = new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
+            const doc = kind === 'mat' && options.editing
+                ? new EditableMatDoc(shared, id, name, arrayBufferOf(bytes))
+                : new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
             docs.set(id, doc);
             return doc;
         },

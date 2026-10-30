@@ -23,7 +23,8 @@ export interface ServeTableOptions {
 /**
  * Answer the table's end of `port` from `source`, until the returned function is called:
  *
- * - `ready` with `setRows` (the source's `open()`), or `error` with why it cannot be shown;
+ * - `ready` with `setRows` (the source's `open()`), or `error` with why it cannot be shown; after
+ *   the `setRows`, the source is told (`opened`), for what it says after a paint;
  * - `requestChildren` with `childRows`, `requestMatrix` with `matrixCells`;
  * - `select` with `showProps` for the selection's first row, or `empty`;
  * - and every change the source makes, as it makes it: `setRows`, `updateEntryRows`,

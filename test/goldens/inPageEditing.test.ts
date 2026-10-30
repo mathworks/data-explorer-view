@@ -1,0 +1,123 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// A MAT-file edited in the page against the VS Code extension's golden payloads, editing fields
+// and all. inPage.test.ts holds every in-page source to the goldens with a read-only source's
+// fields; here every MAT-file the extension pins is opened in a workspace made with `editing`, on
+// the MAT-file engine (src/model/edit/matEngine.ts), and served across a channel as the
+// extension's host serves its table. Its first paint must be what the extension's MAT-file editor
+// posts, message for message and key for key: the `setRows` with `editable` and the Add gallery's
+// classes, then the drop rules and the clipboard. Its inspector pages, matrices and lazy children
+// must be the goldens' too, since the engine answers them itself.
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { createWorkspace, isSectionRowId, type TableSource } from '../../src/model/index.js';
+import { serveTable } from '../../src/serve/index.js';
+import { digestRows, snapshotText } from './snapshotText.js';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const REPO = resolve(import.meta.dirname, '../..');
+const SNAPSHOTS = join(import.meta.dirname, '__snapshots__');
+const SMALL_BUDGET = 5;
+
+const FIXTURES = readdirSync(SNAPSHOTS)
+  .filter((key) => existsSync(join(SNAPSHOTS, key, 'table.json')))
+  .map((key) => key.split('__').join('/'))
+  .filter((rel) => rel.endsWith('.mat'))
+  .sort();
+
+const snapshotFile = (rel: string, kind: string): string => join(SNAPSHOTS, rel.split('/').join('__'), `${kind}.json`);
+const golden = (rel: string, kind: string): any => JSON.parse(readFileSync(snapshotFile(rel, kind), 'utf8'));
+
+/** The messages the first paint posts, served across a channel as the extension serves it. */
+async function firstPaint(table: TableSource): Promise<any[]> {
+  const posts: any[] = [];
+  let hear: (m: unknown) => void = () => {};
+  const stop = serveTable(table, {
+    postMessage: (m) => void posts.push(JSON.parse(JSON.stringify(m))),
+    onMessage: (l) => ((hear = l), () => {}),
+  });
+  hear({ type: 'ready' });
+  for (let i = 0; i < 50 && !posts.some((p) => p.type === 'clipboardState' || p.type === 'error'); i++) {
+    await new Promise((done) => setTimeout(done, 0));
+  }
+  stop();
+  return posts;
+}
+
+/** A paint's messages as JSON text, with a golden's digested rows digested the same way. */
+function paintText(posts: any[], want: any[]): string {
+  return JSON.stringify(
+    posts.map((p, i) => (p.type === 'setRows' && want[i]?.rows?.digested ? { ...p, rows: digestRows(p.rows) } : p)),
+  );
+}
+
+async function keyed(rows: any[], answer: (row: any) => Promise<unknown>): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  for (const row of rows) {
+    const value = await answer(row);
+    if (value === undefined) continue;
+    out[row.ID] = value;
+  }
+  return out;
+}
+
+async function withEditable(rel: string, budget: number | undefined, use: (table: TableSource) => Promise<void>): Promise<void> {
+  const ws = createWorkspace({ editing: true, ...(budget === undefined ? {} : { rowBudget: budget }) });
+  try {
+    const name = rel.slice(rel.lastIndexOf('/') + 1);
+    const doc = await ws.open(new Uint8Array(readFileSync(join(REPO, rel))), name, `file:///fx/${rel}`);
+    expect(doc.editable).toBe(true);
+    await use(doc.table);
+  } finally {
+    ws.dispose();
+  }
+}
+
+describe("a MAT-file edited in the page answers what the extension's MAT-file editor sends", { timeout: 60_000 }, () => {
+  it('has the MAT-files the extension pins', () => {
+    expect(FIXTURES.length).toBeGreaterThan(10);
+  });
+
+  for (const rel of FIXTURES) {
+    it(rel, async () => {
+      await withEditable(rel, undefined, async (table) => {
+        const want = golden(rel, 'table');
+        const posts = await firstPaint(table);
+        expect(paintText(posts, want)).toBe(JSON.stringify(want));
+
+        const view = await table.open();
+        const inspector = await keyed(view.rows, async (row) => {
+          if (isSectionRowId(row.ID)) return undefined;
+          const page = await table.inspect(row.ID);
+          return page.rowId === undefined ? undefined : { type: 'showProps', groups: page.groups };
+        });
+        expect(snapshotText(inspector)).toBe(readFileSync(snapshotFile(rel, 'inspector'), 'utf8'));
+        const matrix = await keyed(view.rows, async (row) => {
+          if (!row._matrix) return undefined;
+          const page = await table.matrix(row._matrix.nodeId);
+          return page.matrix
+            ? { type: 'matrixCells', nodeId: page.nodeId, matrix: page.matrix }
+            : { type: 'matrixCells', nodeId: page.nodeId, message: page.message };
+        });
+        expect(snapshotText(matrix)).toBe(readFileSync(snapshotFile(rel, 'matrix'), 'utf8'));
+      });
+
+      await withEditable(rel, SMALL_BUDGET, async (table) => {
+        const want = golden(rel, 'table-lazy');
+        const posts = await firstPaint(table);
+        expect(paintText(posts, want)).toBe(JSON.stringify(want));
+        const view = await table.open();
+        const children = await keyed(
+          view.rows.filter((row: any) => row._lazy),
+          async (row) => {
+            const { nodeId, rows, truncated } = await table.children(row.ID);
+            return { type: 'childRows', nodeId, rows, truncated };
+          },
+        );
+        expect(snapshotText(children)).toBe(readFileSync(snapshotFile(rel, 'children-lazy'), 'utf8'));
+      });
+    });
+  }
+});

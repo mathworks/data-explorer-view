@@ -197,6 +197,13 @@ export interface TableSource {
   inspect(selection: string | readonly string[]): Promise<InspectorView>;
   /** Hear every change after `open()`, until the returned function is called. */
   subscribe(listener: (change: TableChange) => void): () => void;
+  /**
+   * The answer of the last `open()` has been shown: a table painted it (connectTable), or a channel
+   * posted it (serveTable). A source that has more to say after a paint (an editable one's drop
+   * rules and clipboard) says it now, as changes, so that they arrive after the rows they are about.
+   * Optional; a read-only source has nothing to add.
+   */
+  opened?(): void;
 }
 
 /** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */

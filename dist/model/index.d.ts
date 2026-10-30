@@ -43,7 +43,7 @@ export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hiera
 export type { CellEdit, ChildRows, ClipboardStatus, EditableTableSource, InspectorFeed, InspectorView, MatrixPage, NewEntry, TableChange, TableSource, TableView, } from './source/tableSource.js';
 export { isEditable } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
-export type { Doc, DocKind, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 export { projectPageMessage, readProjectPage } from './source/projectPage.js';
 export type { SetProjectMessage } from './source/projectPage.js';
@@ -80,6 +80,15 @@ export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, descri
 export type { RefusalSession, RefusedGesture } from './edit/refusal.js';
 export { answerEditTextRequest } from './edit/editText.js';
 export type { EditTextSession } from './edit/editText.js';
+export { EditStack, EditStackIndex } from './edit/editStack.js';
+export { SaveMarks, replacementsIn } from './edit/saveMarks.js';
+export type { MarkedEdit, SaveMark, SaveSnapshot } from './edit/saveMarks.js';
+export { CopyRefused, buildClipboardSnapshot, buildDragSnapshot, cloneForPaste, copyEntriesToClipboard, dragEntries, recordCopy, sourceSectionOf, } from './edit/clipboardAction.js';
+export type { CopyDeps, SnapshotSession } from './edit/clipboardAction.js';
+export { clipMarkChange, clipMarkOfDoc, sameClipMark } from './edit/clipMarks.js';
+export type { MarkedEntry } from './edit/clipMarks.js';
+export { MatEngine } from './edit/matEngine.js';
+export type { MatEngineOptions, MatSave, UsageFill } from './edit/matEngine.js';
 export { folderReader } from './source/folderReader.js';
 export type { FolderReader } from './source/folderReader.js';
 export { folderFileList } from './hierarchy/folderList.js';

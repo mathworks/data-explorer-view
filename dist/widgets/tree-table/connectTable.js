@@ -219,7 +219,13 @@ export function connectTable(table, source, options = {}) {
     };
     /** The table and its source are out of step: ask for the whole table again. */
     const reopen = () => {
-        source.open().then((v) => !disposed && paint(v), (err) => !disposed && failed(messageOf(err)));
+        source.open().then((v) => {
+            if (disposed)
+                return;
+            paint(v);
+            // What the source says after a paint (an editable one's drop rules) follows the rows.
+            source.opened?.();
+        }, (err) => !disposed && failed(messageOf(err)));
     };
     const onChange = (change) => {
         if (disposed)

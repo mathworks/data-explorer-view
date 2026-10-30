@@ -61,7 +61,8 @@ const WIRE_CLIENT_TYPES = new Set([
 /**
  * Answer the table's end of `port` from `source`, until the returned function is called:
  *
- * - `ready` with `setRows` (the source's `open()`), or `error` with why it cannot be shown;
+ * - `ready` with `setRows` (the source's `open()`), or `error` with why it cannot be shown; after
+ *   the `setRows`, the source is told (`opened`), for what it says after a paint;
  * - `requestChildren` with `childRows`, `requestMatrix` with `matrixCells`;
  * - `select` with `showProps` for the selection's first row, or `empty`;
  * - and every change the source makes, as it makes it: `setRows`, `updateEntryRows`,
@@ -102,7 +103,12 @@ export function serveTable(source, port, options = {}) {
         }
         switch (msg.type) {
             case 'ready':
-                source.open().then((view) => post(setRows(view)), (err) => post({ type: 'error', message: messageOf(err) }));
+                source.open().then((view) => {
+                    post(setRows(view));
+                    // What the source says after a paint follows the rows it is about.
+                    if (!stopped)
+                        source.opened?.();
+                }, (err) => post({ type: 'error', message: messageOf(err) }));
                 return;
             case 'requestChildren':
                 if (typeof msg.nodeId !== 'string')
