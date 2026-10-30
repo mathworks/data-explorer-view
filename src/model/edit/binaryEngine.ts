@@ -357,6 +357,20 @@ export class BinaryEngine {
     return this.zipMeta;
   }
 
+  /**
+   * For the VS Code extension's integration suites only; not for apps. What those suites do to the
+   * document behind its tables, as they did before its editor moved onto this engine: set its
+   * chunk as though an edit had written it (to hold the save gate to a chunk no edit could
+   * write), and push an edit as a gesture pushes one. Neither repaints anything.
+   */
+  readonly forTests = {
+    setChunk: (xml: string): void => {
+      this.chunk = xml;
+    },
+    pushEdit: (label: string, before: string, after: string, patch?: EntryPatch, part?: ScPartPatch): void =>
+      this.pushEdit(label, before, after, patch, part),
+  };
+
   private get session(): Session {
     return this.options.session;
   }

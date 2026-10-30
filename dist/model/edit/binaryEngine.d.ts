@@ -135,6 +135,16 @@ export declare class BinaryEngine {
     get chunkXml(): string;
     /** The pass-through parts as they stand. */
     get parts(): Readonly<Record<string, Uint8Array>>;
+    /**
+     * For the VS Code extension's integration suites only; not for apps. What those suites do to the
+     * document behind its tables, as they did before its editor moved onto this engine: set its
+     * chunk as though an edit had written it (to hold the save gate to a chunk no edit could
+     * write), and push an edit as a gesture pushes one. Neither repaints anything.
+     */
+    readonly forTests: {
+        setChunk: (xml: string) => void;
+        pushEdit: (label: string, before: string, after: string, patch?: EntryPatch, part?: ScPartPatch) => void;
+    };
     private get session();
     private notify;
     /** Core's message, saying the file's name where core says the srcId (refusal.ts's describeSource). */
