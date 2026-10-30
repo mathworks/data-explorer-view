@@ -14,6 +14,8 @@ import type * as ExtTransfer from './src/host/transfer.js';
 import type * as ExtClipboard from './src/host/clipboard.js';
 import type * as ExtDrag from './src/host/dragState.js';
 import type * as ExtHub from './src/host/editorHub.js';
+import type * as ExtMarks from './src/host/saveMarks.js';
+import type * as ExtClipMarks from './src/host/clipMarks.js';
 import type { EditStackMirror } from './src/host/diskConflict.js';
 
 /** Each assignable to the other, with the same keys. */
@@ -63,7 +65,7 @@ export type HostToTable = [
   Is<Fits<View.TableEditHostMessage, Ext.HostToTableMessage>>,
 ];
 
-// The copied modules' types: transfer.ts, clipboard.ts, dragState.ts, editorHub.ts.
+// The copied modules' types: transfer.ts, clipboard.ts, dragState.ts, editorHub.ts, saveMarks.ts, clipMarks.ts.
 export type Copies = [
   Is<Same<View.TransferItem, ExtTransfer.TransferItem>>,
   Is<Same<View.SourceSelector, ExtTransfer.SourceSelector>>,
@@ -83,6 +85,11 @@ export type Copies = [
   Is<Same<View.DragDescriptor, ExtDrag.DragDescriptor>>,
   Is<Same<View.DeleteTarget, ExtHub.DeleteTarget>>,
   Is<Same<View.SourceDeleter, ExtHub.SourceDeleter>>,
+  // saveMarks.ts and clipMarks.ts, copied for the MAT-file engine.
+  Is<Same<View.MarkedEdit, ExtMarks.MarkedEdit>>,
+  Is<Same<View.SaveSnapshot, ExtMarks.SaveSnapshot>>,
+  Is<Same<View.SaveMark, ExtMarks.SaveMark>>,
+  Is<Same<View.MarkedEntry, ExtClipMarks.MarkedEntry>>,
 ];
 
 // The hooks the extension's editors will be plugged into: what it has today must fit them.
