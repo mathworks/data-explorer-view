@@ -82,8 +82,3 @@ export declare function copyEntriesToClipboard(rowIds: readonly string[], mode: 
  * and says why. Returns whether anything is being dragged, for the tests.
  */
 export declare function dragEntries(rowIds: readonly string[], uriString: string, deps: CopyDeps): boolean;
-/**
- * Deep-clone a clipboard payload so repeated pastes don't alias the same object: through
- * recordCopy, and not a JSON round trip, which turns a bare Inf, NaN or -0 into null or 0.
- */
-export declare function cloneForPaste(payload: Record<string, unknown>): Record<string, unknown>;

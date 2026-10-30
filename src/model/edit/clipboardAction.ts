@@ -3,11 +3,11 @@
 // Copied from data-explorer-vscode src/host/clipboardAction.ts at c73da3c.
 // Copied from data-explorer-vscode src/host/structuralEdit.ts at c73da3c (its register snapshots:
 // owningEntriesOf, CopyRefused, sourceSectionOf, refuseUncopyable, entriesSharingAName,
-// entryNameCounts, registerItemsOf, buildDragSnapshot, buildClipboardSnapshot and cloneForPaste).
-// Copied from data-explorer-vscode src/host/entryOps.ts at c73da3c (its recordCopy and copyAt).
-// With core's session and the registers passed in rather than read from the extension's
-// module-level ones. The extension keeps its own copies until its editors move onto view's
-// sources; keep them alike (view's CI reports a vscode commit to any of those files).
+// entryNameCounts, registerItemsOf, buildDragSnapshot and buildClipboardSnapshot). Its
+// cloneForPaste, with entryOps.ts's recordCopy, is core's (v1.53.0), which the MAT-file engine's
+// paste clones with. With core's session and the registers passed in rather than read from the
+// extension's module-level ones. The extension keeps its own copies until its editors move onto
+// view's sources; keep them alike (view's CI reports a vscode commit to any of those files).
 //
 // The copy/cut half of the clipboard, and the start of a drag, shared by every table source.
 // Everything format-specific is injected: `refresh` (bring the model up to date with the live
@@ -286,48 +286,4 @@ export function dragEntries(rowIds: readonly string[], uriString: string, deps: 
     deps.post({ type: 'error', message: err instanceof CopyRefused ? err.message : `Failed to drag: ${(err as Error).message}` });
     return false;
   }
-}
-
-/**
- * Deep-clone a clipboard payload so repeated pastes don't alias the same object: through
- * recordCopy, and not a JSON round trip, which turns a bare Inf, NaN or -0 into null or 0.
- */
-export function cloneForPaste(payload: Record<string, unknown>): Record<string, unknown> {
-  return recordCopy(payload) as Record<string, unknown>;
-}
-
-/**
- * A deep copy of a record as JSON would carry it, but keeping a number JSON has no spelling for
- * (an Inf, a NaN, a -0) as itself: an `undefined`, a function or a symbol member is dropped (null
- * in an array), a `toJSON` is asked, and a `__proto__` key stays a key. A BigInt is refused with a
- * TypeError naming where it stands.
- */
-function recordCopy(value: unknown): unknown {
-  return copyAt(value, '');
-}
-
-function copyAt(value: unknown, at: string): unknown {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'bigint') {
-    throw new TypeError(`Do not know how to serialize a BigInt${at ? ` (at ${at})` : ''}`);
-  }
-  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') return undefined;
-  if (value === null || typeof value !== 'object') return value;
-  const asJson = (value as { toJSON?: () => unknown }).toJSON;
-  if (typeof asJson === 'function') return copyAt(asJson.call(value), at);
-  if (Array.isArray(value)) {
-    return value.map((element, i) => {
-      const copy = copyAt(element, `${at}[${i}]`);
-      return copy === undefined ? null : copy;
-    });
-  }
-  const out: Record<string, unknown> = {};
-  for (const [key, member] of Object.entries(value)) {
-    const copy = copyAt(member, at ? `${at}.${key}` : key);
-    if (copy === undefined) continue;
-    // Defined, not assigned: assigning `__proto__` would set the copy's prototype, where a
-    // JSON.parse makes it an own key like any other.
-    Object.defineProperty(out, key, { value: copy, enumerable: true, writable: true, configurable: true });
-  }
-  return out;
 }

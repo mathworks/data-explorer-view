@@ -38,7 +38,7 @@
 // Each table that shows the document is a view (`view()`), an EditableTableSource: what is the
 // document's (a repaint after an edit, its undo or its redo) reaches every view, and what is a
 // gesture's (its refusal, its selection) only the view it was made in.
-import { toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
+import { cloneForPaste, toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
 import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
@@ -65,7 +65,7 @@ import {
   type TableChange,
   type TableView,
 } from '../source/tableSource.js';
-import { cloneForPaste, copyEntriesToClipboard, dragEntries, type CopyDeps } from './clipboardAction.js';
+import { copyEntriesToClipboard, dragEntries, type CopyDeps } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { answerEditTextRequest } from './editText.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
@@ -1306,8 +1306,8 @@ class MatView implements EditableTableSource {
         const observed = this.gesture(
           label,
           () => {
-            // Clones, as a dictionary's paste takes (recordCopy: a number JSON has no spelling for
-            // stays itself): the register keeps its records for the next paste.
+            // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
+            // spelling for stays itself): the register keeps its records for the next paste.
             result = this.session.pasteEntries(this.doc.srcId, payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
           },
           () => (result && 'nodes' in result ? result.nodes : []),

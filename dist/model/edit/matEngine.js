@@ -38,7 +38,7 @@
 // Each table that shows the document is a view (`view()`), an EditableTableSource: what is the
 // document's (a repaint after an edit, its undo or its redo) reaches every view, and what is a
 // gesture's (its refusal, its selection) only the view it was made in.
-import { toEntrySelector } from 'data-explorer-core';
+import { cloneForPaste, toEntrySelector } from 'data-explorer-core';
 import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
@@ -53,7 +53,7 @@ import { refuseIfUnreadable, sourceWarnings, warningBanner } from '../rows/parse
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { SourceClosed, } from '../source/tableSource.js';
-import { cloneForPaste, copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
+import { copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './refusal.js';
@@ -1155,8 +1155,8 @@ class MatView {
                     throw new Error(`a move within ${this.name} reached its paste`);
                 let result;
                 const observed = this.gesture(label, () => {
-                    // Clones, as a dictionary's paste takes (recordCopy: a number JSON has no spelling for
-                    // stays itself): the register keeps its records for the next paste.
+                    // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
+                    // spelling for stays itself): the register keeps its records for the next paste.
                     result = this.session.pasteEntries(this.doc.srcId, payloads.map((p) => cloneForPaste(p)));
                 }, () => (result && 'nodes' in result ? result.nodes : []));
                 if (!observed)

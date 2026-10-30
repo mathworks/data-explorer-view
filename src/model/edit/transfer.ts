@@ -2,7 +2,9 @@
 //
 // Copied from data-explorer-vscode src/host/transfer.ts at c73da3c. The extension keeps its own
 // copy until its editors move onto view's sources; keep the two alike (view's CI reports a vscode
-// commit to that file).
+// commit to that file). One difference: TransferRefused is core's (v1.53.0), not a class of its
+// own, since core's paste rules (refuseDisallowedPaste) throw it, and the policy below tells a
+// refusal by it.
 //
 // What a paste or a drop MEANS, said once for every editable table.
 //
@@ -34,7 +36,7 @@
 // a custom document's own stack, a session gesture over core's tree — is the adapter's, and
 // this module neither knows nor imports any of it. That is also why it is vscode-free: every
 // branch above is unit-tested with a fake adapter (test/transfer.test.ts).
-import { entrySelectorOf, type EntrySelector } from 'data-explorer-core';
+import { TransferRefused, entrySelectorOf, type EntrySelector } from 'data-explorer-core';
 import { uriBasename } from '../ids/pathUtil.js';
 
 /** One entry a transfer carries: what to paste, and the section it was taken from. */
@@ -196,18 +198,14 @@ export interface TransferRequest {
 }
 
 /**
- * A refusal that changed nothing: a message, and no repair.
+ * A refusal that changed nothing: a message, and no repair. Core's class, re-exported: core's
+ * paste rules throw it, and an adapter does too.
  *
  * Thrown by an adapter (or the policy) only while the document, its model and its rows are all
  * still exactly as they were — the cut stays on the clipboard for another try, and no repaint
  * is spent putting back what was never moved.
  */
-export class TransferRefused extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransferRefused';
-  }
-}
+export { TransferRefused };
 
 /** How a transfer ended. Callers need not read it; it is what the policy's branches are tested by. */
 export type TransferOutcome =
