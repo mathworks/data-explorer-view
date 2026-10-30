@@ -1,4 +1,5 @@
 import type { Session } from 'data-explorer-core';
+import type { EditableTableSource } from '../source/tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import { type DocumentRegistry } from '../workspace/SlddModel.js';
 import type { Notify, TextStore } from './hooks.js';
@@ -104,8 +105,19 @@ export declare class JsonEngine {
      * save writes the text as it stands.
      */
     fileHolds(text: string): void;
-    /** A table of the document: an EditableTableSource, until its `dispose()`. */
-    view(): JsonView;
+    /**
+     * A table of the document: an EditableTableSource, until its `dispose()`. Its `locateInText` is
+     * where a row's entry is in the text, for a host with a text view to show it (null when it cannot
+     * be found, which the table says).
+     */
+    view(): EditableTableSource & {
+        dispose(): void;
+        repaintAll(): Promise<void>;
+        locateInText(rowId: string): {
+            offset: number;
+            length: number;
+        } | null;
+    };
     /** Close the document: every table closes, and the last releases the tree it held. */
     dispose(): void;
 }

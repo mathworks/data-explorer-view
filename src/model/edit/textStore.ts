@@ -8,6 +8,18 @@
 // `dirty`, read while a change is heard, is still what it was before it: a change that moved it is
 // followed by one with no replacements, read with the new value, as VS Code reports a document's
 // dirty state. A save that turns it clean is heard the same way, and on `onSave`.
+//
+// Where it is the page's own, and not a TextDocument:
+// - A reload (`reset`) is one replacement of the characters that differ, and empties the undo
+//   stack, as the page's MAT-file and compressed dictionary documents do. VS Code's is an edit over
+//   whole lines, which Undo takes back. A change on an entry's boundary can then be repainted
+//   narrowly here and wide there, or the other way round; the rows painted are the same.
+// - Saves can land in any order, where VS Code runs a document's saves one at a time. A save of a
+//   text the store has moved on from (one that landed late, over a newer one) leaves it dirty until
+//   the next save, whatever undo does, even back to the very text that was written: the file holds
+//   an older text than the store's, and which one is not tracked. That errs on the side of a save.
+// - A listener that throws is reported (`report`: the host's notice, or the console), as VS Code's
+//   emitter logs it; never thrown again, which a Node or Electron host would take for a crash.
 import { minimalReplacement, type TextPatch } from 'data-explorer-core';
 import type { RangeReplacement, TextStore, TextStoreChange } from './hooks.js';
 
@@ -22,8 +34,9 @@ interface Step {
 export interface PageTextStore extends TextStore {
   /**
    * The text at `version` is the file on disk. If the store is still at that version it turns clean
-   * at once (heard, and on `onSave`); otherwise the edits since stay unsaved. At once, unlike an
-   * edit: a save is of a text that has already landed, and an edit still on its way lands after it.
+   * at once (heard, and on `onSave`); otherwise it is dirty until the next save (see the header). At
+   * once, unlike an edit: a save is of a text that has already landed, and an edit still on its way
+   * lands after it.
    */
   saved(version: number): void;
   /**
@@ -34,14 +47,17 @@ export interface PageTextStore extends TextStore {
   reset(text: string): Promise<void>;
 }
 
-/** A store of `text`, as read from its file: clean, at version 1. */
-export function createTextStore(text: string): PageTextStore {
+/**
+ * A store of `text`, as read from its file: clean, at version 1. A listener's throw goes to
+ * `report` (by default the console).
+ */
+export function createTextStore(text: string, report: (err: unknown) => void = (err) => console.error(err)): PageTextStore {
   let current = text;
   let version = 1;
   const undoable: Step[] = [];
   const redoable: Step[] = [];
   // The undo stack's height when the text was last the file's, or null once that state is gone
-  // (an edit made over an undone save).
+  // (an edit made over an undone save, or a save of a text the store had moved on from).
   let savedAt: number | null = 0;
   // What `dirty` reads: the state as of the last change heard (see the header).
   let reported = false;
@@ -53,16 +69,18 @@ export function createTextStore(text: string): PageTextStore {
   const actualDirty = (): boolean => savedAt !== undoable.length;
 
   // Each listener on its own terms, as VS Code's emitter calls them: one that throws costs the others
-  // nothing, nor the change its landing (its dirty state, its edit's answer), and its throw reaches
-  // the page's error handler a turn later.
+  // nothing, nor the change its landing (its dirty state, its edit's answer), and its throw is
+  // reported, as the emitter logs it.
   const each = <A extends unknown[]>(listeners: Iterable<(...args: A) => void>, ...args: A): void => {
     for (const listener of [...listeners]) {
       try {
         listener(...args);
       } catch (err) {
-        queueMicrotask(() => {
-          throw err;
-        });
+        try {
+          report(err);
+        } catch {
+          // A report that fails has nowhere left to go.
+        }
       }
     }
   };
@@ -173,7 +191,13 @@ export function createTextStore(text: string): PageTextStore {
       return () => void saveListeners.delete(listener);
     },
     saved(at) {
-      if (at !== version) return;
+      // A save of a text the store has moved on from: the file is older than the text, and no state
+      // of the undo stack is known to be it any longer.
+      if (at !== version) {
+        savedAt = null;
+        settleDirty();
+        return;
+      }
       savedAt = undoable.length;
       settleDirty();
       each(saveListeners);

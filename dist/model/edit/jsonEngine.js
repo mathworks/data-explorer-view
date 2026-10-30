@@ -78,10 +78,17 @@ export class JsonEngine {
         this.baseline.capture(tree);
         state.baseline.captured = true;
         state.baseline.version = -1;
+        // No version of the text is the file's now, even one a save that landed before this one made
+        // clean: the next repaint keeps this baseline, and does not take one from the text.
+        state.baseline.cleanAt = -1;
         for (const repaint of state.repaints)
             repaint();
     }
-    /** A table of the document: an EditableTableSource, until its `dispose()`. */
+    /**
+     * A table of the document: an EditableTableSource, until its `dispose()`. Its `locateInText` is
+     * where a row's entry is in the text, for a host with a text view to show it (null when it cannot
+     * be found, which the table says).
+     */
     view() {
         if (this.closed)
             throw new Error(`${this.name} is closed.`);

@@ -62,7 +62,7 @@ export class JsonView {
         /** The table has asked for its rows (`open`). Until then a wide repaint paints nothing. */
         this.ready = false;
         // The newest wide repaint, for an older one whose rows it replaces to resolve with.
-        this.latestPost = Promise.resolve();
+        this.latestPost = Promise.resolve(true);
         // An `open()` waiting for the rows the next wide repaint lands.
         this.pendingOpen = null;
         // What follows the paint `open()` last answered, until it is delivered (`opened`).
@@ -219,12 +219,14 @@ export class JsonView {
     /**
      * Rebuild the model from the text and paint every row: on open, on every change of the text that
      * is not a single entry's, and on save. Resolves when the rows are sent; a repaint whose rows are
-     * dropped (wideLanding) resolves when the rows that replace them are.
+     * dropped (wideLanding) resolves when the rows that replace them are. Resolves false when what
+     * follows the rows threw (sendTrailer): what a caller says after the repaint is then not said, as
+     * the extension's rejected repaint skips it.
      */
     post() {
         // A closed table repaints nothing, and a table not yet asked for its rows is painted when it is.
         if (this.disposed || !this.ready)
-            return Promise.resolve();
+            return Promise.resolve(true);
         // Counted before the text is read: a write painted before this point is never again taken for
         // one whose rows are on screen, and a repaint begun before it is no longer the newest.
         const epoch = ++this.wideEpoch;
@@ -258,7 +260,7 @@ export class JsonView {
                 .then(() => {
                 // Closed while the graph was awaited: nothing to post to, and no re-read.
                 if (this.disposed)
-                    return;
+                    return true;
                 // Only if these rows are still the answer: the newest repaint, over the text they were
                 // built from, with nothing painted or put out of step behind them.
                 const landing = wideLanding({ epoch, version, touched }, { epoch: this.wideEpoch, version: this.doc.text.version, touched: this.rowsTouched });
@@ -286,11 +288,10 @@ export class JsonView {
                     this.pendingOpen = null;
                     this.after = trailer;
                     opening.resolve(view);
+                    return true;
                 }
-                else {
-                    this.emit({ kind: 'replaceAll', view });
-                    this.sendTrailer(trailer);
-                }
+                this.emit({ kind: 'replaceAll', view });
+                return this.sendTrailer(trailer);
             });
         }
         catch (err) {
@@ -306,31 +307,41 @@ export class JsonView {
             else {
                 this.error(message);
             }
-            return Promise.resolve();
+            return Promise.resolve(true);
         }
     }
     // Behind the rows: this document's section drop rules, so the table can predict a drop, what the
     // clipboard holds, and the clip mark these rows CARRY (a copy or a cut that landed while they
     // waited is painted again, after them). Outside the paint's own try, as the extension's are: a
-    // throw here ends what follows the rows (the rest of the trailer, and `changed`), says nothing,
-    // and leaves the rows, already sent, in step.
+    // throw here ends what follows the rows (the rest of the trailer, `changed`, and what a caller
+    // says after the repaint), says nothing, and leaves the rows, already sent, in step. Answers
+    // whether it all went out.
     sendTrailer(after) {
         if (this.disposed)
-            return;
+            return true;
         try {
             this.emit({ kind: 'sectionRules', docUri: this.uri, rules: sectionRules(after.model) });
             this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
             this.paintedMark = after.clipMark;
             this.repaintClipMark();
             this.changed();
+            return true;
         }
         catch {
-            /* lost, as the extension's promise rejects with nobody to hear it */
+            // Lost, as the extension's repaint rejects with nobody to hear it.
+            return false;
         }
+    }
+    // A banner after a repaint, once its rows are out; not at all if what follows them threw.
+    sayAfter(repaint, message) {
+        void repaint.then((sent) => {
+            if (sent)
+                this.postBanner(message);
+        });
     }
     /** Every row painted again from the text, and what follows a paint. Resolves when they are sent. */
     repaintAll() {
-        return this.post();
+        return this.post().then(() => { });
     }
     // --- The narrow repaints ---------------------------------------------------------------------
     // One entry's rows, as a full rebuild would have built them: the baseline and the clipboard mark
@@ -397,7 +408,7 @@ export class JsonView {
         catch (err) {
             // The model change has already landed, so the table must not be left showing the rows from
             // before it. Repaint wide, then say so — after, because fresh rows wipe a banner sent first.
-            void this.repaintStale().then(() => this.postBanner(`Failed to update the row: ${this.doc.describe(err.message)}`));
+            this.sayAfter(this.repaintStale(), `Failed to update the row: ${this.doc.describe(err.message)}`);
         }
     }
     remember(edit) {
@@ -581,7 +592,7 @@ export class JsonView {
      */
     undoPaint(painted, message) {
         if (painted.epoch !== this.wideEpoch) {
-            void this.latestPost.then(() => this.postBanner(message));
+            this.sayAfter(this.latestPost, message);
             return;
         }
         this.rebuildModel();
@@ -590,7 +601,7 @@ export class JsonView {
             void this.postEntryRows(painted.rowId, fresh).then(() => this.postBanner(message));
         }
         else {
-            void this.repaintStale().then(() => this.postBanner(message));
+            this.sayAfter(this.repaintStale(), message);
         }
     }
     // --- Value edit and rename ---------------------------------------------------------------------
@@ -705,7 +716,7 @@ export class JsonView {
     // entry-level ops kept beside the bytes, so its undo can be applied rather than discovered.
     // A structural paint cannot be taken back row by row, so a write that fails resyncs the whole table.
     resyncWide(message) {
-        void this.repaintStale().then(() => this.postBanner(message));
+        this.sayAfter(this.repaintStale(), message);
     }
     /** A paste, a drop or an add refused before it painted: put the model back (re-read the text), and say why. */
     refusedStructural(message) {

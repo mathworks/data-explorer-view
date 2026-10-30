@@ -367,7 +367,9 @@ describe('A JSON .sldd table repaints only for changes that happened', () => {
       watching();
     }
     assert.strictEqual(withChanges, 1, 'the edit arrived as one content change');
-    assert.ok(empties >= 1, `the store fires the empty dirty-state change (saw ${empties})`);
+    // The case's premise, not its claim: the one dirty-state change (clean to dirty) did arrive, so
+    // the claim below is of a table that heard it.
+    assert.strictEqual(empties, 1, `the empty dirty-state change arrived, once (saw ${empties})`);
     const kinds = o.view.posts.map((m) => m.type);
     assert.deepStrictEqual(
       kinds.filter((k) => k === 'updateEntryRows' || k === 'setRows'),

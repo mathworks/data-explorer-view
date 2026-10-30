@@ -34,6 +34,23 @@ import { createRegisters } from '../edit/registers.js';
 import { docKindOf, readDocument } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
+/**
+ * Where a listener's failure goes, as VS Code's emitter logs one: the host's notify, as an error,
+ * or the console. Never thrown again, which a Node or Electron host would take for a crash; and a
+ * notify that throws is not asked twice.
+ */
+function listenerFailure(notify, name) {
+    return (err) => {
+        try {
+            if (notify)
+                return notify({ level: 'error', message: `A listener of ${name} failed: ${messageOf(err)}` });
+        }
+        catch {
+            // Said to the console instead.
+        }
+        console.error(err);
+    };
+}
 /** The bytes as core takes them: an ArrayBuffer holding exactly them. */
 function arrayBufferOf(bytes) {
     if (!ArrayBuffer.isView(bytes))
@@ -124,15 +141,14 @@ class InPageDoc {
         }
         if (this.disposed)
             return;
+        const report = listenerFailure(this.shared.notify, this.name);
         for (const listener of [...this.listeners]) {
             try {
                 listener(change);
             }
             catch (err) {
                 // One listener's failure is its own: the others still hear the change.
-                queueMicrotask(() => {
-                    throw err;
-                });
+                report(err);
             }
         }
     }
@@ -254,7 +270,8 @@ class InPageDoc {
 }
 /** Who hears a document's `dirty` change: each listener told on its own terms, once per change. */
 class DirtyBell {
-    constructor() {
+    constructor(report) {
+        this.report = report;
         this.listeners = new Set();
         this.was = false;
     }
@@ -273,9 +290,7 @@ class DirtyBell {
             }
             catch (err) {
                 // One listener's failure is its own: the others still hear the change.
-                queueMicrotask(() => {
-                    throw err;
-                });
+                this.report(err);
             }
         }
     }
@@ -296,9 +311,9 @@ class EditableDoc {
         this.editable = true;
         this.stack = new EditStack();
         this.index = new EditStackIndex();
-        this.bell = new DirtyBell();
         this.dirtyCheck = false;
         this.disposed = false;
+        this.bell = new DirtyBell(listenerFailure(shared.notify, name));
         const index = this.index;
         this.watched = {
             get dirty() {
@@ -480,6 +495,14 @@ class EditableBinaryDoc extends EditableDoc {
         this.tellDirty();
     }
 }
+const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
+const hasUtf8Bom = (bytes) => bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+const withUtf8Bom = (bytes) => {
+    const out = new Uint8Array(UTF8_BOM.length + bytes.length);
+    out.set(UTF8_BOM);
+    out.set(bytes, UTF8_BOM.length);
+    return out;
+};
 /**
  * A JSON dictionary edited in the page: the JSON dictionary engine (edit/jsonEngine.ts) over a text
  * of the page's own (createTextStore), whose undo stack, dirty state and saves are the document's.
@@ -493,13 +516,16 @@ class EditableJsonDoc {
         this.name = name;
         this.kind = 'dictionary';
         this.editable = true;
-        this.bell = new DirtyBell();
         this.disposed = false;
         this.generation = 0;
         /** The table's repost and when it is held back (the engine subscribes once), and the hub's subscription. */
         this.repost = null;
         this.disk = { bytes, stamp: { mtime: this.generation, size: bytes.length } };
-        this.text = createTextStore(new TextDecoder().decode(bytes));
+        this.bom = hasUtf8Bom(bytes);
+        const report = listenerFailure(shared.notify, name);
+        this.bell = new DirtyBell(report);
+        // TextDecoder drops the byte order mark: the text is what follows it.
+        this.text = createTextStore(new TextDecoder().decode(bytes), report);
         this.engine = new JsonEngine({
             registry: shared.registry,
             uri,
@@ -552,12 +578,14 @@ class EditableJsonDoc {
     onDirty(listener) {
         return this.bell.listen(listener);
     }
-    // The text as it stands, as the bytes a save writes (UTF-8, as the extension saves a dictionary).
+    // The text as it stands, as the bytes a save writes: UTF-8, as the extension saves a dictionary,
+    // behind the byte order mark the file was read with, if it had one.
     serialize() {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
         const text = this.text.text;
-        const bytes = new TextEncoder().encode(text);
+        const encoded = new TextEncoder().encode(text);
+        const bytes = this.bom ? withUtf8Bom(encoded) : encoded;
         const save = { at: this.text.version, bytes, text };
         return { bytes, at: save };
     }
@@ -566,11 +594,12 @@ class EditableJsonDoc {
             return;
         const save = at;
         this.disk = { bytes: save.bytes, stamp: { mtime: ++this.generation, size: save.bytes.length } };
-        // Clean if the text is still the one written; otherwise the edits since stay unsaved, and the
-        // Status column is measured from what was written.
-        if (this.text.version === save.at)
-            this.text.saved(save.at);
-        else
+        // Clean if the text is still the one written. Otherwise dirty until the next save, whatever
+        // saves landed before this one (one that lands late leaves the file older than the text), and
+        // the Status column is measured from what was written.
+        const current = this.text.version === save.at;
+        this.text.saved(save.at);
+        if (!current)
             this.engine.fileHolds(save.text);
     }
     notSaved(_at) {
@@ -581,6 +610,7 @@ class EditableJsonDoc {
             throw new Error(`${this.name} is closed.`);
         const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         this.disk = { bytes: view, stamp: { mtime: ++this.generation, size: view.length } };
+        this.bom = hasUtf8Bom(view);
         this.graph = undefined;
         // The text the file holds now, with an empty undo stack and nothing unsaved.
         await this.text.reset(new TextDecoder().decode(view));

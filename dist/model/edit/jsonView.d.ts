@@ -63,13 +63,16 @@ export declare class JsonView implements EditableTableSource {
     /**
      * Rebuild the model from the text and paint every row: on open, on every change of the text that
      * is not a single entry's, and on save. Resolves when the rows are sent; a repaint whose rows are
-     * dropped (wideLanding) resolves when the rows that replace them are.
+     * dropped (wideLanding) resolves when the rows that replace them are. Resolves false when what
+     * follows the rows threw (sendTrailer): what a caller says after the repaint is then not said, as
+     * the extension's rejected repaint skips it.
      */
     private post;
     /** The wide repaint as a REPAIR, out of step from the moment the rows are known not to say what the text does. */
     private repaintStale;
     private paintWide;
     private sendTrailer;
+    private sayAfter;
     /** Every row painted again from the text, and what follows a paint. Resolves when they are sent. */
     repaintAll(): Promise<void>;
     private entryRowsOf;

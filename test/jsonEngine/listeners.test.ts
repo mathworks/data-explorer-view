@@ -3,10 +3,11 @@
 // The JSON engine and its text where something around them misbehaves: a listener of the text, or
 // of a table, that throws; a reload of the text the store already holds, or of one entry changed;
 // and a throw in what follows a paint. Each is answered as VS Code answers it: a listener's throw is
-// its own (VS Code's emitter calls each one on its own terms), a reload reports what differs, and
-// the trailer's throw is lost, as the extension's promise rejects with nobody to hear it.
+// its own (VS Code's emitter calls each one on its own terms, and logs the throw), a reload reports
+// what differs, and the trailer's throw is lost, as the extension's promise rejects with nobody to
+// hear it, and with it whatever was to be said after that repaint.
 import * as assert from 'node:assert';
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { createRegisters, type Registers } from '../../src/model/index.js';
 import { createTextStore } from '../../src/model/edit/textStore.js';
 import type { TextStoreChange } from '../../src/model/edit/hooks.js';
@@ -14,22 +15,15 @@ import { entryRow, file, open, settle, tableOf, WORKSPACE_PARAMS } from './harne
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Run `body` with what a microtask throws kept in `thrown`, as a page's error handler would hear it. */
-async function catchingMicrotasks(body: (thrown: unknown[]) => Promise<void>): Promise<void> {
-  const real = globalThis.queueMicrotask;
-  const thrown: unknown[] = [];
-  globalThis.queueMicrotask = (task) =>
-    real(() => {
-      try {
-        task();
-      } catch (err) {
-        thrown.push(err);
-      }
-    });
+/** Run `body` with what is said on the console's error kept in `said`. */
+async function quietConsole(body: (said: unknown[][]) => Promise<void>): Promise<void> {
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const said: unknown[][] = [];
+  spy.mockImplementation((...args: unknown[]) => void said.push(args));
   try {
-    await body(thrown);
+    await body(said);
   } finally {
-    globalThis.queueMicrotask = real;
+    spy.mockRestore();
   }
 }
 
@@ -37,8 +31,11 @@ const rowOf = (posts: any[], name: string): any => tableOf(posts).find((r) => r.
 
 describe('the text store: a listener that throws', () => {
   it('costs the other listeners nothing, nor the dirty change, nor the edit its answer; its throw is reported', async () => {
-    await catchingMicrotasks(async (thrown) => {
-      const store = createTextStore('{"a": 1}');
+    const reported: unknown[] = [];
+    const later = vi.fn();
+    vi.stubGlobal('queueMicrotask', later);
+    try {
+      const store = createTextStore('{"a": 1}', (err) => void reported.push(err));
       const heard: TextStoreChange[] = [];
       store.onChange(() => {
         throw new Error('the panel is gone');
@@ -54,12 +51,31 @@ describe('the text store: a listener that throws', () => {
       );
       assert.strictEqual(store.dirty, true);
       await settle();
-      assert.strictEqual(thrown.length, 2, 'each throw reaches the page, a turn later');
+      assert.deepStrictEqual(
+        reported.map((err) => (err as Error).message),
+        ['the panel is gone', 'the panel is gone'],
+        'each throw is reported, once',
+      );
+      assert.strictEqual(later.mock.calls.length, 0, 'and never thrown again, which a Node or Electron host would take for a crash');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('with no report given, says a throw on the console', async () => {
+    await quietConsole(async (said) => {
+      const store = createTextStore('{"a": 1}');
+      const thrown = new Error('the panel is gone');
+      store.onChange(() => {
+        throw thrown;
+      });
+      assert.strictEqual(await store.apply([{ offset: 6, length: 1, text: '2' }]), true);
+      assert.deepStrictEqual(said, [[thrown], [thrown]]);
     });
   });
 
   it("costs a table nothing: an edit through it lands, and says no 'Failed to apply edit'", async () => {
-    await catchingMicrotasks(async () => {
+    await quietConsole(async () => {
       const o = await open(WORKSPACE_PARAMS);
       o.text.onChange(() => {
         throw new Error('an app listener that breaks');
@@ -157,4 +173,37 @@ describe('a throw in what follows a paint', () => {
     assert.strictEqual(o.view.posts.slice(at).filter((p) => p.type === 'setRows').length, 0);
     assert.strictEqual(rowOf(o.view.posts, 'gravity').Value, '9.8');
   });
+
+  // A delete whose write is refused repaints wide and then says why. The same refusal with a throw
+  // behind those rows says nothing: the extension's repaint rejects, and the banner chained on it
+  // never posts.
+  for (const [label, breaks, said] of [
+    ['what follows the repaint goes out', false, ['error']],
+    ['what follows the repaint throws', true, []],
+  ] as const) {
+    it(`a write refused after its paint repaints wide, and says why only if ${label}`, async () => {
+      const inner = createRegisters();
+      let broken = false;
+      const registers: Registers = {
+        ...inner,
+        clipboardState: () => {
+          if (broken) throw new Error('the registers broke');
+          return inner.clipboardState();
+        },
+      };
+      const o = await open(WORKSPACE_PARAMS, file(WORKSPACE_PARAMS), { registers });
+      const text = o.text.text;
+      o.text.apply = async () => false;
+      broken = breaks;
+      const from = o.view.posts.length;
+      o.view.send({ type: 'delete', rowIds: [entryRow(o.view.posts, 'gravity').ID] });
+      await settle();
+      broken = false;
+      const after = o.view.posts.slice(from);
+      assert.ok(after.some((p) => p.type === 'setRows'), 'the table is repainted from the text');
+      assert.ok(rowOf(o.view.posts, 'gravity'), 'which still holds the entry');
+      assert.strictEqual(o.text.text, text);
+      assert.deepStrictEqual(after.filter((p) => p.type === 'error').map((p) => p.type), said);
+    });
+  }
 });

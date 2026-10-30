@@ -41,25 +41,6 @@ const settle = async () => {
 
 const variableId = (doc: Doc, name: string) => `binedit:${doc.uri}/${name}`;
 
-/** Run `body` with what a microtask throws kept in `thrown`, as a page's error handler would hear it. */
-async function catchingMicrotasks(body: (thrown: unknown[]) => Promise<void>): Promise<void> {
-  const real = globalThis.queueMicrotask;
-  const thrown: unknown[] = [];
-  globalThis.queueMicrotask = (task) =>
-    real(() => {
-      try {
-        task();
-      } catch (err) {
-        thrown.push(err);
-      }
-    });
-  try {
-    await body(thrown);
-  } finally {
-    globalThis.queueMicrotask = real;
-  }
-}
-
 describe('createWorkspace({editing}): a MAT-file edited in the page', () => {
   it('opens a MAT-file to edit, and leaves every other kind, and every workspace without editing, read-only', async () => {
     const ws = workspace();
@@ -96,38 +77,37 @@ describe('createWorkspace({editing}): a MAT-file edited in the page', () => {
   });
 
   it('tells its dirty listeners once the step is done, each on its own terms: one that throws costs the others nothing, nor the stacks', async () => {
-    await catchingMicrotasks(async (thrown) => {
-      const ws = workspace();
-      const doc = await ws.open(fixture('cases.mat'), 'cases.mat');
-      await doc.table.open();
-      const was = valuesOf(fixture('cases.mat')).get('scalarD').Value;
-      doc.onDirty(() => {
-        throw new Error('the tab is gone');
-      });
-      // An app that saves the moment it is told: the step is done, and the bytes hold it.
-      const told: [boolean, string][] = [];
-      doc.onDirty((dirty) => {
-        const { bytes, at } = doc.serialize();
-        doc.notSaved(at);
-        told.push([dirty, valuesOf(bytes).get('scalarD').Value]);
-      });
-      const table = doc.table as any;
-      table.edit({ rowId: variableId(doc, 'scalarD'), columnId: 'Value', oldValue: '', newValue: '42' });
-      table.undo();
-      table.redo();
-      await settle();
-      assert.deepStrictEqual(told, [
-        [true, '42'],
-        [false, was],
-        [true, '42'],
-      ]);
-      assert.strictEqual(thrown.length, 3, "each throw reaches the page's error handler, a turn later");
-      assert.match(String(thrown[0]), /the tab is gone/);
-      // The two stacks are still in step: one undo takes the edit out, and leaves it clean.
-      table.undo();
-      assert.strictEqual(doc.dirty, false);
-      assert.strictEqual(valuesOf(doc.serialize().bytes).get('scalarD').Value, was);
+    const notices: Notice[] = [];
+    const ws = workspace(true, notices);
+    const doc = await ws.open(fixture('cases.mat'), 'cases.mat');
+    await doc.table.open();
+    const was = valuesOf(fixture('cases.mat')).get('scalarD').Value;
+    doc.onDirty(() => {
+      throw new Error('the tab is gone');
     });
+    // An app that saves the moment it is told: the step is done, and the bytes hold it.
+    const told: [boolean, string][] = [];
+    doc.onDirty((dirty) => {
+      const { bytes, at } = doc.serialize();
+      doc.notSaved(at);
+      told.push([dirty, valuesOf(bytes).get('scalarD').Value]);
+    });
+    const table = doc.table as any;
+    table.edit({ rowId: variableId(doc, 'scalarD'), columnId: 'Value', oldValue: '', newValue: '42' });
+    table.undo();
+    table.redo();
+    await settle();
+    assert.deepStrictEqual(told, [
+      [true, '42'],
+      [false, was],
+      [true, '42'],
+    ]);
+    // Each throw is said as an error notice, as VS Code's emitter logs it: never thrown again.
+    assert.deepStrictEqual(notices, Array(3).fill({ level: 'error', message: 'A listener of cases.mat failed: the tab is gone' }));
+    // The two stacks are still in step: one undo takes the edit out, and leaves it clean.
+    table.undo();
+    assert.strictEqual(doc.dirty, false);
+    assert.strictEqual(valuesOf(doc.serialize().bytes).get('scalarD').Value, was);
   });
 
   it('a save whose bytes were never written leaves it as it was', async () => {

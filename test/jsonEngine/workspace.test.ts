@@ -53,6 +53,33 @@ async function entryRowOf(doc: Doc, name: string): Promise<any> {
 const gravityIn = (bytes: Uint8Array): unknown =>
   (chunkOf(dec(bytes)).entries as any[]).find((e) => e.name === 'gravity').value._elements[0]._properties.Value;
 
+/** Set the Value of the entry or variable `name` through `doc`'s table, and let the write land. */
+async function editValue(doc: Doc, name: string, value: string): Promise<void> {
+  const row = (await doc.table.open()).rows.find((r: any) => nameOf(r) === name);
+  assert.ok(row, `${doc.name} has a row for "${name}"`);
+  (doc.table as any).edit({ rowId: row.ID, columnId: 'Value', oldValue: String(row.Value ?? ''), newValue: value });
+  await settle();
+}
+
+/** Where the entry named `name` is in a dictionary's `text`: its object, from its `{` to its `}`. */
+function entrySpan(text: string, name: string): { start: number; end: number } {
+  const at = text.indexOf(`"name": "${name}"`);
+  assert.ok(at > 0, `the text holds an entry "${name}"`);
+  const start = text.lastIndexOf('{', at);
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i++;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return { start, end: i + 1 };
+  }
+  throw new Error(`the entry "${name}" does not close`);
+}
+
 /** Set gravity to `value` through the table, and let the write land. */
 async function editGravity(doc: Doc, value: string): Promise<void> {
   const row = await entryRowOf(doc, 'gravity');
@@ -159,6 +186,103 @@ describe('createWorkspace({editing}): a JSON dictionary edited in the page', () 
     await settle();
     assert.strictEqual(doc.dirty, false, 'nothing from before the reload is undone');
     assert.strictEqual(gravityIn(doc.serialize().bytes), 9.81);
+  });
+
+  // VS Code runs a document's saves one at a time; a page may have two in flight (a double save, an
+  // autosave), and the older can land last. The file then holds it, and the newest edit is unsaved.
+  it('a save that lands after a newer one leaves it dirty until the next save, as a MAT-file and a compressed dictionary are', async () => {
+    const ws = workspace();
+    const cases: [name: string, bytes: Uint8Array, row: string, older: string, newer: string][] = [
+      ['params.sldd', file(WORKSPACE_PARAMS), 'gravity', '9.8', '9.7'],
+      ['params_binary.sldd', file(PARAMS), 'gravity', '9.8', '9.7'],
+      ['cases.mat', fixture('cases.mat'), 'scalarD', '42', '43'],
+    ];
+    const answers: Record<string, { afterNewer: boolean; afterOlder: boolean; told: boolean[]; afterNext: boolean; next: string }> = {};
+    for (const [name, bytes, row, a, b] of cases) {
+      const doc = await ws.open(bytes, name);
+      assert.strictEqual(doc.editable, true, `${name} is edited in the page`);
+      await doc.table.open();
+      const told: boolean[] = [];
+      doc.onDirty((d) => void told.push(d));
+      await editValue(doc, row, a);
+      const older = doc.serialize();
+      await editValue(doc, row, b);
+      const newer = doc.serialize();
+      doc.saved(newer.at);
+      await settle();
+      const afterNewer = doc.dirty;
+      doc.saved(older.at);
+      await settle();
+      const afterOlder = doc.dirty;
+      if (name === 'params.sldd') {
+        assert.strictEqual((await entryRowOf(doc, 'gravity')).Status, 'Modified', 'measured from the file, which holds the older edit');
+      }
+      // The next save writes the newest edit, and is clean.
+      const next = doc.serialize();
+      doc.saved(next.at);
+      await settle();
+      const reread = (await workspace().open(next.bytes, name)).table.open();
+      const value = String((await reread).rows.find((r: any) => nameOf(r) === row)?.Value);
+      answers[name] = { afterNewer, afterOlder, told, afterNext: doc.dirty, next: value === b ? 'the newest edit' : value };
+    }
+    const answer = { afterNewer: false, afterOlder: true, told: [true, false, true, false], afterNext: false, next: 'the newest edit' };
+    assert.deepStrictEqual(answers, { 'params.sldd': answer, 'params_binary.sldd': answer, 'cases.mat': answer });
+  });
+
+  it('a file with a byte order mark keeps it: saved unedited it is the same bytes, and an edit saves behind it', async () => {
+    const ws = workspace();
+    const plain = file(WORKSPACE_PARAMS);
+    const marked = new Uint8Array([0xef, 0xbb, 0xbf, ...plain]);
+    const doc = await ws.open(marked, 'params.sldd');
+    assert.strictEqual(doc.editable, true);
+    await doc.table.open();
+    assert.deepStrictEqual(doc.serialize().bytes, marked, 'byte for byte');
+    await editGravity(doc, '9.8');
+    const save = doc.serialize();
+    assert.deepStrictEqual([...save.bytes.slice(0, 3)], [0xef, 0xbb, 0xbf]);
+    assert.strictEqual(gravityIn(save.bytes), 9.8);
+    // A reload takes the new file's: without one, it saves without one.
+    await doc.reload(plain);
+    assert.deepStrictEqual(doc.serialize().bytes, plain);
+  });
+
+  it('saves a cell edit as the file with that entry rewritten and every other byte as it was, and the file reads back with it', async () => {
+    const ws = workspace();
+    const original = dec(file(WORKSPACE_PARAMS));
+    const doc = await ws.open(file(WORKSPACE_PARAMS), 'params.sldd');
+    await doc.table.open();
+    await editGravity(doc, '9.8');
+    const save = doc.serialize();
+    doc.saved(save.at);
+    const written = dec(save.bytes);
+    const was = entrySpan(original, 'gravity');
+    const now = entrySpan(written, 'gravity');
+    assert.strictEqual(written.slice(0, now.start), original.slice(0, was.start), 'every byte before the entry is the file\'s');
+    assert.strictEqual(written.slice(now.end), original.slice(was.end), 'and every byte after it');
+    assert.strictEqual(doc.dirty, false);
+    assert.deepStrictEqual(doc.serialize().bytes, save.bytes, 'the next save writes the same bytes');
+    const again = await workspace().open(save.bytes, 'params.sldd');
+    const gravity = await entryRowOf(again, 'gravity');
+    assert.deepStrictEqual([gravity.Value, gravity.Status], ['9.8', ''], 'read back from the file, the edit is in it');
+  });
+
+  it('saves a delete as the file without that entry and the comma before it, and every other byte as it was', async () => {
+    const ws = workspace();
+    const original = dec(file(WORKSPACE_PARAMS));
+    const doc = await ws.open(file(WORKSPACE_PARAMS), 'params.sldd');
+    const row = await entryRowOf(doc, 'u8Scalar');
+    (doc.table as any).delete([row.ID]);
+    await settle();
+    const save = doc.serialize();
+    doc.saved(save.at);
+    const span = entrySpan(original, 'u8Scalar');
+    const comma = original.lastIndexOf(',', span.start);
+    assert.strictEqual(original.slice(comma + 1, span.start).trim(), '', 'the comma is the one before the entry');
+    assert.strictEqual(dec(save.bytes), original.slice(0, comma) + original.slice(span.end));
+    assert.strictEqual(doc.dirty, false);
+    const again = await workspace().open(save.bytes, 'params.sldd');
+    const names = (await again.table.open()).rows.filter(isEntryRow).map(nameOf);
+    assert.ok(names.length > 0 && !names.includes('u8Scalar'), 'read back from the file, the entry is gone');
   });
 
   it("a workspace's JSON and compressed dictionaries share its clipboard: an entry cut from one pastes into the other, and leaves its source", async () => {
