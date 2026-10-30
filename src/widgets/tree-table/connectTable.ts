@@ -7,26 +7,34 @@
 // fetches the rows under a row the paint held back; opens the one variable editor on a matrix
 // glyph and fills it; draws the banners; turns a click on a link into the row it names, here or
 // elsewhere; and gives a read-only context menu and Ctrl+F. What is the app's (opening another
-// document, its own menu items, editing) comes out of the handle it returns.
+// document, its own menu items) comes out of the handle it returns.
+//
+// With `editing`, it wires the editing half too (editingWire.ts): every gesture as the source's
+// command (an EditableTableSource's), the editing menu and its chords, the drop predictor, and the
+// dialogs a refusal is shown in.
 //
 // This is the VS Code extension's table webview (its table-main.ts) with the extension taken out:
 // the same rules, in the same order, so that the extension, which uses this over its own message
 // channel, shows its tables exactly as it did.
 import { defineContextMenu, type ContextMenuItem, type DexContextMenu } from '../context-menu/dex-context-menu.js';
 import { defineVariableEditor, type DexVariableEditor } from '../variable-editor/dex-variable-editor.js';
+import { defineErrorDialog, type DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRows } from '../../model/actions/rowUpdates.js';
 import { resolveOperands } from '../../model/actions/operands.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget, type LinkTarget } from '../../model/ids/linkTarget.js';
-import type {
-  InspectorFeed,
-  InspectorView,
-  MatrixPage,
-  TableChange,
-  TableSource,
-  TableView,
+import {
+  isEditable,
+  type InspectorFeed,
+  type InspectorView,
+  type MatrixPage,
+  type TableChange,
+  type TableSource,
+  type TableView,
 } from '../../model/source/tableSource.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
+import { wireEditing, type EditingWire, type TableTextView } from './editingWire.js';
+import type { MenuRow } from './menuItems.js';
 
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
 export interface TableMenuContext {
@@ -100,6 +108,25 @@ export interface ConnectTableOptions {
    * to `navigate`.
    */
   resolveLink?: (link: LinkTarget, fromUri: string) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * Wire the table to edit, through the source's commands (an EditableTableSource's): a cell edit,
+   * the Add gallery, a row drag and drop, and a context menu of editing items (Copy, Cut, Paste,
+   * Add Child, Delete, Undo, Redo) with their chords, in place of Copy Name and Copy Value. A
+   * refused edit opens the error dialog. Whether a document may be edited is still its view's
+   * `editable`: a read-only one gets no menu, no cell editor, no `+ Add` and no row drag. A source
+   * that takes no edits (isEditable false) is wired as a read-only document. Default false.
+   */
+  editing?: boolean;
+  /**
+   * With `editing`: a plain-text view of the document a row can be shown in. The editing menu then
+   * offers Location in Text, in its place among the other items, and Cmd/Ctrl+L does what it does.
+   */
+  textView?: TableTextView;
+  /**
+   * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
+   * `<body>`, and takes away again on dispose().
+   */
+  errorDialog?: DexErrorDialog;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -174,6 +201,17 @@ export interface TableHandle extends InspectorFeed {
   selectByName(name: string): void;
   /** Open the Name editor on `rowId`, now or when a repaint brings the row. */
   beginRename(rowId: string): void;
+  /**
+   * The Add gallery, as if its `+ Add` button were clicked: it opens, or closes if it is open,
+   * and nothing happens on a table that cannot add. For a keyboard accelerator of the app's.
+   */
+  toggleAddGallery(): void;
+  /**
+   * With `editing`: the editing menu for the current selection (or `selection`), anchored at
+   * `anchorRowId` (null for no row), as a right-click there would show it. For a chord of the
+   * app's to do exactly what its item would, when it is enabled. Without `editing`, none.
+   */
+  menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
   /** Stop: the table keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -233,6 +271,18 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     madeEditor = true;
   }
   const variableEditor = editor;
+
+  // The dialog a refused edit is shown in, made here unless the app has one; editing only.
+  let dialog = options.errorDialog;
+  let madeDialog = false;
+  if (options.editing && !dialog) {
+    defineErrorDialog();
+    dialog = document.createElement('dex-error-dialog');
+    document.body.appendChild(dialog);
+    madeDialog = true;
+  }
+  // The editing half, wired below once the table's own listeners are (editingWire.ts).
+  let editing: EditingWire | null = null;
 
   let view: TableView | undefined;
   let docUri = '';
@@ -347,6 +397,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const paint = (next: TableView): void => {
     view = next;
     if (next.docUri) docUri = next.docUri;
+    // The editing state a paint carries, before its rows are installed, as it always was.
+    editing?.painting(next);
     table.loading = false;
     // Every row is replaced, so an open grid describes rows the user can no longer see.
     variableEditor.close();
@@ -397,6 +449,9 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       }
       case 'error':
         return failed(change.message);
+      default:
+        // The editing changes, which a table that does not edit ignores.
+        editing?.change(change);
     }
   };
 
@@ -489,7 +544,40 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     true,
   );
 
-  // --- The read-only context menu ----------------------------------------------------------------
+  // --- Editing -----------------------------------------------------------------------------------
+
+  const selectRows = (rowIds: readonly string[]): void => {
+    cancelVanishedClear();
+    pendingSelectIds = rowIds.filter((id) => typeof id === 'string');
+    applyPendingSelection();
+  };
+  const beginRenameRow = (rowId: string): void => {
+    pendingRenameId = typeof rowId === 'string' ? rowId : null;
+    applyPendingRename();
+  };
+  if (options.editing) {
+    editing = wireEditing({
+      table,
+      source: isEditable(source) ? source : null,
+      textView: options.textView,
+      errorDialog: dialog!,
+      listen: (type, listener, capture = false) => {
+        table.addEventListener(type, listener, capture);
+        cleanups.push(() => table.removeEventListener(type, listener, capture));
+      },
+      selectedRowIds,
+      rowsNow: () => rowsNow() as MenuRow[],
+      docUri: () => docUri,
+      setDocUri: (uri) => {
+        docUri = uri;
+      },
+      view: () => view,
+      select: selectRows,
+      beginRename: beginRenameRow,
+    });
+  }
+
+  // --- The context menu: read-only, or the editing one -------------------------------------------
 
   let contextMenu = options.contextMenu;
   let madeMenu = false;
@@ -504,6 +592,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     menuContext = null;
     if (!context || menuOwners.get(e.currentTarget as object) !== menuOwner) return;
     const actionId = (e as CustomEvent<{ actionId: string }>).detail?.actionId;
+    // The editing menu's own items are commands, anchored where the menu was opened.
+    if (editing && typeof actionId === 'string' && editing.act(actionId, context.rowId)) return;
     if (actionId === 'copyName' || actionId === 'copyValue') return void copyText(context, actionId);
     if (typeof actionId === 'string') emit('action', { actionId, rowId: context.rowId, rowIds: context.selectedRowIds });
   };
@@ -544,7 +634,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     listen(table, 'dex-table-context-menu', (e) => {
       const { x, y, rowId } = e.detail;
       const context: TableMenuContext = { rowId: rowId ?? null, selectedRowIds: [...selectedRowIds()], rows: rowsNow() };
-      const items = [...readOnlyItems(context)];
+      if (editing && !editing.menuAllowed(context.rowId)) return;
+      // The editing menu is for the current selection, but a right-click on no row is a gesture
+      // on the document, whose menu is the one a selection of nothing gets.
+      const items = editing
+        ? editing.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
+        : [...readOnlyItems(context)];
       const extra = options.menuItems?.(context) ?? [];
       if (items.length > 0 && extra.length > 0) items.push({ id: '', label: '', separator: true });
       items.push(...extra);
@@ -633,18 +728,17 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       listeners[type].add(listener as never);
       return () => void listeners[type].delete(listener as never);
     },
-    select(rowIds) {
-      cancelVanishedClear();
-      pendingSelectIds = rowIds.filter((id) => typeof id === 'string');
-      applyPendingSelection();
-    },
+    select: selectRows,
     selectByName(name) {
       pendingSelectName = typeof name === 'string' ? name : null;
       applyPendingNameSelection();
     },
-    beginRename(rowId) {
-      pendingRenameId = typeof rowId === 'string' ? rowId : null;
-      applyPendingRename();
+    beginRename: beginRenameRow,
+    toggleAddGallery() {
+      table.toggleAddGallery();
+    },
+    menuFor(anchorRowId, selection) {
+      return editing ? editing.menuFor(anchorRowId, selection) : [];
     },
     onPage(listener) {
       pageListeners.add(listener);
@@ -668,6 +762,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       }
       if (madeMenu) contextMenu?.remove();
       if (madeEditor) variableEditor.remove();
+      if (madeDialog) dialog?.remove();
       for (const set of Object.values(listeners)) set.clear();
       pageListeners.clear();
     },

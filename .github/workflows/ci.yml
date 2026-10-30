@@ -191,6 +191,22 @@ jobs:
           CI: '1'
         run: npx vitest run
 
+      # connectTable({editing}) is held to a recording of the extension's webview playing view's
+      # editing gestures (test/editingTrace.test.ts). Played again here, on the extension's
+      # webview as it is now and with this view: a difference is said, never failed, since it is a
+      # change in the extension to bring over (or a reason to say why not). Last, so the copied test
+      # is in no other step's run.
+      - name: The extension's webview still plays view's editing trace (a report)
+        continue-on-error: true
+        working-directory: vscode
+        run: |
+          cp ../view/scripts/downstream/record-editing-trace.test.ts test/
+          cp ../view/test/editing-trace/gestures.ts test/editing-trace-gestures.ts
+          TRACE_OUT="$RUNNER_TEMP/editing-trace.json" npx vitest run test/record-editing-trace.test.ts
+          if ! diff -u ../view/test/fixtures/editing-trace.json "$RUNNER_TEMP/editing-trace.json"; then
+            echo "::warning title=Editing trace::The extension's webview no longer plays view's editing trace as it was recorded (the diff is above)"
+          fi
+
   # The widgets in real browsers. The gallery (gallery/) is a Vite app that imports this
   # package as an app does, through its public entries; its tests load every page and use
   # each widget with the mouse and the keyboard, in Chromium, Firefox and WebKit against the

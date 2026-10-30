@@ -36,6 +36,14 @@ export interface TableView {
      * for a whole file shown whole.
      */
     warnings?: WarningBanner;
+    /**
+     * What the Add gallery offers, where it is not every tile: `{classes}`, the classes the document
+     * can take a new entry of (a MAT-file's, from core's MatNode.getAllowedTypes), in no section.
+     * Absent: every tile, a dictionary's, each naming its section.
+     */
+    add?: {
+        classes: readonly string[];
+    };
 }
 /** The rows under one row whose children a paint held back (`_lazy`). */
 export interface ChildRows {

@@ -60,6 +60,31 @@ const handle = connectTable(table, doc.table, { resolveLink: (link, fromUri) => 
 handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the file the tree shows
 ```
 
+`editing` wires the table to edit through its source's commands (an `EditableTableSource`).
+- **What is wired:** a committed cell edit is `edit`, a tile in the Add gallery `addEntry`, a row
+  drag and drop `dragStart`, `drop` and `dragEnd`, and a Value editor opening on a summary
+  `requestEditText`.
+- **The menu and its chords:** the right-click menu is the editing one (Copy, Cut, Paste, Add
+  Child, Delete, Undo, Redo), with its chords (Cmd/Ctrl+C, X and V, Delete), each enabled as its
+  item is.
+- **What the source sends back:** a selection, a rename to begin, and the clipboard, drag and
+  drop rules the menu and the drop predictor are built from. A refused edit opens the error
+  dialog (`errorDialog`, or one connectTable makes).
+- **What `editable` turns off:** the view's `editable` still decides. A read-only document gets
+  no menu, no cell editor, no `+ Add` and no row drag, and connectTable sets `canAdd` and
+  `rowDrag` from it. A source that takes no edits is read-only.
+- **`textView`:** a plain-text view of the document. It adds Location in Text in its place in
+  the menu, with Cmd/Ctrl+L.
+- **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
+  and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
+
+```js
+const handle = connectTable(table, messageSource(port), {
+  editing: true,
+  textView: { available: () => hasText, locate: (rowId) => revealInText(rowId) },
+});
+```
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.

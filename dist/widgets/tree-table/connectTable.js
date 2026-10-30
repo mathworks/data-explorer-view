@@ -7,17 +7,24 @@
 // fetches the rows under a row the paint held back; opens the one variable editor on a matrix
 // glyph and fills it; draws the banners; turns a click on a link into the row it names, here or
 // elsewhere; and gives a read-only context menu and Ctrl+F. What is the app's (opening another
-// document, its own menu items, editing) comes out of the handle it returns.
+// document, its own menu items) comes out of the handle it returns.
+//
+// With `editing`, it wires the editing half too (editingWire.ts): every gesture as the source's
+// command (an EditableTableSource's), the editing menu and its chords, the drop predictor, and the
+// dialogs a refusal is shown in.
 //
 // This is the VS Code extension's table webview (its table-main.ts) with the extension taken out:
 // the same rules, in the same order, so that the extension, which uses this over its own message
 // channel, shows its tables exactly as it did.
 import { defineContextMenu } from '../context-menu/dex-context-menu.js';
 import { defineVariableEditor } from '../variable-editor/dex-variable-editor.js';
+import { defineErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRows } from '../../model/actions/rowUpdates.js';
 import { resolveOperands } from '../../model/actions/operands.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget } from '../../model/ids/linkTarget.js';
+import { isEditable, } from '../../model/source/tableSource.js';
+import { wireEditing } from './editingWire.js';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
@@ -66,6 +73,17 @@ export function connectTable(table, source, options = {}) {
         madeEditor = true;
     }
     const variableEditor = editor;
+    // The dialog a refused edit is shown in, made here unless the app has one; editing only.
+    let dialog = options.errorDialog;
+    let madeDialog = false;
+    if (options.editing && !dialog) {
+        defineErrorDialog();
+        dialog = document.createElement('dex-error-dialog');
+        document.body.appendChild(dialog);
+        madeDialog = true;
+    }
+    // The editing half, wired below once the table's own listeners are (editingWire.ts).
+    let editing = null;
     let view;
     let docUri = '';
     let disposed = false;
@@ -179,6 +197,8 @@ export function connectTable(table, source, options = {}) {
         view = next;
         if (next.docUri)
             docUri = next.docUri;
+        // The editing state a paint carries, before its rows are installed, as it always was.
+        editing?.painting(next);
         table.loading = false;
         // Every row is replaced, so an open grid describes rows the user can no longer see.
         variableEditor.close();
@@ -224,6 +244,9 @@ export function connectTable(table, source, options = {}) {
             }
             case 'error':
                 return failed(change.message);
+            default:
+                // The editing changes, which a table that does not edit ignores.
+                editing?.change(change);
         }
     };
     // --- What the table asks -----------------------------------------------------------------------
@@ -307,7 +330,38 @@ export function connectTable(table, source, options = {}) {
             table.focusFilter();
         }
     }, true);
-    // --- The read-only context menu ----------------------------------------------------------------
+    // --- Editing -----------------------------------------------------------------------------------
+    const selectRows = (rowIds) => {
+        cancelVanishedClear();
+        pendingSelectIds = rowIds.filter((id) => typeof id === 'string');
+        applyPendingSelection();
+    };
+    const beginRenameRow = (rowId) => {
+        pendingRenameId = typeof rowId === 'string' ? rowId : null;
+        applyPendingRename();
+    };
+    if (options.editing) {
+        editing = wireEditing({
+            table,
+            source: isEditable(source) ? source : null,
+            textView: options.textView,
+            errorDialog: dialog,
+            listen: (type, listener, capture = false) => {
+                table.addEventListener(type, listener, capture);
+                cleanups.push(() => table.removeEventListener(type, listener, capture));
+            },
+            selectedRowIds,
+            rowsNow: () => rowsNow(),
+            docUri: () => docUri,
+            setDocUri: (uri) => {
+                docUri = uri;
+            },
+            view: () => view,
+            select: selectRows,
+            beginRename: beginRenameRow,
+        });
+    }
+    // --- The context menu: read-only, or the editing one -------------------------------------------
     let contextMenu = options.contextMenu;
     let madeMenu = false;
     let menuListening = false;
@@ -322,6 +376,9 @@ export function connectTable(table, source, options = {}) {
         if (!context || menuOwners.get(e.currentTarget) !== menuOwner)
             return;
         const actionId = e.detail?.actionId;
+        // The editing menu's own items are commands, anchored where the menu was opened.
+        if (editing && typeof actionId === 'string' && editing.act(actionId, context.rowId))
+            return;
         if (actionId === 'copyName' || actionId === 'copyValue')
             return void copyText(context, actionId);
         if (typeof actionId === 'string')
@@ -364,7 +421,13 @@ export function connectTable(table, source, options = {}) {
         listen(table, 'dex-table-context-menu', (e) => {
             const { x, y, rowId } = e.detail;
             const context = { rowId: rowId ?? null, selectedRowIds: [...selectedRowIds()], rows: rowsNow() };
-            const items = [...readOnlyItems(context)];
+            if (editing && !editing.menuAllowed(context.rowId))
+                return;
+            // The editing menu is for the current selection, but a right-click on no row is a gesture
+            // on the document, whose menu is the one a selection of nothing gets.
+            const items = editing
+                ? editing.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
+                : [...readOnlyItems(context)];
             const extra = options.menuItems?.(context) ?? [];
             if (items.length > 0 && extra.length > 0)
                 items.push({ id: '', label: '', separator: true });
@@ -458,18 +521,17 @@ export function connectTable(table, source, options = {}) {
             listeners[type].add(listener);
             return () => void listeners[type].delete(listener);
         },
-        select(rowIds) {
-            cancelVanishedClear();
-            pendingSelectIds = rowIds.filter((id) => typeof id === 'string');
-            applyPendingSelection();
-        },
+        select: selectRows,
         selectByName(name) {
             pendingSelectName = typeof name === 'string' ? name : null;
             applyPendingNameSelection();
         },
-        beginRename(rowId) {
-            pendingRenameId = typeof rowId === 'string' ? rowId : null;
-            applyPendingRename();
+        beginRename: beginRenameRow,
+        toggleAddGallery() {
+            table.toggleAddGallery();
+        },
+        menuFor(anchorRowId, selection) {
+            return editing ? editing.menuFor(anchorRowId, selection) : [];
         },
         onPage(listener) {
             pageListeners.add(listener);
@@ -499,6 +561,8 @@ export function connectTable(table, source, options = {}) {
                 contextMenu?.remove();
             if (madeEditor)
                 variableEditor.remove();
+            if (madeDialog)
+                dialog?.remove();
             for (const set of Object.values(listeners))
                 set.clear();
             pageListeners.clear();

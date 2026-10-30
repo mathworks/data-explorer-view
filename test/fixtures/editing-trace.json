@@ -1,0 +1,1290 @@
+[
+  {
+    "step": "paint an editable dictionary, its rules and an empty clipboard",
+    "posted": [],
+    "seen": [
+      [
+        "state",
+        {
+          "canAdd": true,
+          "rowDrag": true,
+          "addClasses": null,
+          "selected": []
+        }
+      ]
+    ]
+  },
+  {
+    "step": "right-click an entry: the editing menu, then Copy",
+    "posted": [
+      {
+        "type": "copy",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      }
+    ],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V",
+            "disabled": true,
+            "reason": "Nothing to paste"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": true,
+            "reason": "This item takes no children"
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "the clipboard holds a copied Parameter: right-click Architectural Data, whose Paste is disabled",
+    "posted": [],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V",
+            "disabled": true,
+            "reason": "Parameter cannot be in Architectural Data"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "right-click Design Data, and Paste there",
+    "posted": [
+      {
+        "type": "paste",
+        "rowId": "section:design"
+      }
+    ],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "a cut pasted back where it came from is refused, with why",
+    "posted": [],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"B\"",
+            "title": "B"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"B\"",
+            "title": "B"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V",
+            "disabled": true,
+            "reason": "Already in Design Data"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": true,
+            "reason": "This item takes no children"
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"B\"",
+            "title": "B"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "the chords on a selected entry: Cmd+X, Cmd+C, Cmd+V, Delete, Backspace, Cmd+L",
+    "posted": [
+      {
+        "type": "cut",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      },
+      {
+        "type": "copy",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      },
+      {
+        "type": "paste",
+        "rowId": "binedit:file:///fx/trace.sldd/design/A"
+      },
+      {
+        "type": "delete",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      },
+      {
+        "type": "delete",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      },
+      {
+        "type": "locateInText",
+        "rowId": "binedit:file:///fx/trace.sldd/design/A"
+      }
+    ],
+    "seen": []
+  },
+  {
+    "step": "two entries selected: the menu counts them, and Cmd+L does nothing",
+    "posted": [
+      {
+        "type": "copy",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A",
+          "binedit:file:///fx/trace.sldd/design/B"
+        ]
+      }
+    ],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy 2 Entries"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut 2 Entries"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": true,
+            "reason": "Select a single item to add a child"
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete 2 Items"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": true,
+            "reason": "Select a single item to locate it in the text"
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "an entry that cannot be deleted: Delete is refused, Cut too",
+    "posted": [],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"V\"",
+            "title": "V"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": true,
+            "label": "Cut \"V\"",
+            "title": "V",
+            "reason": "\"V\" can't be cut"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V",
+            "disabled": true,
+            "reason": "Parameter cannot be in Architectural Data"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": true,
+            "reason": "This item takes no children"
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": true,
+            "label": "Delete \"V\"",
+            "title": "V",
+            "reason": "This element can't be removed from its parent"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "the rest of the menu on a struct: Add Child, Delete, Location in Text, Undo, Redo",
+    "posted": [
+      {
+        "type": "addChild",
+        "rowId": "binedit:file:///fx/trace.sldd/design/S"
+      },
+      {
+        "type": "delete",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/S"
+        ]
+      },
+      {
+        "type": "locateInText",
+        "rowId": "binedit:file:///fx/trace.sldd/design/S"
+      },
+      {
+        "type": "undo"
+      },
+      {
+        "type": "redo"
+      }
+    ],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": false
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ],
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": false
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ],
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": false
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ],
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": false
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ],
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": false
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"S\"",
+            "title": "S"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "locateInText",
+            "label": "Location in Text",
+            "icon": "locate",
+            "shortcut": "Ctrl+L",
+            "disabled": false
+          },
+          {
+            "id": "_sep3",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "a right-click on no row of a dictionary opens nothing",
+    "posted": [],
+    "seen": []
+  },
+  {
+    "step": "the host selects rows, and a rename it asks for",
+    "posted": [
+      {
+        "type": "select",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/B"
+        ]
+      }
+    ],
+    "seen": [
+      [
+        "beginRename",
+        "binedit:file:///fx/trace.sldd/design/A"
+      ],
+      [
+        "state",
+        {
+          "canAdd": true,
+          "rowDrag": true,
+          "addClasses": null,
+          "selected": [
+            "binedit:file:///fx/trace.sldd/design/B"
+          ]
+        }
+      ]
+    ]
+  },
+  {
+    "step": "the dialogs: an invalid value, a refusal, a text to edit, and none",
+    "posted": [],
+    "seen": [
+      [
+        "dialog",
+        {
+          "title": "Invalid Value",
+          "reason": "Cannot edit \"A\": not a number.",
+          "invalidValue": "abc",
+          "validValue": "1"
+        }
+      ],
+      [
+        "dialog",
+        {
+          "title": "Cannot Delete",
+          "reason": "This element cannot be deleted."
+        }
+      ],
+      [
+        "wholeValueEditor",
+        "binedit:file:///fx/trace.sldd/design/A",
+        "[1 2 3]"
+      ],
+      [
+        "dialog",
+        {
+          "title": "Cannot Edit",
+          "reason": "Cannot edit the Value of \"A\"."
+        }
+      ]
+    ]
+  },
+  {
+    "step": "a drag: start, the broadcast, predictions, a drop, a drop on no row, the end",
+    "posted": [
+      {
+        "type": "dragStart",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/A"
+        ]
+      },
+      {
+        "type": "drop",
+        "rowId": "section:design",
+        "mode": "copy"
+      },
+      {
+        "type": "dragEnd"
+      }
+    ],
+    "seen": [
+      [
+        "predict",
+        "section:arch",
+        "move",
+        {
+          "canDrop": false,
+          "cursor": "no-drop",
+          "tooltip": "Parameter cannot be in Architectural Data",
+          "noop": false
+        }
+      ],
+      [
+        "predict",
+        "section:design",
+        "move",
+        {
+          "canDrop": false,
+          "cursor": "no-drop",
+          "tooltip": "",
+          "noop": true
+        }
+      ],
+      [
+        "predict",
+        "binedit:file:///fx/trace.sldd/design/B",
+        "copy",
+        {
+          "canDrop": true,
+          "cursor": "copy",
+          "tooltip": "Convert Parameter to MATLAB Variable",
+          "noop": false
+        }
+      ],
+      [
+        "predict",
+        "",
+        "copy",
+        null
+      ],
+      [
+        "predict",
+        "section:design",
+        "copy",
+        null
+      ]
+    ]
+  },
+  {
+    "step": "a Bus dragged from another document predicts its conversion",
+    "posted": [],
+    "seen": [
+      [
+        "predict",
+        "section:arch",
+        "move",
+        {
+          "canDrop": true,
+          "cursor": "move",
+          "tooltip": "Convert Bus to Data Interface",
+          "noop": false
+        }
+      ],
+      [
+        "predict",
+        "section:design",
+        "move",
+        {
+          "canDrop": true,
+          "cursor": "move",
+          "tooltip": "Move Bus",
+          "noop": false
+        }
+      ]
+    ]
+  },
+  {
+    "step": "the Add gallery, its accelerator, a whole text asked for, a cell edit, a name looked up",
+    "posted": [
+      {
+        "type": "addEntry",
+        "section": "design",
+        "className": "Simulink.Parameter",
+        "rename": true
+      },
+      {
+        "type": "addEntry",
+        "section": "arch",
+        "className": "Simulink.Bus",
+        "rename": false
+      },
+      {
+        "type": "requestEditText",
+        "rowId": "binedit:file:///fx/trace.sldd/design/A"
+      },
+      {
+        "type": "edit",
+        "rowId": "binedit:file:///fx/trace.sldd/design/A",
+        "columnId": "Value",
+        "oldValue": "1",
+        "newValue": "2"
+      },
+      {
+        "type": "select",
+        "rowIds": [
+          "binedit:file:///fx/trace.sldd/design/S"
+        ]
+      }
+    ],
+    "seen": [
+      [
+        "toggleAddGallery"
+      ],
+      [
+        "state",
+        {
+          "canAdd": true,
+          "rowDrag": true,
+          "addClasses": null,
+          "selected": [
+            "binedit:file:///fx/trace.sldd/design/S"
+          ]
+        }
+      ]
+    ]
+  },
+  {
+    "step": "no text view: no Location in Text, and Cmd+L does nothing",
+    "posted": [],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "copy",
+            "icon": "copy",
+            "shortcut": "Ctrl+C",
+            "disabled": false,
+            "label": "Copy \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "cut",
+            "icon": "cut",
+            "shortcut": "Ctrl+X",
+            "disabled": false,
+            "label": "Cut \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "addChild",
+            "label": "Add Child",
+            "icon": "addChild",
+            "disabled": true,
+            "reason": "This item takes no children"
+          },
+          {
+            "id": "delete",
+            "icon": "delete",
+            "shortcut": "Del",
+            "disabled": false,
+            "label": "Delete \"A\"",
+            "title": "A"
+          },
+          {
+            "id": "_sep2",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "read-only: no menu, no chords, no drag, no Add, but a committed edit still goes",
+    "posted": [
+      {
+        "type": "dragEnd"
+      },
+      {
+        "type": "edit",
+        "rowId": "binedit:file:///fx/trace.sldd/design/A",
+        "columnId": "Value",
+        "oldValue": "1",
+        "newValue": "3"
+      }
+    ],
+    "seen": [
+      [
+        "state",
+        {
+          "canAdd": false,
+          "rowDrag": false,
+          "addClasses": null,
+          "selected": [
+            "binedit:file:///fx/trace.sldd/design/A"
+          ]
+        }
+      ],
+      [
+        "predict",
+        "section:design",
+        "copy",
+        null
+      ]
+    ]
+  },
+  {
+    "step": "a MAT-file: its gallery classes and its whole-file rule",
+    "posted": [
+      {
+        "type": "select",
+        "rowIds": []
+      }
+    ],
+    "seen": [
+      [
+        "state",
+        {
+          "canAdd": true,
+          "rowDrag": true,
+          "addClasses": [
+            "double",
+            "char"
+          ],
+          "selected": []
+        }
+      ]
+    ]
+  },
+  {
+    "step": "a MAT-file: a right-click on no row pastes into the file, so does Cmd+V with nothing selected",
+    "posted": [
+      {
+        "type": "paste",
+        "rowId": ""
+      },
+      {
+        "type": "paste",
+        "rowId": ""
+      }
+    ],
+    "seen": [
+      [
+        "menu",
+        [
+          {
+            "id": "paste",
+            "label": "Paste",
+            "icon": "paste",
+            "shortcut": "Ctrl+V"
+          },
+          {
+            "id": "_sep1",
+            "label": "",
+            "separator": true
+          },
+          {
+            "id": "undo",
+            "label": "Undo",
+            "shortcut": "Ctrl+Z",
+            "disabled": false
+          },
+          {
+            "id": "redo",
+            "label": "Redo",
+            "shortcut": "Shift+Ctrl+Z",
+            "disabled": false
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "step": "a MAT-file: a drop on no row lands in the file",
+    "posted": [
+      {
+        "type": "drop",
+        "rowId": "",
+        "mode": "copy"
+      },
+      {
+        "type": "drop",
+        "rowId": "",
+        "mode": "move"
+      }
+    ],
+    "seen": [
+      [
+        "predict",
+        "",
+        "copy",
+        {
+          "canDrop": true,
+          "cursor": "copy",
+          "tooltip": "Convert Parameter to MATLAB Variable",
+          "noop": false
+        }
+      ]
+    ]
+  }
+]
