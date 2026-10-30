@@ -1,11 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// Lifted from data-explorer-vscode src/host/MatEditorProvider.ts at c73da3c: its document
+// First lifted from the VS Code extension's src/host/MatEditorProvider.ts at c73da3c: its document
 // (MatDocument) and its view's editing (resolveCustomEditor's gestures), with every VS Code call
 // taken out and put behind the hooks an editable source is given (hooks.ts): core's session, the
-// edit stack and its save point, the registers, and where a notice goes. The extension keeps its
-// own copy until its MAT-file editor moves onto this; keep the two alike (view's CI reports a
-// vscode commit to that file).
+// edit stack and its save point, the registers, and where a notice goes. The extension's MAT-file
+// editor now runs on this engine, and keeps only VS Code's end of the hooks.
 //
 // A MAT-file editor's rules (`-v6` and `-v7`, the Level-5 files core reads and writes). The user's
 // baseline: a save never breaks the file. Two things here hold that up, and none of them is this
