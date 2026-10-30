@@ -119,9 +119,11 @@ export interface MatEngineOptions {
    * The host delivers every whole paint's rows itself, and calls the view's `opened()` once they
    * are: a repaint's trailer (the drop rules, the clipboard, the clip-mark repaint) then waits for
    * that call, as `open()`'s does, and the repaint resolves after it, so that what is said after a
-   * repaint follows its trailer. One `opened()` per whole paint (each `open()` answered and each
-   * `replaceAll`), in the order they were sent. The VS Code extension's, whose post of the rows is
-   * awaited before what follows them. Default: false, a repaint's trailer follows its rows at once.
+   * repaint follows its trailer. One `opened(view)` per whole paint (each `open()` answered and each
+   * `replaceAll`), with the view it delivered: each paint's trailer follows its own rows, whatever
+   * order they are delivered in (without a view, the oldest paint not yet delivered). The VS Code
+   * extension's, whose post of the rows is awaited before what follows them. Default: false, a
+   * repaint's trailer follows its rows at once.
    */
   trailerAfterDelivery?: boolean;
 }
@@ -713,7 +715,7 @@ export class MatEngine {
   }
 
   /** A table of the document: an EditableTableSource, until its `dispose()`. */
-  view(): EditableTableSource & { dispose(): void; repaintAll(): Promise<void> } {
+  view(): EditableTableSource & { dispose(): void; repaintAll(): Promise<void>; opened(view?: TableView): void } {
     return new MatView(this.document);
   }
 
@@ -757,7 +759,7 @@ class MatView implements EditableTableSource {
   private after: Trailer | null = null;
   // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
   // delivered (`opened`), and the repaint waiting on it.
-  private awaiting: { trailer: Trailer; done?: () => void }[] = [];
+  private awaiting: { view: TableView; trailer: Trailer; done?: () => void }[] = [];
 
   constructor(private readonly doc: MatDocument) {
     this.name = doc.metaPath;
@@ -912,7 +914,7 @@ class MatView implements EditableTableSource {
       ({ view, trailer }) => {
         if (this.doc.options.trailerAfterDelivery) {
           return new Promise<void>((done) => {
-            this.awaiting.push({ trailer, done });
+            this.awaiting.push({ view, trailer, done });
             this.emit({ kind: 'replaceAll', view });
           });
         }
@@ -1065,7 +1067,7 @@ class MatView implements EditableTableSource {
     if (this.closed) return Promise.reject(new SourceClosed(`${this.name} is closed.`));
     return this.paint().then(
       ({ view, trailer }) => {
-        if (this.doc.options.trailerAfterDelivery) this.awaiting.push({ trailer });
+        if (this.doc.options.trailerAfterDelivery) this.awaiting.push({ view, trailer });
         else this.after = trailer;
         return view;
       },
@@ -1077,12 +1079,14 @@ class MatView implements EditableTableSource {
 
   /**
    * The answer of the last `open()` has been shown: send what follows its paint. With
-   * trailerAfterDelivery, the oldest whole paint not yet said to be delivered (an `open()` answer
-   * or a `replaceAll`) has been: what follows it is sent, and its repaint resolves.
+   * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+   * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+   * sent, and its repaint resolves.
    */
-  opened(): void {
+  opened(view?: TableView): void {
     if (this.doc.options.trailerAfterDelivery) {
-      const next = this.awaiting.shift();
+      const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+      const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
       if (!next) return;
       this.sendTrailer(next.trailer);
       next.done?.();

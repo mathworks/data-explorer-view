@@ -1,5 +1,5 @@
 import { type AppliedOp, type EntryPatch, type ScPartPatch, type Session } from 'data-explorer-core';
-import type { EditableTableSource } from '../source/tableSource.js';
+import type { EditableTableSource, TableView } from '../source/tableSource.js';
 import { BinaryView } from './binaryView.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import type { Registers } from './registers.js';
@@ -29,6 +29,16 @@ export interface BinaryEngineOptions {
      * and redo, a save, a revert and a reload, and every error path that rebuilds from the text.
      */
     changed?: () => void;
+    /**
+     * The host delivers every whole paint's rows itself, and calls the view's `opened(view)` once
+     * they are, with the view it delivered: a repaint's trailer (the drop rules, the clipboard, the
+     * clip-mark repaint) then waits for that call, as `open()`'s does, and the repaint resolves after
+     * it. Each paint's trailer follows its own rows, whatever order they are delivered in (without a
+     * view, the oldest paint not yet delivered). The VS Code extension's, which posts the rows and
+     * then, in the same run, what follows them and its own after-paint work. Default: false, a
+     * repaint's trailer follows its rows at once.
+     */
+    trailerAfterDelivery?: boolean;
 }
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
 export interface BinarySave {
@@ -241,6 +251,7 @@ export declare class BinaryEngine {
     view(): EditableTableSource & {
         dispose(): void;
         repaintAll(): Promise<void>;
+        opened(view?: TableView): void;
     };
     /** Close the document: its tree leaves the session. Its views answer nothing more. */
     dispose(): void;

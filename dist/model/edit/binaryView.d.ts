@@ -11,6 +11,7 @@ export declare class BinaryView implements EditableTableSource {
     private closed;
     private paintedMark;
     private after;
+    private awaiting;
     constructor(doc: BinaryDocument);
     private get session();
     private emit;
@@ -46,8 +47,13 @@ export declare class BinaryView implements EditableTableSource {
     private repaintClipMark;
     private deleteMoved;
     open(): Promise<TableView>;
-    /** The answer of the last `open()` has been shown: send what follows its paint. */
-    opened(): void;
+    /**
+     * The answer of the last `open()` has been shown: send what follows its paint. With
+     * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+     * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+     * sent, and its repaint resolves.
+     */
+    opened(view?: TableView): void;
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
     inspect(selection: string | readonly string[]): Promise<InspectorView>;

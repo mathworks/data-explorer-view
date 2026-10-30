@@ -110,6 +110,9 @@ export class BinaryView implements EditableTableSource {
   // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
   // sends its own after its own rows.
   private after: Trailer | null = null;
+  // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+  // delivered (`opened`), and the repaint waiting on it.
+  private awaiting: { view: TableView; trailer: Trailer; done?: () => void }[] = [];
 
   constructor(private readonly doc: BinaryDocument) {
     this.name = doc.metaPath;
@@ -232,6 +235,13 @@ export class BinaryView implements EditableTableSource {
       this.error((err as Error).message);
       return Promise.resolve();
     }
+    if (this.doc.options.trailerAfterDelivery) {
+      const { view, trailer } = painted;
+      return new Promise<void>((done) => {
+        this.awaiting.push({ view, trailer, done });
+        this.emit({ kind: 'replaceAll', view });
+      });
+    }
     this.emit({ kind: 'replaceAll', view: painted.view });
     this.sendTrailer(painted.trailer);
     return Promise.resolve();
@@ -342,15 +352,29 @@ export class BinaryView implements EditableTableSource {
     if (this.closed) return Promise.reject(new SourceClosed(`${this.name} is closed.`));
     try {
       const { view, trailer } = this.paint('chunk');
-      this.after = trailer;
+      if (this.doc.options.trailerAfterDelivery) this.awaiting.push({ view, trailer });
+      else this.after = trailer;
       return Promise.resolve(view);
     } catch (err) {
       return Promise.reject(err);
     }
   }
 
-  /** The answer of the last `open()` has been shown: send what follows its paint. */
-  opened(): void {
+  /**
+   * The answer of the last `open()` has been shown: send what follows its paint. With
+   * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+   * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+   * sent, and its repaint resolves.
+   */
+  opened(view?: TableView): void {
+    if (this.doc.options.trailerAfterDelivery) {
+      const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+      const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
+      if (!next) return;
+      this.sendTrailer(next.trailer);
+      next.done?.();
+      return;
+    }
     const after = this.after;
     this.after = null;
     if (after) this.sendTrailer(after);
@@ -819,6 +843,8 @@ export class BinaryView implements EditableTableSource {
     this.doc.views.delete(this);
     this.unlisten();
     this.listeners.clear();
+    // A repaint whose rows can no longer be delivered has nothing more to wait for.
+    for (const { done } of this.awaiting.splice(0)) done?.();
     const registers = this.doc.options.registers;
     // A drag that started in this view and is still on goes with it, so a stale register cannot
     // complete against another document.
