@@ -1,5 +1,5 @@
-export { findNode, getModel, getModelForBinaryTab, getModelFromBytes, getModelFromParsed, invalidate, openSourceView, parseDetached, peekModel, releaseIfUnviewed, releaseSourceView, } from '../model/workspace/SlddModel.js';
-export type { TabSources } from '../model/workspace/SlddModel.js';
+export { defaultRegistry, findNode, getModel, getModelForBinaryTab, getModelFromBytes, getModelFromParsed, invalidate, openSourceView, parseDetached, peekModel, releaseIfUnviewed, releaseSourceView, } from '../model/workspace/SlddModel.js';
+export type { DocumentRegistry, TabSources } from '../model/workspace/SlddModel.js';
 export { answerChildRequest, childRowsMessage } from '../model/rows/childRequest.js';
 export type { UsageFiller } from '../model/rows/childRequest.js';
 export { answerMatrixRequest, matrixCellsMessage } from '../model/matrix/matrixRequest.js';
@@ -16,7 +16,7 @@ export type { MatEngineOptions, MatSave, UsageFill } from '../model/edit/matEngi
 export { BinaryEngine } from '../model/edit/binaryEngine.js';
 export type { BinaryEngineOptions, BinarySave } from '../model/edit/binaryEngine.js';
 export { JsonEngine } from '../model/edit/jsonEngine.js';
-export type { JsonDisk, JsonEngineOptions, JsonUsageFill, JsonUsageReposts } from '../model/edit/jsonEngine.js';
+export type { JsonDisk, JsonEngineOptions, JsonTableOptions, JsonUsageFill, JsonUsageReposts } from '../model/edit/jsonEngine.js';
 export type { BaselineSource, DiskStamp } from '../model/edit/slddBaseline.js';
 export type { WideLanding, WideState } from '../model/edit/wideRepaint.js';
 export type { Edit, EditIndex, EditSink, RangeReplacement, TextStore, TextStoreChange } from '../model/edit/hooks.js';

@@ -1,5 +1,5 @@
 import type { Session } from 'data-explorer-core';
-import type { EditableTableSource } from '../source/tableSource.js';
+import type { EditableTableSource, TableView } from '../source/tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import { type DocumentRegistry } from '../workspace/SlddModel.js';
 import type { Notify, TextStore } from './hooks.js';
@@ -54,7 +54,26 @@ export interface JsonEngineOptions {
     disk?: JsonDisk;
     /** How many rows a whole paint delivers before it holds the rest back. Default: LAZY_ROW_BUDGET. */
     budget?: number;
-    /** Called after every repaint of a table, wide or narrow, once its rows are sent. */
+    /** Called after every repaint of a table, wide or narrow, once its rows are sent (unless the table has its own, JsonTableOptions). */
+    changed?: () => void;
+    /**
+     * The host delivers every whole paint's rows itself, and calls the table's `opened(view)` once
+     * they are, with the view it delivered: a repaint's trailer (the drop rules, the clipboard, the
+     * clip-mark repaint, `changed`) then waits for that call, as `open()`'s does, and the repaint
+     * resolves after it. Each paint's trailer follows its own rows, whatever order they are
+     * delivered in (without a view, the oldest paint not yet delivered). The VS Code extension's,
+     * which posts the rows and then, in the same run, what follows them and its own after-paint work.
+     * Default: false, a repaint's trailer follows its rows at once.
+     */
+    trailerAfterDelivery?: boolean;
+}
+/** What one table of the document is given of its own, beside the engine's options. */
+export interface JsonTableOptions {
+    /**
+     * Called after every repaint of this table, wide or narrow, once its rows are sent, in place of
+     * the engine's `changed`: for a host whose tables of one document answer to different owners
+     * (the VS Code extension's, a provider per tab, each with its own hook).
+     */
     changed?: () => void;
 }
 /** What belongs to the document rather than to one of its tables (the extension's DocState). */
@@ -108,11 +127,12 @@ export declare class JsonEngine {
     /**
      * A table of the document: an EditableTableSource, until its `dispose()`. Its `locateInText` is
      * where a row's entry is in the text, for a host with a text view to show it (null when it cannot
-     * be found, which the table says).
+     * be found, which the table says). `table` is what this table has of its own (its `changed`).
      */
-    view(): EditableTableSource & {
+    view(table?: JsonTableOptions): EditableTableSource & {
         dispose(): void;
         repaintAll(): Promise<void>;
+        opened(view?: TableView): void;
         locateInText(rowId: string): {
             offset: number;
             length: number;

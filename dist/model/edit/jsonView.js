@@ -42,8 +42,9 @@ const REMEMBER_COUNT = 16;
 const REMEMBER_LIMIT = 1_000_000;
 /** One table of a JSON dictionary: resolveCustomTextEditor's view, as an EditableTableSource. */
 export class JsonView {
-    constructor(doc) {
+    constructor(doc, table = {}) {
         this.doc = doc;
+        this.table = table;
         this.listeners = new Set();
         this.unsubscribe = [];
         /**
@@ -67,6 +68,9 @@ export class JsonView {
         this.pendingOpen = null;
         // What follows the paint `open()` last answered, until it is delivered (`opened`).
         this.after = null;
+        // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+        // delivered (`opened`), and the repaint waiting on it (told whether it all went out).
+        this.awaiting = [];
         /** What the table edit in flight will need when its own change arrives (spent by the next change). */
         this.hostEdit = null;
         /** A write whose rows are ALREADY on screen, so the change it fires has nothing left to paint. */
@@ -167,8 +171,12 @@ export class JsonView {
     fillUsageNow(rows) {
         return this.doc.options.usage ? this.doc.options.usage.fillNow(rows) : true;
     }
+    // This table's own hook if it has one (a host whose tables answer to different owners), else the engine's.
     changed() {
-        this.doc.options.changed?.();
+        if (this.table.changed)
+            this.table.changed();
+        else
+            this.doc.options.changed?.();
     }
     // A narrow repaint: one entry's run of rows replaced, removed or added. Counted, because a wide
     // repaint in flight read its text before this and would paint over it (wideLanding).
@@ -218,10 +226,10 @@ export class JsonView {
     // --- The wide repaint ------------------------------------------------------------------------
     /**
      * Rebuild the model from the text and paint every row: on open, on every change of the text that
-     * is not a single entry's, and on save. Resolves when the rows are sent; a repaint whose rows are
-     * dropped (wideLanding) resolves when the rows that replace them are. Resolves false when what
-     * follows the rows threw (sendTrailer): what a caller says after the repaint is then not said, as
-     * the extension's rejected repaint skips it.
+     * is not a single entry's, and on save. Resolves when the rows are sent (with trailerAfterDelivery,
+     * once what follows them is); a repaint whose rows are dropped (wideLanding) resolves when the rows
+     * that replace them are. Resolves false when what follows the rows threw (sendTrailer): what a
+     * caller says after the repaint is then not said, as the extension's rejected repaint skips it.
      */
     post() {
         // A closed table repaints nothing, and a table not yet asked for its rows is painted when it is.
@@ -286,9 +294,20 @@ export class JsonView {
                 if (opening) {
                     // The rows `open()` asked for: answered, and what follows them sent once they are shown.
                     this.pendingOpen = null;
-                    this.after = trailer;
+                    if (this.doc.options.trailerAfterDelivery)
+                        this.awaiting.push({ view, trailer });
+                    else
+                        this.after = trailer;
                     opening.resolve(view);
                     return true;
+                }
+                if (this.doc.options.trailerAfterDelivery) {
+                    // What follows these rows waits for the host to deliver them (`opened(view)`), and so does
+                    // what is said after this repaint.
+                    return new Promise((done) => {
+                        this.awaiting.push({ view, trailer, done });
+                        this.emit({ kind: 'replaceAll', view });
+                    });
                 }
                 this.emit({ kind: 'replaceAll', view });
                 return this.sendTrailer(trailer);
@@ -1329,8 +1348,22 @@ export class JsonView {
         void this.post();
         return answer;
     }
-    /** The answer of the last `open()` has been shown: send what follows its paint. */
-    opened() {
+    /**
+     * The answer of the last `open()` has been shown: send what follows its paint. With
+     * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+     * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+     * sent, and its repaint resolves.
+     */
+    opened(view) {
+        if (this.doc.options.trailerAfterDelivery) {
+            const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+            const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
+            if (!next)
+                return;
+            const sent = this.sendTrailer(next.trailer);
+            next.done?.(sent);
+            return;
+        }
         const after = this.after;
         this.after = null;
         if (after)
@@ -1440,6 +1473,10 @@ export class JsonView {
         this.doc.views.delete(this);
         this.pendingOpen?.reject(new SourceClosed(`${this.name} is closed.`));
         this.pendingOpen = null;
+        // A repaint whose rows can no longer be delivered has nothing more to wait for (and a closed
+        // table's trailer is no failure, as sendTrailer answers for one).
+        for (const { done } of this.awaiting.splice(0))
+            done?.(true);
         // Per table, paired with the open: the last one drops the tree it held.
         this.doc.registry.releaseSourceView(this.uri);
         // Only once the LAST table of this document closes.

@@ -265,6 +265,12 @@ export class DocumentRegistry {
 /** The registry over core's module-level session: what every function below answers from. */
 const shared = new DocumentRegistry(DataModel);
 /**
+ * That registry, for an engine that is to hold its trees where these functions find them (the VS
+ * Code extension's JSON dictionary engine, beside its Property Inspector, its other editors and its
+ * own reads of a uri's tree).
+ */
+export const defaultRegistry = shared;
+/**
  * A tree of a dictionary's text that nothing else can see: built in a session of its own, so it
  * is not registered under any uri, not cached here, and not found by the Property Inspector or
  * an edit. For a reading that is only ever compared against — the baseline of a document opened
