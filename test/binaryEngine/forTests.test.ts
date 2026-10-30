@@ -2,9 +2,11 @@
 //
 // The compressed dictionary engine's seam for the VS Code extension's integration suites
 // (`forTests`), which do to the document what they did before its editor moved onto this engine:
-// set its chunk as though an edit had written it, and push an edit as a gesture pushes one.
+// set its chunk as though an edit had written it, push an edit as a gesture pushes one, replace its
+// parts as a reload does, and reach the tables a repaint reaches.
 import * as assert from 'node:assert';
 import { createSession } from 'data-explorer-core';
+import { unzipSync } from 'fflate';
 import { describe, it } from 'vitest';
 import { createRegisters } from '../../src/model/index.js';
 import { BinaryEngine, EditStack, EditStackIndex, type Edit } from '../../src/host/index.js';
@@ -50,5 +52,24 @@ describe("the compressed dictionary engine's seam for the extension's suites", (
     assert.strictEqual(index.dirty, false);
     stack.redo();
     assert.strictEqual(engine.chunkXml, after);
+  });
+
+  it("replaces the parts from a zip's members, the data part left out, as a reload does", () => {
+    const { engine } = document();
+    const members = unzipSync(file(PARAMS));
+    engine.forTests.resetParts({ ...members, 'extra/part.xml': new Uint8Array([1]) });
+    assert.ok(!Object.keys(engine.parts).includes('data/chunk0.xml'), 'the data part is the chunk, never a part');
+    assert.deepStrictEqual(
+      Object.keys(engine.parts).sort(),
+      [...Object.keys(members).filter((m) => m !== 'data/chunk0.xml'), 'extra/part.xml'].sort(),
+    );
+  });
+
+  it('reaches the tables a repaint reaches, where a stand-in sees which repaint ran', () => {
+    const { engine } = document();
+    const calls: string[] = [];
+    engine.forTests.views.add({ repaintAll: (from) => calls.push(`all ${from ?? 'chunk'}`), repaintOps: () => calls.push('ops') });
+    engine.repaintAll('registered');
+    assert.deepStrictEqual(calls, ['all registered']);
   });
 });

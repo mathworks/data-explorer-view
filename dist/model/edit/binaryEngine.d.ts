@@ -139,11 +139,18 @@ export declare class BinaryEngine {
      * For the VS Code extension's integration suites only; not for apps. What those suites do to the
      * document behind its tables, as they did before its editor moved onto this engine: set its
      * chunk as though an edit had written it (to hold the save gate to a chunk no edit could
-     * write), and push an edit as a gesture pushes one. Neither repaints anything.
+     * write), push an edit as a gesture pushes one, replace its pass-through parts from a zip's
+     * members as a reload does, and reach the set of tables a repaint reaches (where a suite puts a
+     * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran). None repaints anything.
      */
     readonly forTests: {
         setChunk: (xml: string) => void;
         pushEdit: (label: string, before: string, after: string, patch?: EntryPatch, part?: ScPartPatch) => void;
+        resetParts: (members: Record<string, Uint8Array>) => void;
+        views: Set<{
+            repaintAll(from?: ModelSource): unknown;
+            repaintOps(applied: AppliedOp[]): void;
+        }>;
     };
     private get session();
     private notify;
