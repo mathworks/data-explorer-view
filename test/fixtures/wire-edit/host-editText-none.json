@@ -1,0 +1,6 @@
+{
+  "type": "editText",
+  "rowId": "binedit:file:///fx/test/fixtures/nd_numeric.mat/structScalar",
+  "text": null,
+  "reason": "Cannot edit the Value of \"structScalar\": a struct is edited field by field."
+}

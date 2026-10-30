@@ -15,6 +15,7 @@
 export { serveFolder } from '../model/source/serveFolder.js';
 export type { FolderReads, FolderServer, ServeFolderOptions } from '../model/source/serveFolder.js';
 export { serveTable } from '../model/source/serveTable.js';
+export type { ServeTableExtra, ServeTableOptions } from '../model/source/serveTable.js';
 export { listedFiles } from '../model/hierarchy/folderList.js';
 export type { FolderFileList } from '../model/hierarchy/folderList.js';
 export { sourceUri, uriPath } from '../model/source/sourceUri.js';
@@ -28,6 +29,8 @@ export type {
   FolderHostMessage,
   FolderRequestMessage,
   TableClientMessage,
+  TableEditClientMessage,
+  TableEditHostMessage,
   TableHostMessage,
   TablePort,
 } from '../model/source/wire.js';

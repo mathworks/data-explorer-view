@@ -34,17 +34,57 @@ class Waiting {
         this.byId.clear();
     }
 }
+/** A rule's or a list's items that are records, the only ones a table can read a fact from. */
+const records = (list) => list.filter(isRecord);
+/** The host's clipboard as a `clipboard` change carries it, from a `clipboardState`, in the order the extension's host spells it. */
+function clipboardStatus(m) {
+    return {
+        canPaste: !!m.canPaste,
+        mode: m.mode === 'cut' || m.mode === 'copy' ? m.mode : null,
+        ...(typeof m.sourceDocUri === 'string' ? { sourceDocUri: m.sourceDocUri } : {}),
+        items: Array.isArray(m.items) ? records(m.items) : [],
+    };
+}
+/** The drag a `dragState` says is in flight, or null: no drag, or one whose items are not a list. */
+function dragDescriptor(d) {
+    return isRecord(d) && Array.isArray(d.items) ? { ...d, items: records(d.items) } : null;
+}
+/** The messages of the wire this source hears, by type, so that what is not one goes to `extra`. */
+const WIRE_HOST_TYPES = new Set([
+    'setRows',
+    'error',
+    'updateEntryRows',
+    'insertEntryRows',
+    'childRows',
+    'matrixCells',
+    'showProps',
+    'empty',
+    'sectionRules',
+    'clipboardState',
+    'dragState',
+    'selectRows',
+    'beginRename',
+    'validationError',
+    'refused',
+    'editText',
+]);
 /**
- * A TableSource answered by a host across `port`, in the wire format (wire.ts).
+ * A TableSource answered by a host across `port`, in the wire format (wire.ts), which also takes
+ * edits.
  *
  * `open()` says `ready` and resolves with the next `setRows` (or rejects with the next `error`);
  * `children()` and `matrix()` ask with `requestChildren` and `requestMatrix`; `inspect()` sends a
  * `select` and resolves with the `showProps` or `empty` that answers it. Every later `setRows`,
  * `updateEntryRows`, `insertEntryRows` and `error` reaches the subscribers as a TableChange.
  *
+ * Each command posts its editing message at once (`edit()` an `edit`, `undo()` an `undo`), and
+ * each editing message the host sends reaches the subscribers as the change it carries:
+ * `sectionRules`, `clipboardState` (a `clipboard`), `dragState` (a `drag`), `selectRows` (a
+ * `select`), `beginRename`, `validationError` (an `invalid`), `refused` and `editText`.
+ *
  * The returned `dispose()` stops listening, and rejects what is still waiting.
  */
-export function messageSource(port) {
+export function messageSource(port, options = {}) {
     let docUri = '';
     const opens = [];
     const children = new Waiting();
@@ -72,9 +112,15 @@ export function messageSource(port) {
             ...(isRecord(m.warnings) ? { warnings: m.warnings } : {}),
         };
     };
+    /** Send a command: nothing waits for an answer. */
+    const send = (message) => port.postMessage(message);
     const stop = port.onMessage((m) => {
         if (!isRecord(m))
             return;
+        if (!WIRE_HOST_TYPES.has(m.type)) {
+            options.extra?.(m);
+            return;
+        }
         switch (m.type) {
             case 'setRows': {
                 const view = viewOf(m);
@@ -130,6 +176,34 @@ export function messageSource(port) {
                 asked.pending.resolve(m.type === 'showProps' && asked.first !== undefined ? { rowId: asked.first, groups } : { groups });
                 return;
             }
+            case 'sectionRules':
+                // A host that leaves the uri out means the document it has shown.
+                if (typeof m.docUri === 'string')
+                    docUri = m.docUri;
+                return emit({ kind: 'sectionRules', docUri, rules: Array.isArray(m.rules) ? records(m.rules) : [] });
+            case 'clipboardState':
+                return emit({ kind: 'clipboard', state: clipboardStatus(m) });
+            case 'dragState':
+                return emit({ kind: 'drag', descriptor: dragDescriptor(m.descriptor) });
+            case 'selectRows':
+                return emit({ kind: 'select', rowIds: Array.isArray(m.rowIds) ? m.rowIds.filter((id) => typeof id === 'string') : [] });
+            case 'beginRename':
+                if (typeof m.rowId !== 'string')
+                    return;
+                return emit({ kind: 'beginRename', rowId: m.rowId });
+            case 'validationError':
+                return emit({ kind: 'invalid', reason: String(m.reason ?? ''), invalidValue: m.invalidValue, previousValue: m.previousValue });
+            case 'refused':
+                return emit({ kind: 'refused', title: String(m.title ?? ''), reason: String(m.reason ?? '') });
+            case 'editText':
+                if (typeof m.rowId !== 'string')
+                    return;
+                return emit({
+                    kind: 'editText',
+                    rowId: m.rowId,
+                    text: typeof m.text === 'string' ? m.text : null,
+                    ...(typeof m.reason === 'string' ? { reason: m.reason } : {}),
+                });
         }
     });
     return {
@@ -159,6 +233,45 @@ export function messageSource(port) {
         subscribe(listener) {
             listeners.add(listener);
             return () => void listeners.delete(listener);
+        },
+        edit({ rowId, columnId, oldValue, newValue }) {
+            send({ type: 'edit', rowId, columnId, oldValue, newValue });
+        },
+        copy(rowIds) {
+            send({ type: 'copy', rowIds: [...rowIds] });
+        },
+        cut(rowIds) {
+            send({ type: 'cut', rowIds: [...rowIds] });
+        },
+        delete(rowIds) {
+            send({ type: 'delete', rowIds: [...rowIds] });
+        },
+        paste(rowId) {
+            send({ type: 'paste', rowId });
+        },
+        addChild(rowId) {
+            send({ type: 'addChild', rowId });
+        },
+        addEntry({ section, className, rename }) {
+            send({ type: 'addEntry', section, className, rename });
+        },
+        undo() {
+            send({ type: 'undo' });
+        },
+        redo() {
+            send({ type: 'redo' });
+        },
+        dragStart(rowIds) {
+            send({ type: 'dragStart', rowIds: [...rowIds] });
+        },
+        dragEnd() {
+            send({ type: 'dragEnd' });
+        },
+        drop(rowId, mode) {
+            send({ type: 'drop', rowId, mode });
+        },
+        requestEditText(rowId) {
+            send({ type: 'requestEditText', rowId });
         },
         dispose() {
             stop();

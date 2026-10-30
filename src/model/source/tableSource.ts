@@ -9,14 +9,19 @@
 // `TableChange` the repaints that follow a first paint. So one table wiring can be fed by a source
 // in the page (source/workspace.ts) or by a host across a message channel, and draw the same rows.
 //
-// Editing (an edit, a paste, a drop, undo) is the other half, and comes as an extension of this
-// interface: a read-only source implements this one alone.
+// Editing (an edit, a paste, a drop, undo) is the other half: EditableTableSource extends this
+// interface with one command per gesture, each the extension's editing message without its
+// envelope, and its answers arrive as more TableChanges. A read-only source implements this one
+// alone.
 //
-// Types only.
+// Types, and isEditable.
+import type { DropFacts } from '../actions/dropFacts.js';
+import type { SectionRule } from '../actions/sectionRules.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
 import type { PropertyGroup } from '../inspector/piBuilder.js';
+import type { ClipboardMode, DragDescriptor } from './wire.js';
 
 /** What the table shows for a document: its rows, its columns and the banners above them. */
 export interface TableView {
@@ -111,6 +116,18 @@ export interface InspectorFeed {
 }
 
 /**
+ * What the clipboard holds, as every table is told whenever it changes: payload-free, the facts a
+ * paste target judges each entry by, the section each was taken from (`sectionName`, '' for a
+ * MAT-file's variable), and the document (`sourceDocUri`).
+ */
+export interface ClipboardStatus {
+  canPaste: boolean;
+  mode: ClipboardMode | null;
+  items: (DropFacts & { sectionName?: string })[];
+  sourceDocUri?: string;
+}
+
+/**
  * Something that changed what the table shows, after `open()`: the repaints a source sends its
  * subscribers.
  *
@@ -122,13 +139,34 @@ export interface InspectorFeed {
  * - `error`: what went wrong, for the banner; the rows on screen stay (the file could not be read
  *   again, for example).
  *
- * A read-only source sends `replaceAll` and `error`; the entry-scoped two come from editing.
+ * A read-only source sends `replaceAll` and `error`; the entry-scoped two come from editing, and
+ * so do the rest, which an editable source sends as the editing messages' answers (wire.ts):
+ *
+ * - `sectionRules`: what each section of `docUri` takes, for the table to predict a drop or a paste.
+ * - `clipboard`: what the clipboard now holds, told to every table.
+ * - `drag`: the drag in flight, told to every table, or null when it ends.
+ * - `select`: the rows an edit made the selection (a rename's row, a delete's survivor, what a
+ *   paste added).
+ * - `beginRename`: open the Name editor on a row the Add gallery just created.
+ * - `invalid`: a cell edit refused, with the value refused and the one the cell keeps.
+ * - `refused`: a gesture refused before it changed anything, titled by the gesture.
+ * - `editText`: the answer to `requestEditText`: the whole text of the row's Value, or null and why.
+ *
+ * A table that does not edit ignores the editing kinds.
  */
 export type TableChange =
   | { kind: 'replaceAll'; view: TableView }
   | { kind: 'updateEntry'; entryRowId: string; rows: TreeTableRow[] }
   | { kind: 'insertEntry'; sectionRowId: string; beforeRowId?: string; rows: TreeTableRow[] }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string }
+  | { kind: 'sectionRules'; docUri: string; rules: SectionRule[] }
+  | { kind: 'clipboard'; state: ClipboardStatus }
+  | { kind: 'drag'; descriptor: DragDescriptor | null }
+  | { kind: 'select'; rowIds: string[] }
+  | { kind: 'beginRename'; rowId: string }
+  | { kind: 'invalid'; reason: string; invalidValue: unknown; previousValue: unknown }
+  | { kind: 'refused'; title: string; reason: string }
+  | { kind: 'editText'; rowId: string; text: string | null; reason?: string };
 
 /**
  * One document, as a table shows it: what it shows first, the answers it gives as the user opens
@@ -153,4 +191,92 @@ export interface TableSource {
   inspect(selection: string | readonly string[]): Promise<InspectorView>;
   /** Hear every change after `open()`, until the returned function is called. */
   subscribe(listener: (change: TableChange) => void): () => void;
+}
+
+/** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */
+export interface CellEdit {
+  rowId: string;
+  columnId: string;
+  oldValue: string;
+  newValue: string;
+}
+
+/**
+ * One new default entry from the Add gallery: the section it goes in (core's key; '' for a
+ * MAT-file), the class to create, and whether its Name cell opens for a rename once it is there.
+ */
+export interface NewEntry {
+  section: string;
+  className: string;
+  rename: boolean;
+}
+
+/**
+ * A TableSource that also takes edits: one command per gesture, each the editing message of the
+ * wire (wire.ts) without its envelope, in the order the user makes them.
+ *
+ * Every command is fire-and-forget. It returns nothing and promises nothing: what it did arrives
+ * through `subscribe`, as the repaints of the entries it changed (`updateEntry`, `insertEntry`,
+ * `replaceAll`) and the editing kinds of TableChange (a selection, a refusal, a dialog's reason). A
+ * command the document will not take answers with a refusal, not a throw.
+ *
+ * ONE GESTURE IS ONE CALL, and one undo step: a source that keeps an undo stack pushes one entry
+ * per call, however many entries the gesture changed. The call is made as the gesture's message
+ * arrives (serveTable hands it on before it awaits anything), so the source sees gestures in the
+ * order they were made.
+ */
+export interface EditableTableSource extends TableSource {
+  /** Write a committed cell edit back. */
+  edit(edit: CellEdit): void;
+  /** Copy the entries of these rows to the clipboard. */
+  copy(rowIds: readonly string[]): void;
+  /** Cut the entries of these rows: copied, and taken out of this document when they are pasted. */
+  cut(rowIds: readonly string[]): void;
+  /** Delete these rows. */
+  delete(rowIds: readonly string[]): void;
+  /** Paste the clipboard into the section of `rowId` ('' for the document itself, where it is one target). */
+  paste(rowId: string): void;
+  /** Add a child to `rowId`. */
+  addChild(rowId: string): void;
+  /** Create a new default entry. */
+  addEntry(entry: NewEntry): void;
+  /** Undo the document's last edit. */
+  undo(): void;
+  /** Redo the document's last undone edit. */
+  redo(): void;
+  /** These rows are being dragged: take them into the drag register. */
+  dragStart(rowIds: readonly string[]): void;
+  /** The drag of this table's rows ended, dropped or not. */
+  dragEnd(): void;
+  /** The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries there. */
+  drop(rowId: string, mode: 'copy' | 'move'): void;
+  /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
+  requestEditText(rowId: string): void;
+}
+
+/** The commands an EditableTableSource takes, by name. */
+const COMMANDS = [
+  'edit',
+  'copy',
+  'cut',
+  'delete',
+  'paste',
+  'addChild',
+  'addEntry',
+  'undo',
+  'redo',
+  'dragStart',
+  'dragEnd',
+  'drop',
+  'requestEditText',
+] as const satisfies readonly (keyof EditableTableSource)[];
+
+/**
+ * Whether `source` takes edits: it has every command of an EditableTableSource. Whether its
+ * table may edit what it shows now is the view's `editable`, which can be false for a source that
+ * takes edits (a MAT-file opened for viewing only).
+ */
+export function isEditable(source: TableSource): source is EditableTableSource {
+  const commands = source as unknown as Record<string, unknown>;
+  return COMMANDS.every((name) => typeof commands[name] === 'function');
 }

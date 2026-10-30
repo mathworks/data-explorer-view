@@ -9,7 +9,7 @@
 //   names        every entry's export names, value or type, and a value's type (its built .d.ts)
 //   elements     each widget's tag, properties, methods, attributes and events (the manifest)
 //   details      each event detail's fields (the detail interface, in the built .d.ts)
-//   wire         each message of the four wire unions, and its fields (dist/model/source/wire.d.ts)
+//   wire         each message of the six wire unions, and its fields (dist/model/source/wire.d.ts)
 //   tokens       the theme's tokens (src/theme/tokens.css), and the ones each widget entry reads
 //   icons        the icon ids (icons/*.svg)
 //   observed     the attributes each widget class observes, by Lit's reckoning (imported in Node)
@@ -138,13 +138,13 @@ export function detailItems(dir, manifest) {
   return items;
 }
 
-/** The wire: each message of the four unions by its `type`, each of its fields, and the file's other type aliases. */
+/** The wire: each message of the six unions by its `type`, each of its fields, and the file's other type aliases. */
 export function wireItems(dir) {
   const file = join(dir, 'dist', 'model', 'source', 'wire.d.ts');
   if (!existsSync(file)) return [];
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.ES2022, true);
   const byName = new Map(source.statements.filter((s) => ts.isInterfaceDeclaration(s) || ts.isTypeAliasDeclaration(s)).map((s) => [s.name.text, s]));
-  const UNIONS = ['TableHostMessage', 'TableClientMessage', 'FolderHostMessage', 'FolderClientMessage'];
+  const UNIONS = ['TableHostMessage', 'TableClientMessage', 'TableEditHostMessage', 'TableEditClientMessage', 'FolderHostMessage', 'FolderClientMessage'];
   const items = [];
   for (const union of UNIONS) {
     const alias = byName.get(union);
@@ -154,7 +154,7 @@ export function wireItems(dir) {
       const name = member.getText(source);
       const decl = byName.get(name);
       const fields = decl ? fieldsOf(decl, source) : null;
-      const type = fields?.find((f) => f.name === 'type')?.text.replace(/^type\??: /, '').replace(/^(['"])(.*)\1$/, '$2') ?? name;
+      const type = fields?.find((f) => f.name === 'type')?.text.replace(/^type\??: /, '').replace(/['"]/g, '') ?? name;
       items.push({ key: `wire ${union} ${type}`, value: name });
       for (const f of fields ?? []) if (f.name !== 'type') items.push({ key: `wire ${union} ${type} field ${f.name}`, value: f.text });
     }

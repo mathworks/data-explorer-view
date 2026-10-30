@@ -1,0 +1,7 @@
+{
+  "type": "dragStart",
+  "rowIds": [
+    "binedit:file:///fx/test/fixtures/arch_binary.sldd/arch/DataInterface",
+    "binedit:file:///fx/test/fixtures/arch_binary.sldd/arch/ValueType"
+  ]
+}

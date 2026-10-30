@@ -1,0 +1,5 @@
+{
+  "type": "refused",
+  "title": "Cannot Delete",
+  "reason": "Cannot delete \"s.a\": a struct keeps at least one field. Nothing was deleted."
+}

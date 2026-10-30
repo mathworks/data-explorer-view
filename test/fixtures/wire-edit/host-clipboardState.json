@@ -1,0 +1,25 @@
+{
+  "type": "clipboardState",
+  "canPaste": true,
+  "mode": "cut",
+  "sourceDocUri": "file:///fx/test/fixtures/params.sldd",
+  "items": [
+    {
+      "sectionName": "design",
+      "className": "Simulink.Parameter",
+      "arrayClass": "",
+      "kind": "Parameter",
+      "isMatlabVariable": true,
+      "isScalarNumeric": true
+    },
+    {
+      "sectionName": "arch",
+      "className": "Simulink.Bus",
+      "arrayClass": "",
+      "kind": "Bus",
+      "isMatlabVariable": false,
+      "isScalarNumeric": false,
+      "sharedName": true
+    }
+  ]
+}

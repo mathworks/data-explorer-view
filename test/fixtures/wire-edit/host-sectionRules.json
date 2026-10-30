@@ -1,0 +1,21 @@
+{
+  "type": "sectionRules",
+  "docUri": "file:///fx/test/fixtures/params.sldd",
+  "rules": [
+    {
+      "sectionName": "design",
+      "sectionLabel": "Design Data",
+      "isDerived": false,
+      "allowedTypes": []
+    },
+    {
+      "sectionName": "arch",
+      "sectionLabel": "Architectural Data",
+      "isDerived": true,
+      "allowedTypes": [
+        "Simulink.Bus",
+        "Simulink.ValueType"
+      ]
+    }
+  ]
+}

@@ -116,12 +116,14 @@ jobs:
           echo "::notice title=Extension branch::data-explorer-vscode $ref, as $why"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
+      # With its history, for the report of what changed in the files view copies from it.
       - uses: actions/checkout@v7
         with:
           repository: mathworks/data-explorer-vscode
           ref: ${{ steps.vscode-ref.outputs.ref }}
           path: vscode
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -149,6 +151,23 @@ jobs:
       # reason.
       - name: The installed view is this one
         run: diff -r view/dist vscode/node_modules/data-explorer-view/dist
+
+      # The editing messages of view's wire, and the modules view copied from the extension (its
+      # transfer, registers and deleters), each held to the extension's own declaration of it,
+      # both ways round: compiled inside the extension's checkout, against this view. A message or
+      # a type that drifted fails to compile, on its line of scripts/downstream/view-wire.check.ts.
+      # The two files are copied to the checkout's root, where no other step looks.
+      - name: The editing wire and the copies are the extension's
+        run: |
+          cp view/scripts/downstream/view-wire.check.ts view/scripts/downstream/tsconfig.view-wire.json vscode/
+          cd vscode
+          npx tsc -p tsconfig.view-wire.json
+
+      # Which of the extension's files view copies have changed there since each copy was taken:
+      # warnings to read, never a failure (scripts/copied-drift.mjs).
+      - name: Copies behind the extension (a report)
+        continue-on-error: true
+        run: node view/scripts/copied-drift.mjs vscode
 
       - name: Typecheck the extension
         working-directory: vscode

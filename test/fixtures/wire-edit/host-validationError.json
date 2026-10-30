@@ -1,0 +1,6 @@
+{
+  "type": "validationError",
+  "reason": "Cannot edit \"gravity\": the value must be numeric.",
+  "invalidValue": "abc",
+  "previousValue": "9.81"
+}

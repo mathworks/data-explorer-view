@@ -1,0 +1,7 @@
+{
+  "type": "edit",
+  "rowId": "file:///fx/test/fixtures/params.sldd/design/gravity",
+  "columnId": "Name",
+  "oldValue": "gravity",
+  "newValue": "g0"
+}

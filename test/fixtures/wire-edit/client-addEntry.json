@@ -1,0 +1,6 @@
+{
+  "type": "addEntry",
+  "section": "design",
+  "className": "Simulink.Parameter",
+  "rename": true
+}

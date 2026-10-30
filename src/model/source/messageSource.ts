@@ -10,11 +10,26 @@
 // one in a shape a table cannot use, is ignored, except a repaint of an entry that cannot be
 // applied: the table is then out of step with its host, and asks for the whole table again.
 //
+// Every edit is a command, sent as its message (`edit`, `paste`, `undo`, …) and waiting for
+// nothing; what the host answers is a change like any other (`selectRows` a `select`, `refused` a
+// `refused`). A host that does not edit ignores the commands, and never sends those changes.
+//
 // DOM-free: a port is anything that posts and listens (wire.ts TablePort).
+import type { DropFacts } from '../actions/dropFacts.js';
+import type { SectionRule } from '../actions/sectionRules.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { PropertyGroup } from '../inspector/piBuilder.js';
-import type { ChildRows, InspectorFeed, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
-import type { TablePort } from './wire.js';
+import type {
+  ChildRows,
+  ClipboardStatus,
+  EditableTableSource,
+  InspectorFeed,
+  InspectorView,
+  MatrixPage,
+  TableChange,
+  TableView,
+} from './tableSource.js';
+import type { DragDescriptor, TableEditClientMessage, TablePort } from './wire.js';
 
 type Pending<T> = { resolve: (value: T) => void; reject: (err: Error) => void };
 
@@ -53,17 +68,71 @@ class Waiting<T> {
   }
 }
 
+/** What a messageSource may be told besides its port. */
+export interface MessageSourceOptions {
+  /**
+   * Hear each message from the host that is not one of the wire's (wire.ts): the host's own, such
+   * as the VS Code extension's `openAddGallery`. A message of the wire is never passed here, even
+   * one in a shape the source cannot use.
+   */
+  extra?(message: Record<string, any>): void;
+}
+
+/** A rule's or a list's items that are records, the only ones a table can read a fact from. */
+const records = (list: unknown[]): any[] => list.filter(isRecord);
+
+/** The host's clipboard as a `clipboard` change carries it, from a `clipboardState`, in the order the extension's host spells it. */
+function clipboardStatus(m: Record<string, any>): ClipboardStatus {
+  return {
+    canPaste: !!m.canPaste,
+    mode: m.mode === 'cut' || m.mode === 'copy' ? m.mode : null,
+    ...(typeof m.sourceDocUri === 'string' ? { sourceDocUri: m.sourceDocUri } : {}),
+    items: Array.isArray(m.items) ? (records(m.items) as (DropFacts & { sectionName?: string })[]) : [],
+  };
+}
+
+/** The drag a `dragState` says is in flight, or null: no drag, or one whose items are not a list. */
+function dragDescriptor(d: unknown): DragDescriptor | null {
+  return isRecord(d) && Array.isArray(d.items) ? ({ ...d, items: records(d.items) } as DragDescriptor) : null;
+}
+
+/** The messages of the wire this source hears, by type, so that what is not one goes to `extra`. */
+const WIRE_HOST_TYPES = new Set([
+  'setRows',
+  'error',
+  'updateEntryRows',
+  'insertEntryRows',
+  'childRows',
+  'matrixCells',
+  'showProps',
+  'empty',
+  'sectionRules',
+  'clipboardState',
+  'dragState',
+  'selectRows',
+  'beginRename',
+  'validationError',
+  'refused',
+  'editText',
+]);
+
 /**
- * A TableSource answered by a host across `port`, in the wire format (wire.ts).
+ * A TableSource answered by a host across `port`, in the wire format (wire.ts), which also takes
+ * edits.
  *
  * `open()` says `ready` and resolves with the next `setRows` (or rejects with the next `error`);
  * `children()` and `matrix()` ask with `requestChildren` and `requestMatrix`; `inspect()` sends a
  * `select` and resolves with the `showProps` or `empty` that answers it. Every later `setRows`,
  * `updateEntryRows`, `insertEntryRows` and `error` reaches the subscribers as a TableChange.
  *
+ * Each command posts its editing message at once (`edit()` an `edit`, `undo()` an `undo`), and
+ * each editing message the host sends reaches the subscribers as the change it carries:
+ * `sectionRules`, `clipboardState` (a `clipboard`), `dragState` (a `drag`), `selectRows` (a
+ * `select`), `beginRename`, `validationError` (an `invalid`), `refused` and `editText`.
+ *
  * The returned `dispose()` stops listening, and rejects what is still waiting.
  */
-export function messageSource(port: TablePort): TableSource & { dispose(): void } {
+export function messageSource(port: TablePort, options: MessageSourceOptions = {}): EditableTableSource & { dispose(): void } {
   let docUri = '';
   const opens: Pending<TableView>[] = [];
   const children = new Waiting<ChildRows>();
@@ -92,8 +161,15 @@ export function messageSource(port: TablePort): TableSource & { dispose(): void 
     };
   };
 
+  /** Send a command: nothing waits for an answer. */
+  const send = (message: TableEditClientMessage): void => port.postMessage(message);
+
   const stop = port.onMessage((m) => {
     if (!isRecord(m)) return;
+    if (!WIRE_HOST_TYPES.has(m.type)) {
+      options.extra?.(m);
+      return;
+    }
     switch (m.type) {
       case 'setRows': {
         const view = viewOf(m);
@@ -140,6 +216,31 @@ export function messageSource(port: TablePort): TableSource & { dispose(): void 
         asked.pending.resolve(m.type === 'showProps' && asked.first !== undefined ? { rowId: asked.first, groups } : { groups });
         return;
       }
+      case 'sectionRules':
+        // A host that leaves the uri out means the document it has shown.
+        if (typeof m.docUri === 'string') docUri = m.docUri;
+        return emit({ kind: 'sectionRules', docUri, rules: Array.isArray(m.rules) ? (records(m.rules) as SectionRule[]) : [] });
+      case 'clipboardState':
+        return emit({ kind: 'clipboard', state: clipboardStatus(m) });
+      case 'dragState':
+        return emit({ kind: 'drag', descriptor: dragDescriptor(m.descriptor) });
+      case 'selectRows':
+        return emit({ kind: 'select', rowIds: Array.isArray(m.rowIds) ? m.rowIds.filter((id): id is string => typeof id === 'string') : [] });
+      case 'beginRename':
+        if (typeof m.rowId !== 'string') return;
+        return emit({ kind: 'beginRename', rowId: m.rowId });
+      case 'validationError':
+        return emit({ kind: 'invalid', reason: String(m.reason ?? ''), invalidValue: m.invalidValue, previousValue: m.previousValue });
+      case 'refused':
+        return emit({ kind: 'refused', title: String(m.title ?? ''), reason: String(m.reason ?? '') });
+      case 'editText':
+        if (typeof m.rowId !== 'string') return;
+        return emit({
+          kind: 'editText',
+          rowId: m.rowId,
+          text: typeof m.text === 'string' ? m.text : null,
+          ...(typeof m.reason === 'string' ? { reason: m.reason } : {}),
+        });
     }
   });
 
@@ -170,6 +271,45 @@ export function messageSource(port: TablePort): TableSource & { dispose(): void 
     subscribe(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);
+    },
+    edit({ rowId, columnId, oldValue, newValue }) {
+      send({ type: 'edit', rowId, columnId, oldValue, newValue });
+    },
+    copy(rowIds) {
+      send({ type: 'copy', rowIds: [...rowIds] });
+    },
+    cut(rowIds) {
+      send({ type: 'cut', rowIds: [...rowIds] });
+    },
+    delete(rowIds) {
+      send({ type: 'delete', rowIds: [...rowIds] });
+    },
+    paste(rowId) {
+      send({ type: 'paste', rowId });
+    },
+    addChild(rowId) {
+      send({ type: 'addChild', rowId });
+    },
+    addEntry({ section, className, rename }) {
+      send({ type: 'addEntry', section, className, rename });
+    },
+    undo() {
+      send({ type: 'undo' });
+    },
+    redo() {
+      send({ type: 'redo' });
+    },
+    dragStart(rowIds) {
+      send({ type: 'dragStart', rowIds: [...rowIds] });
+    },
+    dragEnd() {
+      send({ type: 'dragEnd' });
+    },
+    drop(rowId, mode) {
+      send({ type: 'drop', rowId, mode });
+    },
+    requestEditText(rowId) {
+      send({ type: 'requestEditText', rowId });
     },
     dispose() {
       stop();
