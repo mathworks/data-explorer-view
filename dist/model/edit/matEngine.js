@@ -753,7 +753,7 @@ class MatView {
         return this.paint().then(({ view, trailer }) => {
             if (this.doc.options.trailerAfterDelivery) {
                 return new Promise((done) => {
-                    this.awaiting.push({ trailer, done });
+                    this.awaiting.push({ view, trailer, done });
                     this.emit({ kind: 'replaceAll', view });
                 });
             }
@@ -910,7 +910,7 @@ class MatView {
             return Promise.reject(new SourceClosed(`${this.name} is closed.`));
         return this.paint().then(({ view, trailer }) => {
             if (this.doc.options.trailerAfterDelivery)
-                this.awaiting.push({ trailer });
+                this.awaiting.push({ view, trailer });
             else
                 this.after = trailer;
             return view;
@@ -920,12 +920,14 @@ class MatView {
     }
     /**
      * The answer of the last `open()` has been shown: send what follows its paint. With
-     * trailerAfterDelivery, the oldest whole paint not yet said to be delivered (an `open()` answer
-     * or a `replaceAll`) has been: what follows it is sent, and its repaint resolves.
+     * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+     * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+     * sent, and its repaint resolves.
      */
-    opened() {
+    opened(view) {
         if (this.doc.options.trailerAfterDelivery) {
-            const next = this.awaiting.shift();
+            const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+            const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
             if (!next)
                 return;
             this.sendTrailer(next.trailer);

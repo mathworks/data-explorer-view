@@ -125,6 +125,28 @@ describe('MAT-file engine, delivered by its host (trailerAfterDelivery)', () => 
     await waiting;
   });
 
+  it("each paint's trailer follows its own rows, delivered in the other order, and a repaint resolves on its own", async () => {
+    const { table } = openDelivered();
+    const { view, heard } = table();
+    const first = await view.open();
+    let repainted = false;
+    const repaint = view.repaintAll().then(() => void (repainted = true));
+    await settle();
+    const second = (heard.find((c) => c.kind === 'replaceAll') as any).view;
+    assert.notStrictEqual(second, first);
+    heard.length = 0;
+    // The repaint's rows are delivered first.
+    view.opened(second);
+    await settle();
+    assert.deepStrictEqual(kinds(heard), ['sectionRules', 'clipboard']);
+    assert.strictEqual(repainted, true, "the repaint's own trailer, not the open's");
+    view.opened(first);
+    await repaint;
+    assert.deepStrictEqual(kinds(heard), ['sectionRules', 'clipboard', 'sectionRules', 'clipboard']);
+    view.opened(first);
+    assert.strictEqual(heard.length, 4, 'a paint delivered twice is told once');
+  });
+
   it('without it, a repaint sends its trailer behind its rows at once, as before', async () => {
     const { table } = openDelivered(false);
     const { view, heard } = table();

@@ -1,6 +1,6 @@
 import { type Session } from 'data-explorer-core';
 import type { TreeTableRow } from '../rows/tableRow.js';
-import { type EditableTableSource } from '../source/tableSource.js';
+import { type EditableTableSource, type TableView } from '../source/tableSource.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import { type Registers } from './registers.js';
 /** How a MAT-file engine fills a table's Usage column: before a paint, and at once for a narrow repaint. */
@@ -40,9 +40,11 @@ export interface MatEngineOptions {
      * The host delivers every whole paint's rows itself, and calls the view's `opened()` once they
      * are: a repaint's trailer (the drop rules, the clipboard, the clip-mark repaint) then waits for
      * that call, as `open()`'s does, and the repaint resolves after it, so that what is said after a
-     * repaint follows its trailer. One `opened()` per whole paint (each `open()` answered and each
-     * `replaceAll`), in the order they were sent. The VS Code extension's, whose post of the rows is
-     * awaited before what follows them. Default: false, a repaint's trailer follows its rows at once.
+     * repaint follows its trailer. One `opened(view)` per whole paint (each `open()` answered and each
+     * `replaceAll`), with the view it delivered: each paint's trailer follows its own rows, whatever
+     * order they are delivered in (without a view, the oldest paint not yet delivered). The VS Code
+     * extension's, whose post of the rows is awaited before what follows them. Default: false, a
+     * repaint's trailer follows its rows at once.
      */
     trailerAfterDelivery?: boolean;
 }
@@ -204,6 +206,7 @@ export declare class MatEngine {
     view(): EditableTableSource & {
         dispose(): void;
         repaintAll(): Promise<void>;
+        opened(view?: TableView): void;
     };
     /** Close the document: its tree leaves the session. Its views answer nothing more. */
     dispose(): void;

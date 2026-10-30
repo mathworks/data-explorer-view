@@ -49,6 +49,9 @@ export class BinaryView {
         // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
         // sends its own after its own rows.
         this.after = null;
+        // With trailerAfterDelivery: what follows each whole paint sent, oldest first, until its rows are
+        // delivered (`opened`), and the repaint waiting on it.
+        this.awaiting = [];
         // Every path that takes the entry-scoped repaint mutates through entryOps.mutateEntry, so the
         // session's node index is repaired around it; the paths that fall back to the wide repaint
         // re-register, which is the same repair at whole-source scope.
@@ -166,6 +169,13 @@ export class BinaryView {
             this.error(err.message);
             return Promise.resolve();
         }
+        if (this.doc.options.trailerAfterDelivery) {
+            const { view, trailer } = painted;
+            return new Promise((done) => {
+                this.awaiting.push({ view, trailer, done });
+                this.emit({ kind: 'replaceAll', view });
+            });
+        }
         this.emit({ kind: 'replaceAll', view: painted.view });
         this.sendTrailer(painted.trailer);
         return Promise.resolve();
@@ -281,15 +291,32 @@ export class BinaryView {
             return Promise.reject(new SourceClosed(`${this.name} is closed.`));
         try {
             const { view, trailer } = this.paint('chunk');
-            this.after = trailer;
+            if (this.doc.options.trailerAfterDelivery)
+                this.awaiting.push({ view, trailer });
+            else
+                this.after = trailer;
             return Promise.resolve(view);
         }
         catch (err) {
             return Promise.reject(err);
         }
     }
-    /** The answer of the last `open()` has been shown: send what follows its paint. */
-    opened() {
+    /**
+     * The answer of the last `open()` has been shown: send what follows its paint. With
+     * trailerAfterDelivery, the whole paint whose rows are `view` has been delivered (an `open()`
+     * answer or a `replaceAll`; without a view, the oldest not yet said to be): what follows it is
+     * sent, and its repaint resolves.
+     */
+    opened(view) {
+        if (this.doc.options.trailerAfterDelivery) {
+            const at = view ? this.awaiting.findIndex((paint) => paint.view === view) : -1;
+            const [next] = this.awaiting.splice(at >= 0 ? at : 0, 1);
+            if (!next)
+                return;
+            this.sendTrailer(next.trailer);
+            next.done?.();
+            return;
+        }
         const after = this.after;
         this.after = null;
         if (after)
@@ -750,6 +777,9 @@ export class BinaryView {
         this.doc.views.delete(this);
         this.unlisten();
         this.listeners.clear();
+        // A repaint whose rows can no longer be delivered has nothing more to wait for.
+        for (const { done } of this.awaiting.splice(0))
+            done?.();
         const registers = this.doc.options.registers;
         // A drag that started in this view and is still on goes with it, so a stale register cannot
         // complete against another document.

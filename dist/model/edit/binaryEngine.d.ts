@@ -1,5 +1,5 @@
 import { type AppliedOp, type EntryPatch, type ScPartPatch, type Session } from 'data-explorer-core';
-import type { EditableTableSource } from '../source/tableSource.js';
+import type { EditableTableSource, TableView } from '../source/tableSource.js';
 import { BinaryView } from './binaryView.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import type { Registers } from './registers.js';
@@ -29,6 +29,16 @@ export interface BinaryEngineOptions {
      * and redo, a save, a revert and a reload, and every error path that rebuilds from the text.
      */
     changed?: () => void;
+    /**
+     * The host delivers every whole paint's rows itself, and calls the view's `opened(view)` once
+     * they are, with the view it delivered: a repaint's trailer (the drop rules, the clipboard, the
+     * clip-mark repaint) then waits for that call, as `open()`'s does, and the repaint resolves after
+     * it. Each paint's trailer follows its own rows, whatever order they are delivered in (without a
+     * view, the oldest paint not yet delivered). The VS Code extension's, which posts the rows and
+     * then, in the same run, what follows them and its own after-paint work. Default: false, a
+     * repaint's trailer follows its rows at once.
+     */
+    trailerAfterDelivery?: boolean;
 }
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
 export interface BinarySave {
@@ -125,6 +135,23 @@ export declare class BinaryEngine {
     get chunkXml(): string;
     /** The pass-through parts as they stand. */
     get parts(): Readonly<Record<string, Uint8Array>>;
+    /**
+     * For the VS Code extension's integration suites only; not for apps. What those suites do to the
+     * document behind its tables, as they did before its editor moved onto this engine: set its
+     * chunk as though an edit had written it (to hold the save gate to a chunk no edit could
+     * write), push an edit as a gesture pushes one, replace its pass-through parts from a zip's
+     * members as a reload does, and reach the set of tables a repaint reaches (where a suite puts a
+     * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran). None repaints anything.
+     */
+    readonly forTests: {
+        setChunk: (xml: string) => void;
+        pushEdit: (label: string, before: string, after: string, patch?: EntryPatch, part?: ScPartPatch) => void;
+        resetParts: (members: Record<string, Uint8Array>) => void;
+        views: Set<{
+            repaintAll(from?: ModelSource): unknown;
+            repaintOps(applied: AppliedOp[]): void;
+        }>;
+    };
     private get session();
     private notify;
     /** Core's message, saying the file's name where core says the srcId (refusal.ts's describeSource). */
@@ -241,6 +268,7 @@ export declare class BinaryEngine {
     view(): EditableTableSource & {
         dispose(): void;
         repaintAll(): Promise<void>;
+        opened(view?: TableView): void;
     };
     /** Close the document: its tree leaves the session. Its views answer nothing more. */
     dispose(): void;
