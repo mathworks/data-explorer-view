@@ -34,7 +34,7 @@ release notes before you move the pin.
 `data-explorer-core` and `lit` are peer dependencies: your app installs them
 itself, so a page holds one copy of each. For core that matters beyond size:
 the model recognises core's nodes with `instanceof`, which two copies of core
-would break. This release accepts core `^1.53.0` and lit `^3.2.0`.
+would break. This release accepts core `^1.54.0` and lit `^3.2.0`.
 
 Releases are tags, and `dist/` is committed, so installing needs no build step.
 
