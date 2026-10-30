@@ -57,6 +57,11 @@ export class EntryBaseline {
     this.baseline = serializeEntries(model);
   }
 
+  /** Whether a baseline has been captured (and not cleared since). */
+  get captured(): boolean {
+    return this.baseline !== undefined;
+  }
+
   /**
    * The names of the entries whose serialization differs from the baseline (or that it has no
    * entry for: newly added). Empty when no baseline was ever captured.

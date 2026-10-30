@@ -3,6 +3,8 @@ export declare class EntryBaseline {
     private baseline;
     /** Capture the model's entries as the last-saved baseline. */
     capture(model: any): void;
+    /** Whether a baseline has been captured (and not cleared since). */
+    get captured(): boolean;
     /**
      * The names of the entries whose serialization differs from the baseline (or that it has no
      * entry for: newly added). Empty when no baseline was ever captured.

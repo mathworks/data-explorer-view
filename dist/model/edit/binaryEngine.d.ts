@@ -142,12 +142,19 @@ export declare class BinaryEngine {
      * write), push an edit as a gesture pushes one, replace its pass-through parts from a zip's
      * members as a reload does, and reach the set of tables a repaint reaches (where a suite puts a
      * stand-in, `{ repaintAll, repaintOps }`, to see which repaint ran; closing the document closes
-     * only the tables that are real). None repaints anything.
+     * only the tables that are real), and read what the Status column marks against the baseline a
+     * save took. None repaints anything.
      */
     readonly forTests: {
         setChunk: (xml: string) => void;
         pushEdit: (label: string, before: string, after: string, patch?: EntryPatch, part?: ScPartPatch) => void;
         resetParts: (members: Record<string, Uint8Array>) => void;
+        /**
+         * The entries the Status column marks Modified in `node` (by default the tree the session
+         * holds for the document), against its baseline: what a paint would stamp. Throws when no
+         * baseline has been taken, which would mark nothing and so prove nothing.
+         */
+        modified: (node?: unknown) => Set<string>;
         views: Set<{
             repaintAll(from?: ModelSource): unknown;
             repaintOps(applied: AppliedOp[]): void;
