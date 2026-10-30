@@ -171,7 +171,8 @@ export interface Opened {
  * `name` (or `bytes` under it), opened in an engine of its own session, its first table painted.
  * `registers` is the window's, shared by every document a case opens; `fromBackup` opens the
  * bytes as a restored backup (dirty until saved); `uri`, with no name given, is the document's
- * address, which the engine names it from.
+ * address, which the engine names it from; `changed` is told whenever the document's tree changed
+ * (the extension's provider's `onChanged`).
  */
 export async function open(
   name: string,
@@ -183,6 +184,7 @@ export async function open(
     fromBackup?: boolean;
     usage?: UsageFill;
     uri?: string;
+    changed?: () => void;
   } = {},
 ): Promise<Opened> {
   const session = opts.session ?? createSession();
@@ -210,6 +212,7 @@ export async function open(
     notify: (n) => void notices.push(n),
     appName: 'VS Code',
     ...(opts.usage ? { usage: opts.usage } : {}),
+    ...(opts.changed ? { changed: opts.changed } : {}),
   });
   const view = viewOf(engine);
   view.send({ type: 'ready' });

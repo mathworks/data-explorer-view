@@ -86,6 +86,25 @@ describe('InspectorPage', () => {
       expect(posted).toEqual([]);
       expect(page.node).toBeNull();
     });
+
+    // Ported from data-explorer-vscode test-integration/suite/propertiesView.test.ts at c73da3c: its
+    // two cases of a clear, with the provider's view resolved as `opened` and its `ready` as `loaded`.
+    it('clear before ready discards any pending node (no post on ready)', () => {
+      page.show(tree().entry('Number')); // held
+      page.clear(); // lets it go
+      page.opened();
+      page.loaded();
+      expect(posted, 'a cleared node posts nothing on ready').toEqual([]);
+    });
+
+    it('a clear while the view was hidden leaves the reloaded page empty', () => {
+      page.loaded();
+      page.show(tree().entry('Number'));
+      page.clear();
+      const sent = posted.length;
+      page.loaded();
+      expect(posted.slice(sent), 'the page starts empty, so nothing is sent').toEqual([]);
+    });
   });
 
   describe('a node shown again', () => {
