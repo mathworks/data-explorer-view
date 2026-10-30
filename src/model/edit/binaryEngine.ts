@@ -117,6 +117,8 @@ interface TakenSave {
   parts: Record<string, Uint8Array>;
   edited: Set<string>;
   unchecked: Map<string, ReadonlySet<string>>;
+  /** Its place among the document's saves, in the order they were begun. */
+  seq: number;
 }
 
 /** Where a wide repaint gets its tree: from chunkXml again (`'chunk'`), or the one the session holds (`'registered'`). */
@@ -265,6 +267,15 @@ export class BinaryEngine {
 
   /** What each save in flight took with its bytes, by the save. */
   private readonly taken = new WeakMap<BinarySave, TakenSave>();
+
+  // Saves can land in any order in the page, where VS Code runs a document's saves one at a time.
+  // One that lands after a newer one leaves the file holding its older bytes, and the edits the
+  // newer ones wrote unsaved again: they are given back to `edited`, from what each landed save
+  // took, kept while an older save is still out.
+  private saveSeq = 0;
+  private readonly outstanding = new Set<number>();
+  private landedSeq = 0;
+  private readonly landedEdits = new Map<number, { edited: Set<string>; unchecked: Map<string, ReadonlySet<string>> }>();
 
   /** The document as its views reach it. */
   private readonly document: BinaryDocument;
@@ -557,7 +568,9 @@ export class BinaryEngine {
     const parts: Record<string, Uint8Array> = { ...this.zipMeta };
     const bytes = writeBinarySlddPackage(this.chunk, parts, 6);
     const save: BinarySave = { bytes, at: this.options.index.here() };
-    this.taken.set(save, { gated, parts, edited: this.edited, unchecked: this.unchecked });
+    const seq = ++this.saveSeq;
+    this.outstanding.add(seq);
+    this.taken.set(save, { gated, parts, edited: this.edited, unchecked: this.unchecked, seq });
     this.edited = new Set();
     this.unchecked = new Map();
     return save;
@@ -572,6 +585,18 @@ export class BinaryEngine {
     const taken = this.taken.get(save);
     if (!taken) return;
     this.taken.delete(save);
+    this.outstanding.delete(taken.seq);
+    if (taken.seq < this.landedSeq) {
+      for (const [seq, later] of this.landedEdits) {
+        if (seq <= taken.seq) continue;
+        for (const key of later.edited) this.edited.add(key);
+        this.markUnchecked(new Set(later.unchecked.values()));
+      }
+    } else {
+      this.landedSeq = taken.seq;
+    }
+    this.landedEdits.set(taken.seq, { edited: taken.edited, unchecked: taken.unchecked });
+    this.forgetLanded();
     this.savedChunk = new SavedChunk(taken.gated.chunkXml);
     this.savedParts = taken.parts;
     // Baseline BEFORE painting, or the paint diffs against the pre-save baseline and stamps
@@ -587,8 +612,16 @@ export class BinaryEngine {
     const taken = this.taken.get(save);
     if (!taken) return;
     this.taken.delete(save);
+    this.outstanding.delete(taken.seq);
+    this.forgetLanded();
     for (const key of taken.edited) this.edited.add(key);
     this.markUnchecked(new Set(taken.unchecked.values()));
+  }
+
+  // What a landed save took is kept only while a save begun before it is still out.
+  private forgetLanded(): void {
+    const oldest = Math.min(...this.outstanding);
+    for (const seq of this.landedEdits.keys()) if (seq <= oldest) this.landedEdits.delete(seq);
   }
 
   /**

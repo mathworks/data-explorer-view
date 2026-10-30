@@ -126,6 +126,14 @@ export class BinaryEngine {
         this.baseline = new EntryBaseline();
         /** What each save in flight took with its bytes, by the save. */
         this.taken = new WeakMap();
+        // Saves can land in any order in the page, where VS Code runs a document's saves one at a time.
+        // One that lands after a newer one leaves the file holding its older bytes, and the edits the
+        // newer ones wrote unsaved again: they are given back to `edited`, from what each landed save
+        // took, kept while an older save is still out.
+        this.saveSeq = 0;
+        this.outstanding = new Set();
+        this.landedSeq = 0;
+        this.landedEdits = new Map();
         this.options = options;
         this.uri = options.uri;
         this.srcId = binaryEditSrcId(options.uri);
@@ -403,7 +411,9 @@ export class BinaryEngine {
         const parts = { ...this.zipMeta };
         const bytes = writeBinarySlddPackage(this.chunk, parts, 6);
         const save = { bytes, at: this.options.index.here() };
-        this.taken.set(save, { gated, parts, edited: this.edited, unchecked: this.unchecked });
+        const seq = ++this.saveSeq;
+        this.outstanding.add(seq);
+        this.taken.set(save, { gated, parts, edited: this.edited, unchecked: this.unchecked, seq });
         this.edited = new Set();
         this.unchecked = new Map();
         return save;
@@ -418,6 +428,21 @@ export class BinaryEngine {
         if (!taken)
             return;
         this.taken.delete(save);
+        this.outstanding.delete(taken.seq);
+        if (taken.seq < this.landedSeq) {
+            for (const [seq, later] of this.landedEdits) {
+                if (seq <= taken.seq)
+                    continue;
+                for (const key of later.edited)
+                    this.edited.add(key);
+                this.markUnchecked(new Set(later.unchecked.values()));
+            }
+        }
+        else {
+            this.landedSeq = taken.seq;
+        }
+        this.landedEdits.set(taken.seq, { edited: taken.edited, unchecked: taken.unchecked });
+        this.forgetLanded();
         this.savedChunk = new SavedChunk(taken.gated.chunkXml);
         this.savedParts = taken.parts;
         // Baseline BEFORE painting, or the paint diffs against the pre-save baseline and stamps
@@ -433,9 +458,18 @@ export class BinaryEngine {
         if (!taken)
             return;
         this.taken.delete(save);
+        this.outstanding.delete(taken.seq);
+        this.forgetLanded();
         for (const key of taken.edited)
             this.edited.add(key);
         this.markUnchecked(new Set(taken.unchecked.values()));
+    }
+    // What a landed save took is kept only while a save begun before it is still out.
+    forgetLanded() {
+        const oldest = Math.min(...this.outstanding);
+        for (const seq of this.landedEdits.keys())
+            if (seq <= oldest)
+                this.landedEdits.delete(seq);
     }
     /**
      * The bytes a hot-exit backup holds: the document zipped as it stands, ungated (a scratch copy of
