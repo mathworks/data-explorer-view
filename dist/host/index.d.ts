@@ -13,6 +13,8 @@ export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/he
 export type { HealthDecoration } from '../model/hierarchy/health.js';
 export { MatEngine } from '../model/edit/matEngine.js';
 export type { MatEngineOptions, MatSave, UsageFill } from '../model/edit/matEngine.js';
+export { BinaryEngine } from '../model/edit/binaryEngine.js';
+export type { BinaryEngineOptions, BinarySave } from '../model/edit/binaryEngine.js';
 export type { Edit, EditIndex, EditSink, RangeReplacement, TextStore } from '../model/edit/hooks.js';
 export { EditStack, EditStackIndex } from '../model/edit/editStack.js';
 export { SaveMarks, replacementsIn } from '../model/edit/saveMarks.js';

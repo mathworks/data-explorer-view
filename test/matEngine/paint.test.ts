@@ -173,6 +173,28 @@ describe('MAT-file engine: paints', () => {
     assert.deepStrictEqual(unbound, []);
   });
 
+  it('a throw in what follows a paint is said as the paint failing, after the rows, and goes no further', async () => {
+    const inner = createRegisters();
+    let broken = false;
+    const registers: Registers = {
+      ...inner,
+      clipboardState: () => {
+        if (broken) throw new Error('the registers broke');
+        return inner.clipboardState();
+      },
+    };
+    const o = await open('cases.mat', undefined, { registers });
+    broken = true;
+    let from = o.view.posts.length;
+    o.view.send({ type: 'ready' });
+    await waitFor('the paint', () => o.view.posts.slice(from).some((p) => p.type === 'error'));
+    assert.deepStrictEqual(o.view.posts.slice(from).map((p) => p.type), ['setRows', 'sectionRules', 'error']);
+    assert.strictEqual(o.view.posts.pop().message, 'Failed to show cases.mat: the registers broke');
+    from = o.view.posts.length;
+    await o.engine.repaintAll();
+    assert.deepStrictEqual(o.view.posts.slice(from).map((p) => p.type), ['setRows', 'sectionRules', 'error'], 'a repaint the same');
+  });
+
   it("a document opened by its uri alone is named by its path's last segment, decoded, as VS Code names one", async () => {
     const o = await open('pv_basic.mat', undefined, { uri: 'file:///work/my%20gains%231.mat' });
     const rules = o.view.posts.find((p) => p.type === 'sectionRules');
@@ -180,5 +202,8 @@ describe('MAT-file engine: paints', () => {
     const junk = new Uint8Array([...fixture('pv_basic.mat'), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     const ro = await open('tail.mat', junk, { uri: 'file:///work/tail%20end.mat?x=1' });
     assert.match(ro.view.posts.find((p) => p.type === 'setRows').notice, /^Read-only: Cannot save "tail end\.mat": /);
+    // Decoded, then split: an encoded backslash splits the name as VS Code's decoded path does.
+    const split = await open('pv_basic.mat', undefined, { uri: 'file:///work/a%5Cgains.mat' });
+    assert.deepStrictEqual(split.view.posts.find((p) => p.type === 'sectionRules').rules.map((r: any) => r.sectionLabel), ['gains.mat']);
   });
 });

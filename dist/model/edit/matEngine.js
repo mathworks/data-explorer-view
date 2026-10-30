@@ -42,6 +42,7 @@ import { cloneForPaste, toEntrySelector } from 'data-explorer-core';
 import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
+import { uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
@@ -57,9 +58,9 @@ import { copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './refusal.js';
-import { NOT_FOUND_REASON } from './registers.js';
+import { NOT_FOUND_REASON, reach } from './registers.js';
 import { replacementsIn, SaveMarks } from './saveMarks.js';
-import { fileNameOf, runTransfer, TransferRefused, } from './transfer.js';
+import { runTransfer, TransferRefused, } from './transfer.js';
 // O(variables) a gesture, for the id map and the order: 10 ms on a file of 100,000 variables,
 // against the 300 ms the payload of such a file takes to build.
 function observe(session, mat, srcId, run) {
@@ -160,7 +161,7 @@ export class MatEngine {
         this.uri = options.uri;
         this.srcId = binaryEditSrcId(options.uri);
         // The last segment of the uri's path, decoded, as `basename(uri.path)` names a VS Code uri.
-        this.metaPath = options.name ?? (fileNameOf(options.uri) || 'document');
+        this.metaPath = options.name ?? (uriPathBasename(options.uri) || 'document');
         this.bytes = options.bytes;
         const engine = this;
         this.document = {
@@ -577,20 +578,6 @@ class ParseFailure extends Error {
 /** Thrown by a paint whose view closed while it awaited: it has nowhere to go. */
 class Closed extends Error {
 }
-/**
- * Run one listener's half of a broadcast, keeping whatever it throws — now or, as a rejection,
- * later — from the other half and from the loop that serves every other table (editorHub's reach).
- */
-function separately(run) {
-    try {
-        const result = run();
-        if (result && typeof result.then === 'function')
-            Promise.resolve(result).catch(() => { });
-    }
-    catch {
-        /* this half misses this broadcast; the next one it gets is complete */
-    }
-}
 /** One table of a MAT-file: resolveCustomEditor's view, as an EditableTableSource. */
 class MatView {
     constructor(doc) {
@@ -628,8 +615,8 @@ class MatView {
         this.unlisten = registers.listen({
             // The state and the repaint each on its own terms, as editorHub's broadcast reaches a view.
             clipboard: (state) => {
-                separately(() => this.emit({ kind: 'clipboard', state }));
-                separately(() => this.repaintClipMark());
+                reach(() => this.emit({ kind: 'clipboard', state }));
+                reach(() => this.repaintClipMark());
             },
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         });
@@ -730,16 +717,24 @@ class MatView {
     // land (the whole file, one target, admitting what core says it does), and what the clipboard
     // holds. A read-only file is no target: its empty admitted list would read as "no restriction"
     // (sectionRules.wholeFileRules), so it sends no rule at all.
+    //
+    // Part of the paint, as the extension's is: what throws here is said as the paint's own failure,
+    // after whatever went out before it, and goes no further.
     sendTrailer(after) {
         if (this.closed)
             return;
-        this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : wholeFileRules(after.mat, this.name) });
-        this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
-        // The mark these rows CARRY. A copy or a cut that landed while they were being built
-        // repainted the rows it marked at once, ahead of these, which have just landed over that
-        // with the mark from before: so the rows that moved are painted again, after them.
-        this.paintedMark = after.clipMark;
-        this.repaintClipMark();
+        try {
+            this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : wholeFileRules(after.mat, this.name) });
+            this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
+            // The mark these rows CARRY. A copy or a cut that landed while they were being built
+            // repainted the rows it marked at once, ahead of these, which have just landed over that
+            // with the mark from before: so the rows that moved are painted again, after them.
+            this.paintedMark = after.clipMark;
+            this.repaintClipMark();
+        }
+        catch (err) {
+            this.error(`Failed to show ${this.name}: ${this.doc.describe(err)}`);
+        }
     }
     /** Every row painted again from the tree, and what follows a paint. */
     repaintAll() {

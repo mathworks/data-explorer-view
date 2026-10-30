@@ -132,5 +132,11 @@ export interface Registers {
     /** Tell every listener the drag in flight (or null when it ends), each on its own terms. */
     broadcastDragState(): void;
 }
+/**
+ * Run one listener's half of a broadcast, keeping whatever it throws — now or, for a post that
+ * answers a promise, later as a rejection — from reaching the loop that serves every other one.
+ * An engine's own listener runs each half of its answer through it too, as editorHub reaches a view.
+ */
+export declare function reach(run: () => unknown): void;
 /** A window's registers, all empty. */
 export declare function createRegisters(): Registers;

@@ -18,6 +18,7 @@ import * as model from '../src/model/index.js';
 const ROOT = join(import.meta.dirname, '..');
 
 const VALUES = [
+  'BinaryEngine',
   'CopyRefused',
   'DECORATIONS',
   'EditStack',
@@ -60,6 +61,8 @@ const VALUES = [
   'sourceSectionOf',
 ];
 const TYPES = [
+  'BinaryEngineOptions',
+  'BinarySave',
   'CappedRows',
   'CopyDeps',
   'Edit',
