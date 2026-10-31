@@ -276,13 +276,22 @@ describe("commitEdit() of a Value the engine refuses, through each of the page's
 });
 
 describe("commitEdit() over a JSON dictionary whose text takes its edit later, as a host's document does", () => {
-  it("waits for the JSON engine's write, and the text then holds what was typed", async () => {
-    // The page's own text store, its writes held until the test lets them through: a TextStore over a
-    // document whose edit is applied a turn later (a VS Code TextDocument's is).
+  /**
+   * The JSON engine over the page's own text store, its writes held until the test lets them
+   * through: a TextStore over a document whose edit lands a turn later (a VS Code TextDocument's
+   * does). As a real store, it takes its version check at the call: a write asked for over a text
+   * that moved before it landed is refused, not applied at stale offsets.
+   */
+  function heldJson() {
     const store = createTextStore(new TextDecoder().decode(file('test/fixtures/params.sldd')));
     const held: (() => void)[] = [];
     const slow = Object.create(store);
-    slow.apply = (patches: unknown) => new Promise<boolean>((resolve) => held.push(() => void store.apply(patches as any).then(resolve)));
+    slow.apply = (patches: unknown) => {
+      const asked = store.version;
+      return new Promise<boolean>((resolve) =>
+        held.push(() => (store.version !== asked ? resolve(false) : void store.apply(patches as any).then(resolve))),
+      );
+    };
     const engine = new JsonEngine({
       registry: new DocumentRegistry(createSession()),
       uri: 'file:///work/params.sldd',
@@ -292,21 +301,52 @@ describe("commitEdit() over a JSON dictionary whose text takes its edit later, a
       notify: () => {},
       disk: diskOf(file('test/fixtures/params.sldd')),
     });
-    try {
-      const { table, handle } = mount(engine.view());
-      await settle(table);
-      const row = (table.rows as any[]).find((r) => r.Name?.label === 'Kp' && r.parent != null);
-      await typeName(table, row.ID, 'KpTyped');
-      let settled = false;
-      const committing = handle.commitEdit().then(() => void (settled = true));
-      await settle(table);
-      assert.strictEqual(settled, false, 'not while the text has not taken the edit');
-      assert.ok(!store.text.includes('KpTyped'));
-      for (const release of held.splice(0)) release();
-      await committing;
-      assert.ok(store.text.includes('"KpTyped"'), 'the text holds the name typed');
-    } finally {
-      engine.dispose();
-    }
+    engines.push(engine);
+    return { store, held, engine };
+  }
+  let engines: JsonEngine[] = [];
+  afterEach(() => {
+    for (const engine of engines) engine.dispose();
+    engines = [];
+  });
+  const rowNamed = (table: any, name: string) => (table.rows as any[]).find((r) => r.Name?.label === name && r.parent != null);
+
+  it("waits for the JSON engine's write, and the text then holds what was typed", async () => {
+    const { store, held, engine } = heldJson();
+    const { table, handle } = mount(engine.view());
+    await settle(table);
+    await typeName(table, rowNamed(table, 'Kp').ID, 'KpTyped');
+    let settled = false;
+    const committing = handle.commitEdit().then(() => void (settled = true));
+    await settle(table);
+    assert.strictEqual(settled, false, 'not while the text has not taken the edit');
+    assert.ok(!store.text.includes('KpTyped'));
+    for (const release of held.splice(0)) release();
+    await committing;
+    assert.ok(store.text.includes('"KpTyped"'), 'the text holds the name typed');
+  });
+
+  it('waits for both of two writes held, and the text is still JSON holding the first', async () => {
+    const { store, held, engine } = heldJson();
+    const { table, handle } = mount(engine.view());
+    await settle(table);
+    await typeName(table, rowNamed(table, 'Kp').ID, 'KpFirst');
+    editorOf(table)!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true, cancelable: true }));
+    await settle(table);
+    await typeName(table, rowNamed(table, 'Ki').ID, 'KiSecond');
+    let settled = false;
+    const committing = handle.commitEdit().then(() => void (settled = true));
+    await settle(table);
+    assert.strictEqual(held.length, 2, 'both writes are held');
+    held.shift()!();
+    await settle(table);
+    assert.strictEqual(settled, false, 'not while the second write is held');
+    held.shift()!();
+    await committing;
+    JSON.parse(store.text);
+    assert.ok(store.text.includes('"KpFirst"'), 'the text holds the first name');
+    // The second was asked for over a text the first then moved, so the store refused it, as VS Code
+    // refuses a WorkspaceEdit over a document that moved. Out of reach today: the page's own store
+    // lands a write within a turn, and the extension's webview does not wait for its host.
   });
 });
