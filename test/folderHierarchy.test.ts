@@ -7,6 +7,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { newSourceCache, type SourceFile } from 'data-explorer-core';
+import { nodeSourceReader } from 'data-explorer-core/node';
+import { readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { FolderHierarchy, folderFileList, type GraphReader, type HierarchyItem } from '../src/model/index.js';
 
 /** A compressed dictionary referencing `refs`, in the layout core reads. */
@@ -291,5 +294,34 @@ describe('a folder hierarchy', () => {
     const h2 = new FolderHierarchy({ files: { list: async () => [...folder.keys()].map(file) }, reader, cache });
     await h2.roots();
     expect(reads).toEqual([]);
+  });
+});
+
+describe("a folder hierarchy over the integration suite's workspace folder", () => {
+  // The folder the extension's sectionsTree suite opens: data.sldd, params.sldd, binary.sldd and
+  // model.slx, whose model reference to plant.slx no file in the folder answers.
+  const WORKSPACE = resolve(import.meta.dirname, '../test-integration/fixtures/workspace');
+  const workspace = (): FolderHierarchy => {
+    const files = readdirSync(WORKSPACE).sort().map((name) => file(join(WORKSPACE, name)));
+    return new FolderHierarchy({
+      files: { list: async () => files },
+      reader: (listed) => ({ ...nodeSourceReader(listed), projectStore: async () => null }),
+    });
+  };
+
+  it('the model surfaces an unresolved reference and an External Data group', async () => {
+    const h = workspace();
+    const [group] = await h.roots();
+    const model = (await h.children(group)).find((c) => c.label === 'model.slx')!;
+    expect(model.collapsible, 'model.slx is expandable').toBe('collapsed');
+
+    const modelChildren = await h.children(model);
+    const missing = modelChildren.find((c) => c.label === 'plant.slx');
+    expect(missing, 'the missing model reference (plant.slx) is present').toBeTruthy();
+    expect(missing!.kind).toBe('missing');
+
+    const external = modelChildren.find((c) => c.label === 'External Data');
+    expect(external, 'the External Data group is present').toBeTruthy();
+    expect(external!.kind).toBe('group');
   });
 });
