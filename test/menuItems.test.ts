@@ -5,6 +5,7 @@ import type { ContextMenuItem } from '../src/widgets/context-menu/dex-context-me
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getModel, invalidate } from '../src/model/workspace/SlddModel.js';
+import { buildRows } from '../src/model/rows/rowBuilder.js';
 import { sectionRules } from '../src/model/actions/sectionRules.js';
 
 // The rows a menu is built over: one section holding an entry A with a child x, plus a
@@ -465,6 +466,33 @@ describe('Paste of an mpt entry, against the rules a real model posts', () => {
     )!;
     expect(paste.disabled).toBe(true);
     expect(paste.reason).toBe('Simulink Parameter cannot be in Architectural Data');
+  });
+});
+
+describe('Add Child, over the rows a real dictionary builds', () => {
+  const paramsText = readFileSync(fileURLToPath(new URL('../test-integration/fixtures/workspace/params.sldd', import.meta.url)), 'utf8');
+  function addChildDisabled(name: string): boolean {
+    const uri = 'test://menu-add-child.sldd';
+    invalidate(uri);
+    const rows = buildRows(getModel(uri, 'params.sldd', paramsText)) as MenuRow[];
+    const row = rows.find((r) => typeof r.Name === 'object' && r.Name.label === name && !String(r.ID).startsWith('section:'));
+    expect(row, `entry "${name}" is present`).toBeTruthy();
+    const items = buildContextMenuItems({
+      rows,
+      selectedRowIds: [row!.ID],
+      anchorRowId: row!.ID,
+      clipboard: EMPTY_CLIP,
+      editable: true,
+      hasTextView: true,
+      pasteTarget: null,
+    });
+    return byId(items, 'addChild')!.disabled === true;
+  }
+
+  it('Add Child menu item is ENABLED for a Bus and DISABLED for a scalar', () => {
+    expect(addChildDisabled('MyBus'), 'Bus enables Add Child').toBe(false);
+    // MyNumType is a scalar numeric-type object: no children to add.
+    expect(addChildDisabled('MyNumType'), 'scalar disables Add Child').toBe(true);
   });
 });
 
