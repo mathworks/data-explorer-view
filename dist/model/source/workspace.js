@@ -94,6 +94,10 @@ class InPageDoc {
     }
     saved() { }
     notSaved() { }
+    /** No edits to keep: the file is read again, as `reload` reads it. */
+    keepOver(bytes) {
+        return this.reload(bytes);
+    }
     async reload(bytes) {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
@@ -375,6 +379,19 @@ class EditableDoc {
             return;
         this.engine.notSaved(at);
     }
+    /** The file holds `bytes`, kept over: no step of the stack is it now, and the Status column moves. */
+    async keepOver(bytes) {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        this.index.diverged();
+        this.tellDirty();
+        if (!this.fileHolds(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))) {
+            this.shared.notify?.({
+                level: 'warning',
+                message: `${this.name} as it is on disk could not be read, so its Status column is still measured from the file as last read or saved.`,
+            });
+        }
+    }
     async repaint() {
         if (this.disposed)
             return;
@@ -428,6 +445,11 @@ class EditableMatDoc extends EditableDoc {
         });
         this.view = this.engine.view();
         this.subscribeReposts();
+    }
+    // A MAT-file's Status marks the variables edited since the last save, not a difference from the
+    // file's bytes: kept over a change, it goes on marking them.
+    fileHolds() {
+        return true;
     }
     async reload(bytes) {
         if (this.disposed)
@@ -483,6 +505,9 @@ class EditableBinaryDoc extends EditableDoc {
             changed: () => this.tellDirty(),
         });
         this.view = this.engine.view();
+    }
+    fileHolds(bytes) {
+        return this.engine.fileHolds(bytes);
     }
     async reload(bytes) {
         if (this.disposed)
@@ -604,6 +629,21 @@ class EditableJsonDoc {
     }
     notSaved(_at) {
         // Nothing moved for a save until its bytes were written.
+    }
+    async keepOver(bytes) {
+        if (this.disposed)
+            throw new Error(`${this.name} is closed.`);
+        const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        // The file behind the document is `bytes` now, which its baseline reads, and no state of the
+        // text's undo stack is it. The text, and the byte order mark a save writes it behind, stay.
+        this.disk = { bytes: view, stamp: { mtime: ++this.generation, size: view.length } };
+        this.text.diverged();
+        if (!this.engine.fileHolds(new TextDecoder().decode(view))) {
+            this.shared.notify?.({
+                level: 'warning',
+                message: `${this.name} as it is on disk could not be read, so its Status column is still measured from the file as last read or saved.`,
+            });
+        }
     }
     async reload(bytes) {
         if (this.disposed)

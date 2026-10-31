@@ -208,6 +208,12 @@ async function save() {
 - `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack. A
   dictionary keeps what it held, and the reload rejects, for bytes that are not
   one.
+- `doc.keepOver(bytes)` keeps the document's edits over a change on disk
+  instead (the page's "Keep My Edits"): no step of its undo stack is the file
+  any more, so it stays dirty until a save lands or a reload, and a
+  dictionary's Status column is measured from `bytes`. The next save writes the
+  document over the file. A document the page does not edit reads `bytes`, as
+  `reload` does.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only

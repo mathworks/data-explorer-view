@@ -45,6 +45,11 @@ export interface PageTextStore extends TextStore {
    * once it has landed.
    */
   reset(text: string): Promise<void>;
+  /**
+   * The file changed and the text was kept instead (Doc.keepOver): no state of the undo stack is the
+   * file any more, so the store is dirty until the next save or reset, heard as a save's change is.
+   */
+  diverged(): void;
 }
 
 /**
@@ -201,6 +206,10 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
       savedAt = undoable.length;
       settleDirty();
       each(saveListeners);
+    },
+    diverged() {
+      savedAt = null;
+      settleDirty();
     },
     reset(text) {
       return later(() => {

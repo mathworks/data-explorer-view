@@ -14,6 +14,11 @@ export interface PageTextStore extends TextStore {
      * once it has landed.
      */
     reset(text: string): Promise<void>;
+    /**
+     * The file changed and the text was kept instead (Doc.keepOver): no state of the undo stack is the
+     * file any more, so the store is dirty until the next save or reset, heard as a save's change is.
+     */
+    diverged(): void;
 }
 /**
  * A store of `text`, as read from its file: clean, at version 1. A listener's throw goes to

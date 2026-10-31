@@ -116,6 +116,22 @@ export interface Doc {
      */
     reload(bytes: ArrayBuffer | Uint8Array): Promise<void>;
     /**
+     * The file changed on disk to `bytes`, and the user keeps the document's edits instead of reading
+     * them (another program wrote the file; the page's "Keep My Edits"). The document, its undo stack
+     * and its redo steps stay as they are; no step of the stack is the file any more, so it is dirty
+     * until a save of it lands (`saved`) or a `reload`, whatever is undone or redone; and the next save
+     * writes the document over the file, as any save does.
+     *
+     * A dictionary's Status column is then measured from `bytes`: an entry the next save would write
+     * other than the disk holds it is Modified, one the other program changed included. A MAT-file's
+     * marks what was edited since the last save, as always. Where `bytes` do not read, the column stays
+     * as it was, and `notify` says so; the rest holds either way. A save begun before, landing after,
+     * is clean only if nothing was edited after it read the document.
+     *
+     * A document the page does not edit holds no edits to keep: it reads `bytes`, as `reload` does.
+     */
+    keepOver(bytes: ArrayBuffer | Uint8Array): Promise<void>;
+    /**
      * Paint the table again from the read it has, refilled from the workspace's `usage`: its
      * subscribers hear a `replaceAll` (or the `error` the paint failed with). For what changed the
      * Usage column and not the file, as a usage source that appeared (`setUsage`). A project, which

@@ -62,6 +62,14 @@ export class EditStackIndex {
         this.fromBackup = false;
     }
     /**
+     * The file changed on disk and the document kept what it holds instead (Doc.keepOver): no state
+     * of the stack is the file any more, so it is dirty until a save of it lands or a revert. The
+     * document did not move, so `moves` does not either: a save begun before is still of it.
+     */
+    diverged() {
+        this.savedAt = null;
+    }
+    /**
      * The document now holds what is on disk: a revert, or a reload. Only the distance between the
      * current position and the save point matters, so the save point moves to the current position.
      */

@@ -120,4 +120,21 @@ describe('EditStackMirror: VS Code’s dirty flag for a custom document', () => 
     m.undone();
     expect(m.dirty, 'the save point was not in the discarded tail').toBe(false);
   });
+
+  it('diverged: no position is the file any more, until a save lands or a revert, and the stack did not move', () => {
+    const m = new EditStackMirror();
+    m.pushed();
+    const moves = m.moves;
+    m.diverged();
+    expect(m.dirty).toBe(true);
+    expect(m.moves, 'the document did not move').toBe(moves);
+    m.undone();
+    expect(m.dirty, 'undone to where the file was').toBe(true);
+    m.redone();
+    m.saved();
+    expect(m.dirty).toBe(false);
+    m.diverged();
+    m.reverted();
+    expect(m.dirty, 'a revert holds the disk again').toBe(false);
+  });
 });
