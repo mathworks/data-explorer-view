@@ -82,6 +82,8 @@ export declare class MatEngine {
     private readonly views;
     /** What each save in flight took of the Status column, by the save. */
     private readonly taken;
+    private saveSeq;
+    private landedSeq;
     /** The document as its views reach it. */
     private readonly document;
     /** The file's bytes, until the first paint registers them (`model`). */
@@ -132,8 +134,12 @@ export declare class MatEngine {
      * The bytes of `save` are on disk: the Status column is measured from them from now on. The
      * edit stack's save point is the caller's to move (EditIndex.saved), once, where its own rule
      * says: VS Code's moves when the save it asked for resolves.
+     *
+     * True when it landed behind a save begun after it, which had already landed: the file now holds
+     * an older document than that newer save wrote. A host whose save point moved with the newer save
+     * (VS Code's) shows the document clean over it, and writes it again (open-questions 16 B).
      */
-    saved(save: MatSave): void;
+    saved(save: MatSave): boolean;
     /** The bytes of `save` were never written: the Status column stays measured from the last save. */
     notSaved(save: MatSave): void;
     /**

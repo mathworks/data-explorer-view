@@ -33,6 +33,7 @@
 import {
   applyEntryOps,
   changedEntryKeys,
+  createSession,
   DATA_PART_XML,
   chunkEntryKey,
   entryKey,
@@ -537,6 +538,10 @@ export class BinaryEngine {
     // Composer catalog), and a revert that restored only the chunk would leave the entry named as
     // the file spells it beside a catalog that no longer classifies it.
     this.resetParts(read.parts);
+    // And the Status column measured from it, which is the file: the first table to paint takes
+    // the baseline from the chunk it paints, as on open. Kept, it marked every entry the outside
+    // change touched Modified until the next save (open-questions 16 A).
+    this.document.baselineCaptured = false;
     this.repaintAll();
   }
 
@@ -619,13 +624,18 @@ export class BinaryEngine {
    * The bytes of `save` are on disk: the next save is held to the text this one wrote (not chunkXml,
    * which an edit on the write's await may have moved on), and the Status column is measured from
    * it. The edit stack's save point is the caller's to move (EditIndex.saved).
+   *
+   * True when it landed behind a save begun after it, which had already landed: the file now holds
+   * an older document than that newer save wrote. A host whose save point moved with the newer save
+   * (VS Code's) shows the document clean over it, and writes it again (open-questions 16 B).
    */
-  saved(save: BinarySave): void {
+  saved(save: BinarySave): boolean {
     const taken = this.taken.get(save);
-    if (!taken) return;
+    if (!taken) return false;
     this.taken.delete(save);
     this.outstanding.delete(taken.seq);
-    if (taken.seq < this.landedSeq) {
+    const behind = taken.seq < this.landedSeq;
+    if (behind) {
       for (const [seq, later] of this.landedEdits) {
         if (seq <= taken.seq) continue;
         for (const key of later.edited) this.edited.add(key);
@@ -644,6 +654,7 @@ export class BinaryEngine {
     // Wide on purpose: a save clears the Modified mark on every row that had one. From the tree the
     // line above has just registered.
     this.repaintAll('registered');
+    return behind;
   }
 
   /** The bytes of `save` were never written: the edits it took are unsaved again. */
@@ -673,10 +684,12 @@ export class BinaryEngine {
   }
 
   /**
-   * Re-capture the baseline from the document's chunkXml so the Modified marks reset after a save:
-   * the tree registered again under the srcId (the one a paint paints from) and snapshotted. The
-   * gate's read is reused when it is still a read of the document's payload; an edit that landed on
-   * the save's await moved chunkXml on, and then it is read again.
+   * After a save: the tree registered again under the srcId (the one a paint paints from), from the
+   * document's chunkXml, and the Status column's baseline taken from what the save WROTE, `gated`.
+   * The gate's read is the tree when it is still a read of the document's payload. Otherwise an edit
+   * landed on the save's await, or the save landed behind a newer one, and the file is not the
+   * document: the tree is read again, and the baseline is a tree of the written chunk that nothing
+   * else sees, so the rows the file lacks are marked (open-questions 16 B).
    */
   private reBaseline(gated: ParsedChunk): void {
     try {
@@ -687,7 +700,8 @@ export class BinaryEngine {
       const warnings: ParseWarning[] = reuse?.warnings ?? [];
       const content = reuse?.content ?? readSlddParts(this.chunk, this.zipMeta, warnings);
       const node = this.session.addDataSource(this.srcId, content, { path: this.metaPath }, warnings);
-      this.baseline.capture(node);
+      this.baseline.capture(reuse ? node : createSession().addDataSource(`detached:${this.metaPath}`, gated.content, { path: this.metaPath }));
+      this.document.baselineCaptured = true;
     } catch {
       /* leave the baseline as it is on a parse failure */
     }

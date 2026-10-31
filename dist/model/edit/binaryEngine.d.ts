@@ -254,8 +254,12 @@ export declare class BinaryEngine {
      * The bytes of `save` are on disk: the next save is held to the text this one wrote (not chunkXml,
      * which an edit on the write's await may have moved on), and the Status column is measured from
      * it. The edit stack's save point is the caller's to move (EditIndex.saved).
+     *
+     * True when it landed behind a save begun after it, which had already landed: the file now holds
+     * an older document than that newer save wrote. A host whose save point moved with the newer save
+     * (VS Code's) shows the document clean over it, and writes it again (open-questions 16 B).
      */
-    saved(save: BinarySave): void;
+    saved(save: BinarySave): boolean;
     /** The bytes of `save` were never written: the edits it took are unsaved again. */
     notSaved(save: BinarySave): void;
     private forgetLanded;
@@ -266,10 +270,12 @@ export declare class BinaryEngine {
      */
     backup(): Uint8Array;
     /**
-     * Re-capture the baseline from the document's chunkXml so the Modified marks reset after a save:
-     * the tree registered again under the srcId (the one a paint paints from) and snapshotted. The
-     * gate's read is reused when it is still a read of the document's payload; an edit that landed on
-     * the save's await moved chunkXml on, and then it is read again.
+     * After a save: the tree registered again under the srcId (the one a paint paints from), from the
+     * document's chunkXml, and the Status column's baseline taken from what the save WROTE, `gated`.
+     * The gate's read is the tree when it is still a read of the document's payload. Otherwise an edit
+     * landed on the save's await, or the save landed behind a newer one, and the file is not the
+     * document: the tree is read again, and the baseline is a tree of the written chunk that nothing
+     * else sees, so the rows the file lacks are marked (open-questions 16 B).
      */
     private reBaseline;
     /** A table of the document: an EditableTableSource, until its `dispose()`. */
