@@ -17,7 +17,7 @@
 //      The same baseline also misses an edit that lands on a single save's write.
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { entryRow, open, PARAMS, waitFor, type Opened, type View } from './harness.js';
+import { entryOf, entryRow, open, PARAMS, readSldd, waitFor, type Opened, type View } from './harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -97,6 +97,21 @@ describe('binary dictionary engine: a save that lands after a newer one (open-qu
     o.index.saved(older.at);
     assert.strictEqual(o.index.dirty, true, 'the file is older than the document');
     assert.strictEqual(statusOf(await repaint(o.view), 'gravity'), 'Modified', 'gravity is 9.6 here and 9.7 in the file');
+  });
+
+  it('a later save writes the newer edit and clears its mark', async () => {
+    const { o, older, newer } = await landedBehind();
+    o.engine.saved(newer);
+    o.index.saved(newer.at);
+    o.engine.saved(older);
+    o.index.saved(older.at);
+    assert.strictEqual(statusOf(await repaint(o.view), 'gravity'), 'Modified');
+    const later = o.engine.beginSave();
+    o.engine.saved(later);
+    o.index.saved(later.at);
+    assert.strictEqual(readSldd(later.bytes, (dict) => String(entryOf(dict, 'gravity').toRow().Value)), '9.6', 'the later save wrote it');
+    assert.notStrictEqual(statusOf(await repaint(o.view), 'gravity'), 'Modified', 'and the row no longer differs from the file');
+    assert.strictEqual(o.index.dirty, false);
   });
 
   it('saved() says the save landed behind one already landed, so a host whose save point moved can write again', async () => {

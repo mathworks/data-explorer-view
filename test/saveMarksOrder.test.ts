@@ -35,4 +35,21 @@ describe('SaveMarks: a save that commits after a newer one', () => {
     marks.commit(older);
     expect(marks.marks().size, 'neither save wrote b, and the document does not hold it').toBe(0);
   });
+
+  it('and a later save clears what it marked again, also one taken before the older save landed', () => {
+    for (const laterTakenFirst of [false, true]) {
+      const marks = new SaveMarks<object>();
+      marks.push([a]);
+      const older = marks.snapshot();
+      marks.push([b]);
+      const newer = marks.snapshot();
+      marks.commit(newer);
+      let later = laterTakenFirst ? marks.snapshot() : undefined;
+      marks.commit(older);
+      expect([...marks.marks()], 'marked again by the older save').toEqual([[b, 'Modified']]);
+      later ??= marks.snapshot();
+      marks.commit(later);
+      expect(marks.marks().size, `the later save wrote b (taken first: ${laterTakenFirst})`).toBe(0);
+    }
+  });
 });

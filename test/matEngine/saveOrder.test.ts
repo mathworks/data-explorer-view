@@ -45,6 +45,21 @@ describe('MAT-file engine: a save that lands after a newer one (open-questions 1
     assert.strictEqual(o.index.dirty, true, 'and the page reads dirty over it');
     assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, 'Modified', 'scalarD is 43 here and 42 in the file');
   });
+
+  it('a later save writes the newer edit and clears its mark', async () => {
+    const { o, older, newer } = await twoSaves();
+    o.engine.saved(newer);
+    o.index.saved(newer.at);
+    o.engine.saved(older);
+    o.index.saved(older.at);
+    assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, 'Modified');
+    const later = o.engine.beginSave();
+    o.engine.saved(later);
+    o.index.saved(later.at);
+    assert.strictEqual(valuesOf(later.bytes).get('scalarD').Value, '43', 'the later save wrote it');
+    assert.strictEqual(topRow(o.view.posts, 'scalarD').Status, '', 'and the row no longer differs from the file');
+    assert.strictEqual(o.index.dirty, false);
+  });
 });
 
 describe('MAT-file engine: the Status column after the disk changes under a clean document (open-questions 16 A)', () => {
