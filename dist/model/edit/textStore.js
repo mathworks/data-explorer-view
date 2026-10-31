@@ -176,6 +176,10 @@ export function createTextStore(text, report = (err) => console.error(err)) {
             settleDirty();
             each(saveListeners);
         },
+        diverged() {
+            savedAt = null;
+            settleDirty();
+        },
         reset(text) {
             return later(() => {
                 // One replacement, of what differs (as VS Code's reload of a document reports one), or none

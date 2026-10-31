@@ -490,6 +490,31 @@ export class BinaryEngine {
         this.repaintAll('registered');
         return behind;
     }
+    /**
+     * The file on disk now holds `bytes`, and the document keeps what it holds instead (a page's
+     * Doc.keepOver): the Status column is measured from them, so an entry the next save writes other
+     * than the disk holds it is Modified. Nothing else moves: the save gate stays held to the chunk
+     * the document last read or wrote, which its untouched entries are byte for byte, and the next save
+     * writes the document over the file. False, the column left as it was, where `bytes` do not read.
+     */
+    fileHolds(bytes) {
+        try {
+            const read = readBinarySlddPackage(bytes);
+            const parts = {};
+            for (const [member, data] of Object.entries(read.parts))
+                if (member !== DATA_PART_XML)
+                    parts[member] = data;
+            const content = readSlddParts(read.chunkXml, parts, []);
+            this.baseline.capture(createSession().addDataSource(`detached:${this.metaPath}`, content, { path: this.metaPath }));
+        }
+        catch {
+            return false;
+        }
+        this.document.baselineCaptured = true;
+        // Wide, as a save's: every row's mark is measured again. From the tree the document holds.
+        this.repaintAll('registered');
+        return true;
+    }
     /** The bytes of `save` were never written: the edits it took are unsaved again. */
     notSaved(save) {
         const taken = this.taken.get(save);

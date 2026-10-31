@@ -18,6 +18,9 @@ export class EditStackIndex {
         this.savedAt = 0;
         /** How many times the stack has moved: see `moves`. */
         this.moved = 0;
+        /** The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`. */
+        this.states = [0];
+        this.nextState = 1;
         this.fromBackup = fromBackup;
     }
     get dirty() {
@@ -27,6 +30,8 @@ export class EditStackIndex {
     pushed() {
         if (this.savedAt !== null && this.savedAt > this.position)
             this.savedAt = null;
+        this.states.length = this.position + 1;
+        this.states.push(this.nextState++);
         this.position++;
         this.moved++;
     }
@@ -43,6 +48,14 @@ export class EditStackIndex {
         return this.position;
     }
     /**
+     * Which state of the stack is here now, for a save to hand back to `saved` beside `here()`. The
+     * position alone cannot say whether the document a save wrote is still there: an undo and then a
+     * new edit put the stack back at it, over another document.
+     */
+    state() {
+        return this.states[this.position];
+    }
+    /**
      * How many times the stack has moved (an edit, an undo, a redo, a revert), for a save to tell
      * whether the document it wrote is still the one it holds. The position alone cannot say: an
      * undo and then a new edit put it back where it was, over another document.
@@ -55,11 +68,20 @@ export class EditStackIndex {
      *
      * `at` is the position when the save READ the document, not when its write finished. An edit
      * can land while the write is in flight, and the file does not have it: an edit after `at` stays
-     * unsaved, which is the safe direction.
+     * unsaved, which is the safe direction. With `state` (`state()` when the save read it), a save
+     * whose state an undo and a new edit have since replaced leaves no position the file.
      */
-    saved(at = this.position) {
-        this.savedAt = at;
+    saved(at = this.position, state) {
+        this.savedAt = state === undefined || this.states[at] === state ? at : null;
         this.fromBackup = false;
+    }
+    /**
+     * The file changed on disk and the document kept what it holds instead (Doc.keepOver): no state
+     * of the stack is the file any more, so it is dirty until a save of it lands or a revert. The
+     * document did not move, so `moves` does not either: a save begun before is still of it.
+     */
+    diverged() {
+        this.savedAt = null;
     }
     /**
      * The document now holds what is on disk: a revert, or a reload. Only the distance between the

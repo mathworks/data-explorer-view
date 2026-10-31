@@ -121,9 +121,10 @@ export declare class JsonEngine {
      * The file on disk now holds `text`, which the document's text has moved on from (a save whose
      * bytes were read before the edits since): the Status column is measured from it, as from the
      * file's own bytes of a document opened with unsaved changes. The page's own: a TextDocument's
-     * save writes the text as it stands.
+     * save writes the text as it stands. Also the file changed on disk, and kept over (Doc.keepOver).
+     * False, the column left as it was, where `text` is not a dictionary.
      */
-    fileHolds(text: string): void;
+    fileHolds(text: string): boolean;
     /**
      * A table of the document: an EditableTableSource, until its `dispose()`. Its `locateInText` is
      * where a row's entry is in the text, for a host with a text view to show it (null when it cannot

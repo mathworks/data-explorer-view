@@ -260,6 +260,14 @@ export declare class BinaryEngine {
      * (VS Code's) shows the document clean over it, and writes it again (open-questions 16 B).
      */
     saved(save: BinarySave): boolean;
+    /**
+     * The file on disk now holds `bytes`, and the document keeps what it holds instead (a page's
+     * Doc.keepOver): the Status column is measured from them, so an entry the next save writes other
+     * than the disk holds it is Modified. Nothing else moves: the save gate stays held to the chunk
+     * the document last read or wrote, which its untouched entries are byte for byte, and the next save
+     * writes the document over the file. False, the column left as it was, where `bytes` do not read.
+     */
+    fileHolds(bytes: Uint8Array): boolean;
     /** The bytes of `save` were never written: the edits it took are unsaved again. */
     notSaved(save: BinarySave): void;
     private forgetLanded;

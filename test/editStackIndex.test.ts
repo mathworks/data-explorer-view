@@ -120,4 +120,41 @@ describe('EditStackMirror: VS Code’s dirty flag for a custom document', () => 
     m.undone();
     expect(m.dirty, 'the save point was not in the discarded tail').toBe(false);
   });
+
+  it('a save whose state an undo and a new edit replaced leaves no position the file; undo and redo keep a state', () => {
+    const m = new EditStackMirror();
+    m.pushed();
+    const at = m.here();
+    const state = m.state();
+    m.undone();
+    m.pushed(); // back at `at`, over another document, while the save was writing
+    expect(m.here()).toBe(at);
+    m.saved(at, state);
+    expect(m.dirty, 'the file holds the edit undone, not the new one').toBe(true);
+    m.undone();
+    expect(m.dirty, 'nor the start, which the save wrote over').toBe(true);
+    m.redone();
+    const again = m.state();
+    m.undone();
+    m.redone();
+    m.saved(m.here(), again);
+    expect(m.dirty, 'an undo and a redo put the same state back').toBe(false);
+  });
+
+  it('diverged: no position is the file any more, until a save lands or a revert, and the stack did not move', () => {
+    const m = new EditStackMirror();
+    m.pushed();
+    const moves = m.moves;
+    m.diverged();
+    expect(m.dirty).toBe(true);
+    expect(m.moves, 'the document did not move').toBe(moves);
+    m.undone();
+    expect(m.dirty, 'undone to where the file was').toBe(true);
+    m.redone();
+    m.saved();
+    expect(m.dirty).toBe(false);
+    m.diverged();
+    m.reverted();
+    expect(m.dirty, 'a revert holds the disk again').toBe(false);
+  });
 });

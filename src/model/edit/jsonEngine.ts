@@ -192,16 +192,17 @@ export class JsonEngine {
    * The file on disk now holds `text`, which the document's text has moved on from (a save whose
    * bytes were read before the edits since): the Status column is measured from it, as from the
    * file's own bytes of a document opened with unsaved changes. The page's own: a TextDocument's
-   * save writes the text as it stands.
+   * save writes the text as it stands. Also the file changed on disk, and kept over (Doc.keepOver).
+   * False, the column left as it was, where `text` is not a dictionary.
    */
-  fileHolds(text: string): void {
+  fileHolds(text: string): boolean {
     const state = this.docState;
-    if (!state) return;
+    if (!state) return false;
     let tree: any;
     try {
       tree = parseDetached(this.name, text);
     } catch {
-      return;
+      return false;
     }
     this.baseline.capture(tree);
     state.baseline.captured = true;
@@ -210,6 +211,7 @@ export class JsonEngine {
     // clean: the next repaint keeps this baseline, and does not take one from the text.
     state.baseline.cleanAt = -1;
     for (const repaint of state.repaints) repaint();
+    return true;
   }
 
   /**
