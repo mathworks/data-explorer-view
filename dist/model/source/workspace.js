@@ -317,6 +317,8 @@ class EditableDoc {
         this.index = new EditStackIndex();
         this.dirtyCheck = false;
         this.disposed = false;
+        /** The state of the stack each save read (EditStackIndex.state), by save. */
+        this.saveStates = new WeakMap();
         this.bell = new DirtyBell(listenerFailure(shared.notify, name));
         const index = this.index;
         this.watched = {
@@ -364,6 +366,7 @@ class EditableDoc {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
         const save = this.engine.beginSave();
+        this.saveStates.set(save, this.index.state());
         return { bytes: save.bytes, at: save };
     }
     saved(at) {
@@ -371,7 +374,7 @@ class EditableDoc {
             return;
         const save = at;
         this.engine.saved(save);
-        this.index.saved(save.at);
+        this.index.saved(save.at, this.saveStates.get(save));
         this.tellDirty();
     }
     notSaved(at) {

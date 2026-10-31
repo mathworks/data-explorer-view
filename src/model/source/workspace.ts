@@ -160,7 +160,8 @@ export interface Doc {
    * other than the disk holds it is Modified, one the other program changed included. A MAT-file's
    * marks what was edited since the last save, as always. Where `bytes` do not read, the column stays
    * as it was, and `notify` says so; the rest holds either way. A save begun before, landing after,
-   * is clean only if nothing was edited after it read the document.
+   * is clean only if nothing was edited after it read the document. It is taken as the file's newest
+   * write, so a host reports a save (`saved`) as its write resolves, not after another program's.
    *
    * A document the page does not edit holds no edits to keep: it reads `bytes`, as `reload` does.
    */
@@ -544,6 +545,8 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   private readonly bell: DirtyBell;
   private dirtyCheck = false;
   protected disposed = false;
+  /** The state of the stack each save read (EditStackIndex.state), by save. */
+  private readonly saveStates = new WeakMap<object, number>();
 
   constructor(
     protected readonly shared: Shared,
@@ -600,6 +603,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   serialize(): { bytes: Uint8Array; at: SaveToken } {
     if (this.disposed) throw new Error(`${this.name} is closed.`);
     const save = this.engine.beginSave();
+    this.saveStates.set(save, this.index.state());
     return { bytes: save.bytes, at: save };
   }
 
@@ -607,7 +611,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
     if (this.disposed) return;
     const save = at as S;
     this.engine.saved(save);
-    this.index.saved(save.at);
+    this.index.saved(save.at, this.saveStates.get(save));
     this.tellDirty();
   }
 

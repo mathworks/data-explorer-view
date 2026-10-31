@@ -135,20 +135,73 @@ describe('Doc.keepOver(bytes): the edits kept over a change on disk', () => {
       await doc.reload(disk);
       await settle();
       assert.strictEqual(doc.dirty, false);
-      assert.strictEqual(valueOf(rowOf(await rowsOf(doc), other)), otherNow);
+      const rows = await rowsOf(doc);
+      assert.strictEqual(valueOf(rowOf(rows, other)), otherNow);
+      assert.deepStrictEqual(
+        rows.filter((r) => r.Status === 'Modified').map((r) => r.Name?.label),
+        [],
+        'and nothing is marked',
+      );
     });
 
     it(`${kind.label}: a save begun before it and landing after is clean, unless an edit came after the save read the document`, async () => {
-      for (const editAfter of [false, true]) {
-        const doc = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
-        await setValue(doc, ...kind.edited);
-        const save = doc.serialize();
-        if (editAfter) await setValue(doc, edited, now, `${now}1`);
-        await doc.keepOver(await changedOutside(kind));
-        doc.saved(save.at);
-        await settle();
-        assert.strictEqual(doc.dirty, editAfter, editAfter ? 'an edit the save did not write' : 'the disk holds what the save wrote');
+      const [, was] = kind.edited;
+      for (const keep of [true, false]) {
+        for (const after of ['nothing', 'an edit', 'an undo and another edit'] as const) {
+          const doc = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+          await setValue(doc, ...kind.edited);
+          const save = doc.serialize();
+          if (after === 'an edit') await setValue(doc, edited, now, `${now}1`);
+          if (after === 'an undo and another edit') {
+            // Back where the save read the document, over another one.
+            doc.table.undo();
+            await settle();
+            await setValue(doc, edited, was, `${was}7`);
+          }
+          if (keep) await doc.keepOver(await changedOutside(kind));
+          doc.saved(save.at);
+          await settle();
+          assert.strictEqual(doc.dirty, after !== 'nothing', `${after} after the save read it, ${keep ? '' : 'not '}kept over`);
+        }
       }
+    });
+
+    it(`${kind.label}: a clean document kept over turns dirty, and says so`, async () => {
+      const doc = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+      const heard: boolean[] = [];
+      doc.onDirty((d) => void heard.push(d));
+      await doc.keepOver(await changedOutside(kind));
+      await settle();
+      assert.strictEqual(doc.dirty, true);
+      assert.deepStrictEqual(heard, [true]);
+    });
+  }
+
+  for (const kind of KINDS.filter((k) => k.measured)) {
+    const [other] = kind.other;
+
+    it(`${kind.label}: the table open on it hears its Status column move`, async () => {
+      const doc = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+      await setValue(doc, ...kind.edited);
+      const heard: any[] = [];
+      const stop = doc.table.subscribe((change: any) => void heard.push(change));
+      await doc.keepOver(await changedOutside(kind));
+      await settle();
+      stop();
+      const painted = heard.flatMap((c) => c.view?.rows ?? c.rows ?? []);
+      assert.strictEqual(painted.find((r: any) => r.Name?.label === other)?.Status, 'Modified', `${other} in a repaint (${heard.map((c) => c.kind).join(', ')})`);
+    });
+
+    it(`${kind.label}: kept over before its first paint, or just after a reload, it is marked against the disk`, async () => {
+      const disk = await changedOutside(kind);
+      const unpainted = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+      await unpainted.keepOver(disk);
+      assert.strictEqual(rowOf(await rowsOf(unpainted), other).Status, 'Modified', 'before the first paint');
+      const reloaded = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+      await setValue(reloaded, ...kind.edited);
+      await reloaded.reload(kind.bytes());
+      await reloaded.keepOver(disk);
+      assert.strictEqual(rowOf(await rowsOf(reloaded), other).Status, 'Modified', 'just after a reload');
     });
   }
 

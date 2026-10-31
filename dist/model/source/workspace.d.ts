@@ -126,7 +126,8 @@ export interface Doc {
      * other than the disk holds it is Modified, one the other program changed included. A MAT-file's
      * marks what was edited since the last save, as always. Where `bytes` do not read, the column stays
      * as it was, and `notify` says so; the rest holds either way. A save begun before, landing after,
-     * is clean only if nothing was edited after it read the document.
+     * is clean only if nothing was edited after it read the document. It is taken as the file's newest
+     * write, so a host reports a save (`saved`) as its write resolves, not after another program's.
      *
      * A document the page does not edit holds no edits to keep: it reads `bytes`, as `reload` does.
      */

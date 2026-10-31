@@ -121,6 +121,26 @@ describe('EditStackMirror: VS Code’s dirty flag for a custom document', () => 
     expect(m.dirty, 'the save point was not in the discarded tail').toBe(false);
   });
 
+  it('a save whose state an undo and a new edit replaced leaves no position the file; undo and redo keep a state', () => {
+    const m = new EditStackMirror();
+    m.pushed();
+    const at = m.here();
+    const state = m.state();
+    m.undone();
+    m.pushed(); // back at `at`, over another document, while the save was writing
+    expect(m.here()).toBe(at);
+    m.saved(at, state);
+    expect(m.dirty, 'the file holds the edit undone, not the new one').toBe(true);
+    m.undone();
+    expect(m.dirty, 'nor the start, which the save wrote over').toBe(true);
+    m.redone();
+    const again = m.state();
+    m.undone();
+    m.redone();
+    m.saved(m.here(), again);
+    expect(m.dirty, 'an undo and a redo put the same state back').toBe(false);
+  });
+
   it('diverged: no position is the file any more, until a save lands or a revert, and the stack did not move', () => {
     const m = new EditStackMirror();
     m.pushed();
