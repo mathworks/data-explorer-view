@@ -19,8 +19,14 @@ export declare class EditStackIndex implements EditIndex {
     private fromBackup;
     /** How many times the stack has moved: see `moves`. */
     private moved;
-    /** The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`. */
+    /**
+     * The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`.
+     * By position, not in a list: a host whose own stack moves under this one (VS Code's revert puts its
+     * index back at its save point) can take the position below 0, or above every push.
+     */
     private readonly states;
+    /** The highest position `states` holds one for. */
+    private top;
     private nextState;
     constructor(fromBackup?: boolean);
     get dirty(): boolean;
@@ -60,6 +66,8 @@ export declare class EditStackIndex implements EditIndex {
     /**
      * The document now holds what is on disk: a revert, or a reload. Only the distance between the
      * current position and the save point matters, so the save point moves to the current position.
+     * No state of the stack is one a save already in flight read, so such a save lands dirty: the
+     * file holds what it wrote, or what the reload read, and the document the reload's.
      */
     reverted(): void;
 }

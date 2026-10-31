@@ -18,8 +18,14 @@ export class EditStackIndex {
         this.savedAt = 0;
         /** How many times the stack has moved: see `moves`. */
         this.moved = 0;
-        /** The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`. */
-        this.states = [0];
+        /**
+         * The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`.
+         * By position, not in a list: a host whose own stack moves under this one (VS Code's revert puts its
+         * index back at its save point) can take the position below 0, or above every push.
+         */
+        this.states = new Map([[0, 0]]);
+        /** The highest position `states` holds one for. */
+        this.top = 0;
         this.nextState = 1;
         this.fromBackup = fromBackup;
     }
@@ -30,9 +36,11 @@ export class EditStackIndex {
     pushed() {
         if (this.savedAt !== null && this.savedAt > this.position)
             this.savedAt = null;
-        this.states.length = this.position + 1;
-        this.states.push(this.nextState++);
+        for (let at = this.top; at > this.position; at--)
+            this.states.delete(at);
         this.position++;
+        this.states.set(this.position, this.nextState++);
+        this.top = this.position;
         this.moved++;
     }
     undone() {
@@ -53,7 +61,14 @@ export class EditStackIndex {
      * new edit put the stack back at it, over another document.
      */
     state() {
-        return this.states[this.position];
+        let state = this.states.get(this.position);
+        if (state === undefined) {
+            // A position no push here reached: the host's stack moved there. Its state is new to this index.
+            state = this.nextState++;
+            this.states.set(this.position, state);
+            this.top = Math.max(this.top, this.position);
+        }
+        return state;
     }
     /**
      * How many times the stack has moved (an edit, an undo, a redo, a revert), for a save to tell
@@ -72,7 +87,7 @@ export class EditStackIndex {
      * whose state an undo and a new edit have since replaced leaves no position the file.
      */
     saved(at = this.position, state) {
-        this.savedAt = state === undefined || this.states[at] === state ? at : null;
+        this.savedAt = state === undefined || this.states.get(at) === state ? at : null;
         this.fromBackup = false;
     }
     /**
@@ -86,8 +101,12 @@ export class EditStackIndex {
     /**
      * The document now holds what is on disk: a revert, or a reload. Only the distance between the
      * current position and the save point matters, so the save point moves to the current position.
+     * No state of the stack is one a save already in flight read, so such a save lands dirty: the
+     * file holds what it wrote, or what the reload read, and the document the reload's.
      */
     reverted() {
+        this.states.clear();
+        this.top = this.position;
         this.saved();
         this.moved++;
     }
