@@ -212,8 +212,9 @@ async function save() {
   instead (the page's "Keep My Edits"): no step of its undo stack is the file
   any more, so it stays dirty until a save lands or a reload, and a
   dictionary's Status column is measured from `bytes`. The next save writes the
-  document over the file. A document the page does not edit reads `bytes`, as
-  `reload` does.
+  document over the file. **In a MAT-file, a variable changed only on disk is
+  not marked, and the next save writes the kept value over it.** A document the
+  page does not edit reads `bytes`, as `reload` does.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only
