@@ -91,10 +91,30 @@ export interface ConnectTableOptions {
      */
     textView?: TableTextView;
     /**
+     * With `editing`: the table answers Cmd/Ctrl+Z with Undo and Shift+Cmd/Ctrl+Z (and Ctrl+Y off
+     * macOS) with Redo, as the editing menu labels them, outside its fields and where the document may
+     * be edited. Default false: the VS Code extension's own keybindings undo, and a table that answered
+     * too would undo twice. `handle.undo()` and `redo()` do the same for an app's Edit menu either way.
+     */
+    undoChords?: boolean;
+    /**
      * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
      * `<body>`, and takes away again on dispose().
      */
     errorDialog?: DexErrorDialog;
+    /**
+     * With `editing`: a document whose view is not `editable` gets the menu a table wired without
+     * `editing` has (Copy Name and Copy Value for the selection, then `menuItems`), so `editing: true`
+     * is right for every document a page opens. Default false: such a document has no menu, as the
+     * VS Code extension's read-only views have none.
+     */
+    readOnlyMenu?: boolean;
+    /**
+     * With `editing`: the editing menu ends with Copy Name and Copy Value for the selection, after a
+     * separator, which put its names (or values) as text through `copy`, as a read-only table's do.
+     * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
+     */
+    copyText?: boolean;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -182,6 +202,12 @@ export interface TableHandle extends InspectorFeed {
      * source refuses settles too; the table shows why, as for any refused edit.
      */
     commitEdit(): Promise<void>;
+    /**
+     * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
+     * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+     */
+    undo(): void;
+    redo(): void;
     /** Stop: the table keeps what it shows and hears nothing more. */
     dispose(): void;
 }

@@ -3346,6 +3346,24 @@
       "declarations": [
         {
           "kind": "function",
+          "name": "isTypingInField",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "ev",
+              "type": {
+                "text": "KeyboardEvent"
+              }
+            }
+          ],
+          "description": "Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid."
+        },
+        {
+          "kind": "function",
           "name": "wireEditing",
           "return": {
             "type": {
@@ -3364,6 +3382,14 @@
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "isTypingInField",
+          "declaration": {
+            "name": "isTypingInField",
+            "module": "dist/widgets/tree-table/editingWire.js"
+          }
+        },
         {
           "kind": "js",
           "name": "wireEditing",
@@ -3457,6 +3483,14 @@
           "declaration": {
             "name": "TableMenuContext",
             "module": "./connectTable.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "isTypingInField",
+          "declaration": {
+            "name": "isTypingInField",
+            "module": "./editingWire.js"
           }
         },
         {

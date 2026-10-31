@@ -379,6 +379,7 @@ export function connectTable(table, source, options = {}) {
             table,
             source: isEditable(source) ? source : null,
             textView: options.textView,
+            undoChords: !!options.undoChords,
             errorDialog: dialog,
             listen: (type, listener, capture = false) => {
                 table.addEventListener(type, listener, capture);
@@ -455,13 +456,22 @@ export function connectTable(table, source, options = {}) {
         listen(table, 'dex-table-context-menu', (e) => {
             const { x, y, rowId } = e.detail;
             const context = { rowId: rowId ?? null, selectedRowIds: [...selectedRowIds()], rows: rowsNow() };
-            if (editing && !editing.menuAllowed(context.rowId))
+            // A document that cannot be edited has the read-only menu under `editing` too, where the
+            // option asks for it; otherwise the editing half says whether there is a menu at all.
+            const editingMenu = !!editing && !(options.readOnlyMenu && !editing.editable());
+            if (editingMenu && !editing.menuAllowed(context.rowId))
                 return;
             // The editing menu is for the current selection, but a right-click on no row is a gesture
             // on the document, whose menu is the one a selection of nothing gets.
-            const items = editing
+            const items = editingMenu
                 ? editing.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
                 : [...readOnlyItems(context)];
+            if (editingMenu && options.copyText) {
+                const copies = readOnlyItems(context);
+                if (items.length > 0 && copies.length > 0)
+                    items.push({ id: '', label: '', separator: true });
+                items.push(...copies);
+            }
             const extra = options.menuItems?.(context) ?? [];
             if (items.length > 0 && extra.length > 0)
                 items.push({ id: '', label: '', separator: true });
@@ -573,6 +583,12 @@ export function connectTable(table, source, options = {}) {
             // The editor's edit, if it changed anything, is handed to the source as it commits.
             table.commitEdit();
             return editing ? editing.editsSettled() : Promise.resolve();
+        },
+        undo() {
+            editing?.history('undo');
+        },
+        redo() {
+            editing?.history('redo');
         },
         onPage(listener) {
             pageListeners.add(listener);

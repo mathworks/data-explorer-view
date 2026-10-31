@@ -46,6 +46,8 @@ export interface EditingHost {
   /** The source's commands, or null for a source that takes none (every gesture is then refused). */
   source: EditableTableSource | null;
   textView?: TableTextView;
+  /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
+  undoChords?: boolean;
   errorDialog: DexErrorDialog;
   /** Listen on the table until the connection is disposed. */
   listen(type: string, listener: (e: Event) => void, capture?: boolean): void;
@@ -66,12 +68,16 @@ export interface EditingWire {
   change(change: TableChange): boolean;
   /** Whether a right-click opens the menu at all, and on the space under the rows. */
   menuAllowed(rowId: string | null): boolean;
+  /** Whether the document may be edited, as the last paint and the source say. */
+  editable(): boolean;
   /** The editing menu for the current selection, anchored at `anchorRowId`. */
   menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
   /** A menu item was chosen; false for one that is not the editing menu's. */
   act(actionId: string, anchorRowId: string | null): boolean;
   /** Settled once every cell edit handed to the source so far is the document's, or refused. */
   editsSettled(): Promise<void>;
+  /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
+  history(action: 'undo' | 'redo'): boolean;
 }
 
 // Whether a value read off a change is an object — the one shape every list element below
@@ -95,11 +101,24 @@ function wellFormedRules(rules: unknown): SectionRule[] {
 // at this listener is the host element, which tells us nothing about where the caret is.
 //
 // The rule lives here once because both capture guards below need it and they must not
-// disagree: a key that a field owns is not the table's to claim.
-function isTypingInField(ev: KeyboardEvent): boolean {
+// disagree: a key that a field owns is not the table's to claim. Exported for an app's own chords,
+// so that they leave the same keys to the same fields.
+/** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
+export function isTypingInField(ev: KeyboardEvent): boolean {
   const active = (ev.composedPath?.()[0] as HTMLElement) ?? (ev.target as HTMLElement);
   const tag = active?.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!active?.isContentEditable;
+}
+
+// The Undo and Redo chords, which the table answers only where its options ask (undoChords): Cmd/Ctrl+Z
+// and Shift+Cmd/Ctrl+Z, and Ctrl+Y off macOS. Their own resolver, so resolveShortcutAction (the chords
+// every editing table answers) is untouched.
+function undoChordOf(ev: KeyboardEvent): 'undo' | 'redo' | null {
+  if (ev.altKey) return null;
+  const key = ev.key.toLowerCase();
+  if ((ev.metaKey || ev.ctrlKey) && key === 'z') return ev.shiftKey ? 'redo' : 'undo';
+  if (ev.ctrlKey && !ev.metaKey && !ev.shiftKey && key === 'y' && !/Mac|iPhone|iPad/.test(navigator.platform ?? '')) return 'redo';
+  return null;
 }
 
 // Copy/Cut/Delete carry the selection (the host resolves it), the rest carry the one row they
@@ -293,6 +312,32 @@ export function wireEditing(host: EditingHost): EditingWire {
     true,
   );
 
+  // Undo and Redo, as their menu items do, where the document may be edited (their items are
+  // disabled where it may not).
+  const history = (action: 'undo' | 'redo'): boolean => {
+    if (!editable) return false;
+    act(action, null);
+    return true;
+  };
+
+  // The Undo and Redo chords, only where the table is asked to answer them: under the VS Code
+  // extension its own keybindings undo, and a table that answered too would undo twice. Outside the
+  // fields, as Copy/Cut/Paste are.
+  if (host.undoChords) {
+    host.listen(
+      'keydown',
+      (e) => {
+        const ev = e as KeyboardEvent;
+        const action = undoChordOf(ev);
+        if (!action || isTypingInField(ev) || !editable) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        history(action);
+      },
+      true,
+    );
+  }
+
   // The drop predictor, so the table can render live cursor + tooltip feedback on dragover.
   table.dropPredictor = predictDrop as DexTreeTable['dropPredictor'];
 
@@ -443,8 +488,10 @@ export function wireEditing(host: EditingHost): EditingWire {
       // Undo/Redo — so a dictionary's empty space stays inert.
       return rowId !== null || wholeFileRule() !== null;
     },
+    editable: () => editable,
     menuFor,
     act,
     editsSettled: () => Promise.all([...writing]).then(() => undefined),
+    history,
   };
 }

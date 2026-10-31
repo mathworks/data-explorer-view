@@ -124,10 +124,30 @@ export interface ConnectTableOptions {
    */
   textView?: TableTextView;
   /**
+   * With `editing`: the table answers Cmd/Ctrl+Z with Undo and Shift+Cmd/Ctrl+Z (and Ctrl+Y off
+   * macOS) with Redo, as the editing menu labels them, outside its fields and where the document may
+   * be edited. Default false: the VS Code extension's own keybindings undo, and a table that answered
+   * too would undo twice. `handle.undo()` and `redo()` do the same for an app's Edit menu either way.
+   */
+  undoChords?: boolean;
+  /**
    * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
    * `<body>`, and takes away again on dispose().
    */
   errorDialog?: DexErrorDialog;
+  /**
+   * With `editing`: a document whose view is not `editable` gets the menu a table wired without
+   * `editing` has (Copy Name and Copy Value for the selection, then `menuItems`), so `editing: true`
+   * is right for every document a page opens. Default false: such a document has no menu, as the
+   * VS Code extension's read-only views have none.
+   */
+  readOnlyMenu?: boolean;
+  /**
+   * With `editing`: the editing menu ends with Copy Name and Copy Value for the selection, after a
+   * separator, which put its names (or values) as text through `copy`, as a read-only table's do.
+   * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
+   */
+  copyText?: boolean;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -220,6 +240,12 @@ export interface TableHandle extends InspectorFeed {
    * source refuses settles too; the table shows why, as for any refused edit.
    */
   commitEdit(): Promise<void>;
+  /**
+   * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
+   * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+   */
+  undo(): void;
+  redo(): void;
   /** Stop: the table keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -598,6 +624,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       table,
       source: isEditable(source) ? source : null,
       textView: options.textView,
+      undoChords: !!options.undoChords,
       errorDialog: dialog!,
       listen: (type, listener, capture = false) => {
         table.addEventListener(type, listener, capture);
@@ -672,12 +699,20 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     listen(table, 'dex-table-context-menu', (e) => {
       const { x, y, rowId } = e.detail;
       const context: TableMenuContext = { rowId: rowId ?? null, selectedRowIds: [...selectedRowIds()], rows: rowsNow() };
-      if (editing && !editing.menuAllowed(context.rowId)) return;
+      // A document that cannot be edited has the read-only menu under `editing` too, where the
+      // option asks for it; otherwise the editing half says whether there is a menu at all.
+      const editingMenu = !!editing && !(options.readOnlyMenu && !editing.editable());
+      if (editingMenu && !editing!.menuAllowed(context.rowId)) return;
       // The editing menu is for the current selection, but a right-click on no row is a gesture
       // on the document, whose menu is the one a selection of nothing gets.
-      const items = editing
-        ? editing.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
+      const items = editingMenu
+        ? editing!.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
         : [...readOnlyItems(context)];
+      if (editingMenu && options.copyText) {
+        const copies = readOnlyItems(context);
+        if (items.length > 0 && copies.length > 0) items.push({ id: '', label: '', separator: true });
+        items.push(...copies);
+      }
       const extra = options.menuItems?.(context) ?? [];
       if (items.length > 0 && extra.length > 0) items.push({ id: '', label: '', separator: true });
       items.push(...extra);
@@ -783,6 +818,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       // The editor's edit, if it changed anything, is handed to the source as it commits.
       table.commitEdit();
       return editing ? editing.editsSettled() : Promise.resolve();
+    },
+    undo() {
+      editing?.history('undo');
+    },
+    redo() {
+      editing?.history('redo');
     },
     onPage(listener) {
       pageListeners.add(listener);
