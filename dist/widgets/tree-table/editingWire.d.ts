@@ -39,6 +39,8 @@ export interface EditingWire {
     change(change: TableChange): boolean;
     /** Whether a right-click opens the menu at all, and on the space under the rows. */
     menuAllowed(rowId: string | null): boolean;
+    /** Whether the document may be edited, as the last paint and the source say. */
+    editable(): boolean;
     /** The editing menu for the current selection, anchored at `anchorRowId`. */
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
     /** A menu item was chosen; false for one that is not the editing menu's. */

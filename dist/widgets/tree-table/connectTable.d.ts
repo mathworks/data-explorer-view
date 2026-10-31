@@ -95,6 +95,19 @@ export interface ConnectTableOptions {
      * `<body>`, and takes away again on dispose().
      */
     errorDialog?: DexErrorDialog;
+    /**
+     * With `editing`: a document whose view is not `editable` gets the menu a table wired without
+     * `editing` has (Copy Name and Copy Value for the selection, then `menuItems`), so `editing: true`
+     * is right for every document a page opens. Default false: such a document has no menu, as the
+     * VS Code extension's read-only views have none.
+     */
+    readOnlyMenu?: boolean;
+    /**
+     * With `editing`: the editing menu ends with Copy Name and Copy Value for the selection, after a
+     * separator, which put its names (or values) as text through `copy`, as a read-only table's do.
+     * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
+     */
+    copyText?: boolean;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {

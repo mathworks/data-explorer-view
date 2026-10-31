@@ -353,6 +353,7 @@ export function wireEditing(host) {
             // Undo/Redo — so a dictionary's empty space stays inert.
             return rowId !== null || wholeFileRule() !== null;
         },
+        editable: () => editable,
         menuFor,
         act,
     };
