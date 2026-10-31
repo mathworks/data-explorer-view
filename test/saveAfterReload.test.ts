@@ -60,5 +60,26 @@ describe('a save begun before a reload and landing after it', () => {
       await settle();
       assert.strictEqual(doc.dirty, true, 'the file may hold the save, the document holds the reload');
     });
+
+    it(`${kind.label}: kept over after a reload, and saved, is clean only if the save wrote the document`, async () => {
+      // No push after the reload, so the save's state is the one the index first makes for it.
+      const outside = await workspace().open(kind.bytes(), kind.name, `file:///other/${kind.name}`);
+      await setValue(outside, ...kind.other);
+      const disk = outside.serialize().bytes;
+      const [edited, was, now] = kind.edited;
+      for (const after of ['nothing', 'an edit'] as const) {
+        const doc = await workspace().open(kind.bytes(), kind.name, `file:///w/${kind.name}`);
+        await setValue(doc, ...kind.edited);
+        await doc.reload(kind.bytes());
+        await doc.keepOver(disk);
+        await settle();
+        assert.strictEqual(doc.dirty, true);
+        const save = doc.serialize();
+        if (after === 'an edit') await setValue(doc, edited, was, now);
+        doc.saved(save.at);
+        await settle();
+        assert.strictEqual(doc.dirty, after === 'an edit', `${after} after the save read the document`);
+      }
+    });
   }
 });
