@@ -66,6 +66,8 @@ export declare class EditStackIndex implements EditIndex {
     /**
      * The document now holds what is on disk: a revert, or a reload. Only the distance between the
      * current position and the save point matters, so the save point moves to the current position.
+     * No state of the stack is one a save already in flight read, so such a save lands dirty: the
+     * file holds what it wrote, or what the reload read, and the document the reload's.
      */
     reverted(): void;
 }
