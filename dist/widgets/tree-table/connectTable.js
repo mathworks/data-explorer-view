@@ -379,6 +379,7 @@ export function connectTable(table, source, options = {}) {
             table,
             source: isEditable(source) ? source : null,
             textView: options.textView,
+            undoChords: !!options.undoChords,
             errorDialog: dialog,
             listen: (type, listener, capture = false) => {
                 table.addEventListener(type, listener, capture);
@@ -566,6 +567,12 @@ export function connectTable(table, source, options = {}) {
         },
         menuFor(anchorRowId, selection) {
             return editing ? editing.menuFor(anchorRowId, selection) : [];
+        },
+        undo() {
+            editing?.history('undo');
+        },
+        redo() {
+            editing?.history('redo');
         },
         onPage(listener) {
             pageListeners.add(listener);

@@ -91,6 +91,13 @@ export interface ConnectTableOptions {
      */
     textView?: TableTextView;
     /**
+     * With `editing`: the table answers Cmd/Ctrl+Z with Undo and Shift+Cmd/Ctrl+Z (and Ctrl+Y off
+     * macOS) with Redo, as the editing menu labels them, outside its fields and where the document may
+     * be edited. Default false: the VS Code extension's own keybindings undo, and a table that answered
+     * too would undo twice. `handle.undo()` and `redo()` do the same for an app's Edit menu either way.
+     */
+    undoChords?: boolean;
+    /**
      * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
      * `<body>`, and takes away again on dispose().
      */
@@ -175,6 +182,12 @@ export interface TableHandle extends InspectorFeed {
      * app's to do exactly what its item would, when it is enabled. Without `editing`, none.
      */
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
+    /**
+     * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
+     * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+     */
+    undo(): void;
+    redo(): void;
     /** Stop: the table keeps what it shows and hears nothing more. */
     dispose(): void;
 }

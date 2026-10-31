@@ -5,6 +5,7 @@
 // defines are here for an app that holds one or names its type.
 export { DexTreeTable, defineTreeTable } from './dex-tree-table.js';
 export { connectTable } from './connectTable.js';
+export { isTypingInField } from './editingWire.js';
 export { DexFilterBar, defineFilterBar } from './dex-filter-bar.js';
 export { DexColumnFilter, defineColumnFilter } from './dex-column-filter.js';
 export { DexAddGallery, defineAddGallery } from './dex-add-gallery.js';
