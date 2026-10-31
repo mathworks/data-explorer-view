@@ -156,6 +156,73 @@ describe('a name index', () => {
   });
 });
 
+describe('a name index over every kind of data file', () => {
+  // The integration suite's workspace folder: two JSON dictionaries that share an entry name, a
+  // compressed one and a model; and a MAT-file holding a Simulink.Breakpoint, an MCOS object.
+  const FIXTURES = resolve(import.meta.dirname, '../test-integration/fixtures');
+  const ON_DISK: Record<string, string> = {
+    'data.sldd': 'workspace/data.sldd',
+    'params.sldd': 'workspace/params.sldd',
+    'binary.sldd': 'workspace/binary.sldd',
+    'model.slx': 'workspace/model.slx',
+    'CaseBp.mat': 'caserefs/CaseBp.mat',
+  };
+  const listing = (): Promise<NameRecord[]> =>
+    new NameIndex({
+      files: { list: async () => Object.keys(ON_DISK).map(file) },
+      reader: (files): NameReader => {
+        const r = nodeSourceReader(files, { pathOf: (f) => join(FIXTURES, ON_DISK[f.path.slice('/w/'.length)]) });
+        return { version: r.version, bytes: r.bytes, dirtyBytes: () => null };
+      },
+    }).list();
+
+  it('lists .sldd entry names from an unopened JSON dictionary', async () => {
+    const fromData = (await listing()).filter((e) => e.sourceLabel === 'data.sldd');
+    const names = fromData.map((e) => e.name);
+    // A few names the fixture data.sldd holds.
+    for (const expected of ['PI', 'Number', 'Struct', 'stringArray']) {
+      expect(names, `data.sldd contributes "${expected}"`).toContain(expected);
+    }
+    expect(fromData.every((e) => e.kind === 'sldd'), 'all data.sldd records are kind "sldd"').toBe(true);
+  });
+
+  it('lists entry names from an unopened compressed-binary (zip) .sldd', async () => {
+    // binary.sldd starts with the PK zip magic: it takes the compressed reader, not JSON.parse.
+    const fromBinary = (await listing()).filter((e) => e.sourceLabel === 'binary.sldd');
+    expect(fromBinary.length, 'the zip .sldd contributes entry names').toBeGreaterThan(0);
+    expect(fromBinary.every((e) => e.kind === 'sldd'), 'all binary.sldd records are kind "sldd"').toBe(true);
+  });
+
+  it('preserves duplicate names across files (never collapsed)', async () => {
+    // "structArray" is in both data.sldd and params.sldd: search must be able to reach either.
+    const structArrays = (await listing()).filter((e) => e.name === 'structArray');
+    const labels = structArrays.map((e) => e.sourceLabel);
+    expect(labels, 'the data.sldd occurrence is present').toContain('data.sldd');
+    expect(labels, 'the params.sldd occurrence is present').toContain('params.sldd');
+    expect(structArrays.length, 'both occurrences are distinct records').toBeGreaterThanOrEqual(2);
+  });
+
+  it('spans multiple .sldd sources (JSON + zip)', async () => {
+    const labels = new Set((await listing()).map((e) => e.sourceLabel));
+    for (const f of ['data.sldd', 'params.sldd', 'binary.sldd']) {
+      expect(labels.has(f), `the index includes entries from ${f}`).toBe(true);
+    }
+  });
+
+  it('lists a .mat variable under its own name, not the MCOS class name', async () => {
+    // An mxOPAQUE variable carries no dimensions subelement; a walk that skipped one anyway would
+    // read the class name, and every Simulink object would be indexed as "MCOS".
+    const fromMat = (await listing()).filter((e) => e.sourceLabel === 'CaseBp.mat');
+    const names = fromMat.map((e) => e.name);
+    expect(names, 'the .mat contributes "Bp"').toContain('Bp');
+    expect(names, 'and never the MCOS marker as a name').not.toContain('MCOS');
+    expect(names, 'nor the class name').not.toContain('Simulink.Breakpoint');
+    expect(fromMat.every((e) => e.kind === 'mat'), 'all of its records are kind "mat"').toBe(true);
+    // The file's trailing anonymous element contributes nothing: core reports '' for it.
+    expect(names.every((n) => n.length > 0), 'no record carries an empty name').toBe(true);
+  });
+});
+
 describe('a build an invalidate() dropped', () => {
   // The folder as the first build lists it, then as the one after the invalidate() lists it.
   const B2_FOLDER = FOLDER.filter((f) => !f.path.endsWith('ctrlA.slx'));

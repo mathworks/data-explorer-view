@@ -246,6 +246,7 @@ describe('MAT-file engine: clipboard and row drags, between two MAT-files', () =
     await onMat(c, { type: 'drop', rowId: variableRow(c.view.posts, 'x').ID, mode: 'copy' });
     assert.deepStrictEqual(namesOf(c), ['x', 'str', 'q', 'p']);
     assert.deepStrictEqual(namesOf(a), ['p', 'x'], 'a copy leaves its original');
+    assert.deepStrictEqual(columnsOf(shownCells(variableOf(c, 'p')), VALUE_COLUMNS), columnsOf(shownCells(variableOf(a, 'p')), VALUE_COLUMNS));
   });
 
   it('a drag within one MAT-file: a move is the no-op, a copy a duplicate', async () => {
