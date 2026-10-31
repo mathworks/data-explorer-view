@@ -5,8 +5,8 @@
 // Copied from data-explorer-vscode src/host/transferRegisters.ts at c73da3c.
 // Copied from data-explorer-vscode src/host/editorHub.ts at c73da3c (its source deleters and its
 // two broadcasts; the webview registry and the Add gallery's stay the extension's).
-// The extension keeps its copies until its editors move onto view's sources; keep them alike
-// (view's CI reports a vscode commit to any of those files).
+// The extension's editors now share one of these per window, and it has deleted its own copies,
+// so there is no second copy to keep alike.
 //
 // The registers every editable document of a window shares: the clipboard, the drag register,
 // the deleters a cross-document move asks to take its originals out, and the broadcast that tells
