@@ -577,6 +577,13 @@ export function connectTable(table, source, options = {}) {
         menuFor(anchorRowId, selection) {
             return editing ? editing.menuFor(anchorRowId, selection) : [];
         },
+        commitEdit() {
+            if (disposed)
+                return Promise.resolve();
+            // The editor's edit, if it changed anything, is handed to the source as it commits.
+            table.commitEdit();
+            return editing ? editing.editsSettled() : Promise.resolve();
+        },
         undo() {
             editing?.history('undo');
         },

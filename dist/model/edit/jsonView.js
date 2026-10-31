@@ -630,8 +630,9 @@ export class JsonView {
     // span, anything thrown) call undoPaint.
     edit(msg) {
         if (this.disposed)
-            return;
-        void this.applyEdit(msg);
+            return Promise.resolve();
+        // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for.
+        return this.applyEdit(msg);
     }
     async applyEdit(msg) {
         // The entry this edit has already changed in the model and shown, if it got that far.

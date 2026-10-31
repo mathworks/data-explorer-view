@@ -129,7 +129,7 @@ export declare class JsonView implements EditableTableSource {
      * are already the file's answer.
      */
     private undoPaint;
-    edit(msg: CellEdit): void;
+    edit(msg: CellEdit): Promise<void>;
     private applyEdit;
     private resyncWide;
     /** A paste, a drop or an add refused before it painted: put the model back (re-read the text), and say why. */

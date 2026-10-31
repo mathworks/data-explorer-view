@@ -247,8 +247,12 @@ export interface NewEntry {
  * order they were made.
  */
 export interface EditableTableSource extends TableSource {
-    /** Write a committed cell edit back. */
-    edit(edit: CellEdit): void;
+    /**
+     * Write a committed cell edit back. A source whose write finishes later may return a promise,
+     * settled once the edit is the document's or refused, which `handle.commitEdit()` waits for; one
+     * that has written it when the call returns returns nothing.
+     */
+    edit(edit: CellEdit): void | Promise<void>;
     /** Copy the entries of these rows to the clipboard. */
     copy(rowIds: readonly string[]): void;
     /** Cut the entries of these rows: copied, and taken out of this document when they are pasted. */

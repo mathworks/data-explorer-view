@@ -706,9 +706,10 @@ export class JsonView implements EditableTableSource {
   // The order is the point, cheapest first: mutate the model, PAINT (in this run), locate the
   // entry's text, write it. Everything after the paint can still fail, so both exits below (no
   // span, anything thrown) call undoPaint.
-  edit(msg: CellEdit): void {
-    if (this.disposed) return;
-    void this.applyEdit(msg);
+  edit(msg: CellEdit): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for.
+    return this.applyEdit(msg);
   }
 
   private async applyEdit(msg: CellEdit): Promise<void> {

@@ -288,6 +288,13 @@ value the cell's summary stands for. In a textarea, as the text can be one long 
 editor, and only while no other editor is open and the cell still takes this one: an answer
 that arrives after the user moved on opens nothing.
 
+### `commitEdit(): boolean`
+
+Commits the cell editor open now, if any, as Enter would: its edit comes back as
+`dex-edit-completed` when the text changed, and the keyboard goes back to the table. Returns
+whether an editor was open. For a host that saves or closes the document while an edit is still
+being typed.
+
 ### `focusFilter(): void`
 
 Focuses (and selects) the search input: an app's Ctrl+F.

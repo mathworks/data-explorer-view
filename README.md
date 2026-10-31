@@ -186,11 +186,12 @@ the document's own undo stack, and the table's Undo and Redo walk that stack.
 ```js
 const ws = createWorkspace({ editing: true, notify: ({ message }) => showToast(message) });
 const doc = await ws.open(bytes, 'gains.mat', sourceUri(path));
-connectTable(table, doc.table, { editing: true });
+const handle = connectTable(table, doc.table, { editing: true });
 doc.onDirty((dirty) => markTab(dirty));
 let stamp;                              // the file as this page's last save left it
 
 async function save() {
+  await handle.commitEdit();            // a cell editor still open commits first (handle = connectTable's)
   const { bytes, at } = doc.serialize(); // synchronous: the document as the save was asked for
   try {
     stamp = await writeAndStamp(path, bytes); // data-explorer-core/node/save: its mtime+size
@@ -206,6 +207,10 @@ async function save() {
   cannot be written. Nothing is then to be written. A dictionary's save keeps
   every entry no edit touched byte for byte, and refuses one that would not.
 - An edit made while the bytes are being written stays unsaved.
+- `handle.commitEdit()` commits a cell editor still open, as Enter would, and
+  settles once the document has the edit (or has refused it), so a save or a
+  close after it does not lose what was being typed. With no editor open it
+  settles at once.
 - The editing menu labels Undo and Redo with Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z.
   The table answers those chords itself with `undoChords: true` (a host whose
   own keybindings undo, as VS Code's do, leaves it off). `handle.undo()` and

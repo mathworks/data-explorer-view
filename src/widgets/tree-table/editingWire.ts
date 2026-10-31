@@ -74,6 +74,8 @@ export interface EditingWire {
   menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
   /** A menu item was chosen; false for one that is not the editing menu's. */
   act(actionId: string, anchorRowId: string | null): boolean;
+  /** Settled once every cell edit handed to the source so far is the document's, or refused. */
+  editsSettled(): Promise<void>;
   /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
   history(action: 'undo' | 'redo'): boolean;
 }
@@ -382,9 +384,19 @@ export function wireEditing(host: EditingHost): EditingWire {
   });
 
   // A committed cell edit, for the source to write back.
+  // The cell edits the source is still writing (a source whose write finishes later returns its
+  // promise), for commitEdit to wait on. A refusal is the source's to show: here it only settles.
+  const writing = new Set<Promise<void>>();
   host.listen('dex-edit-completed', (e) => {
     const detail = (e as CustomEvent).detail;
-    source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
+    const written = source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
+    if (!written) return;
+    const settled = Promise.resolve(written).then(
+      () => undefined,
+      () => undefined,
+    );
+    writing.add(settled);
+    void settled.then(() => writing.delete(settled));
   });
 
   return {
@@ -479,6 +491,7 @@ export function wireEditing(host: EditingHost): EditingWire {
     editable: () => editable,
     menuFor,
     act,
+    editsSettled: () => Promise.all([...writing]).then(() => undefined),
     history,
   };
 }

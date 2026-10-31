@@ -196,6 +196,15 @@ export interface TableHandle extends InspectorFeed {
      */
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
     /**
+     * Commit a cell editor still open in the table (a Name or Value editor) as Enter would, and settle
+     * once the source has the edit, so that a save after it holds it: for an app's Save, and before it
+     * closes a document. With no editor open, and without `editing`, it settles at once. An edit the
+     * source refuses settles too; the table shows why, as for any refused edit. A source that relays
+     * the edit (a webview's, to its host) has it once it is sent, so the host's save is to follow the
+     * message.
+     */
+    commitEdit(): Promise<void>;
+    /**
      * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
      * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
      */
