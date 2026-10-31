@@ -188,11 +188,12 @@ const ws = createWorkspace({ editing: true, notify: ({ message }) => showToast(m
 const doc = await ws.open(bytes, 'gains.mat', sourceUri(path));
 connectTable(table, doc.table, { editing: true });
 doc.onDirty((dirty) => markTab(dirty));
+let stamp;                              // the file as this page's last save left it
 
 async function save() {
   const { bytes, at } = doc.serialize(); // synchronous: the document as the save was asked for
   try {
-    await writeFile(path, bytes);
+    stamp = await writeAndStamp(path, bytes); // data-explorer-core/node/save: its mtime+size
     doc.saved(at);                      // clean as of then; the Status column moves
   } catch (err) {
     doc.notSaved(at);
@@ -211,6 +212,13 @@ async function save() {
   `handle.redo()` do what the items do, for an app's Edit menu, and
   `isTypingInField(event)` tells a key typed in one of the table's fields (its
   search box, a column filter, a cell editor), which the table leaves alone.
+- A host that watches the file hears its own saves too. `writeAndStamp`
+  answers the file's mtime+size as its write left them, read off the written
+  file, so no other program's write can pass for it. On a change, stat the
+  file: where its `mtime.getTime()` and `size` are the last save's stamp, the
+  change is the host's own save, and no reason to reload, which would empty the
+  undo stack. Check a change heard while a save is still being written once that
+  save is done, when its stamp is known.
 - `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack. A
   dictionary keeps what it held, and the reload rejects, for bytes that are not
   one.
