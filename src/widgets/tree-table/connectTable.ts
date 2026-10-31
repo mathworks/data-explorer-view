@@ -128,6 +128,19 @@ export interface ConnectTableOptions {
    * `<body>`, and takes away again on dispose().
    */
   errorDialog?: DexErrorDialog;
+  /**
+   * With `editing`: a document whose view is not `editable` gets the menu a table wired without
+   * `editing` has (Copy Name and Copy Value for the selection, then `menuItems`), so `editing: true`
+   * is right for every document a page opens. Default false: such a document has no menu, as the
+   * VS Code extension's read-only views have none.
+   */
+  readOnlyMenu?: boolean;
+  /**
+   * With `editing`: the editing menu ends with Copy Name and Copy Value for the selection, after a
+   * separator, which put its names (or values) as text through `copy`, as a read-only table's do.
+   * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
+   */
+  copyText?: boolean;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -665,12 +678,20 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     listen(table, 'dex-table-context-menu', (e) => {
       const { x, y, rowId } = e.detail;
       const context: TableMenuContext = { rowId: rowId ?? null, selectedRowIds: [...selectedRowIds()], rows: rowsNow() };
-      if (editing && !editing.menuAllowed(context.rowId)) return;
+      // A document that cannot be edited has the read-only menu under `editing` too, where the
+      // option asks for it; otherwise the editing half says whether there is a menu at all.
+      const editingMenu = !!editing && !(options.readOnlyMenu && !editing.editable());
+      if (editingMenu && !editing!.menuAllowed(context.rowId)) return;
       // The editing menu is for the current selection, but a right-click on no row is a gesture
       // on the document, whose menu is the one a selection of nothing gets.
-      const items = editing
-        ? editing.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
+      const items = editingMenu
+        ? editing!.menuFor(context.rowId, context.rowId === null ? [] : context.selectedRowIds)
         : [...readOnlyItems(context)];
+      if (editingMenu && options.copyText) {
+        const copies = readOnlyItems(context);
+        if (items.length > 0 && copies.length > 0) items.push({ id: '', label: '', separator: true });
+        items.push(...copies);
+      }
       const extra = options.menuItems?.(context) ?? [];
       if (items.length > 0 && extra.length > 0) items.push({ id: '', label: '', separator: true });
       items.push(...extra);

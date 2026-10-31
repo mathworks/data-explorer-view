@@ -209,7 +209,11 @@ async function save() {
   dictionary keeps what it held, and the reload rejects, for bytes that are not
   one.
 - A file laid out in a way a save could not keep opens read-only, and its
-  `notice` says why.
+  `notice` says why. Its table has no menu under `editing`, unless
+  `connectTable` is given `readOnlyMenu: true`: then it has the read-only
+  table's Copy Name and Copy Value.
+- `copyText: true` adds Copy Name and Copy Value, as text through `copy`, to
+  the end of the editing menu. Cmd/Ctrl+C stays the editing menu's Copy.
 - The documents of a workspace share one clipboard and drag register
   (`registers`, `createRegisters()` by default), so a cut in one pastes into
   another and the original goes.

@@ -183,3 +183,102 @@ describe('connectTable without editing', () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("connectTable({editing, readOnlyMenu}): a document that cannot be edited keeps the read-only menu", () => {
+  const READ_ONLY: TableView = { ...VIEW, editable: false };
+
+  it('gives a view that is not editable Copy Name and Copy Value, through `copy`, then the app items', async () => {
+    const copied: string[] = [];
+    const { table, contextMenu, shown } = await mount(pageSource(READ_ONLY).source, {
+      editing: true,
+      readOnlyMenu: true,
+      copy: (text) => void copied.push(text),
+      menuItems: () => [{ id: 'reveal', label: 'Reveal' }],
+    });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    expect((shown[0] as { id: string }[]).map((i) => i.id)).toEqual(['copyName', 'copyValue', '', 'reveal']);
+    choose(contextMenu, 'copyName');
+    await settle(table);
+    expect(copied).toEqual(['A']);
+  });
+
+  it('does the same for a source that takes no edits', async () => {
+    const { table, shown } = await mount(pageSource(VIEW, false).source, { editing: true, readOnlyMenu: true });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    expect((shown[0] as { id: string }[]).map((i) => i.id)).toEqual(['copyName', 'copyValue']);
+  });
+
+  it('opens no menu on a view that is not editable without the option, as before', async () => {
+    const { table, shown } = await mount(pageSource(READ_ONLY).source, { editing: true });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    expect(shown).toEqual([]);
+  });
+
+  it('leaves an editable view its editing menu', async () => {
+    const { table, shown } = await mount(pageSource().source, { editing: true, readOnlyMenu: true });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    const ids = (shown[0] as { id: string }[]).map((i) => i.id);
+    expect(ids).toContain('cut');
+    expect(ids).not.toContain('copyName');
+  });
+});
+
+describe('connectTable({editing, copyText}): the editing menu copies names and values as text too', () => {
+  const ids = (items: unknown) => (items as { id: string }[]).map((i) => i.id);
+
+  it('ends the editing menu with Copy Name and Copy Value, after a separator, before the app items', async () => {
+    const plain = await mount(pageSource().source, { editing: true });
+    plain.table.selectedRowIds = [A];
+    rightClick(plain.table, A);
+    const today = ids(plain.shown[0]);
+    const { table, shown } = await mount(pageSource().source, {
+      editing: true,
+      copyText: true,
+      menuItems: () => [{ id: 'reveal', label: 'Reveal' }],
+    });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    expect(ids(shown[0])).toEqual([...today, '', 'copyName', 'copyValue', '', 'reveal']);
+  });
+
+  it('copies the selection through `copy`, and a copy that fails is the banner and copyFailed, as read-only', async () => {
+    let refuse = false;
+    const copied: string[] = [];
+    const { table, handle, contextMenu } = await mount(pageSource().source, {
+      editing: true,
+      copyText: true,
+      copy: (text) => (refuse ? Promise.reject(new Error('no clipboard')) : void copied.push(text)),
+    });
+    const failures: unknown[] = [];
+    handle.on('copyFailed', (f) => failures.push(f));
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    choose(contextMenu, 'copyValue');
+    await settle(table);
+    expect(copied).toEqual(['1']);
+    refuse = true;
+    rightClick(table, A);
+    choose(contextMenu, 'copyName');
+    await settle(table);
+    expect(failures).toEqual([{ text: 'A', message: 'no clipboard' }]);
+    expect(table.banners.error).toBe('Could not copy to the clipboard: no clipboard');
+  });
+
+  it('leaves Cmd/Ctrl+C the entries’ Copy, and the menu exactly as before without the option', async () => {
+    const { source, calls } = pageSource();
+    const { table, shown } = await mount(source, { editing: true, copyText: true });
+    table.selectedRowIds = [A];
+    table.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, bubbles: true, composed: true }));
+    expect(calls).toEqual([['copy', [A]]]);
+    const plain = await mount(pageSource().source, { editing: true });
+    plain.table.selectedRowIds = [A];
+    rightClick(plain.table, A);
+    expect(ids(plain.shown[0])).not.toContain('copyName');
+    rightClick(table, A);
+    expect(ids(shown[0])).toContain('copyName');
+  });
+});
