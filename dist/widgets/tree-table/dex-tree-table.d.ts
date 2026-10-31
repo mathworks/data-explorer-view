@@ -472,6 +472,12 @@ export declare class DexTreeTable extends LitElement {
     private _onEditBlur;
     private _isEditorFor;
     private _commitEdit;
+    /**
+     * Commits the cell editor open now, if any, as Enter would: its edit comes back as
+     * `dex-edit-completed` when the text changed. Returns whether an editor was open. For a host that
+     * saves or closes the document while an edit is still being typed.
+     */
+    commitEdit(): boolean;
     /** Focuses (and selects) the search input: an app's Ctrl+F. */
     focusFilter(): void;
     private _newSearch;

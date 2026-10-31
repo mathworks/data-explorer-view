@@ -213,6 +213,13 @@ export interface TableHandle extends InspectorFeed {
    * app's to do exactly what its item would, when it is enabled. Without `editing`, none.
    */
   menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
+  /**
+   * Commit a cell editor still open in the table (a Name or Value editor) as Enter would, and settle
+   * once the source has the edit, so that a save after it holds it: for an app's Save, and before it
+   * closes a document. With no editor open, and without `editing`, it settles at once. An edit the
+   * source refuses settles too; the table shows why, as for any refused edit.
+   */
+  commitEdit(): Promise<void>;
   /** Stop: the table keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -770,6 +777,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     },
     menuFor(anchorRowId, selection) {
       return editing ? editing.menuFor(anchorRowId, selection) : [];
+    },
+    commitEdit() {
+      if (disposed) return Promise.resolve();
+      // The editor's edit, if it changed anything, is handed to the source as it commits.
+      table.commitEdit();
+      return editing ? editing.editsSettled() : Promise.resolve();
     },
     onPage(listener) {
       pageListeners.add(listener);

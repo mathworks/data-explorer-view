@@ -186,10 +186,11 @@ the document's own undo stack, and the table's Undo and Redo walk that stack.
 ```js
 const ws = createWorkspace({ editing: true, notify: ({ message }) => showToast(message) });
 const doc = await ws.open(bytes, 'gains.mat', sourceUri(path));
-connectTable(table, doc.table, { editing: true });
+const handle = connectTable(table, doc.table, { editing: true });
 doc.onDirty((dirty) => markTab(dirty));
 
 async function save() {
+  await handle.commitEdit();            // a cell editor still open commits first (handle = connectTable's)
   const { bytes, at } = doc.serialize(); // synchronous: the document as the save was asked for
   try {
     await writeFile(path, bytes);
@@ -205,6 +206,10 @@ async function save() {
   cannot be written. Nothing is then to be written. A dictionary's save keeps
   every entry no edit touched byte for byte, and refuses one that would not.
 - An edit made while the bytes are being written stays unsaved.
+- `handle.commitEdit()` commits a cell editor still open, as Enter would, and
+  settles once the document has the edit (or has refused it), so a save or a
+  close after it does not lose what was being typed. With no editor open it
+  settles at once.
 - `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack. A
   dictionary keeps what it held, and the reload rejects, for bytes that are not
   one.

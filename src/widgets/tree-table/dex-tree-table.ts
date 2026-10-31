@@ -3770,6 +3770,17 @@ export class DexTreeTable extends LitElement {
     }
   }
 
+  /**
+   * Commits the cell editor open now, if any, as Enter would: its edit comes back as
+   * `dex-edit-completed` when the text changed. Returns whether an editor was open. For a host that
+   * saves or closes the document while an edit is still being typed.
+   */
+  commitEdit(): boolean {
+    if (!this._editingCell) return false;
+    this._commitEdit();
+    return true;
+  }
+
   /** Focuses (and selects) the search input: an app's Ctrl+F. */
   focusFilter(): void {
     // Forwarded rather than reached into: the input lives in the bar's shadow root,

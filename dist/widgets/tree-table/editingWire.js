@@ -254,9 +254,17 @@ export function wireEditing(host) {
             source?.requestEditText(rowId);
     });
     // A committed cell edit, for the source to write back.
+    // The cell edits the source is still writing (a source whose write finishes later returns its
+    // promise), for commitEdit to wait on. A refusal is the source's to show: here it only settles.
+    const writing = new Set();
     host.listen('dex-edit-completed', (e) => {
         const detail = e.detail;
-        source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
+        const written = source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
+        if (!written)
+            return;
+        const settled = Promise.resolve(written).then(() => undefined, () => undefined);
+        writing.add(settled);
+        void settled.then(() => writing.delete(settled));
     });
     return {
         painting(view) {
@@ -355,5 +363,6 @@ export function wireEditing(host) {
         },
         menuFor,
         act,
+        editsSettled: () => Promise.all([...writing]).then(() => undefined),
     };
 }
