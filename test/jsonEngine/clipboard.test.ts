@@ -52,6 +52,7 @@ import {
   waitFor,
   WORKSPACE_DATA,
   WORKSPACE_PARAMS,
+  viewOf,
   type Opened,
 } from './harness.js';
 
@@ -1432,4 +1433,27 @@ describe('a drag is a no-op exactly where the same cut and paste is (V-002)', ()
       });
     }
   }
+});
+
+// The repaint half of a clipboard broadcast, which data-explorer-vscode test/editorHub.test.ts held
+// ("posts clipboardState AND repaints every registered webview", deleted with vscode's V4): every
+// table of the document is told the state, and repaints the rows it marks, not only the table the
+// copy came from, which repaints its own as it copies. A second table of one document hears it only
+// through the registers' broadcast.
+describe('a clipboard broadcast, on a JSON .sldd', () => {
+  it('a clipboard broadcast repaints the marked rows', async () => {
+    const o = await open(WORKSPACE_PARAMS);
+    const second = viewOf(o.engine);
+    second.send({ type: 'ready' });
+    await waitFor("the second table's rows", () => second.posts.some((p) => p.type === 'setRows'));
+    await settle();
+    const gravity = entryRow(o.view.posts, 'gravity').ID;
+    const from = second.posts.length;
+    o.view.send({ type: 'copy', rowIds: [gravity] });
+    await waitFor('the copied row marked in the other table', () => tableOf(second.posts).find((r) => r.ID === gravity)?.Name?.clipboardMode === 'copy');
+    const state = second.posts.slice(from).filter((p) => p.type === 'clipboardState').pop();
+    assert.ok(state, 'the other table was told the clipboard state');
+    assert.deepStrictEqual([state.type, state.canPaste, state.mode], ['clipboardState', true, 'copy']);
+    second.close();
+  });
 });
