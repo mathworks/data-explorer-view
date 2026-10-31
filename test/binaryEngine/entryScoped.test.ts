@@ -22,7 +22,7 @@
 // wait for the JSON engine (C3).
 import * as assert from 'node:assert';
 import { entrySelectorOf } from 'data-explorer-core';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createRegisters, insertEntryRows, spliceEntryRows } from '../../src/model/index.js';
 import { entryOf, file, open, PARAMS, readSldd, type Opened } from './harness.js';
 
@@ -107,6 +107,10 @@ describe('binary .sldd entry-scoped repaint — narrow paint equals wide paint',
   it('a value edit: spliced rows are identical to a full rebuild', async () => {
     const o = await open(PARAMS);
     editCell(o, entryNamed(o, 'scalarD'), 'Value', '42');
+    // The edit applied, as the extension's case checked (`expect(applied).toBe(true)`): a narrow
+    // paint that equals the wide one because nothing changed would prove nothing.
+    expect(o.events.length, 'the edit reached the stack').toBe(1);
+    expect(entryNamed(o, 'scalarD').toRow().Value, 'and changed the value').toBe('42');
     assertNarrowIsWide(o, 'the spliced rows are the full rebuild');
   });
 
@@ -343,6 +347,10 @@ describe('binary .sldd dirty-state / Modified lifecycle', () => {
     const target = entryNamed(o, 'scalarD');
     assert.strictEqual(target.toRow()._valueEditable, true);
     editCell(o, target, 'Value', '42');
+    // Exactly that entry, as the extension's case checked: an edit that also marked an unrelated
+    // entry Modified fails here, where the one sibling checked below might not be it.
+    const modified = o.engine.forTests.modified();
+    expect(modified).toEqual(new Set(['scalarD']));
     const rows = wide(o);
     assert.strictEqual(rows.find((r: any) => r.Name?.label === 'scalarD').Status, 'Modified');
     const sibling = rows.find((r: any) => r.Name?.label && r.Name.label !== 'scalarD' && !String(r.ID).startsWith('section:'));

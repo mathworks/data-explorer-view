@@ -1,8 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // Ported from data-explorer-vscode test/dragSnapshot.test.ts at c73da3c: the same cases, run against view's copy
-// of the register snapshots (src/model/edit/clipboardAction.ts), given core's session; its paste of
-// the snapshot is the extension's JSON dictionary's, which view does not have, and is left out.
+// of the register snapshots (src/model/edit/clipboardAction.ts), given core's session. Its paste of
+// the deduped snapshot was the extension's JSON dictionary's pasteEntries, which is core's now: the
+// dedupe case pastes through it, as the extension's did (restored ahead of vscode's V4).
 //
 // buildDragSnapshot turns the ROW ids a drag started on into the ENTRY payloads
 // the eventual drop pastes. Both table providers (SlddTextEditorProvider for JSON
@@ -18,7 +19,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { DataModel } from 'data-explorer-core';
+import { DataModel, pasteEntries } from 'data-explorer-core';
 import { getModel, findNode, invalidate } from '../src/host/index.js';
 import { buildDragSnapshot as buildWith } from '../src/host/index.js';
 
@@ -84,9 +85,13 @@ describe('buildDragSnapshot', () => {
       h.find,
     );
     expect(snap.items.map((i) => i.payload.name)).toEqual(['DataInterface']);
-    // The extension pastes the snapshot through its JSON dictionary's pasteEntries here, which is
-    // not view's (it comes to core with the JSON text pieces); the dedupe above is what it proves.
-    void uri;
+
+    // The point: paste the snapshot the way applyDrop does and exactly one copy
+    // lands, named off the single source. (Through core's pasteEntries, the JSON dictionary's
+    // text paste the extension's was copied to.)
+    const { newText, selectIds } = pasteEntries(archText, h.section('design'), snap.items.map((i) => i.payload));
+    expect(selectIds).toEqual([`${uri}/design/DataInterface1`]);
+    expect(newText.match(/"name": "DataInterface\d*"/g)).toEqual(['"name": "DataInterface"', '"name": "DataInterface1"']);
   });
 
   it('keeps genuinely distinct entries that happen to share a name', () => {
