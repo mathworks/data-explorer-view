@@ -19,8 +19,14 @@ export declare class EditStackIndex implements EditIndex {
     private fromBackup;
     /** How many times the stack has moved: see `moves`. */
     private moved;
-    /** The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`. */
+    /**
+     * The state at each position, by id: a push makes a new one, which undo and redo keep. See `state`.
+     * By position, not in a list: a host whose own stack moves under this one (VS Code's revert puts its
+     * index back at its save point) can take the position below 0, or above every push.
+     */
     private readonly states;
+    /** The highest position `states` holds one for. */
+    private top;
     private nextState;
     constructor(fromBackup?: boolean);
     get dirty(): boolean;
