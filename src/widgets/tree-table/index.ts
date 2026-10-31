@@ -14,6 +14,7 @@ export type {
   TableHandleEventMap,
   TableMenuContext,
 } from './connectTable.js';
+export { isTypingInField } from './editingWire.js';
 export type { TableTextView } from './editingWire.js';
 export type {
   AddEntryDetail,

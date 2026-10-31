@@ -205,6 +205,12 @@ async function save() {
   cannot be written. Nothing is then to be written. A dictionary's save keeps
   every entry no edit touched byte for byte, and refuses one that would not.
 - An edit made while the bytes are being written stays unsaved.
+- The editing menu labels Undo and Redo with Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z.
+  The table answers those chords itself with `undoChords: true` (a host whose
+  own keybindings undo, as VS Code's do, leaves it off). `handle.undo()` and
+  `handle.redo()` do what the items do, for an app's Edit menu, and
+  `isTypingInField(event)` tells a key typed in one of the table's fields (its
+  search box, a column filter, a cell editor), which the table leaves alone.
 - `doc.reload(bytes)` takes what the disk holds now, with an empty undo stack. A
   dictionary keeps what it held, and the reload rejects, for bytes that are not
   one.

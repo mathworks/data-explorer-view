@@ -22,11 +22,26 @@ function wellFormedRules(rules) {
 // at this listener is the host element, which tells us nothing about where the caret is.
 //
 // The rule lives here once because both capture guards below need it and they must not
-// disagree: a key that a field owns is not the table's to claim.
-function isTypingInField(ev) {
+// disagree: a key that a field owns is not the table's to claim. Exported for an app's own chords,
+// so that they leave the same keys to the same fields.
+/** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
+export function isTypingInField(ev) {
     const active = ev.composedPath?.()[0] ?? ev.target;
     const tag = active?.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!active?.isContentEditable;
+}
+// The Undo and Redo chords, which the table answers only where its options ask (undoChords): Cmd/Ctrl+Z
+// and Shift+Cmd/Ctrl+Z, and Ctrl+Y off macOS. Their own resolver, so resolveShortcutAction (the chords
+// every editing table answers) is untouched.
+function undoChordOf(ev) {
+    if (ev.altKey)
+        return null;
+    const key = ev.key.toLowerCase();
+    if ((ev.metaKey || ev.ctrlKey) && key === 'z')
+        return ev.shiftKey ? 'redo' : 'undo';
+    if (ev.ctrlKey && !ev.metaKey && !ev.shiftKey && key === 'y' && !/Mac|iPhone|iPad/.test(navigator.platform ?? ''))
+        return 'redo';
+    return null;
 }
 // Copy/Cut/Delete carry the selection (the host resolves it), the rest carry the one row they
 // act on.
@@ -206,6 +221,28 @@ export function wireEditing(host) {
         ev.stopPropagation();
         act(action, anchorRowId);
     }, true);
+    // Undo and Redo, as their menu items do, where the document may be edited (their items are
+    // disabled where it may not).
+    const history = (action) => {
+        if (!editable)
+            return false;
+        act(action, null);
+        return true;
+    };
+    // The Undo and Redo chords, only where the table is asked to answer them: under the VS Code
+    // extension its own keybindings undo, and a table that answered too would undo twice. Outside the
+    // fields, as Copy/Cut/Paste are.
+    if (host.undoChords) {
+        host.listen('keydown', (e) => {
+            const ev = e;
+            const action = undoChordOf(ev);
+            if (!action || isTypingInField(ev) || !editable)
+                return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            history(action);
+        }, true);
+    }
     // The drop predictor, so the table can render live cursor + tooltip feedback on dragover.
     table.dropPredictor = predictDrop;
     // The drag lifecycle. On drag start the host snapshots the dragged rows into its drag register
@@ -356,5 +393,6 @@ export function wireEditing(host) {
         editable: () => editable,
         menuFor,
         act,
+        history,
     };
 }

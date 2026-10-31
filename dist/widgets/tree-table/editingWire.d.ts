@@ -20,6 +20,8 @@ export interface EditingHost {
     /** The source's commands, or null for a source that takes none (every gesture is then refused). */
     source: EditableTableSource | null;
     textView?: TableTextView;
+    /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
+    undoChords?: boolean;
     errorDialog: DexErrorDialog;
     /** Listen on the table until the connection is disposed. */
     listen(type: string, listener: (e: Event) => void, capture?: boolean): void;
@@ -45,6 +47,10 @@ export interface EditingWire {
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
     /** A menu item was chosen; false for one that is not the editing menu's. */
     act(actionId: string, anchorRowId: string | null): boolean;
+    /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
+    history(action: 'undo' | 'redo'): boolean;
 }
+/** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
+export declare function isTypingInField(ev: KeyboardEvent): boolean;
 /** Wire the editing half: the listeners go on through `host.listen`, the state stays in here. */
 export declare function wireEditing(host: EditingHost): EditingWire;
