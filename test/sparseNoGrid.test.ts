@@ -14,10 +14,6 @@
 // test-integration/fixtures/sparse, where the integration suite opens the same four
 // through the real editors. Each holds every sparse variable beside a dense twin of the
 // same class and shape, which is what lets one file say both halves.
-//
-// The no-grid half needs core 1.36.3, and is skipped on an older core: there a sparse array
-// has no `isSparse`, still lists every element, and its grid still opens. The dense half
-// runs on any core.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -38,26 +34,6 @@ function bytes(name: string): ArrayBuffer {
   const b = readFileSync(fixturePath(name));
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
 }
-
-// The core this suite is linked against, read off the package it resolves rather than
-// off package.json's pin: a tarball installed over the pin is the core under test.
-function coreVersion(): string {
-  const pkg = fileURLToPath(new URL('../node_modules/data-explorer-core/package.json', import.meta.url));
-  const version = String(JSON.parse(readFileSync(pkg, 'utf8')).version);
-  // Unreadable is an error, not "older": a gate that read garbage as old would skip the
-  // half of this file that matters, and say nothing.
-  if (!/^\d+\.\d+\.\d+/.test(version)) throw new Error(`unreadable data-explorer-core version: ${version}`);
-  return version;
-}
-
-function atLeast(version: string, min: string): boolean {
-  const have = version.split(/[.-]/).slice(0, 3).map(Number);
-  const want = min.split('.').map(Number);
-  for (let i = 0; i < 3; i++) if (have[i] !== want[i]) return have[i] > want[i];
-  return true;
-}
-
-const SPARSE_HAS_NO_GRID = atLeast(coreVersion(), '1.36.3');
 
 // 2-D, within MAX_MATRIX_ELEMENTS, and sparse: class and shape alone would admit each of
 // these, so the flag is the only clause that can refuse them. Paths are by name from the
@@ -151,10 +127,6 @@ const piMatrix = (node: any) =>
   buildPropertyGroups(node).flatMap((g) => g.properties).find((p) => p.name === 'Value')?.matrix;
 
 describe('the sparse fixtures are the ones these tests were written against', () => {
-  it('reads the core version it gates on', () => {
-    expect(coreVersion()).toMatch(/^\d+\.\d+\.\d+/);
-  });
-
   for (const venue of VENUES) {
     it(`${venue.file} holds every path named above`, () => {
       const root = load(venue);
@@ -165,7 +137,7 @@ describe('the sparse fixtures are the ones these tests were written against', ()
 
 describe('a sparse array gets no grid, in every format it arrives in (core >= 1.36.3)', () => {
   for (const venue of VENUES) {
-    it.skipIf(!SPARSE_HAS_NO_GRID)(`${venue.file}: core marks it sparse, and the flag alone refuses it`, () => {
+    it(`${venue.file}: core marks it sparse, and the flag alone refuses it`, () => {
       const root = load(venue);
       for (const path of SPARSE) {
         const node = nodeAt(root, owner(path));
@@ -181,7 +153,7 @@ describe('a sparse array gets no grid, in every format it arrives in (core >= 1.
       for (const path of Object.keys(DENSE)) expect(nodeAt(root, owner(path)).isSparse, path).toBe(false);
     });
 
-    it.skipIf(!SPARSE_HAS_NO_GRID)(`${venue.file}: no row, no property and no fetch offers a grid of it`, () => {
+    it(`${venue.file}: no row, no property and no fetch offers a grid of it`, () => {
       const root = load(venue);
       const rows = rowsByPath(venue.rows(root));
       // The rows are there — what is missing is only the glyph.
