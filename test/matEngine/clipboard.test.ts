@@ -311,6 +311,24 @@ describe('MAT-file engine: clipboard and row drags, between a MAT-file and a dic
     });
   }
 
+  it('a Parameter whose Value is an integer pastes into a MAT-file as it was copied, saved and read back (core 1.54.2, D57)', async () => {
+    const w = windowOf();
+    const m = await w.open('gains.mat', fixture('pv_basic.mat'));
+    const d = openDictionary(w.registers, 'params.sldd');
+    assert.ok(d.copy(['pInt16']), d.said.join());
+    await onMat(m, { type: 'paste', rowId: '' });
+    assert.deepStrictEqual(errorsIn(m.view.posts), []);
+    assert.ok(namesOf(m).includes('pInt16'));
+    const copied = columnsOf(shownCells(d.entry('pInt16')), VALUE_COLUMNS);
+    assert.deepStrictEqual(columnsOf(shownCells(variableOf(m, 'pInt16')), VALUE_COLUMNS), copied, 'pInt16 is what was copied');
+    const saved = m.save();
+    assert.deepStrictEqual(
+      readMat(saved, (mat) => columnsOf(shownCells(mat.children.find((v: any) => v.name === 'pInt16')), VALUE_COLUMNS)),
+      copied,
+      'pInt16, saved into the MAT-file and read back',
+    );
+  });
+
   it("a MAT-file cut pasted into a dictionary moves the variable: its removal is the MAT-file's own undo step, whose undo leaves it clean", async () => {
     const w = windowOf();
     const m = await w.open('gains.mat', fixture('pv_basic.mat'));
@@ -362,10 +380,10 @@ describe('MAT-file engine: pastes and drops refused', () => {
     assert.deepStrictEqual(d.deleted, [], 'no source delete');
     assert.ok(d.names().includes('MyLUT'), 'and its source keeps the entry');
 
-    // All of them or none: a value core will not make as it was copied refuses the whole paste.
-    assert.ok(d.copy(['charStr', 'pInt16']));
+    // All of them or none: one entry a MAT-file cannot hold refuses the whole paste.
+    assert.ok(d.copy(['charStr', 'MyConnBus']));
     await onMat(m, { type: 'paste', rowId: '' });
-    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "pInt16" into "gains\.mat": pInt16\.Value is a 1x1 int16/);
+    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "MyConnBus" into "gains\.mat": it is a Simulink\.ConnectionBus, /);
     unchanged(m, was);
   });
 

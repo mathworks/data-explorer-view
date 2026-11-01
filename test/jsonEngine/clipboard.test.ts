@@ -900,10 +900,10 @@ describe('MAT-file pastes and drops refused, with a JSON dictionary on the other
     await quiet();
     assert.ok(j.names().includes('MyLUT'), 'and its source keeps the entry');
 
-    // All of them or none: a value core will not make as it was copied refuses the whole paste.
-    j.view.send({ type: 'copy', rowIds: [entryRow(j.view.posts, 'charStr').ID, entryRow(j.view.posts, 'pInt16').ID] });
+    // All of them or none: one entry a MAT-file cannot hold refuses the whole paste.
+    j.view.send({ type: 'copy', rowIds: [entryRow(j.view.posts, 'charStr').ID, entryRow(j.view.posts, 'MyConnBus').ID] });
     await onMat(m, { type: 'paste', rowId: '' });
-    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "pInt16" into "gains\.mat": pInt16\.Value is a 1x1 int16/);
+    assert.match(errorsIn(m.view.posts)[0], /^Cannot paste "MyConnBus" into "gains\.mat": it is a Simulink\.ConnectionBus, /);
     unchanged(m, was);
   });
 
