@@ -1,15 +1,18 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The Property Inspector's page (src/model/inspector/inspectorPage.ts): what it is sent, on which `ready`,
-// and when a node handed to it again is not sent at all.
+// what it holds back once its view is closed, when a node handed to it again is not sent at all, and
+// the referrer (`from`) a link clicked in it carries.
 //
 // The binary .sldd and MAT-file editors hand the inspector its node again whenever the document's
 // tree changes (inspectorSelection.ts), the binary one at every edit, undo and redo, and a
 // `showProps` closes an open Variable Editor. So the page is sent a node only when that changes
 // what it shows: its rows, or the cells its open Variable Editor was sent. The nodes here are
 // real ones, read by the same reader the JSON view uses, re-read under the same id after an edit
-// as an editor re-reads them; PropertiesViewProvider's wiring of this is in
-// test-integration/suite/propertiesView.test.ts.
+// as an editor re-reads them. Every rule of the page is pinned here, the buffering after a close
+// and `from` included; what stays in data-explorer-vscode's integration suite is its
+// PropertiesViewProvider's wiring of them (a VS Code view's resolve, `ready` and dispose, and
+// `from` handed to onNavigate).
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
