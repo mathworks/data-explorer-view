@@ -34,9 +34,9 @@ import {
   type RawSource,
 } from '../src/model/usage/usageCells.js';
 import { parseNavTarget } from '../src/model/usage/navTarget.js';
-import { buildRows } from '../src/model/index.js';
+import { buildRows, createWorkspace } from '../src/model/index.js';
 import { getModelFromBytes } from '../src/host/index.js';
-import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/index.js';
+import { DexTreeTable, connectTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/index.js';
 
 defineTreeTable();
 
@@ -242,8 +242,25 @@ describe('the model view’s own rows, from the parse through the annotation', (
   // And that the matcher itself looks there: connectTable's selectByName, which a table that
   // follows such a link is handed the name through (the VS Code extension's table webview hands
   // it the host's; its own test pins that half).
-  it('is matched by a table that considers the key', () => {
-    const connect = readFileSync(join(import.meta.dirname, '..', 'src/widgets/tree-table/connectTable.ts'), 'utf8');
-    expect(connect).toContain('r._blockKey === pendingSelectName');
+  it('is matched by a table that considers the key', async () => {
+    const { name } = parseNavTarget(buildUsageGraph(FILES).blocksUsing(DICT, 'Uo')[0].linkTarget)!;
+    const ws = createWorkspace();
+    const doc = await ws.open(bytes('sid_blocks.slx'), 'sid_blocks.slx', MODEL);
+    const table = document.createElement('dex-tree-table') as DexTreeTable;
+    document.body.append(table);
+    const handle = connectTable(table, doc.table);
+    for (let i = 0; i < 3; i++) {
+      await new Promise((done) => setTimeout(done, 0));
+      await table.updateComplete;
+    }
+    expect(table.rows.some((r) => r.ID === `${MODEL}/blocks/65`)).toBe(true);
+    const heard: string[][] = [];
+    handle.on('select', (ids) => heard.push(ids));
+    handle.selectByName(name);
+    expect(table.selectedRowIds).toEqual([`${MODEL}/blocks/65`]);
+    expect(heard).toEqual([[`${MODEL}/blocks/65`]]);
+    handle.dispose();
+    ws.dispose();
+    table.remove();
   });
 });
