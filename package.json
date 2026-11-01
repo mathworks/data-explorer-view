@@ -83,6 +83,7 @@
     "check:api": "node scripts/check-api.mjs",
     "check:leak": "node scripts/leak-check.mjs",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run check:api && npm run test && npm run check:leak",
     "gallery": "vite --config gallery/vite.config.ts",
     "gallery:build": "tsc -p gallery/tsconfig.json && vite build --config gallery/vite.config.ts",
@@ -95,6 +96,7 @@
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@playwright/test": "1.62.0",
+    "@vitest/coverage-v8": "4.1.12",
     "data-explorer-core": "github:mathworks/data-explorer-core#v1.54.0",
     "fflate": "^0.8.3",
     "happy-dom": "^20.9.0",
