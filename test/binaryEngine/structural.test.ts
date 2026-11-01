@@ -229,9 +229,6 @@ const EDITORS: { name: string; open(): Promise<Tab> }[] = [
 // the elements of `mat2x3`, a 2x3 double, which cannot leave it without breaking its shape. The
 // Add is of a Simulink.ConfigSet, which neither a MAT-file nor a dictionary's Design Data takes.
 describe('An Add Child, a Delete or an Add the file will not take is refused alike in every table editor', () => {
-  // What each editor said, per gesture, for the cross-editor comparison at the end.
-  const said: Record<string, Record<string, any>> = {};
-
   // A MAT-file's variables are its top rows, a dictionary's entries the rows under its sections.
   const tops = (tab: Tab): any[] => tab.rows().filter((r) => r.parent == null || isEntryRow(r));
   const topRow = (tab: Tab, name: string): any => {
@@ -258,45 +255,54 @@ describe('An Add Child, a Delete or an Add the file will not take is refused ali
     };
   };
 
+  /** Open `editor`, refuse every gesture in it, and answer what it said, per gesture. */
+  const refusalsIn = async (editor: (typeof EDITORS)[number]): Promise<Record<string, any>> => {
+    const tab = await editor.open();
+    const scalar = topRow(tab, 'cplxScalar');
+    assert.strictEqual(scalar._canAddChild, false, 'the menu greys Add Child on it');
+    const elements = kidsOf(tab, topRow(tab, 'mat2x3'));
+    assert.strictEqual(elements.length, 6, 'the 2x3 matrix shows its six elements');
+    assert.strictEqual(elements[0]._canDelete, false, 'the menu greys Delete on them');
+
+    // Core's own answer for each, asked of the rows this editor's file holds.
+    const noChild = tab.session.addChildRefusal(scalar.ID);
+    const noDelete = tab.session.deleteRefusal(elements[0].ID);
+    assert.match(String(noChild), /^Cannot add to "cplxScalar": .+\. Nothing was added\.$/);
+    assert.match(String(noDelete), /^Cannot delete "mat2x3\(1,1\)": .+\. Nothing was deleted\.$/);
+
+    const cases: [string, any, { title: string; reason: string | RegExp }][] = [
+      ['addChild', { type: 'addChild', rowId: scalar.ID }, { title: 'Cannot Add Child', reason: noChild! }],
+      ['delete one', { type: 'delete', rowIds: [elements[0].ID] }, { title: 'Cannot Delete', reason: noDelete! }],
+      ['delete two', { type: 'delete', rowIds: [elements[0].ID, elements[1].ID] }, { title: 'Cannot Delete', reason: noDelete! }],
+      ['add', tab.add('Simulink.ConfigSet'), { title: 'Cannot Add', reason: /^Cannot add a Simulink\.ConfigSet to "[^"]+": .+\.$/ }],
+    ];
+    const topsBefore = tops(tab).length;
+    const said: Record<string, any> = {};
+    for (const [what, message, expected] of cases) {
+      const { refused, errors } = await refusalOf(tab, message);
+      assert.deepStrictEqual(errors, [], `${what}: no failure is reported`);
+      assert.strictEqual(refused.length, 1, `${what}: refused in the dialog (${JSON.stringify(refused)})`);
+      assert.strictEqual(refused[0].title, expected.title, `${what}: titled by the gesture`);
+      if (expected.reason instanceof RegExp) assert.match(refused[0].reason, expected.reason, `${what}: in core's words`);
+      else assert.strictEqual(refused[0].reason, expected.reason, `${what}: in core's words`);
+      assert.strictEqual(tab.touched(), false, `${what}: nothing was written`);
+      said[what] = refused;
+    }
+    assert.strictEqual(kidsOf(tab, topRow(tab, 'mat2x3')).length, 6, 'the matrix keeps its elements');
+    assert.strictEqual(tops(tab).length, topsBefore, 'no entry was added');
+    return said;
+  };
+
   for (const editor of EDITORS) {
     it(`in ${editor.name}`, async () => {
-      const tab = await editor.open();
-      const scalar = topRow(tab, 'cplxScalar');
-      assert.strictEqual(scalar._canAddChild, false, 'the menu greys Add Child on it');
-      const elements = kidsOf(tab, topRow(tab, 'mat2x3'));
-      assert.strictEqual(elements.length, 6, 'the 2x3 matrix shows its six elements');
-      assert.strictEqual(elements[0]._canDelete, false, 'the menu greys Delete on them');
-
-      // Core's own answer for each, asked of the rows this editor's file holds.
-      const noChild = tab.session.addChildRefusal(scalar.ID);
-      const noDelete = tab.session.deleteRefusal(elements[0].ID);
-      assert.match(String(noChild), /^Cannot add to "cplxScalar": .+\. Nothing was added\.$/);
-      assert.match(String(noDelete), /^Cannot delete "mat2x3\(1,1\)": .+\. Nothing was deleted\.$/);
-
-      const cases: [string, any, { title: string; reason: string | RegExp }][] = [
-        ['addChild', { type: 'addChild', rowId: scalar.ID }, { title: 'Cannot Add Child', reason: noChild! }],
-        ['delete one', { type: 'delete', rowIds: [elements[0].ID] }, { title: 'Cannot Delete', reason: noDelete! }],
-        ['delete two', { type: 'delete', rowIds: [elements[0].ID, elements[1].ID] }, { title: 'Cannot Delete', reason: noDelete! }],
-        ['add', tab.add('Simulink.ConfigSet'), { title: 'Cannot Add', reason: /^Cannot add a Simulink\.ConfigSet to "[^"]+": .+\.$/ }],
-      ];
-      const topsBefore = tops(tab).length;
-      said[editor.name] = {};
-      for (const [what, message, expected] of cases) {
-        const { refused, errors } = await refusalOf(tab, message);
-        assert.deepStrictEqual(errors, [], `${what}: no failure is reported`);
-        assert.strictEqual(refused.length, 1, `${what}: refused in the dialog (${JSON.stringify(refused)})`);
-        assert.strictEqual(refused[0].title, expected.title, `${what}: titled by the gesture`);
-        if (expected.reason instanceof RegExp) assert.match(refused[0].reason, expected.reason, `${what}: in core's words`);
-        else assert.strictEqual(refused[0].reason, expected.reason, `${what}: in core's words`);
-        assert.strictEqual(tab.touched(), false, `${what}: nothing was written`);
-        said[editor.name][what] = refused;
-      }
-      assert.strictEqual(kidsOf(tab, topRow(tab, 'mat2x3')).length, 6, 'the matrix keeps its elements');
-      assert.strictEqual(tops(tab).length, topsBefore, 'no entry was added');
+      await refusalsIn(editor);
     });
   }
 
-  it('and the editors said the same of the same rows', () => {
+  it('and the editors said the same of the same rows', async () => {
+    // Asked here, of editors of its own, so this runs alone as well as after the two above.
+    const said: Record<string, Record<string, any>> = {};
+    for (const editor of EDITORS) said[editor.name] = await refusalsIn(editor);
     const names = EDITORS.map((e) => e.name);
     assert.deepStrictEqual(Object.keys(said), names, 'every editor was asked');
     for (const name of names) {
