@@ -92,10 +92,26 @@ beforeAll(() => {
   });
 
   it('a file carries its assigned label (projmodel.slx → Reviewed or design)', () => {
-    const slx = parsed.files.find((f) => f.path.endsWith('projmodel.slx'));
-    expect(slx).toBeTruthy();
-    // labels are stored as UUIDs on the file; at least one label assigned
-    expect(Array.isArray(slx!.labels)).toBe(true);
+    // A file holds label ids (a UUID for a custom label, the name for a built-in one); the
+    // catalog says which category and name each id is. Every assignment the generator made
+    // is on its file, and projmodel.slx also keeps its Design classification.
+    const labelsOf = (file: string) => {
+      const f = parsed.files.find((x) => x.path.split('/').pop() === file);
+      expect(f, file).toBeTruthy();
+      return f!.labels.map((id) => {
+        const label = parsed.labels.find((l) => l.id === id);
+        expect(label, `${file}'s label ${id} is in the catalog`).toBeTruthy();
+        return { category: label!.category, name: label!.name };
+      });
+    };
+    expect(GT.labels.length).toBeGreaterThan(0);
+    for (const { file, category, name } of GT.labels as { file: string; category: string; name: string }[]) {
+      expect(labelsOf(file)).toContainEqual({ category, name });
+    }
+    expect(labelsOf('projmodel.slx')).toEqual([
+      { category: 'Classification', name: 'Design' },
+      { category: 'Status', name: 'Reviewed' },
+    ]);
   });
 
   // End-to-end: the table the extension actually renders (ProjectNode → buildRows).
