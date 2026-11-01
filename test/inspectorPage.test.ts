@@ -105,6 +105,42 @@ describe('InspectorPage', () => {
       page.loaded();
       expect(posted.slice(sent), 'the page starts empty, so nothing is sent').toEqual([]);
     });
+
+    // Ported from the same suite at 632f6e0, where the provider's posting closure is also a no-op
+    // once its view is gone: here it is the page that holds back, and the next view gets the node.
+    it('after closed, show buffers again instead of posting to a dead view', () => {
+      page.loaded();
+      page.closed();
+      page.show(tree().entry('Number'));
+      expect(posted, 'no post to a closed view').toEqual([]);
+      page.opened();
+      page.loaded();
+      expect(posted.map((m) => m.type)).toEqual(['showProps']);
+    });
+  });
+
+  // Ported from data-explorer-vscode test-integration/suite/navigateReferrer.test.ts at 632f6e0,
+  // whose PropertiesViewProvider hands `page.from` to onNavigate as a link click's referrer: a bare
+  // file name in a link resolves to the copy in that document's own project or folder.
+  describe('the referrer of a link (from)', () => {
+    beforeEach(() => page.loaded());
+
+    it('is the document of the node it shows, and nothing once cleared', () => {
+      page.show(tree().entry('Number'), URI);
+      expect(page.from).toBe(URI);
+      page.clear();
+      expect(page.from).toBeUndefined();
+    });
+
+    it('is nothing once the view is closed, and nothing for a node shown from no document', () => {
+      page.show(tree().entry('Number'), URI);
+      page.closed();
+      expect(page.from).toBeUndefined();
+      page.opened();
+      page.loaded();
+      page.show(tree().entry('Number'));
+      expect(page.from).toBeUndefined();
+    });
   });
 
   describe('a node shown again', () => {
