@@ -14,7 +14,7 @@
 import type * as View from 'data-explorer-view/model';
 import type * as Host from 'data-explorer-view/host';
 import type * as Ext from './src/common/protocol.js';
-import type { EditStackMirror } from './src/host/diskConflict.js';
+import type { EditStackCopy } from './src/host/settledSave.js';
 
 /** Each assignable to the other, with the same keys. */
 type Same<A, B> = [A] extends [B]
@@ -63,5 +63,7 @@ export type HostToTable = [
   Is<Fits<View.TableEditHostMessage, Ext.HostToTableMessage>>,
 ];
 
-// The hooks the extension's editors will be plugged into: what it has today must fit them.
-export type Hooks = [Is<Fits<EditStackMirror, Host.EditIndex>>];
+// The hooks the extension's editors are plugged into: the edit stack it hands them must fit. Its
+// EditStackCopy (settledSave.ts) extends view's EditStackIndex; the EditStackMirror alias this line
+// named went with vscode #203.
+export type Hooks = [Is<Fits<EditStackCopy, Host.EditIndex>>];
