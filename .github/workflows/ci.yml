@@ -77,10 +77,10 @@ jobs:
 
   # The VS Code extension (mathworks/data-explorer-vscode) is the first consumer of this
   # package, and a change here must not regress it. So this job runs the extension's
-  # typecheck, builds and unit tests, its golden payloads among them, against this view
-  # in place of the one it pins. A change that breaks the extension on purpose comes with
-  # a vscode branch of the same name that adapts the extension to it: the job tests that
-  # branch when there is one, and the extension's main otherwise.
+  # typecheck, builds and unit tests against this view in place of the one it pins. A
+  # change that breaks the extension on purpose comes with a vscode branch of the same name
+  # that adapts the extension to it: the job tests that branch when there is one, and the
+  # extension's main otherwise.
   #
   # Not a required check: its result also depends on another repository, which a pull
   # request here cannot fix. After a breaking change merges, the push run on main is red
@@ -182,13 +182,10 @@ jobs:
           npm run build
           npm run build:web
 
-      # Under CI, vitest fails on a snapshot it does not have rather than writing it, so a
-      # golden payload that changed or went missing is red. Actions sets CI already; it is
-      # spelled out because the goldens depend on it.
-      - name: The extension's unit tests, goldens included
+      # The payloads the extension's tables are sent are pinned in this repo, by test/goldens
+      # through view's own routes, and not again in the extension's suite.
+      - name: The extension's unit tests
         working-directory: vscode
-        env:
-          CI: '1'
         run: npx vitest run
 
       # connectTable({editing}) is held to a recording of the extension's webview playing view's
