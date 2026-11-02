@@ -110,8 +110,8 @@ describe('the usage graph over the real fixture files', () => {
     // grammars are live on disk and both land here, over the same call.
     // Each also carries where the block IS. Every one of these sits in its model's root
     // system, so the path is the label alone — the interesting case (two `Gain`s in two
-    // subsystems) is pinned in usageCells.test.ts over bytes built for it, and in core
-    // against a shipped Simulink demo model MATLAB wrote. What this pins is that the
+    // subsystems) is pinned in this repo's usageCells.test.ts over bytes built for it, and in
+    // core against a shipped Simulink demo model MATLAB wrote. What this pins is that the
     // field survives the whole path from core's index to the cell.
     expect(graph().blocksUsing(DICT, 'Kp')).toEqual([
       { blockName: 'Gain1', blockPath: 'Gain1', modelName: 'legacy_ctrl', modelUri: CTRL, linkTarget: `blocks:Gain1@${CTRL}` },

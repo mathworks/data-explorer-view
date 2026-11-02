@@ -2,7 +2,7 @@
 // answerMatrixRequest is total (src/model/matrix/matrixRequest.ts): a panel that is open and waiting
 // gets exactly one `matrixCells`, with its node id, even when the node lookup itself throws —
 // a model mid-rebuild, say. Its own file, because the only way to make the lookup throw is to
-// mock SlddModel for the whole module graph; the rest of its contract is matrixRequest.test.ts.
+// mock SlddModel for the whole module graph; the rest of its contract is answerMatrixRequest.test.ts.
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../src/model/workspace/SlddModel.js', () => ({

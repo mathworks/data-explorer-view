@@ -1,15 +1,18 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The Property Inspector's page (src/model/inspector/inspectorPage.ts): what it is sent, on which `ready`,
-// and when a node handed to it again is not sent at all.
+// what it holds back once its view is closed, when a node handed to it again is not sent at all, and
+// the referrer (`from`) a link clicked in it carries.
 //
 // The binary .sldd and MAT-file editors hand the inspector its node again whenever the document's
 // tree changes (inspectorSelection.ts), the binary one at every edit, undo and redo, and a
 // `showProps` closes an open Variable Editor. So the page is sent a node only when that changes
 // what it shows: its rows, or the cells its open Variable Editor was sent. The nodes here are
 // real ones, read by the same reader the JSON view uses, re-read under the same id after an edit
-// as an editor re-reads them; PropertiesViewProvider's wiring of this is in
-// test-integration/suite/propertiesView.test.ts.
+// as an editor re-reads them. Every rule of the page is pinned here, the buffering after a close
+// and `from` included; what stays in data-explorer-vscode's integration suite is its
+// PropertiesViewProvider's wiring of them (a VS Code view's resolve, `ready` and dispose, and
+// `from` handed to onNavigate).
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -104,6 +107,42 @@ describe('InspectorPage', () => {
       const sent = posted.length;
       page.loaded();
       expect(posted.slice(sent), 'the page starts empty, so nothing is sent').toEqual([]);
+    });
+
+    // Ported from the same suite at 632f6e0, where the provider's posting closure is also a no-op
+    // once its view is gone: here it is the page that holds back, and the next view gets the node.
+    it('after closed, show buffers again instead of posting to a dead view', () => {
+      page.loaded();
+      page.closed();
+      page.show(tree().entry('Number'));
+      expect(posted, 'no post to a closed view').toEqual([]);
+      page.opened();
+      page.loaded();
+      expect(posted.map((m) => m.type)).toEqual(['showProps']);
+    });
+  });
+
+  // Ported from data-explorer-vscode test-integration/suite/navigateReferrer.test.ts at 632f6e0,
+  // whose PropertiesViewProvider hands `page.from` to onNavigate as a link click's referrer: a bare
+  // file name in a link resolves to the copy in that document's own project or folder.
+  describe('the referrer of a link (from)', () => {
+    beforeEach(() => page.loaded());
+
+    it('is the document of the node it shows, and nothing once cleared', () => {
+      page.show(tree().entry('Number'), URI);
+      expect(page.from).toBe(URI);
+      page.clear();
+      expect(page.from).toBeUndefined();
+    });
+
+    it('is nothing once the view is closed, and nothing for a node shown from no document', () => {
+      page.show(tree().entry('Number'), URI);
+      page.closed();
+      expect(page.from).toBeUndefined();
+      page.opened();
+      page.loaded();
+      page.show(tree().entry('Number'));
+      expect(page.from).toBeUndefined();
     });
   });
 

@@ -34,6 +34,7 @@ import {
   mapLimited,
   newSourceCache,
   parsedModelForOpenTab,
+  parsedModelOf,
   type SourceCache,
   type SourceFile,
 } from 'data-explorer-core';
@@ -393,5 +394,52 @@ describe('an unsaved buffer never enters the shared cache', () => {
     expect(namesIn(found, MODEL).sort()).toEqual(['PlantGain', 'Trim']);
     // The disk entry it did not take is still there, unchanged, for the tab that owns it.
     expect(cache.parsed.get(MODEL.uriString)?.parsed.blockParamUsages?.map((u) => u.blockName)).toEqual(['ChainGain']);
+  });
+});
+
+// Ported from data-explorer-vscode test/parsedBudget.test.ts at 632f6e0. `SourceCache.parsed` is
+// BOUNDED (its policy is core's test/parsedBudget.test.ts), and dropping an entry from it must cost a
+// re-parse and never an answer: every entry is version-keyed and every consumer of one re-derives on
+// a miss. This is that equality for the name scan, with a witness that eviction really happened, so
+// the comparison cannot pass vacuously.
+describe('an eviction costs a re-derive and changes no answer', () => {
+  // Six models of different sizes, smallest first, so a budget the size of the first one starves
+  // the cache for the rest.
+  const SMALL = file('chain_model.slx'); // 684 bytes
+  const STARVED = [
+    SMALL,
+    file('shared_gain.slx'), // 715 bytes
+    file('model_with_refs.slx'), // 869 bytes
+    file('sid_blocks.slx'), // 980 bytes
+    file('shadow_pair.slx'), // 955 bytes
+    file('shadow_ws.slx'), // 946 bytes
+  ];
+
+  it('gives the name index the same records from a starved cache as from a roomy one', async () => {
+    for (const f of STARVED) stamp.set(f.path, `v1:${f.path}`);
+    // The budget is one model's estimate, taken from an unbounded cache.
+    const sizing = newSourceCache();
+    await parsedModelOf(sizing, SMALL, stamp.get(SMALL.path) ?? null, async () => bytesOf(nameOf(SMALL.path)));
+    const roomy = newSourceCache();
+    const starved = newSourceCache(sizing.parsed.get(SMALL.uriString)?.estimated ?? 0);
+    const scanAll = async (cache: SourceCache): Promise<unknown[]> => {
+      const out: unknown[] = [];
+      // Twice over the folder, which is a search then a second search: with room the second is
+      // free, and starved it re-parses everything.
+      for (let pass = 0; pass < 2; pass++) {
+        for (const f of STARVED) out.push(await namesOfFile(cache, reader, f));
+      }
+      return out;
+    };
+
+    reads = [];
+    const before = await scanAll(roomy);
+    const roomyReads = reads.length;
+    reads = [];
+    const after = await scanAll(starved);
+
+    expect(after).toEqual(before);
+    expect(before.flat().length).toBeGreaterThan(0);
+    expect(reads.length).toBeGreaterThan(roomyReads);
   });
 });
