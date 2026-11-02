@@ -9,7 +9,8 @@ coverage/
 # unconditionally. Rebuild with `npm run build` and commit dist/ with the source change;
 # CI's "dist/ is the build of src/" step rebuilds it from clean and fails if it differs.
 
-# Written by test/parity/dump.test.ts on every run, for reading by eye.
+# What test/parity/dump.test.ts used to write on every run. Nothing writes it now; a checkout
+# that ran the old test may still hold a copy, which stays out of the index.
 test/parity/dump-output.txt
 
 # The gallery's build and its browser tests' output.

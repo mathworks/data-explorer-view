@@ -51,7 +51,7 @@ const childrenOf = (posts: any[], row: any): string[] => tableOf(posts).filter((
 const lastSetRows = (posts: any[]): any => [...posts].reverse().find((p) => p.type === 'setRows');
 
 // Each tile's class, the default name core gives its first variable, and the class that variable
-// reports.
+// reports: every class core lists for cases.mat.
 const TILES: Record<string, { name: string; reports: string }> = {
   MatlabVariable: { name: 'var', reports: 'double' },
   MatlabStruct: { name: 'Struct', reports: 'struct' },
@@ -59,8 +59,6 @@ const TILES: Record<string, { name: string; reports: string }> = {
   'Simulink.Parameter': { name: 'Param', reports: 'Simulink.Parameter' },
   'Simulink.Signal': { name: 'Signal', reports: 'Simulink.Signal' },
   'Simulink.Bus': { name: 'Bus', reports: 'Simulink.Bus' },
-  'Simulink.LookupTable': { name: 'LookupTable', reports: 'Simulink.LookupTable' },
-  'Simulink.Breakpoint': { name: 'Breakpoint', reports: 'Simulink.Breakpoint' },
   'Simulink.NumericType': { name: 'NumericType', reports: 'Simulink.NumericType' },
   'Simulink.AliasType': { name: 'AliasType', reports: 'Simulink.AliasType' },
   'Simulink.ValueType': { name: 'ValueType', reports: 'Simulink.ValueType' },
@@ -70,6 +68,12 @@ const TILES: Record<string, { name: string; reports: string }> = {
 function coreClasses(bytes: Uint8Array): string[] {
   const mat: any = createSession().addMatSource('classes', buffer(bytes), { path: 'c.mat' });
   return mat.getAllowedTypes();
+}
+
+/** What core says of an add of `className` to `bytes`, read as a file named `name`. */
+function coreRefusal(bytes: Uint8Array, name: string, className: string): string | null {
+  const mat: any = createSession().addMatSource(name, buffer(bytes), { path: name });
+  return mat.entryRefusal(className);
 }
 
 const add = (o: Opened, className: string, rename = true) => o.view.send({ type: 'addEntry', section: '', className, rename });
@@ -94,7 +98,7 @@ describe('MAT-file engine: the Add gallery', () => {
     it(`a ${className} tile adds one, which saves, reopens as it was, undoes, and saves as`, async () => {
       const t = TILES[className];
       const o = await open('cases.mat');
-      if (!lastSetRows(o.view.posts).add.classes.includes(className)) return; // core does not list it for this file
+      assert.ok(lastSetRows(o.view.posts).add.classes.includes(className), `core lists ${className} for cases.mat`);
       add(o, className);
       assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
       await waitFor(`the ${t.name} row`, () => !!topRowOrNull(o.view.posts, t.name));
@@ -269,7 +273,7 @@ describe('MAT-file engine: the Add gallery', () => {
   for (const className of ['Simulink.ConfigSet', 'Simulink.data.dictionary.EnumTypeDefinition']) {
     it(`an add of a class the file takes no new variable of (${className}) is refused in core's words, and adds nothing`, async () => {
       const o = await open('cases.mat');
-      if (lastSetRows(o.view.posts).add.classes.includes(className)) return; // core offers it after all
+      assert.ok(!lastSetRows(o.view.posts).add.classes.includes(className), `core does not list ${className} for cases.mat`);
       const before = tableOf(o.view.posts).length;
       add(o, className);
       await waitFor('the refusal', () => o.view.posts.some((p) => p.type === 'refused'));
@@ -280,6 +284,27 @@ describe('MAT-file engine: the Add gallery', () => {
       assert.match(message, /takes a new variable of a plain value, a struct, or one of /);
       assert.ok(message.includes('cases.mat'), `the message names the file: ${message}`);
       assert.ok(!message.includes('binedit:'), 'and not the session source it was opened as');
+      assert.strictEqual(o.events.length, 0, 'no edit reached the stack');
+      assert.strictEqual(o.index.dirty, false);
+      assert.strictEqual(tableOf(o.view.posts).length, before, 'no row was added');
+    });
+  }
+
+  // Core has a template for these two but creates neither: their node shows nothing of the Table
+  // and Breakpoints the object holds, so a new one would be MATLAB's default whatever the table
+  // showed. Not a tile, and refused, for that reason.
+  for (const className of ['Simulink.LookupTable', 'Simulink.Breakpoint']) {
+    it(`an add of a ${className}, which core offers no tile for, is refused in core's words, and adds nothing`, async () => {
+      const o = await open('cases.mat');
+      assert.ok(!lastSetRows(o.view.posts).add.classes.includes(className), `core does not list ${className} for cases.mat`);
+      const before = tableOf(o.view.posts).length;
+      add(o, className);
+      await waitFor('the refusal', () => o.view.posts.some((p) => p.type === 'refused'));
+      const refusal = o.view.posts.filter((p) => p.type === 'refused').pop();
+      assert.strictEqual(refusal.title, 'Cannot Add', 'in the refusal dialog');
+      const words = coreRefusal(o.original, 'cases.mat', className);
+      assert.match(String(words), new RegExp(`^Cannot add a ${className.replace('.', '\\.')} to "cases\\.mat": .+\\.$`));
+      assert.strictEqual(refusal.reason, words, "in core's words");
       assert.strictEqual(o.events.length, 0, 'no edit reached the stack');
       assert.strictEqual(o.index.dirty, false);
       assert.strictEqual(tableOf(o.view.posts).length, before, 'no row was added');

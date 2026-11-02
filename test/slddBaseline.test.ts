@@ -9,8 +9,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createSession } from 'data-explorer-core';
 import { getModel, invalidate, parseDetached } from '../src/host/index.js';
 import { EntryBaseline, baselineOwed, diskBaselineUsable, sameDiskStamp } from '../src/model/edit/slddBaseline.js';
+import { DocumentRegistry } from '../src/model/workspace/SlddModel.js';
+import { entryRow, isEntryRow, nameOf, open, tableOf, waitFor, WORKSPACE_DATA, WORKSPACE_PARAMS, type View } from './jsonEngine/harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -109,23 +112,31 @@ describe('slddBaseline', () => {
     expect(baseline.modified(model)).toEqual(new Set());
   });
 
-  it('keeps baselines per URI, so editing one file does not mark another modified', () => {
-    // Two dictionaries are commonly open at once and the store is a single module
-    // -level map; a shared or overwritten baseline would put modified dots in the
-    // wrong editor. (In view each document's engine holds its own EntryBaseline.)
-    const a = 'test://baseline-a.sldd';
-    const b = 'test://baseline-b.sldd';
-    const baselineA = new EntryBaseline();
-    const baselineB = new EntryBaseline();
-    const modelA = freshModel(a);
-    const modelB = freshModel(b);
-    baselineA.capture(modelA);
-    baselineB.capture(modelB);
-    findEntry(modelA, 'Number').setProperty('Value', '42');
-    expect(baselineA.modified(modelA).size).toBe(1);
-    expect(baselineB.modified(modelB)).toEqual(new Set());
-    baselineA.clear();
-    baselineB.clear();
+  it('keeps baselines per URI, so editing one file does not mark another modified', async () => {
+    // Two dictionaries are commonly open at once; a shared or overwritten baseline would put
+    // modified dots in the wrong editor. In view each document's engine holds its own
+    // EntryBaseline. Two different dictionaries, open in one session at two uris, each painted
+    // (which takes its baseline) before either is edited: a baseline the second open overwrote
+    // would mark every entry of the first, and one the first edit reached would mark the second.
+    const registry = new DocumentRegistry(createSession());
+    const a = await open(WORKSPACE_DATA, undefined, { as: 'baseline-a.sldd', registry });
+    const b = await open(WORKSPACE_PARAMS, undefined, { as: 'baseline-b.sldd', registry });
+    const marked = (view: View): string[] => tableOf(view.posts).filter((r) => isEntryRow(r) && r.Status === 'Modified').map(nameOf);
+    const repaint = async (view: View): Promise<string[]> => {
+      view.posts.length = 0;
+      view.send({ type: 'ready' });
+      await waitFor('a whole-table paint', () => view.posts.some((m) => m.type === 'setRows'));
+      return marked(view);
+    };
+    expect(await repaint(a.view)).toEqual([]);
+    expect(await repaint(b.view)).toEqual([]);
+
+    const row = entryRow(a.view.posts, 'Number');
+    a.view.send({ type: 'edit', rowId: row.ID, columnId: 'Value', oldValue: String(row.Value ?? ''), newValue: '42' });
+    await waitFor('the edit to be marked', () => marked(a.view).includes('Number'));
+    expect(await repaint(a.view)).toEqual(['Number']);
+    expect(await repaint(b.view)).toEqual([]);
+    expect(b.text.dirty).toBe(false);
   });
 });
 

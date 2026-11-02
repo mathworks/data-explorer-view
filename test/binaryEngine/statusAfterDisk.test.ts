@@ -1,20 +1,23 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// open-questions 16 (design: data-explorer-vscode docs/deep-work/2026-10-28-view-split/bug16-design.md),
-// failing today. The binary dictionary engine's Status column says whether an entry differs from the
-// file on disk. Two ways it says otherwise:
+// open-questions 16 (design: data-explorer-vscode docs/deep-work/2026-10-28-view-split/bug16-design.md).
+// The binary dictionary engine's Status column says whether an entry differs from the file on disk.
+// These tests were written failing, for the two ways it said otherwise, and pass since a792e46 fixed
+// both; they now pin the fix:
 //
 //  (A) A reload of a clean document from what the disk now holds (the watcher's reload of an outside
-//      change, or a revert onto a file changed outside) keeps the baseline the document was opened or
-//      last saved with (applyDisk replaces the chunk and repaints, but never re-baselines), so every
-//      entry the outside change touched reads Modified until the next save, though nothing is unsaved.
+//      change, or a revert onto a file changed outside) kept the baseline the document was opened or
+//      last saved with (applyDisk replaced the chunk and repainted, but never re-baselined), so every
+//      entry the outside change touched read Modified until the next save, though nothing was unsaved.
+//      Now applyDisk re-baselines from the chunk the next table paints.
 //  (B) A save that lands after a newer one leaves the file holding the older document (VS Code cancels
 //      the first save's token but lets its write finish; in a page, any two saves). D44 gives the next
-//      save the keys it needs, but the Status column is re-baselined from the chunk as it stands, the
-//      newer document, so it marks nothing that the file lacks; and the engine does not say the save
+//      save the keys it needs, but the Status column was re-baselined from the chunk as it stood, the
+//      newer document, so it marked nothing that the file lacked; and the engine did not say the save
 //      landed behind, which a host whose save point moved to the newer save needs to write again
 //      (review169 P1: the tab reads clean over the older file, and closing it loses the newer edit).
-//      The same baseline also misses an edit that lands on a single save's write.
+//      The same baseline also missed an edit that lands on a single save's write. Now the baseline is
+//      what the save wrote, and saved() answers whether it landed behind.
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { entryOf, entryRow, open, PARAMS, readSldd, waitFor, type Opened, type View } from './harness.js';

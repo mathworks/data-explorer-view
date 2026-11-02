@@ -4,14 +4,16 @@
 // on the MAT-file engine. Its Status column is kept by SaveMarks, edit by edit, not by a baseline
 // diffed against the tree.
 //
-//  (A) does not apply: a reload clears the marks (replace). Pinned here; passes today.
-//  (B) does, twice, failing today. A save that lands after a newer one leaves the file holding the
-//      older document, but SaveMarks.commit of the older snapshot leaves every edit made after that
-//      snapshot as the newer save left it, saved: the Status column marks nothing the file lacks
-//      (its reference model in saveMarks.test.ts, EveryEdit.commit, does the same). And the engine
-//      does not say the save landed behind, which a host whose save point moved to the newer save
-//      needs to write again (review169 P1: VS Code shows the tab clean over the older file, and
-//      closing it loses the newer edit).
+//  (A) does not apply: a reload clears the marks (replace). Pinned here; it always passed.
+//  (B) did, twice. These tests were written failing for it, and pass since a792e46 fixed it; they now
+//      pin the fix. A save that lands after a newer one leaves the file holding the older document,
+//      but SaveMarks.commit of the older snapshot left every edit made after that snapshot as the
+//      newer save left it, saved: the Status column marked nothing the file lacked (its reference
+//      model in saveMarks.test.ts, EveryEdit.commit, did the same). And the engine did not say the
+//      save landed behind, which a host whose save point moved to the newer save needs to write again
+//      (review169 P1: VS Code shows the tab clean over the older file, and closing it loses the newer
+//      edit). Now SaveMarks.commit unsaves the edits made after its snapshot, and saved() answers
+//      whether the save landed behind.
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { buffer, edit, open, topRow, valuesOf, type Opened } from './harness.js';

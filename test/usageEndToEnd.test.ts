@@ -38,7 +38,8 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { annotateVariableRows, buildUsageGraph, type RawSource } from '../src/model/usage/usageCells.js';
-import { buildRows } from '../src/model/index.js';
+import type { SourceFile } from 'data-explorer-core';
+import { buildRows, UsageGraphs } from '../src/model/index.js';
 import { getModel, getModelFromBytes } from '../src/host/index.js';
 import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/index.js';
 
@@ -175,16 +176,47 @@ describe('the usage graph over the real fixture files', () => {
     ]);
   });
 
-  it('lists the blocks in file order, not in read-completion order', () => {
+  it('lists the blocks in file order, not in read-completion order', async () => {
     // usageGraph reads the files concurrently but preserves the uri order, so the
     // same dictionary renders the same cell on every open. Reversing the input must
-    // be the only thing that reverses the output.
-    const swapped = buildUsageGraph([FILES[1], FILES[0], FILES[2]]);
-    expect(swapped.blocksUsing(DICT, 'Kp').map((r) => r.blockName)).toEqual([
-      'PlantGain',
-      'Trim',
-      'Gain1',
-    ]);
+    // be the only thing that reverses the output. Read here through UsageGraphs, as
+    // a workspace reads, with a reader that finishes a file's read the later the
+    // earlier the file is listed: the reads complete in the reverse of the list.
+    const usersOfKp = async (files: RawSource[]): Promise<{ blocks: string[]; finished: string[] }> => {
+      const finished: string[] = [];
+      const at = (f: SourceFile): number => files.findIndex((s) => s.uriString === f.uriString);
+      const graphs = new UsageGraphs({
+        inputs: {
+          inputsKey: () => '',
+          candidates: async () => files.map(({ uriString, path }) => ({ uriString, path })),
+          readerFor: () => ({
+            version: async () => 'v1',
+            bytes: (f) =>
+              new Promise((done) =>
+                setTimeout(() => {
+                  finished.push(f.uriString);
+                  done(files[at(f)].bytes);
+                }, 10 * (files.length - at(f))),
+              ),
+          }),
+        },
+      });
+      const blocks = (await graphs.blocksUsingVariable(DICT, 'Kp')).map((r) => r.blockName);
+      return { blocks, finished };
+    };
+    const finishedFirst = (finished: string[], a: string, b: string): void => {
+      expect(finished).toContain(a);
+      expect(finished).toContain(b);
+      expect(finished.indexOf(a), `${a} was read before ${b}`).toBeLessThan(finished.indexOf(b));
+    };
+
+    const listed = await usersOfKp(FILES);
+    finishedFirst(listed.finished, GAIN, CTRL);
+    expect(listed.blocks).toEqual(['Gain1', 'PlantGain', 'Trim']);
+
+    const swapped = await usersOfKp([FILES[1], FILES[0], FILES[2]]);
+    finishedFirst(swapped.finished, CTRL, GAIN);
+    expect(swapped.blocks).toEqual(['PlantGain', 'Trim', 'Gain1']);
   });
 });
 

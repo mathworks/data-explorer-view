@@ -334,18 +334,26 @@ describe('Name.element coloring is structural and format-independent', () => {
 
   it('produces identical element flags for a binary .sldd and its text form', () => {
     // The bug: binary/zip .sldd grayed entry names that the text path left
-    // normal. Both forms must now agree entry-for-entry on the element flag.
-    const bytes = readFileSync(fixturePath('compressed.sldd'));
-    const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    const bin = getModelFromBytes('test://compressed.sldd', 'compressed.sldd', ab);
-    const binRows = allDataRows(buildRows(bin));
+    // normal. Both forms must now agree row-for-row on the element flag.
+    // params.sldd is one dictionary MATLAB saved twice, as text and as a zip.
+    const twin = (variant: 'text' | 'binary'): Record<string, boolean> => {
+      const uri = `test://element-flags/${variant}/params.sldd`;
+      const path = fileURLToPath(new URL(`./parity/artifacts/${variant}/params.sldd`, import.meta.url));
+      const bytes = readFileSync(path);
+      const sldd =
+        variant === 'binary'
+          ? getModelFromBytes(uri, 'params.sldd', bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+          : getModel(uri, 'params.sldd', bytes.toString('utf8'));
+      // Keyed by the row id below the file's uri, which is the same path in both forms.
+      return Object.fromEntries(allDataRows(buildRows(sldd)).map((r) => [String(r.ID).slice(uri.length), r.Name.element]));
+    };
+    const text = twin('text');
+    const binary = twin('binary');
 
-    // compressed.sldd holds a single plain entry (Kp) — a real identifier that
-    // must NOT be grayed, exactly as the text path would render it.
-    expect(binRows.length).toBeGreaterThan(0);
-    for (const r of binRows) {
-      expect(r.Name.element).toBe(false);
-    }
+    // Entries and fields that must stay normal, and positional elements that must be grayed.
+    expect(Object.values(text).filter((e) => e === false).length).toBeGreaterThan(0);
+    expect(Object.values(text).filter((e) => e === true).length).toBeGreaterThan(0);
+    expect(binary).toEqual(text);
   });
 });
 
