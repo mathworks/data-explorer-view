@@ -6,10 +6,10 @@
 // table's handle; and across a channel, through inspectorFeed.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectTable, defineTreeTable, type DexTreeTable } from '../src/widgets/tree-table/index.js';
 import { connectInspector, definePropertyInspector } from '../src/widgets/property-inspector/index.js';
-import type { DexVariableEditor } from '../src/widgets/variable-editor/index.js';
+import type { DexMatrixGrid, DexVariableEditor, MatrixDescriptor } from '../src/widgets/variable-editor/index.js';
 import { createWorkspace, inspectorFeed, type TablePort } from '../src/model/index.js';
 
 defineTreeTable();
@@ -272,5 +272,148 @@ describe("across a channel, from a host's pages", () => {
     pi.dispatchEvent(new CustomEvent('dex-property-navigate', { detail: { sourceId: 'Kp@file:///w/x.sldd' }, bubbles: true }));
     pi.dispatchEvent(new CustomEvent('dex-property-navigate', { detail: { sourceId: '' }, bubbles: true }));
     expect(targets).toEqual(['Kp@file:///w/x.sldd']);
+  });
+
+  describe('the variable editor its glyph opens', () => {
+    // It owns BOTH directions: the glyph's event out as a `requestMatrix`, and the host's
+    // `matrixCells` back in as a deliver(). Keeping the pair in one place is the point — an
+    // inspector that asked but never listened would open a panel that waits forever. These drive
+    // a real editor, where the cases above use a fake one.
+    const descriptor = (over: Partial<MatrixDescriptor> = {}): MatrixDescriptor =>
+      ({ name: 'A', className: 'double', dims: [2, 2], nodeId: 'n1', ...over });
+    const cells = (over: Partial<MatrixDescriptor> = {}) =>
+      ({ type: 'matrixCells', nodeId: descriptor(over).nodeId, matrix: { ...descriptor(over), cells: ['1', '2', '3', '4'] } });
+    const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    function wire(withEditor = true) {
+      const host = hostPort();
+      const pi = document.createElement('dex-property-inspector');
+      const anchor = document.createElement('button');
+      document.body.append(pi, anchor);
+      const editor = withEditor ? document.createElement('dex-variable-editor') : undefined;
+      if (editor) document.body.append(editor);
+      const feed = inspectorFeed(host.port);
+      const inspector = connectInspector(pi, feed, { variableEditor: editor, empty: () => {} });
+      cleanups.push(() => (editor?.close(), inspector.dispose(), feed.dispose()));
+      // What connecting says first: the inspector is up (`ready`). The cases are about what follows.
+      host.posted.length = 0;
+      const fire = (detail: unknown) =>
+        pi.dispatchEvent(new CustomEvent('dex-matrix-open', { detail, bubbles: true, composed: true }));
+      return { ...host, pi, anchor, editor: editor!, inspector, fire };
+    }
+
+    function title(editor: DexVariableEditor): string {
+      return editor.shadowRoot!.querySelector('.title')!.textContent!.trim();
+    }
+
+    it('opens the editor on the event, anchored on the glyph that fired it', async () => {
+      const { editor, anchor, fire } = wire();
+      fire({ matrix: descriptor({ name: 'Mat' }), anchorEl: anchor });
+      await frame();
+      await editor.updateComplete;
+      expect(editor.hasAttribute('open')).toBe(true);
+      expect(title(editor)).toBe('Mat — 2x2 double');
+      // Closing hands focus back to that glyph.
+      editor.shadowRoot!.querySelector<HTMLButtonElement>('.close')!.focus();
+      editor.close();
+      expect(document.activeElement).toBe(anchor);
+    });
+
+    it('asks the host for the cells of exactly the node that was opened', () => {
+      const { posted, anchor, fire } = wire();
+      fire({ matrix: descriptor({ name: 'Mat', nodeId: 'node-9' }), anchorEl: anchor });
+      expect(posted).toEqual([{ type: 'requestMatrix', nodeId: 'node-9' }]);
+    });
+
+    it('delivers the host’s answer into the open editor', async () => {
+      const { editor, anchor, fire, send } = wire();
+      fire({ matrix: descriptor(), anchorEl: anchor });
+      await frame();
+      send(cells());
+      await settle();
+      await editor.updateComplete;
+      const grid = editor.shadowRoot!.querySelector('dex-matrix-grid') as DexMatrixGrid;
+      expect(grid.matrix!.cells).toEqual(['1', '2', '3', '4']);
+    });
+
+    it('leaves every other host message alone', async () => {
+      // The same channel carries showProps, the answers to other requests, and whatever else the
+      // host sends. Reacting to one of those would hand the editor a payload-shaped thing that is
+      // not one. A page comes last: it closes the editor, which is a different rule.
+      const { editor, anchor, fire, send } = wire();
+      fire({ matrix: descriptor(), anchorEl: anchor });
+      await frame();
+      const spy = vi.spyOn(editor, 'deliver');
+      for (const data of [undefined, null, 'matrixCells', { type: 'setRows', rows: [] }, { type: 'matrixCells' },
+        cells({ nodeId: 'not-asked' }), { type: 'empty' }]) {
+        expect(() => send(data)).not.toThrow();
+      }
+      await settle();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('closes on the next page, which is what showProps and empty are', async () => {
+      const { editor, anchor, fire, send } = wire();
+      for (const page of [{ type: 'showProps', groups: [] }, { type: 'empty' }]) {
+        fire({ matrix: descriptor(), anchorEl: anchor });
+        await frame();
+        expect(editor.hasAttribute('open')).toBe(true);
+        send(page);
+        await editor.updateComplete;
+        expect(editor.hasAttribute('open')).toBe(false);
+      }
+    });
+
+    it('ignores an event with no descriptor, and asks for nothing', async () => {
+      const { editor, posted, anchor, fire } = wire();
+      for (const detail of [undefined, null, { anchorEl: anchor }, { matrix: descriptor() }]) fire(detail);
+      await frame();
+      await editor.updateComplete;
+      expect(editor.hasAttribute('open')).toBe(false);
+      expect(posted).toEqual([]);
+    });
+
+    it('asks for nothing when the descriptor carries no node id', async () => {
+      // Nothing to fetch with. Opening a panel that can never be answered is worse than not
+      // opening one, so neither happens.
+      const { editor, posted, anchor, fire } = wire();
+      fire({ matrix: { name: 'A', className: 'double', dims: [2, 2] }, anchorEl: anchor });
+      fire({ matrix: descriptor({ nodeId: '' }), anchorEl: anchor });
+      await frame();
+      await editor.updateComplete;
+      expect(posted).toEqual([]);
+      expect(editor.hasAttribute('open')).toBe(false);
+    });
+
+    it('makes an editor of its own when the page passes none', async () => {
+      const { inspector, posted, anchor, fire } = wire(false);
+      fire({ matrix: descriptor({ name: 'Own' }), anchorEl: anchor });
+      await frame();
+      const made = document.body.querySelector('dex-variable-editor')!;
+      await made.updateComplete;
+      expect(made.hasAttribute('open')).toBe(true);
+      expect(title(made)).toBe('Own — 2x2 double');
+      expect(posted).toEqual([{ type: 'requestMatrix', nodeId: 'n1' }]);
+      made.close();
+      inspector.dispose();
+      expect(document.body.querySelector('dex-variable-editor')).toBeNull();
+    });
+
+    it('stops listening in both directions after dispose', async () => {
+      // dispose() alone, with the channel still up: the glyph asks nothing, and the host's pages
+      // no longer reach the inspector.
+      const { editor, pi, posted, anchor, inspector, fire, send } = wire();
+      const groups = [{ title: 'Value', properties: [{ name: 'Value', value: '1' }] }];
+      send({ type: 'showProps', groups });
+      inspector.dispose();
+      fire({ matrix: descriptor(), anchorEl: anchor });
+      await frame();
+      await editor.updateComplete;
+      expect(editor.hasAttribute('open')).toBe(false);
+      expect(posted).toEqual([]);
+      send({ type: 'empty' });
+      send({ type: 'showProps', groups: [] });
+      expect(pi.groups).toEqual(groups);
+    });
   });
 });
