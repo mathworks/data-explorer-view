@@ -741,6 +741,22 @@ describe('against a host across a channel', () => {
     expect(table.banners?.error).toBeUndefined();
   });
 
+  it('asks the host about a deferred row by its id, in a document it may not edit, and asks nothing for an empty or missing id', async () => {
+    // A read-only MAT-file is navigated entirely through these questions, so they are not gated on
+    // editing. An answer about no node at all would clear a twisty on the strength of nothing.
+    const { port, posted, send } = hostPort();
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    handles.push(connectTable(table, messageSource(port), { variableEditor: fakeEditor().editor }));
+    send({ type: 'setRows', docUri: 'file:///fx/big.mat', rows: [{ ID: 'A', parent: null, Name: { label: 'A' }, _lazy: true }], columns: ['Name'], editable: false });
+    await settle(table);
+    posted.length = 0;
+    table.dispatchEvent(new CustomEvent('dex-request-children', { detail: { nodeId: '' } }));
+    table.dispatchEvent(new CustomEvent('dex-request-children', { detail: {} }));
+    table.dispatchEvent(new CustomEvent('dex-request-children', { detail: { nodeId: 'A' } }));
+    expect(posted).toEqual([{ type: 'requestChildren', nodeId: 'A' }]);
+  });
+
   // The host says things in its own order: an entry it repainted before it answered `ready` is
   // older than the rows that answer it. Taken as it arrives, as view 1.0.0 took it, and never held
   // until the rows are in, where it would land over them. (Held only for a source that is told the
