@@ -192,6 +192,20 @@ describe('expandTopLevel', () => {
     expect(shown(table)).toEqual(['section:A', 'a1', 'section:B', 'section:Lazy']);
   });
 
+  it('keeps the top level closed once the user has closed all of it, across every repaint', async () => {
+    // An empty expansion after rows were shown is the user's, not a first load: read as one, every
+    // repaint (an edit, an undo, a keystroke in the text view) reopened every section they closed.
+    const table = await mount((t) => (t.expandTopLevel = true));
+    await give(table, ROWS);
+    table.collapse(['section:A', 'section:B']);
+    await table.updateComplete;
+    await give(table, [...ROWS]);
+    expect(table.expandedIds).toEqual(new Set());
+    await give(table, [...ROWS]);
+    expect(table.expandedIds).toEqual(new Set());
+    expect(shown(table)).toEqual(['section:A', 'section:B', 'section:Lazy']);
+  });
+
   it('turned on after rows were shown, keeps the expansion rather than reopening the top level', async () => {
     const table = await mount();
     await give(table, ROWS);
