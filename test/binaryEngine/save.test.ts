@@ -3,6 +3,7 @@
 // Ported from data-explorer-vscode test-integration/suite/binarySlddSaveGate.test.ts at c73da3c.
 // Ported from data-explorer-vscode test-integration/suite/binarySlddSaveSafety.test.ts at c73da3c.
 // Ported from data-explorer-vscode test-integration/suite/binarySlddSaveLanding.test.ts at c73da3c.
+// Ported from data-explorer-vscode test/binarySaveGate.test.ts at 632f6e0 (the refusal's words).
 //
 // The binary dictionary editor's save, backup and revert, run against view's binary dictionary
 // engine: the save gate on the path that writes the user's file and not on a hot-exit backup's, a
@@ -17,6 +18,7 @@
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { unzipSync, zipSync } from 'fflate';
+import { readSlddParts } from '../../src/model/index.js';
 import { chunkOf, entryOf, entryRow, file, open, PARAMS, readSldd, WORKSPACE_BINARY, type Opened } from './harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -81,6 +83,23 @@ describe('binary dictionary engine: the save gate vs the hot-exit backup', () =>
     assert.throws(() => o.engine.beginSave(), /Refusing to save/, 'the gate refuses the write: there are no bytes to write');
     assert.throws(() => o.engine.serialize(), /Refusing to save/, 'and a Save As to another file too');
     assert.strictEqual(o.index.dirty, true, 'and the document is still unsaved — the whole point of refusing');
+  });
+
+  it('refuses a chunk that does not read back, in the words the user is shown', async () => {
+    // The sentence the host's save error shows: the refusal, and the reader's own reason in
+    // parentheses, which is the one clue the user has to what broke.
+    const o = await open(WORKSPACE_BINARY);
+    setChunk(o, UNREADABLE);
+    let reason = '';
+    try {
+      readSlddParts(UNREADABLE, o.engine.parts, []);
+    } catch (err) {
+      reason = (err as Error).message;
+    }
+    assert.ok(reason, 'the reader refuses the chunk too, and says why');
+    const words = `Refusing to save: the document did not re-parse (${reason}).`;
+    assert.throws(() => o.engine.beginSave(), (err: Error) => err.message === words, 'a save of the file');
+    assert.throws(() => o.engine.serialize(), (err: Error) => err.message === words, 'and a Save As to another file, in the same words');
   });
 
   it('a backup skips the gate, and still restores the payload it snapshotted', async () => {
