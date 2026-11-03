@@ -610,6 +610,19 @@ describe("Set as Active Configuration, on a model's configuration set", () => {
     expect(byId(on(['m/config/Fast'], { editable: false }), 'setActiveConfigSet')).toMatchObject({ disabled: true });
   });
 
+  it("says, as the item's tooltip, what making a reference active cannot check", () => {
+    const rows: MenuRow[] = [
+      ...CONFIG,
+      { ID: 'm/config/Ref', parent: 'section:config', Name: { label: 'Ref' }, _canCopy: true, _canSetActive: true, _setActiveCaution: 'Without MATLAB this editor cannot check it.' },
+    ];
+    expect(byId(on(['m/config/Ref'], { rows }), 'setActiveConfigSet')).toEqual({
+      id: 'setActiveConfigSet',
+      label: 'Set as Active Configuration',
+      disabled: false,
+      title: 'Without MATLAB this editor cannot check it.',
+    });
+  });
+
   it('is on no other row', () => {
     expect(byId(menu(), 'setActiveConfigSet')).toBeUndefined();
     expect(byId(on(['m/config/Fast', 'u/design/A'], { rows: [...CONFIG, ...ROWS] }), 'setActiveConfigSet')).toBeUndefined();

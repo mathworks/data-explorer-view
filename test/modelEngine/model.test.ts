@@ -196,18 +196,25 @@ describe("a model's active configuration set, made another", () => {
     await painted('Fast');
   });
 
-  it("refuses a reference, in core's words, in the gesture's dialog", async () => {
+  it("makes a reference active, warning in core's words that MATLAB alone can check it", async () => {
     const o = await openModel('acs_ref.slx');
+    const caution =
+      '"RefFromDict" refers to the configuration set "dictCfg" in the data dictionary "acs_dict.sldd". Without MATLAB this editor ' +
+      'cannot check that the set is there: open the model in MATLAB to confirm.';
     const ref = setRow(o.view.posts, 'RefFromDict');
-    assert.strictEqual(ref._canSetActive, false);
-    assert.match(ref._setActiveWhy, /^It refers to "dictCfg", and MATLAB makes a reference active only once it finds the set it refers to/);
+    assert.deepStrictEqual([ref._canSetActive, ref._setActiveWhy, ref._setActiveCaution], [true, undefined, caution]);
+    assert.strictEqual(setRow(o.view.posts, 'Configuration')._setActiveCaution, undefined, 'a plain set warns of nothing');
     o.view.send({ type: 'setActiveConfigSet', rowId: ref.ID });
-    const refused = o.view.posts.find((p) => p.type === 'refused');
-    assert.deepStrictEqual([refused?.title, refused?.reason], [
-      'Cannot Set Active Configuration',
-      'Cannot make "RefFromDict" the active configuration set: it refers to "dictCfg", and MATLAB makes a reference active only once ' +
-        'it finds the set it refers to, which this editor cannot look for. Nothing was changed.',
-    ]);
-    assert.strictEqual(o.events.length, 0, 'nothing reached the stack');
+    assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    assert.deepStrictEqual(o.notices, [{ level: 'warning', message: caution }]);
+    await waitFor('the reference painted active', () => setRow(o.view.posts, 'RefFromDict').Name.iconId === 'check_configurationReference');
+    assert.deepStrictEqual(activeIn(o.save()), ['RefFromDict']);
+  });
+
+  it('warns of nothing as a set that is no reference is made active', async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
+    assert.strictEqual(o.events.length, 1);
+    assert.deepStrictEqual(o.notices, []);
   });
 });
