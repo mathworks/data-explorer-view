@@ -171,8 +171,11 @@ describe("a model's active configuration set, made another", () => {
 
   it.each(['acs_sets.slx', 'acs_sets_R2013b.slx'])('%s: makes a set active as one edit, painted again, saved, and undone', async (file) => {
     const o = await openModel(file);
+    // Every row is painted again, as after an Add or a Delete: once the payload is built.
+    const painted = (active: string) => waitFor(`${active} painted active`, () => setRow(o.view.posts, active).Name.iconId === 'check_settings');
     o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
     assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    await painted('Fast');
     assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
       ['Configuration', true, undefined, 'settings'],
       ['Fast', false, 'It is the active one already', 'check_settings'],
@@ -182,6 +185,7 @@ describe("a model's active configuration set, made another", () => {
     assert.deepStrictEqual(activeIn(saved), ['Fast']);
     assert.strictEqual(o.index.dirty, false);
     o.undo();
+    await painted('Configuration');
     assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
       ['Configuration', false, 'It is the active one already', 'check_settings'],
       ['Fast', true, undefined, 'settings'],
@@ -189,7 +193,7 @@ describe("a model's active configuration set, made another", () => {
     assert.strictEqual(o.index.dirty, true, 'the file holds Fast active');
     assert.deepStrictEqual(activeIn(o.save()), ['Configuration']);
     o.redo();
-    assert.strictEqual(setRow(o.view.posts, 'Fast').Name.iconId, 'check_settings');
+    await painted('Fast');
   });
 
   it("refuses a reference, in core's words, in the gesture's dialog", async () => {

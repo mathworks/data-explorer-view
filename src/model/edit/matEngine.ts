@@ -192,6 +192,11 @@ interface Observed {
   before: Map<any, string>;
   order: any[];
   /**
+   * Whether the gesture changed a row of the file outside its variables: a model's configuration
+   * set made active (setActiveConfigSet), which no variable's repaint shows.
+   */
+  outside: boolean;
+  /**
    * What the gesture threw, if it threw. Its steps are counted all the same: core recorded them
    * before it threw, and an edit the stack is not told of would leave core's stack a step ahead
    * of it, so that the next Undo undid the wrong edit.
@@ -204,16 +209,26 @@ interface Observed {
 function observe(session: Session, mat: any, srcId: string, run: () => void): Observed {
   const before = new Map<any, string>();
   for (const v of mat.children) before.set(v, v.id);
-  const observed: Observed = { steps: 0, touched: new Set(), added: new Set(), replaced: new Map(), before, order: [...mat.children] };
+  const observed: Observed = { steps: 0, touched: new Set(), added: new Set(), replaced: new Map(), before, order: [...mat.children], outside: false };
   // The variable a node is or is under, while it is in the file; a variable just removed is
   // known by having been in it.
   const variableOf = (node: any): any => {
     for (let n = node; n; n = n.parent) if (n.parent === mat) return n;
     return before.has(node) ? node : null;
   };
+  // The file the variables are in (a model, where `mat` is its workspace), and each node above them.
+  const above = new Set<any>();
+  for (let n = mat; n; n = n.parent) above.add(n);
+  const fileOf = (node: any): any => {
+    let n = node;
+    while (n?.parent) n = n.parent;
+    return n;
+  };
+  const file = fileOf(mat);
   const touch = (node: any) => {
     const v = variableOf(node);
     if (v) observed.touched.add(v);
+    else if (node && !above.has(node) && fileOf(node) === file) observed.outside = true;
     return v;
   };
   const bus = session.bus;
@@ -686,7 +701,7 @@ export class MatEngine {
     } catch {
       return void this.repaintAll();
     }
-    if (variablesMoved(mat, observed)) return void this.repaintAll();
+    if (variablesMoved(mat, observed) || observed.outside) return void this.repaintAll();
     const present = [...observed.touched].filter((v) => v.parent === mat);
     for (const view of [...this.views]) {
       view.repaintVariables(present, observed.before);
@@ -1286,6 +1301,23 @@ class MatView implements EditableTableSource {
         return;
       }
       this.emit({ kind: 'select', rowIds: [child.id] });
+    });
+  }
+
+  // A model's configuration set made the active one, where core says it is (a model engine's rows
+  // say so first, `_canSetActive`): one edit, which every row is painted again after.
+  setActiveConfigSet(rowId: string): void {
+    this.handle('setActiveConfigSet', () => {
+      const refused = this.session.activeConfigSetRefusal(rowId);
+      if (refused) {
+        this.refused('setActive', refused);
+        return;
+      }
+      let made = false;
+      const observed = this.gesture('Set active configuration', () => {
+        made = this.session.setActiveConfigSet(rowId);
+      });
+      if (observed && !made) this.error('Could not make this configuration set the active one.');
     });
   }
 

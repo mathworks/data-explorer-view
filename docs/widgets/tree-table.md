@@ -75,6 +75,9 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
   `rowDrag` from it. A source that takes no edits is read-only.
 - **`textView`:** a plain-text view of the document. It adds Location in Text in its place in
   the menu, with Cmd/Ctrl+L.
+- **A model's configuration sets:** the rows a model's source marks (`_canSetActive`) lead their
+  menu with Set as Active Configuration, which is the source's `setActiveConfigSet`, and is greyed
+  with the row's reason (`_setActiveWhy`) where the set is not made active.
 - **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
   and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
 

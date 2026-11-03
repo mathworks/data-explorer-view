@@ -104,6 +104,7 @@ const WIRE_CLIENT_TYPES = new Set([
   'dragEnd',
   'drop',
   'requestEditText',
+  'setActiveConfigSet',
 ]);
 
 /**
@@ -230,6 +231,9 @@ export function serveTable(source: TableSource, port: TablePort, options: ServeT
       case 'requestEditText':
         if (typeof msg.rowId !== 'string') return;
         return editing.requestEditText?.(msg.rowId);
+      case 'setActiveConfigSet':
+        if (typeof msg.rowId !== 'string') return;
+        return editing.setActiveConfigSet?.(msg.rowId);
     }
   });
   return () => {

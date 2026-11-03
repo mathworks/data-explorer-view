@@ -233,7 +233,24 @@ export function buildContextMenuItems(input) {
             },
         ]
         : [];
-    return joinGroups([[copy, cut, pasteItem()], [addChild, del], locate, undoRedo]);
+    // A model's configuration set made the active one: on the sets alone, which the model engine
+    // marks, and so on a selection of nothing else. Greyed with core's reason where the set is not.
+    const sets = ops.deleteIds.map((id) => byId.get(id));
+    const setActive = sets.every((r) => r?._canSetActive !== undefined)
+        ? [
+            {
+                id: 'setActiveConfigSet',
+                label: 'Set as Active Configuration',
+                disabled: !editable || n > 1 || !soleRow?._canSetActive,
+                ...(n > 1
+                    ? { reason: 'Select a single configuration to make it active' }
+                    : soleRow && !soleRow._canSetActive && soleRow._setActiveWhy
+                        ? { reason: soleRow._setActiveWhy }
+                        : {}),
+            },
+        ]
+        : [];
+    return joinGroups([setActive, [copy, cut, pasteItem()], [addChild, del], locate, undoRedo]);
 }
 // One separator between the groups that have anything in them — never a leading, a
 // trailing, or a doubled one. The whole reason the builder returns groups.

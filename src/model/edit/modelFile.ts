@@ -5,7 +5,9 @@
 // edits; the table shows the whole model, section by section, as the read-only view does, and only
 // the workspace takes an edit, a paste or a drop. Every other section is shown and not edited:
 // core refuses every edit of it (ModelSectionNode._editRefusal), and its rows offer no Delete or
-// Cut. A save is the model's package with its workspace part written anew (core's ModelFileWriter).
+// Cut. Each configuration set says whether it is made the active one (Set as Active Configuration,
+// core's setActiveConfigSet). A save is the model's package with its workspace part written anew,
+// and the active set marked where another was made active (core's ModelFileWriter).
 import type { Session } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildEntryRows } from '../rows/rowBuilder.js';
@@ -38,6 +40,23 @@ function shownOnly(rows: TreeTableRow[], variables: any): TreeTableRow[] {
   return rows;
 }
 
+// Each of the model's configuration sets says whether it is made the active one (`_canSetActive`)
+// and, where it is not, core's reason as a sentence (`_setActiveWhy`, ModelNode.activeSetRefusal),
+// which the menu's Set as Active Configuration is greyed with.
+function setsMarked(rows: TreeTableRow[], root: any): TreeTableRow[] {
+  const sets: any[] = root?.getSection?.('config')?.children ?? [];
+  if (sets.length === 0 || typeof root.activeSetRefusal !== 'function') return rows;
+  const why = new Map<string, string | null>(sets.map((set) => [String(set.id), root.activeSetRefusal(set)]));
+  for (const row of rows as any[]) {
+    const id = String(row.ID ?? '');
+    if (!why.has(id)) continue;
+    const refused = why.get(id)!;
+    row._canSetActive = refused === null;
+    if (refused !== null) row._setActiveWhy = refused.charAt(0).toUpperCase() + refused.slice(1);
+  }
+  return rows;
+}
+
 export const MODEL_FILE: EngineFile = {
   held: 'a model',
   register(session: Session, srcId: string, bytes: ArrayBuffer, path: string) {
@@ -51,7 +70,7 @@ export const MODEL_FILE: EngineFile = {
   addSection: WORKSPACE_SECTION,
   payload(name, root, variables, budget, opts) {
     const planned = rowPlannerFor(name).payload(root, budget, opts);
-    return { rows: shownOnly(planned.rows, variables), plan: planned.plan };
+    return { rows: setsMarked(shownOnly(planned.rows, variables), root), plan: planned.plan };
   },
   variableRows: (variable, budget, saved, opts) =>
     buildEntryRows(variable, WORKSPACE_SECTION, undefined, opts.clipMark, undefined, budget, saved),

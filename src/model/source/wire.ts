@@ -268,6 +268,12 @@ export interface RequestEditTextMessage {
   rowId: string;
 }
 
+/** Make the configuration set `rowId` the active one of its model (EditableTableSource.setActiveConfigSet). */
+export interface SetActiveConfigSetMessage {
+  type: 'setActiveConfigSet';
+  rowId: string;
+}
+
 /** Every editing message a table's end sends its host. */
 export type TableEditClientMessage =
   | EditMessage
@@ -281,7 +287,8 @@ export type TableEditClientMessage =
   | DragStartMessage
   | DragEndMessage
   | DropMessage
-  | RequestEditTextMessage;
+  | RequestEditTextMessage
+  | SetActiveConfigSetMessage;
 
 // --- Editing, from the host ----------------------------------------------------------------------
 

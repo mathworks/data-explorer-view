@@ -277,6 +277,9 @@ export function messageSource(port, options = {}) {
         requestEditText(rowId) {
             send({ type: 'requestEditText', rowId });
         },
+        setActiveConfigSet(rowId) {
+            send({ type: 'setActiveConfigSet', rowId });
+        },
         dispose() {
             stop();
             const closed = new Error('This source is closed.');

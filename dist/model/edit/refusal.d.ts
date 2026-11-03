@@ -1,5 +1,5 @@
 import type { Session } from 'data-explorer-core';
-export type RefusedGesture = 'addChild' | 'delete' | 'add';
+export type RefusedGesture = 'addChild' | 'delete' | 'add' | 'setActive';
 /** The dialog's title for each refused gesture. */
 export declare const REFUSAL_TITLES: Readonly<Record<RefusedGesture, string>>;
 /** The part of core's session the refusals ask. */

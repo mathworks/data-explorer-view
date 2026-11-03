@@ -277,6 +277,11 @@ export interface EditableTableSource extends TableSource {
     drop(rowId: string, mode: 'copy' | 'move'): void;
     /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
     requestEditText(rowId: string): void;
+    /**
+     * Make the configuration set `rowId` the active one of its model: a model's engine alone has it,
+     * and offers it on the rows it marks (`_canSetActive`).
+     */
+    setActiveConfigSet?(rowId: string): void;
 }
 /**
  * Why an answer never came: the source was closed while it was being asked (a table of a document

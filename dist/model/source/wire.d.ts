@@ -204,8 +204,13 @@ export interface RequestEditTextMessage {
     type: 'requestEditText';
     rowId: string;
 }
+/** Make the configuration set `rowId` the active one of its model (EditableTableSource.setActiveConfigSet). */
+export interface SetActiveConfigSetMessage {
+    type: 'setActiveConfigSet';
+    rowId: string;
+}
 /** Every editing message a table's end sends its host. */
-export type TableEditClientMessage = EditMessage | CopyMessage | CutMessage | DeleteMessage | PasteMessage | AddChildMessage | AddEntryMessage | UndoRedoMessage | DragStartMessage | DragEndMessage | DropMessage | RequestEditTextMessage;
+export type TableEditClientMessage = EditMessage | CopyMessage | CutMessage | DeleteMessage | PasteMessage | AddChildMessage | AddEntryMessage | UndoRedoMessage | DragStartMessage | DragEndMessage | DropMessage | RequestEditTextMessage | SetActiveConfigSetMessage;
 /** How the clipboard holds its entries: a cut moves them when they are pasted, a copy does not. */
 export type ClipboardMode = 'cut' | 'copy';
 /**

@@ -175,6 +175,7 @@ export type {
   RefusedMessage,
   RequestChildrenMessage,
   RequestEditTextMessage,
+  SetActiveConfigSetMessage,
   RequestMatrixMessage,
   SectionRulesMessage,
   SelectMessage,
