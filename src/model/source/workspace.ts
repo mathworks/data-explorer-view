@@ -13,7 +13,7 @@
 // editor of the format lifted: edit/matEngine.ts, edit/binaryEngine.ts, edit/jsonEngine.ts), over
 // an undo stack of the page's own (a JSON dictionary's is its text's), and the document saves
 // through the Doc's save half (`serialize`, `saved`).
-import { createSession, exceedsTextSyncLimit, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
+import { createSession, exceedsTextSyncLimit, extOf, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
@@ -32,6 +32,7 @@ import { JsonEngine, type JsonUsageReposts } from '../edit/jsonEngine.js';
 import type { DiskStamp } from '../edit/slddBaseline.js';
 import { createTextStore, type PageTextStore } from '../edit/textStore.js';
 import { MatEngine, type MatSave } from '../edit/matEngine.js';
+import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
@@ -977,12 +978,71 @@ class EditableJsonDoc implements HeldDoc {
 }
 
 /**
- * The document the page edits `bytes` as, or null where it edits none: a MAT-file, a JSON
- * dictionary the extension's table editor would edit, and a compressed dictionary with a data part
- * (one with none opens read-only, and says why).
+ * A `.slx` model edited in the page: the MAT-file engine over its Model Workspace (MODEL_FILE), an
+ * undo stack of its own, its one table the engine's view of the whole model, and its saves the
+ * model's package with its workspace part written anew. Its Usage column is a model's: its blocks'
+ * parameters and its workspace variables' users, from the workspace's `usage`. A model's Usage names
+ * its own blocks and its own workspace, which no other document changes, so it takes no reposts.
+ */
+class EditableModelDoc extends EditableDoc<MatSave> {
+  readonly kind = 'model' as const;
+  protected readonly engine: MatEngine;
+  /** The usage graph the last fill used, for a narrow repaint's. */
+  private graph: UsageGraph | undefined;
+
+  constructor(shared: Shared, uri: string, name: string, bytes: ArrayBuffer) {
+    super(shared, uri, name);
+    this.engine = new MatEngine({
+      session: shared.registry.session,
+      uri,
+      name,
+      bytes,
+      file: MODEL_FILE,
+      sink: this.stack,
+      index: this.watched,
+      registers: shared.registers,
+      notify: shared.notify,
+      budget: shared.budget,
+      changed: () => this.tellDirty(),
+      usage: {
+        fill: async (rows) => {
+          const usage = this.shared.usage;
+          if (!usage || rows.length === 0) return;
+          this.graph = await usage.graphFor(this.uri);
+          annotateModelViewRows(this.uri, rows, this.graph);
+        },
+        fillNow: (rows) => {
+          if (this.graph && rows.length > 0) annotateModelViewRows(this.uri, rows, this.graph);
+        },
+      },
+    });
+    this.view = this.engine.view();
+  }
+
+  // Its Status marks the workspace variables edited since the last save, as a MAT-file's does.
+  protected fileHolds(): boolean {
+    return true;
+  }
+
+  async reload(bytes: ArrayBuffer | Uint8Array): Promise<void> {
+    if (this.disposed) throw new Error(`${this.name} is closed.`);
+    this.stack.clear();
+    this.index.reverted();
+    this.tellDirty();
+    this.graph = undefined;
+    await this.engine.replace(arrayBufferOf(bytes));
+  }
+}
+
+/**
+ * The document the page edits `bytes` as, or null where it edits none: a MAT-file, a `.slx`
+ * model (its Model Workspace), a JSON dictionary the extension's table editor would edit, and a
+ * compressed dictionary with a data part (one with none opens read-only, and says why). A `.mdl`
+ * and a project open read-only.
  */
 function editableDoc(shared: Shared, uri: string, name: string, kind: DocKind, bytes: ArrayBuffer | Uint8Array): HeldDoc | null {
   if (kind === 'mat') return new EditableMatDoc(shared, uri, name, arrayBufferOf(bytes));
+  if (kind === 'model') return extOf(name) === '.slx' ? new EditableModelDoc(shared, uri, name, arrayBufferOf(bytes)) : null;
   if (kind !== 'dictionary') return null;
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   // A JSON dictionary the extension's table editor opens: one that parses, within the text-sync

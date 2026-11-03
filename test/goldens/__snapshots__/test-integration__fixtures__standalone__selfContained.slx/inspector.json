@@ -118,18 +118,6 @@
       "type": "text"
      },
      {
-      "name": "Value",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Data Type",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
       "name": "Kind",
       "value": "Breakpoint",
       "editable": false,
@@ -144,8 +132,20 @@
     ]
    },
    {
-    "title": "Code Generation",
+    "title": "Other",
     "properties": [
+     {
+      "name": "Value",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Data Type",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
      {
       "name": "Storage Class",
       "value": "Auto",
@@ -169,23 +169,13 @@
       "value": "",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Advanced",
-    "properties": [
+     },
      {
       "name": "Support Tunable Size",
       "value": "false",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Other",
-    "properties": [
+     },
      {
       "name": "Breakpoints.Value",
       "value": "[]",
@@ -263,18 +253,6 @@
       "type": "text"
      },
      {
-      "name": "Value",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Data Type",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
       "name": "Kind",
       "value": "Lookup Table",
       "editable": false,
@@ -289,19 +267,26 @@
     ]
    },
    {
-    "title": "Value Properties",
+    "title": "Other",
     "properties": [
+     {
+      "name": "Value",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Data Type",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
      {
       "name": "Breakpoints Specification",
       "value": "Explicit values",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Code Generation",
-    "properties": [
+     },
      {
       "name": "Storage Class",
       "value": "Auto",
@@ -325,12 +310,7 @@
       "value": "",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Advanced",
-    "properties": [
+     },
      {
       "name": "Allow Multiple Instances Of Type To Have Different Table Breakpoint Sizes",
       "value": "false",
@@ -342,12 +322,7 @@
       "value": "false",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Other",
-    "properties": [
+     },
      {
       "name": "Table.Value",
       "value": "[]",
@@ -561,29 +536,6 @@
       "type": "text"
      }
     ]
-   },
-   {
-    "title": "Other",
-    "properties": [
-     {
-      "name": "SignednessBool",
-      "value": "true",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "FixedExponent",
-      "value": "0",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "SlopeAdjustmentFactor",
-      "value": "1",
-      "editable": false,
-      "type": "text"
-     }
-    ]
    }
   ]
  },
@@ -629,18 +581,6 @@
     "title": "Value Properties",
     "properties": [
      {
-      "name": "Dimensions",
-      "value": "[1 1]",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Complexity",
-      "value": "real",
-      "editable": false,
-      "type": "text"
-     },
-     {
       "name": "Minimum",
       "value": "-1",
       "editable": false,
@@ -649,18 +589,6 @@
      {
       "name": "Maximum",
       "value": "100",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Stored Integer Min",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Stored Integer Max",
-      "value": "",
       "editable": false,
       "type": "text"
      },
@@ -702,8 +630,32 @@
     ]
    },
    {
-    "title": "Custom Attributes",
+    "title": "Other",
     "properties": [
+     {
+      "name": "Dimensions",
+      "value": "[1 1]",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Complexity",
+      "value": "real",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Stored Integer Min",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Stored Integer Max",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
      {
       "name": "Header File",
       "value": "",
@@ -801,18 +753,6 @@
     "title": "Value Properties",
     "properties": [
      {
-      "name": "Dimensions",
-      "value": "[2 3]",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Complexity",
-      "value": "real",
-      "editable": false,
-      "type": "text"
-     },
-     {
       "name": "Minimum",
       "value": "",
       "editable": false,
@@ -820,18 +760,6 @@
      },
      {
       "name": "Maximum",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Stored Integer Min",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Stored Integer Max",
       "value": "",
       "editable": false,
       "type": "text"
@@ -874,8 +802,32 @@
     ]
    },
    {
-    "title": "Custom Attributes",
+    "title": "Other",
     "properties": [
+     {
+      "name": "Dimensions",
+      "value": "[2 3]",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Complexity",
+      "value": "real",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Stored Integer Min",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Stored Integer Max",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
      {
       "name": "Header File",
       "value": "",
@@ -1283,18 +1235,6 @@
       "type": "text"
      },
      {
-      "name": "Stored Integer Min",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
-      "name": "Stored Integer Max",
-      "value": "",
-      "editable": false,
-      "type": "text"
-     },
-     {
       "name": "Unit",
       "value": "V",
       "editable": false,
@@ -1344,8 +1284,20 @@
     ]
    },
    {
-    "title": "Custom Attributes",
+    "title": "Other",
     "properties": [
+     {
+      "name": "Stored Integer Min",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Stored Integer Max",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
      {
       "name": "Data Scope",
       "value": "",
@@ -1393,12 +1345,7 @@
       "value": "",
       "editable": false,
       "type": "text"
-     }
-    ]
-   },
-   {
-    "title": "Other",
-    "properties": [
+     },
      {
       "name": "LoggingInfo.DataLogging",
       "value": "false",

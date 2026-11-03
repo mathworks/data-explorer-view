@@ -106,6 +106,11 @@ export declare class UsageGraphs implements UsageSource {
      */
     annotateModelRows(modelUri: string, rows: TreeTableRow[]): Promise<boolean>;
     /**
+     * The same, without the await, from the graph a fill already built, or false where none is: for
+     * an edited model's narrow repaint, as annotateDataRowsNow is a data view's.
+     */
+    annotateModelRowsNow(modelUri: string, rows: TreeTableRow[]): boolean;
+    /**
      * Drop the graphs if the inputs they read are not the inputs now.
      *
      * The graphs' inputs are the folder plus whatever else the app reads (an editor's open files),

@@ -92,7 +92,7 @@ export { clipMarkKey, splitClipMarkKey } from './rowStamp.js';
  * `budget` of Infinity is the whole tree with nothing deferred, which is what every
  * caller had before this existed.
  */
-export function buildRowsPlanned(sldd, modifiedNames, clipMark, budget = Infinity) {
+export function buildRowsPlanned(sldd, modifiedNames, clipMark, budget = Infinity, savedStatus) {
     const rows = [];
     // One cell pool for this pass. A table's cells are overwhelmingly repetition — measured
     // over a 128,111-row customer dictionary, 1.36M cells hold ~200k distinct values — so
@@ -143,7 +143,7 @@ export function buildRowsPlanned(sldd, modifiedNames, clipMark, budget = Infinit
         const pastLastRoot = firstRoot + (section.children || []).length;
         while (at < plan.planned.length && plan.planned[at].root < pastLastRoot) {
             const p = plan.planned[at++];
-            const row = plannedRow(p, entries[p.root], section.name, modifiedNames, clipMark, pool, shared(p.root));
+            const row = plannedRow(p, entries[p.root], section.name, modifiedNames, clipMark, pool, shared(p.root), savedStatus);
             if (row)
                 rows.push(row);
         }
@@ -204,12 +204,12 @@ export function buildChildRows(node, budget = Infinity) {
 // to be reused by the next repaint would pin the whole first build's cells forever.
 // Mixing pooled and unpooled rows in one table is safe: a cell is read-only data to
 // everything downstream, so sharing is invisible to it.
-export function buildEntryRows(entry, sectionName, modifiedNames, clipMark, pool, budget = Infinity) {
+export function buildEntryRows(entry, sectionName, modifiedNames, clipMark, pool, budget = Infinity, savedStatus) {
     const out = [];
     const plan = planRows([entry], budget);
     const shared = sharedIdTest()(entry);
     for (const p of plan.planned) {
-        const row = plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, shared);
+        const row = plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, shared, savedStatus);
         if (row)
             out.push(row);
     }
@@ -234,7 +234,7 @@ export function buildEntryRows(entry, sectionName, modifiedNames, clipMark, pool
  * Returns null for a node that has no row — `toRow()` threw, or answered null (a
  * container) — which is the caller's cue to emit nothing and keep going.
  */
-function plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, sharedId = false) {
+function plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, sharedId = false, savedStatus) {
     const n = p.node;
     let row;
     try {
@@ -272,7 +272,10 @@ function plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, shared
             if (lastModified || lastModifiedBy) {
                 row = { ...row, lastModified, lastModifiedBy };
             }
-            entryStamp = { section: sectionName, name: entry.name, status: modifiedStatus(entry.name, row.Status, modifiedNames), clipMark };
+            // The Status, by node where the caller marks nodes (savedStatus: a model's workspace variables,
+            // as an editable view marks a MAT-file's), else by name (a dictionary's modifiedNames).
+            const status = savedStatus ? (savedStatus.get(entry) ?? '') : modifiedStatus(entry.name, row.Status, modifiedNames);
+            entryStamp = { section: sectionName, name: entry.name, status, clipMark };
         }
     }
     // Every row of a dictionary, model or project copies: Copy acts on the owning entry — but

@@ -3,6 +3,7 @@ import type { TreeTableRow } from '../rows/tableRow.js';
 import { type EditableTableSource, type TableView } from '../source/tableSource.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import { type Registers } from './registers.js';
+import { type EngineFile } from './engineFile.js';
 /** How a MAT-file engine fills a table's Usage column: before a paint, and at once for a narrow repaint. */
 export interface UsageFill {
     /** Fill `rows`, from a graph it may have to build first. A rejection leaves the cells as the file has them. */
@@ -47,6 +48,11 @@ export interface MatEngineOptions {
      * repaint's trailer follows its rows at once.
      */
     trailerAfterDelivery?: boolean;
+    /**
+     * What kind of file it is (engineFile.ts): a MAT-file (MAT_FILE, the default), or a `.slx` model
+     * whose Model Workspace is edited by a MAT-file's rules (MODEL_FILE).
+     */
+    file?: EngineFile;
 }
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
 export interface MatSave {
@@ -88,8 +94,10 @@ export declare class MatEngine {
     private readonly document;
     /** The file's bytes, until the first paint registers them (`model`). */
     private bytes;
-    /** The registered tree, or why there is none. Null until the first `model()`. */
+    /** The registered tree (the node holding the variables, and its root), or why there is none. Null until the first `model()`. */
     private loaded;
+    /** What kind of file it is. */
+    private readonly file;
     /** A backup was refused, and the user was told; reset once a backup is written (`backupWritten`). */
     private backupRefusalShown;
     constructor(options: MatEngineOptions);
@@ -105,9 +113,12 @@ export declare class MatEngine {
      * The tree, registered from the file's bytes on the first ask: lazily, so a large file opens
      * onto the table's spinner, and not onto a blank editor while it parses. Throws why there is
      * none: a `-v7.3` file (HDF5), a file that is not a MAT-file, one the reader could not read at
-     * all (refused, rather than shown as an empty file a save would then write).
+     * all (refused, rather than shown as an empty file a save would then write). Answers the node
+     * whose children are the variables: the file itself, or a model's Model Workspace.
      */
     private model;
+    /** The root the tree was registered as (`model`'s), the file itself or the model. Throws as `model` does. */
+    private root;
     /**
      * Core's message, saying the file's name where core says the srcId. A MatNode is named by the
      * srcId it was registered under, and core quotes that name (`Cannot save "binedit:file:///…"`),

@@ -13,8 +13,9 @@ export interface PlanOptions {
     clipMark?: ClipMark;
     /**
      * A MAT-file's variables that differ from the last save, for its Status column: the
-     * editable view's answer (saveMarks.ts), by node. The sectioned builder's `modifiedNames`
-     * is the same question for a dictionary.
+     * editable view's answer (saveMarks.ts), by node, and so a model's Model Workspace's, which
+     * the sectioned builder marks by node too where it is given. The sectioned builder's
+     * `modifiedNames` is the same question for a dictionary, by name.
      */
     savedStatus?: SavedStatus;
     /**

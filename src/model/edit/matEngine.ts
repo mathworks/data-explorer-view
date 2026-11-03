@@ -38,9 +38,7 @@
 // document's (a repaint after an edit, its undo or its redo) reaches every view, and what is a
 // gesture's (its refusal, its selection) only the view it was made in.
 import { cloneForPaste, toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
-import { wholeFileRules } from '../actions/sectionRules.js';
 import { matCatalog } from '../ids/addCatalog.js';
-import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import { uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
@@ -48,7 +46,6 @@ import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
-import { buildMatVariableRows } from '../rows/matRowBuilder.js';
 import { refuseIfUnreadable, sourceWarnings, warningBanner, type WarningBanner } from '../rows/parseWarnings.js';
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor, type PlanOptions, type RowPlanner } from '../rows/rowPlanner.js';
@@ -71,6 +68,7 @@ import { answerEditTextRequest } from './editText.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget, type Registers } from './registers.js';
+import { MAT_FILE, type EngineFile } from './engineFile.js';
 import { replacementsIn, SaveMarks, type SaveMark, type SaveSnapshot } from './saveMarks.js';
 import {
   runTransfer,
@@ -126,6 +124,11 @@ export interface MatEngineOptions {
    * repaint's trailer follows its rows at once.
    */
   trailerAfterDelivery?: boolean;
+  /**
+   * What kind of file it is (engineFile.ts): a MAT-file (MAT_FILE, the default), or a `.slx` model
+   * whose Model Workspace is edited by a MAT-file's rules (MODEL_FILE).
+   */
+  file?: EngineFile;
 }
 
 /** One save of the document, from the bytes it is about to write to their landing (`saved`) or not (`notSaved`). */
@@ -151,12 +154,16 @@ interface MatDocument {
   readonly srcId: string;
   readonly metaPath: string;
   readonly options: MatEngineOptions;
+  /** What kind of file it is: how its rows are laid out, where an edit goes. */
+  readonly file: EngineFile;
   readonly session: Session;
   readonly marks: SaveMarks<any>;
   readonly views: Set<MatView>;
   readonly disposed: boolean;
   readonly version: number;
   model(): any;
+  /** The root the document's tree was registered as: the file itself, or the model the variables are under. */
+  root(): any;
   describe(err: unknown): string;
   describeBanner(banner: WarningBanner | undefined): WarningBanner | undefined;
   serialize(): Uint8Array;
@@ -300,8 +307,10 @@ export class MatEngine {
 
   /** The file's bytes, until the first paint registers them (`model`). */
   private bytes: ArrayBuffer | null;
-  /** The registered tree, or why there is none. Null until the first `model()`. */
-  private loaded: { node: any } | { error: Error } | null = null;
+  /** The registered tree (the node holding the variables, and its root), or why there is none. Null until the first `model()`. */
+  private loaded: { node: any; root: any } | { error: Error } | null = null;
+  /** What kind of file it is. */
+  private readonly file: EngineFile;
   /** A backup was refused, and the user was told; reset once a backup is written (`backupWritten`). */
   private backupRefusalShown = false;
 
@@ -312,12 +321,14 @@ export class MatEngine {
     // The last segment of the uri's path, decoded, as `basename(uri.path)` names a VS Code uri.
     this.metaPath = options.name ?? (uriPathBasename(options.uri) || 'document');
     this.bytes = options.bytes;
+    this.file = options.file ?? MAT_FILE;
     const engine = this;
     this.document = {
       uri: this.uri,
       srcId: this.srcId,
       metaPath: this.metaPath,
       options,
+      file: this.file,
       session: options.session,
       marks: this.marks,
       views: this.views,
@@ -328,6 +339,7 @@ export class MatEngine {
         return engine.version;
       },
       model: () => this.model(),
+      root: () => this.root(),
       describe: (err) => this.describe(err),
       describeBanner: (banner) => this.describeBanner(banner),
       serialize: () => this.serialize(),
@@ -365,7 +377,8 @@ export class MatEngine {
    * The tree, registered from the file's bytes on the first ask: lazily, so a large file opens
    * onto the table's spinner, and not onto a blank editor while it parses. Throws why there is
    * none: a `-v7.3` file (HDF5), a file that is not a MAT-file, one the reader could not read at
-   * all (refused, rather than shown as an empty file a save would then write).
+   * all (refused, rather than shown as an empty file a save would then write). Answers the node
+   * whose children are the variables: the file itself, or a model's Model Workspace.
    */
   private model(): any {
     if (this.loaded) {
@@ -376,19 +389,25 @@ export class MatEngine {
     this.bytes = null;
     try {
       this.session.removeDataSource(this.srcId);
-      const node = this.session.addMatSource(this.srcId, bytes, { path: this.metaPath }) as any;
+      const { root, variables } = this.file.register(this.session, this.srcId, bytes, this.metaPath);
       try {
-        refuseIfUnreadable(sourceWarnings(node));
+        refuseIfUnreadable(sourceWarnings(root));
       } catch (err) {
         this.session.removeDataSource(this.srcId);
         throw err;
       }
-      this.loaded = { node };
-      return node;
+      this.loaded = { node: variables, root };
+      return variables;
     } catch (err) {
       this.loaded = { error: err instanceof Error ? err : new Error(String(err)) };
       throw this.loaded.error;
     }
+  }
+
+  /** The root the tree was registered as (`model`'s), the file itself or the model. Throws as `model` does. */
+  private root(): any {
+    this.model();
+    return (this.loaded as { root: any }).root;
   }
 
   /**
@@ -420,7 +439,7 @@ export class MatEngine {
       throw new Error(this.describe(err));
     }
     if (!out || out.kind !== 'binary' || !(out.bytes instanceof Uint8Array)) {
-      throw new Error(`Cannot save "${this.metaPath}": it is not held as a MAT-file. Nothing was written.`);
+      throw new Error(`Cannot save "${this.metaPath}": it is not held as ${this.file.held}. Nothing was written.`);
     }
     return out.bytes;
   }
@@ -580,7 +599,7 @@ export class MatEngine {
     } catch (err) {
       return { removed: false, reason: this.describe(err) };
     }
-    if (mat.readOnly) return { removed: false, reason: `${this.metaPath} is read-only` };
+    if (this.file.readOnly(mat)) return { removed: false, reason: `${this.metaPath} is read-only` };
     // The file's variables by name, once: a select-all cut of a large file names every one.
     const byName = new Map<string, any[]>();
     for (const v of mat.children as any[]) {
@@ -835,20 +854,15 @@ class MatView implements EditableTableSource {
   // save says them; a file whose layout a save could not keep says nothing until it is edited,
   // which it cannot be, so that one gets this view's.
   private readOnlyNotice(mat: any): string | undefined {
-    if (!mat.readOnly) return undefined;
-    try {
-      this.doc.serialize();
-    } catch (err) {
-      return `Read-only: ${(err as Error).message}`;
-    }
-    return `Read-only: ${this.name} is laid out in a way a save could not keep as it is, so it opens for viewing only.`;
+    const why = this.doc.file.readOnlyWhy(this.name, mat, () => this.doc.serialize());
+    return why === undefined ? undefined : this.doc.describe(why);
   }
 
   // The rows of the whole file, with the Status column measured from the last save, and the
   // clipboard mark they carry (what the clip-mark repaint compares the clipboard with next).
   private build(mat: any) {
     const opts = { ...this.stamps(), savedStatus: this.doc.marks.marks() };
-    const planned = this.planner.payload(mat, this.doc.options.budget ?? LAZY_ROW_BUDGET, opts);
+    const planned = this.doc.file.payload(this.name, this.doc.root(), mat, this.doc.options.budget ?? LAZY_ROW_BUDGET, opts);
     return { planned, clipMark: opts.clipMark, version: this.doc.version };
   }
 
@@ -879,7 +893,7 @@ class MatView implements EditableTableSource {
         this.doc.options.usage?.fillNow(built.planned.rows);
       }
       const notice = this.readOnlyNotice(mat);
-      const warnings = this.doc.describeBanner(lazyRowsBanner(built.planned.plan, warningBanner(sourceWarnings(mat))));
+      const warnings = this.doc.describeBanner(lazyRowsBanner(built.planned.plan, warningBanner(sourceWarnings(this.doc.root()))));
       const view: TableView = {
         docUri: this.doc.uri,
         rows: built.planned.rows,
@@ -909,7 +923,7 @@ class MatView implements EditableTableSource {
   private sendTrailer(after: Trailer): void {
     if (this.closed) return;
     try {
-      this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : wholeFileRules(after.mat, this.name) });
+      this.emit({ kind: 'sectionRules', docUri: this.doc.uri, rules: after.notice ? [] : this.doc.file.rules(this.doc.root(), after.mat, this.name) });
       this.emit({ kind: 'clipboard', state: this.doc.options.registers.clipboardState() });
       // The mark these rows CARRY. A copy or a cut that landed while they were being built
       // repainted the rows it marked at once, ahead of these, which have just landed over that
@@ -954,7 +968,7 @@ class MatView implements EditableTableSource {
       const saved = this.doc.marks.marks();
       const opts = this.stamps();
       for (const v of variables) {
-        const rows = buildMatVariableRows(v, LAZY_ROW_BUDGET, saved, opts);
+        const rows = this.doc.file.variableRows(v, LAZY_ROW_BUDGET, saved, opts);
         this.doc.options.usage?.fillNow(rows);
         this.emit({ kind: 'updateEntry', entryRowId: before?.get(v) ?? v.id, rows });
       }
@@ -1010,7 +1024,7 @@ class MatView implements EditableTableSource {
       return;
     }
     this.paintedMark = next;
-    const names = new Set(affected.filter((e) => e.section === WHOLE_FILE_SECTION).map((e) => e.name));
+    const names = new Set(affected.filter((e) => e.section === this.doc.file.section).map((e) => e.name));
     const variables = (mat.children as any[]).filter((v) => names.has(v.name));
     if (variables.length > 0) this.repaintVariables(variables);
   }
@@ -1030,7 +1044,7 @@ class MatView implements EditableTableSource {
   private editableTree(): any {
     const mat = this.treeOrSay();
     if (!mat) return null;
-    if (mat.readOnly) {
+    if (this.doc.file.readOnly(mat)) {
       this.error(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
       return null;
     }
@@ -1227,7 +1241,7 @@ class MatView implements EditableTableSource {
   addEntry(msg: NewEntry): void {
     this.handle('addEntry', () => {
       const className = msg.className || 'MatlabVariable';
-      const refused = addEntryRefusal(this.session, this.doc.srcId, className);
+      const refused = addEntryRefusal(this.session, this.doc.file.target(this.doc.srcId, this.doc.model()), className);
       if (refused) {
         this.refused('add', refused);
         return;
@@ -1236,7 +1250,7 @@ class MatView implements EditableTableSource {
       let refusal: string | null = null;
       const observed = this.gesture('Add', (mat) => {
         this.session.setActiveContext(mat);
-        added = this.session.addEntry('', className);
+        added = this.session.addEntry(this.doc.file.addSection, className);
         if (!added) refusal = this.session.addEntryRefusal();
       });
       if (!observed) return;
@@ -1344,11 +1358,11 @@ class MatView implements EditableTableSource {
       // Any row, and no row at all (''), is the file.
       resolveTarget: () => {
         if (!this.treeOrSay()) throw new Told();
-        return { sectionName: WHOLE_FILE_SECTION };
+        return { sectionName: this.doc.file.section };
       },
       validate: () => {
         const mat = this.doc.model();
-        if (mat.readOnly) throw new TransferRefused(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
+        if (this.doc.file.readOnly(mat)) throw new TransferRefused(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
       },
       commit: ({ payloads, removeFirst, label }) => {
         // The policy guarantees none (takesRemoveFirst: false); a paste that went on regardless
@@ -1360,7 +1374,7 @@ class MatView implements EditableTableSource {
           () => {
             // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
             // spelling for stays itself): the register keeps its records for the next paste.
-            result = this.session.pasteEntries(this.doc.srcId, payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
+            result = this.session.pasteEntries(this.doc.file.target(this.doc.srcId, this.doc.model()), payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
           },
           () => (result && 'nodes' in result ? result.nodes : []),
         );

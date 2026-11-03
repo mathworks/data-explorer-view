@@ -25,7 +25,7 @@
 // there is no `hasTextView` (the JSON dictionary's "Location in Text"), no `add` (the MAT-file's
 // Add gallery), and none of the messages that only arm editing (`sectionRules`, the drop rules,
 // and `clipboardState`). Everything else, every row and banner and every id, compares as it is.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { DataModel } from 'data-explorer-core';
@@ -66,12 +66,37 @@ function readOnlyPaint(messages: any[]): any {
   return { ...view, editable: false };
 }
 
+/**
+ * REFRESH_GOLDENS=1 writes what each fixture answers now over its goldens, where it differs, in
+ * place of failing: for a change of core's that moves what a table is answered (a release view
+ * adopts), so that the diff of the goldens shows what moved, and nothing else. A first paint keeps
+ * its editing fields as they were (the read-only answer has none of them); every other golden is
+ * the answer's text. Never set on CI.
+ */
+const REFRESH = process.env.REFRESH_GOLDENS === '1';
+
 /** `open()` against a golden paint; rows kept as a digest compare by it. */
-function expectPaint(view: TableView, messages: any[]): void {
+function expectPaint(view: TableView, messages: any[], rel: string, kind: string): void {
   const want = readOnlyPaint(messages);
   const got = asJson(view);
   if (want.rows?.digested) got.rows = asJson(digestRows(view.rows));
+  if (REFRESH && JSON.stringify(got) !== JSON.stringify(want)) {
+    const [setRows, ...rest] = messages;
+    const { editable: _editable, ...answered } = got;
+    writeFileSync(snapshotFile(rel, kind), JSON.stringify([{ ...setRows, ...answered }, ...rest], null, 1) + '\n');
+    return;
+  }
   expect(got).toEqual(want);
+}
+
+/** A golden's text against what the fixture answers now (or written over it: REFRESH). */
+function expectText(text: string, rel: string, kind: string): void {
+  const file = snapshotFile(rel, kind);
+  if (REFRESH && text !== readFileSync(file, 'utf8')) {
+    writeFileSync(file, text);
+    return;
+  }
+  expect(text).toBe(readFileSync(file, 'utf8'));
 }
 
 /** Answers by row id, in row order, refusing two rows under one id (tables.test.ts's `keyed`). */
@@ -121,7 +146,7 @@ describe('in-page sources answer what the extension sends', { timeout: 60_000 },
     it(rel, async () => {
       await withSource(rel, undefined, async (table) => {
         const view = await table.open();
-        expectPaint(view, golden(rel, 'table'));
+        expectPaint(view, golden(rel, 'table'), rel, 'table');
 
         // Every row the user can click, as the table reports a click: one row id.
         const inspector = await keyed(view.rows, async (row) => {
@@ -129,7 +154,7 @@ describe('in-page sources answer what the extension sends', { timeout: 60_000 },
           const page = await table.inspect(row.ID);
           return page.rowId === undefined ? undefined : { type: 'showProps', groups: page.groups };
         });
-        expect(snapshotText(inspector)).toBe(readFileSync(snapshotFile(rel, 'inspector'), 'utf8'));
+        expectText(snapshotText(inspector), rel, 'inspector');
 
         // The id the variable editor asks with is the descriptor's, not the row's.
         const matrix = await keyed(view.rows, async (row) => {
@@ -139,12 +164,12 @@ describe('in-page sources answer what the extension sends', { timeout: 60_000 },
             ? { type: 'matrixCells', nodeId: page.nodeId, matrix: page.matrix }
             : { type: 'matrixCells', nodeId: page.nodeId, message: page.message };
         });
-        expect(snapshotText(matrix)).toBe(readFileSync(snapshotFile(rel, 'matrix'), 'utf8'));
+        expectText(snapshotText(matrix), rel, 'matrix');
       });
 
       await withSource(rel, SMALL_BUDGET, async (table) => {
         const view = await table.open();
-        expectPaint(view, golden(rel, 'table-lazy'));
+        expectPaint(view, golden(rel, 'table-lazy'), rel, 'table-lazy');
 
         // One at a time and in row order, as a user opening each twisty in turn would ask.
         const children = await keyed(
@@ -154,7 +179,7 @@ describe('in-page sources answer what the extension sends', { timeout: 60_000 },
             return { type: 'childRows', nodeId, rows, truncated };
           },
         );
-        expect(snapshotText(children)).toBe(readFileSync(snapshotFile(rel, 'children-lazy'), 'utf8'));
+        expectText(snapshotText(children), rel, 'children-lazy');
       });
     });
   }

@@ -153,23 +153,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "m/s",
+    "Unit": {
+     "text": "m/s",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "hello",
     "dimensions": "[1 1]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -204,23 +196,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "",
+    "Unit": {
+     "text": "",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "matrix",
     "dimensions": "[2 3]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -263,9 +247,17 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "V",
+    "Unit": {
+     "text": "V",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "sigdesc",
-    "dimensions": "-1",
+    "dimensions": {
+     "text": "-1",
+     "editable": true,
+     "editor": "text"
+    },
     "dimensionsMode": {
      "text": "auto",
      "editable": true,
@@ -286,19 +278,7 @@
       "complex"
      ]
     },
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "alignment": "-1",
     "headerFile": "",
     "Value": "",
@@ -336,7 +316,7 @@
      "label": "Configuration",
      "iconId": "check_settings",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -345,7 +325,7 @@
     "_valueEditable": false,
     "Class": "Simulink.ConfigSet",
     "Kind": "Configuration Set",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,

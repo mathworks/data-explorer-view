@@ -198,7 +198,7 @@
     "Class": "Data Dictionary",
     "Kind": "Data Dictionary",
     "Description": "",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,

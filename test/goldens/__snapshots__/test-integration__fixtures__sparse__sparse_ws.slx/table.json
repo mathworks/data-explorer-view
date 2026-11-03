@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx",
   "rows": {
    "digested": true,
-   "sha256": "d9111171c62e86926e07aeb87b111f8b83963e16db0f143772ece0d0dc92cc41",
+   "sha256": "4acbfa81ef70439958c1e10944a6c969bf5fb07c13033c75bde13431648daef1",
    "rowCount": 245,
    "firstRows": [
     {
