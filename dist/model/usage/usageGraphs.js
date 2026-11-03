@@ -151,6 +151,18 @@ export class UsageGraphs {
         return annotateModelViewRows(modelUri, rows, await this.ensure(modelUri));
     }
     /**
+     * The same, without the await, from the graph a fill already built, or false where none is: for
+     * an edited model's narrow repaint, as annotateDataRowsNow is a data view's.
+     */
+    annotateModelRowsNow(modelUri, rows) {
+        this.dropIfInputsChanged();
+        const graph = this.ready.get(modelUri);
+        if (!graph)
+            return false;
+        annotateModelViewRows(modelUri, rows, graph);
+        return true;
+    }
+    /**
      * Drop the graphs if the inputs they read are not the inputs now.
      *
      * The graphs' inputs are the folder plus whatever else the app reads (an editor's open files),

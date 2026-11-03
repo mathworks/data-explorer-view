@@ -119,6 +119,22 @@ describe('the usage graphs', () => {
     expect(names(filled[0].UsedBy.blockLinks)).toEqual(['GainA', 'LimitA', 'GainB']);
   });
 
+  it("fills a model view now only from the graph built for that model, its block rows' parameter links", async () => {
+    const graphs = new UsageGraphs({ inputs: inputs() });
+    const blockRow = () => [{ Name: { label: 'GainA' }, UsedBy: 'stale', _isBlockRow: true, _blockKey: 'GainA' }] as any[];
+    expect(graphs.annotateModelRowsNow(CTRL, blockRow())).toBe(false);
+    await graphs.ensure(DICT);
+    // Another file's graph is not this one's.
+    expect(graphs.annotateModelRowsNow(CTRL, blockRow())).toBe(false);
+    await graphs.ensure(CTRL);
+    const now = blockRow();
+    expect(graphs.annotateModelRowsNow(CTRL, now)).toBe(true);
+    const awaited = blockRow();
+    await graphs.annotateModelRows(CTRL, awaited);
+    expect(now).toEqual(awaited);
+    expect(now[0].UsedBy).not.toBe('stale');
+  });
+
   it('does not publish a graph built before an invalidate', async () => {
     let release!: () => void;
     const gate = new Promise<void>((done) => (release = done));
