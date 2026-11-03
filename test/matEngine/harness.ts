@@ -19,6 +19,7 @@ import {
   dragEntries,
   type CopyDeps,
   type Edit,
+  type EngineFile,
   type UsageFill,
 } from '../../src/host/index.js';
 import { serveTable } from '../../src/serve/index.js';
@@ -185,6 +186,8 @@ export async function open(
     usage?: UsageFill;
     uri?: string;
     changed?: () => void;
+    /** What kind of file it is (engineFile.ts). Default: a MAT-file. */
+    file?: EngineFile;
   } = {},
 ): Promise<Opened> {
   const session = opts.session ?? createSession();
@@ -213,6 +216,7 @@ export async function open(
     appName: 'VS Code',
     ...(opts.usage ? { usage: opts.usage } : {}),
     ...(opts.changed ? { changed: opts.changed } : {}),
+    ...(opts.file ? { file: opts.file } : {}),
   });
   const view = viewOf(engine);
   view.send({ type: 'ready' });
