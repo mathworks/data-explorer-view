@@ -143,6 +143,16 @@ describe('connectTable({editing}) beside its source', () => {
     expect(calls).toEqual([['copy', [A]]]);
   });
 
+  it("hands Set as Active Configuration to the source's command, with the row it was chosen on", async () => {
+    const { source, calls } = pageSource();
+    const withSet = { ...source, setActiveConfigSet: (rowId: string) => void calls.push(['setActiveConfigSet', rowId]) };
+    const { table, contextMenu } = await mount(withSet, { editing: true });
+    table.selectedRowIds = [A];
+    rightClick(table, A);
+    choose(contextMenu, 'setActiveConfigSet');
+    expect(calls).toEqual([['setActiveConfigSet', A]]);
+  });
+
   it('toggles the Add gallery from the handle, as its button does', async () => {
     const { source } = pageSource();
     const { table, handle } = await mount(source, { editing: true });

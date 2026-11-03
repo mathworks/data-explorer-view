@@ -148,3 +148,62 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.strictEqual(workspaceOf(saved).tau.value, 0.75);
   });
 });
+
+describe("a model's active configuration set, made another", () => {
+  const CONFIG = 'section:config';
+  const setRow = (posts: any[], name: string): any => {
+    const row = tableOf(posts).find((r) => r.parent === CONFIG && nameOf(r) === name);
+    if (!row) throw new Error(`the Configurations section has no row for "${name}"`);
+    return row;
+  };
+  const activeIn = (bytes: Uint8Array) => parseSlx(buffer(bytes), 'saved.slx').configSets.filter((c: any) => c.active).map((c: any) => c.name);
+  const flags = (posts: any[], names: string[]) => names.map((n) => [n, setRow(posts, n)._canSetActive, setRow(posts, n)._setActiveWhy, setRow(posts, n).Name.iconId]);
+
+  it("says of each set whether it is made active, and why not, and of no other row", async () => {
+    const o = await openModel('acs_sets.slx');
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast', 'Slow']), [
+      ['Configuration', false, 'It is the active one already', 'check_settings'],
+      ['Fast', true, undefined, 'settings'],
+      ['Slow', true, undefined, 'settings'],
+    ]);
+    assert.ok(tableOf(o.view.posts).filter((r) => r.parent !== CONFIG).every((r) => !('_canSetActive' in r)));
+  });
+
+  it.each(['acs_sets.slx', 'acs_sets_R2013b.slx'])('%s: makes a set active as one edit, painted again, saved, and undone', async (file) => {
+    const o = await openModel(file);
+    o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
+    assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
+      ['Configuration', true, undefined, 'settings'],
+      ['Fast', false, 'It is the active one already', 'check_settings'],
+    ]);
+    assert.strictEqual(o.index.dirty, true);
+    const saved = o.save();
+    assert.deepStrictEqual(activeIn(saved), ['Fast']);
+    assert.strictEqual(o.index.dirty, false);
+    o.undo();
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
+      ['Configuration', false, 'It is the active one already', 'check_settings'],
+      ['Fast', true, undefined, 'settings'],
+    ]);
+    assert.strictEqual(o.index.dirty, true, 'the file holds Fast active');
+    assert.deepStrictEqual(activeIn(o.save()), ['Configuration']);
+    o.redo();
+    assert.strictEqual(setRow(o.view.posts, 'Fast').Name.iconId, 'check_settings');
+  });
+
+  it("refuses a reference, in core's words, in the gesture's dialog", async () => {
+    const o = await openModel('acs_ref.slx');
+    const ref = setRow(o.view.posts, 'RefFromDict');
+    assert.strictEqual(ref._canSetActive, false);
+    assert.match(ref._setActiveWhy, /^It refers to "dictCfg", and MATLAB makes a reference active only once it finds the set it refers to/);
+    o.view.send({ type: 'setActiveConfigSet', rowId: ref.ID });
+    const refused = o.view.posts.find((p) => p.type === 'refused');
+    assert.deepStrictEqual([refused?.title, refused?.reason], [
+      'Cannot Set Active Configuration',
+      'Cannot make "RefFromDict" the active configuration set: it refers to "dictCfg", and MATLAB makes a reference active only once ' +
+        'it finds the set it refers to, which this editor cannot look for. Nothing was changed.',
+    ]);
+    assert.strictEqual(o.events.length, 0, 'nothing reached the stack');
+  });
+});

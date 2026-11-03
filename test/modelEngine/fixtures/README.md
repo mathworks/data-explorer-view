@@ -14,3 +14,6 @@ named:
 | `slxcfgref.slx` | `test/parity/artifacts/slx_layouts/slxcfgref.slx` | `gen_slx.m`: a model with no workspace variables |
 | `wsf_matfile.slx` | `test/fixtures/workspace-facts/wsf_matfile.slx` | `test/parity/matlab/gen_workspace_facts.m`: a workspace loaded from a MAT-file |
 | `wsf_plainarg.slx` | `test/fixtures/workspace-facts/wsf_plainarg.slx` | `gen_workspace_facts.m`: `k` and `gain` the model's arguments |
+| `acs_sets.slx` | `test/fixtures/active-config/acs_sets.slx` | `test/parity/matlab/gen_active_config.m` (R2027a): three configuration sets, Configuration active |
+| `acs_sets_R2013b.slx` | `test/fixtures/active-config/acs_sets_R2013b.slx` | the same, exported to R2013b: the sets inline in the block diagram |
+| `acs_ref.slx` | `test/fixtures/active-config/acs_ref.slx` | `gen_active_config.m`: a set and a `Simulink.ConfigSetRef` into a dictionary |

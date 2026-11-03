@@ -33,7 +33,12 @@ const variable = (name: string): any => (mat.children as any[]).find((v) => v.na
 
 describe('refusals', () => {
   it("are titled by the gesture, in the extension's words", () => {
-    expect(REFUSAL_TITLES).toEqual({ addChild: 'Cannot Add Child', delete: 'Cannot Delete', add: 'Cannot Add' });
+    expect(REFUSAL_TITLES).toEqual({
+      addChild: 'Cannot Add Child',
+      delete: 'Cannot Delete',
+      add: 'Cannot Add',
+      setActive: 'Cannot Set Active Configuration',
+    });
     expect(refusedChange('delete', 'no', (t) => t)).toEqual({ kind: 'refused', title: 'Cannot Delete', reason: 'no' });
   });
 

@@ -579,3 +579,39 @@ describe('Paste of a cut back where it came from', () => {
     expect(pasteOn(fromMat, { docUri: 'file:///other.mat', pasteTarget: FILE }).disabled).toBeFalsy();
   });
 });
+
+describe("Set as Active Configuration, on a model's configuration set", () => {
+  // The rows of a model's Configurations section, as the model engine stamps them: `_canSetActive`
+  // on each set, and core's reason where a set is not made active.
+  const CONFIG: MenuRow[] = [
+    { ID: 'section:config', Name: { label: 'Configurations' } },
+    { ID: 'm/config/Configuration', parent: 'section:config', Name: { label: 'Configuration' }, _canCopy: true, _canSetActive: false, _setActiveWhy: 'It is the active one already' },
+    { ID: 'm/config/Fast', parent: 'section:config', Name: { label: 'Fast' }, _canCopy: true, _canSetActive: true },
+    { ID: 'm/config/Slow', parent: 'section:config', Name: { label: 'Slow' }, _canCopy: true, _canSetActive: true },
+  ];
+  const on = (ids: string[], over: Partial<MenuInput> = {}) =>
+    menu({ rows: CONFIG, selectedRowIds: ids, anchorRowId: ids[0], hasTextView: false, pasteTarget: null, ...over });
+
+  it('leads the menu of a set that can be made active', () => {
+    const items = on(['m/config/Fast']);
+    expect(items[0]).toEqual({ id: 'setActiveConfigSet', label: 'Set as Active Configuration', disabled: false });
+    expect(items[1].separator).toBe(true);
+  });
+
+  it("is greyed on a set that is not made active, saying core's reason", () => {
+    expect(byId(on(['m/config/Configuration']), 'setActiveConfigSet')).toMatchObject({ disabled: true, reason: 'It is the active one already' });
+  });
+
+  it('is greyed for two sets, and in a view that takes no edit', () => {
+    expect(byId(on(['m/config/Fast', 'm/config/Slow']), 'setActiveConfigSet')).toMatchObject({
+      disabled: true,
+      reason: 'Select a single configuration to make it active',
+    });
+    expect(byId(on(['m/config/Fast'], { editable: false }), 'setActiveConfigSet')).toMatchObject({ disabled: true });
+  });
+
+  it('is on no other row', () => {
+    expect(byId(menu(), 'setActiveConfigSet')).toBeUndefined();
+    expect(byId(on(['m/config/Fast', 'u/design/A'], { rows: [...CONFIG, ...ROWS] }), 'setActiveConfigSet')).toBeUndefined();
+  });
+});

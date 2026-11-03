@@ -62,6 +62,7 @@ function recordingSource() {
     dragEnd: record('dragEnd'),
     drop: record('drop'),
     requestEditText: record('requestEditText'),
+    setActiveConfigSet: record('setActiveConfigSet'),
   };
   const emit = (change: TableChange) => {
     for (const listener of [...listeners]) listener(change);
@@ -87,6 +88,9 @@ function command(s: EditableTableSource, m: Record<string, any>): [string, ...un
     case 'addChild':
     case 'requestEditText':
       s[m.type as 'paste'](m.rowId);
+      return [m.type, m.rowId];
+    case 'setActiveConfigSet':
+      s.setActiveConfigSet!(m.rowId);
       return [m.type, m.rowId];
     case 'addEntry': {
       const entry = { section: m.section, className: m.className, rename: m.rename };
@@ -143,7 +147,7 @@ describe('the editing messages, across a channel', () => {
   it('has a fixture for every editing message of the wire', () => {
     const types = (side: 'client' | 'host') => [...new Set(fixtures(side).map(([, json]) => JSON.parse(json).type))].sort();
     expect(types('client')).toEqual(
-      ['addChild', 'addEntry', 'copy', 'cut', 'delete', 'dragEnd', 'dragStart', 'drop', 'edit', 'redo', 'requestEditText', 'paste', 'undo'].sort(),
+      ['addChild', 'addEntry', 'copy', 'cut', 'delete', 'dragEnd', 'dragStart', 'drop', 'edit', 'redo', 'requestEditText', 'paste', 'setActiveConfigSet', 'undo'].sort(),
     );
     expect(types('host')).toEqual(
       ['beginRename', 'clipboardState', 'dragState', 'editText', 'refused', 'sectionRules', 'selectRows', 'validationError'].sort(),
