@@ -356,23 +356,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "",
+    "Unit": {
+     "text": "",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "",
     "dimensions": "[3 3]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -417,23 +409,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "",
+    "Unit": {
+     "text": "",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "",
     "dimensions": "[3 3]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -469,23 +453,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "",
+    "Unit": {
+     "text": "",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "",
     "dimensions": "[2 2]",
     "complexity": "complex",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -521,23 +497,15 @@
      "editable": true,
      "editor": "text"
     },
-    "Unit": "",
+    "Unit": {
+     "text": "",
+     "editable": true,
+     "editor": "text"
+    },
     "Description": "",
     "dimensions": "[2 2]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
@@ -860,7 +828,7 @@
      "label": "Configuration",
      "iconId": "check_settings",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -869,7 +837,7 @@
     "_valueEditable": false,
     "Class": "Simulink.ConfigSet",
     "Kind": "Configuration Set",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,

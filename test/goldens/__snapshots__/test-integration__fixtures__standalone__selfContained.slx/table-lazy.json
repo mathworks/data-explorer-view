@@ -99,7 +99,7 @@
      "label": "Alias",
      "iconId": "wsAlias",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "int16",
@@ -108,7 +108,7 @@
     "_valueEditable": false,
     "Class": "Simulink.AliasType",
     "Kind": "Alias Type",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,
@@ -122,7 +122,7 @@
      "label": "Bp",
      "iconId": "wsSimulinkBreakpoint",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -153,7 +153,7 @@
      "label": "Lut",
      "iconId": "wsLookup",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -176,7 +176,7 @@
      "label": "Numeric",
      "iconId": "wsNumeric",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -185,7 +185,7 @@
     "_valueEditable": false,
     "Class": "Simulink.NumericType",
     "Kind": "Numeric Type",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "UsedBy": {
      "links": [
@@ -207,44 +207,24 @@
      "label": "Param",
      "iconId": "wsParameters",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "Value": "42",
-    "_valueEditable": true,
+    "_valueEditable": false,
     "DataType": "int32",
-    "Min": {
-     "text": "-1",
-     "editable": true,
-     "editor": "text"
-    },
-    "Max": {
-     "text": "100",
-     "editable": true,
-     "editor": "text"
-    },
+    "Min": "-1",
+    "Max": "100",
     "Unit": "m/s",
     "Description": "hello",
     "dimensions": "[1 1]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
     "Kind": "Simulink Parameter",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,
@@ -258,44 +238,24 @@
      "label": "ParamMat",
      "iconId": "wsParameters",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "Value": "[1 2 3; 4 5 6]",
-    "_valueEditable": true,
+    "_valueEditable": false,
     "DataType": "auto",
-    "Min": {
-     "text": "",
-     "editable": true,
-     "editor": "text"
-    },
-    "Max": {
-     "text": "",
-     "editable": true,
-     "editor": "text"
-    },
+    "Min": "",
+    "Max": "",
     "Unit": "",
     "Description": "matrix",
     "dimensions": "[2 3]",
     "complexity": "real",
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "storageClass": "Auto",
     "headerFile": "",
     "alignment": "-1",
     "Class": "Simulink.Parameter",
     "Kind": "Simulink Parameter",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,
@@ -319,63 +279,25 @@
      "label": "Sig",
      "iconId": "wsSignal",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "single",
-    "Min": {
-     "text": "-5",
-     "editable": true,
-     "editor": "text"
-    },
-    "Max": {
-     "text": "5",
-     "editable": true,
-     "editor": "text"
-    },
+    "Min": "-5",
+    "Max": "5",
     "Unit": "V",
     "Description": "sigdesc",
     "dimensions": "-1",
-    "dimensionsMode": {
-     "text": "auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "auto",
-      "Fixed",
-      "Variable"
-     ]
-    },
-    "complexity": {
-     "text": "auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "auto",
-      "real",
-      "complex"
-     ]
-    },
-    "storageClass": {
-     "text": "Auto",
-     "editable": true,
-     "editor": "select",
-     "options": [
-      "Auto",
-      "SimulinkGlobal",
-      "ExportedGlobal",
-      "ImportedExtern",
-      "ImportedExternPointer",
-      "Custom"
-     ]
-    },
+    "dimensionsMode": "auto",
+    "complexity": "auto",
+    "storageClass": "Auto",
     "alignment": "-1",
     "headerFile": "",
     "Value": "",
     "_valueEditable": false,
     "Class": "Simulink.Signal",
     "Kind": "Simulink Signal",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,

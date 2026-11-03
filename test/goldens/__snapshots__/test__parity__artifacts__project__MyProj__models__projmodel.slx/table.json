@@ -62,7 +62,7 @@
      "label": "Configuration",
      "iconId": "check_settings",
      "disabled": false,
-     "editable": true,
+     "editable": false,
      "element": false
     },
     "DataType": "",
@@ -71,7 +71,7 @@
     "_valueEditable": false,
     "Class": "Simulink.ConfigSet",
     "Kind": "Configuration Set",
-    "_descriptionEditable": true,
+    "_descriptionEditable": false,
     "_descriptionApplies": true,
     "_canCopy": true,
     "_canDelete": true,
