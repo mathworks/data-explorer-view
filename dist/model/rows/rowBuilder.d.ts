@@ -2,6 +2,7 @@ import { RowCellPool } from 'data-explorer-core';
 import { type RowPlan } from './lazyRows.js';
 import { type ClipMark } from './rowStamp.js';
 import type { TreeTableRow } from './tableRow.js';
+import type { SavedStatus } from './matRowBuilder.js';
 export declare const COLUMNS: string[];
 export declare const COLUMN_LABELS: Record<string, string>;
 export declare const COLUMN_GROUPS: Record<string, string>;
@@ -33,7 +34,7 @@ export interface SectionedRows {
  * `budget` of Infinity is the whole tree with nothing deferred, which is what every
  * caller had before this existed.
  */
-export declare function buildRowsPlanned(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark, budget?: number): SectionedRows;
+export declare function buildRowsPlanned(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark, budget?: number, savedStatus?: SavedStatus): SectionedRows;
 /** The rows alone, unplanned — the signature every caller that cannot answer a fetch uses. */
 export declare function buildRows(sldd: any, modifiedNames?: Set<string>, clipMark?: ClipMark): TreeTableRow[];
 /**
@@ -58,4 +59,4 @@ export declare function buildRows(sldd: any, modifiedNames?: Set<string>, clipMa
  * rule that gives a payload every name.
  */
 export declare function buildChildRows(node: any, budget?: number): SectionedRows;
-export declare function buildEntryRows(entry: any, sectionName: string, modifiedNames?: Set<string>, clipMark?: ClipMark, pool?: RowCellPool, budget?: number): TreeTableRow[];
+export declare function buildEntryRows(entry: any, sectionName: string, modifiedNames?: Set<string>, clipMark?: ClipMark, pool?: RowCellPool, budget?: number, savedStatus?: SavedStatus): TreeTableRow[];

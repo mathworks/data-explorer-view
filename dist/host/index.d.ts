@@ -13,6 +13,9 @@ export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/he
 export type { HealthDecoration } from '../model/hierarchy/health.js';
 export { MatEngine } from '../model/edit/matEngine.js';
 export type { MatEngineOptions, MatSave, UsageFill } from '../model/edit/matEngine.js';
+export { MAT_FILE } from '../model/edit/engineFile.js';
+export type { EngineFile } from '../model/edit/engineFile.js';
+export { MODEL_FILE, WORKSPACE_SECTION } from '../model/edit/modelFile.js';
 export { BinaryEngine } from '../model/edit/binaryEngine.js';
 export type { BinaryEngineOptions, BinarySave } from '../model/edit/binaryEngine.js';
 export { JsonEngine } from '../model/edit/jsonEngine.js';

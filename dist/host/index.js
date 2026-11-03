@@ -51,6 +51,8 @@ export { DECORATIONS, HEALTH_QUERY, decode, encode } from '../model/hierarchy/he
 // and a drag's start with the snapshots they take. An app edits through createWorkspace({ editing })
 // instead.
 export { MatEngine } from '../model/edit/matEngine.js';
+export { MAT_FILE } from '../model/edit/engineFile.js';
+export { MODEL_FILE, WORKSPACE_SECTION } from '../model/edit/modelFile.js';
 export { BinaryEngine } from '../model/edit/binaryEngine.js';
 export { JsonEngine } from '../model/edit/jsonEngine.js';
 export { EditStack, EditStackIndex } from '../model/edit/editStack.js';

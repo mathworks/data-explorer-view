@@ -37,7 +37,7 @@ const MAT_PLANNER = {
  * through the same per-node function inside rowBuilder.ts.
  */
 const SECTIONED_PLANNER = {
-    payload: (node, budget, opts) => buildRowsPlanned(node, opts?.modifiedNames, opts?.clipMark, budget),
+    payload: (node, budget, opts) => buildRowsPlanned(node, opts?.modifiedNames, opts?.clipMark, budget, opts?.savedStatus),
     children: (node, budget) => buildChildRows(node, budget),
 };
 /**

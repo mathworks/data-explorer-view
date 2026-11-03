@@ -5,6 +5,7 @@ import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { planRows, type PlannedRow, type RowPlan } from './lazyRows.js';
 import { sharedIdTest, stampRow, type ClipMark, type EntryStamp } from './rowStamp.js';
 import type { TreeTableRow } from './tableRow.js';
+import type { SavedStatus } from './matRowBuilder.js';
 
 // Columns shown across the dictionary tree (union that fits all sections), in
 // display order: the ungrouped core columns first, then the grouped columns
@@ -110,6 +111,7 @@ export function buildRowsPlanned(
   modifiedNames?: Set<string>,
   clipMark?: ClipMark,
   budget: number = Infinity,
+  savedStatus?: SavedStatus,
 ): SectionedRows {
   const rows: any[] = [];
   // One cell pool for this pass. A table's cells are overwhelmingly repetition — measured
@@ -161,7 +163,7 @@ export function buildRowsPlanned(
     const pastLastRoot = firstRoot + ((section.children || []) as any[]).length;
     while (at < plan.planned.length && plan.planned[at].root < pastLastRoot) {
       const p = plan.planned[at++];
-      const row = plannedRow(p, entries[p.root], section.name, modifiedNames, clipMark, pool, shared(p.root));
+      const row = plannedRow(p, entries[p.root], section.name, modifiedNames, clipMark, pool, shared(p.root), savedStatus);
       if (row) rows.push(row);
     }
     firstRoot = pastLastRoot;
@@ -230,12 +232,13 @@ export function buildEntryRows(
   clipMark?: ClipMark,
   pool?: RowCellPool,
   budget: number = Infinity,
+  savedStatus?: SavedStatus,
 ): TreeTableRow[] {
   const out: any[] = [];
   const plan = planRows([entry], budget);
   const shared = sharedIdTest()(entry);
   for (const p of plan.planned) {
-    const row = plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, shared);
+    const row = plannedRow(p, entry, sectionName, modifiedNames, clipMark, pool, shared, savedStatus);
     if (row) out.push(row);
   }
   return out;
@@ -268,6 +271,7 @@ function plannedRow(
   clipMark?: ClipMark,
   pool?: RowCellPool,
   sharedId = false,
+  savedStatus?: SavedStatus,
 ): any | null {
   const n = p.node;
   let row: any;
@@ -300,7 +304,10 @@ function plannedRow(
       if (lastModified || lastModifiedBy) {
         row = { ...row, lastModified, lastModifiedBy };
       }
-      entryStamp = { section: sectionName, name: entry.name, status: modifiedStatus(entry.name, row.Status, modifiedNames), clipMark };
+      // The Status, by node where the caller marks nodes (savedStatus: a model's workspace variables,
+      // as an editable view marks a MAT-file's), else by name (a dictionary's modifiedNames).
+      const status = savedStatus ? (savedStatus.get(entry) ?? '') : modifiedStatus(entry.name, row.Status, modifiedNames);
+      entryStamp = { section: sectionName, name: entry.name, status, clipMark };
     }
   }
   // Every row of a dictionary, model or project copies: Copy acts on the owning entry — but
