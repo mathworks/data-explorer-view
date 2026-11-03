@@ -45,6 +45,7 @@ export type TableToHost = [
   Is<Same<View.DragEndMessage, Ext.DragEndMessage>>,
   Is<Same<View.DropMessage, Ext.DropMessage>>,
   Is<Same<View.RequestEditTextMessage, Ext.RequestEditTextMessage>>,
+  Is<Same<View.SetActiveConfigSetMessage, Ext.SetActiveConfigSetMessage>>,
   // Every one of them is a message the extension's host takes.
   Is<Fits<View.TableEditClientMessage, Ext.TableToHostMessage>>,
 ];

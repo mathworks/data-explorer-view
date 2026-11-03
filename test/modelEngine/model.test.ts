@@ -148,3 +148,73 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.strictEqual(workspaceOf(saved).tau.value, 0.75);
   });
 });
+
+describe("a model's active configuration set, made another", () => {
+  const CONFIG = 'section:config';
+  const setRow = (posts: any[], name: string): any => {
+    const row = tableOf(posts).find((r) => r.parent === CONFIG && nameOf(r) === name);
+    if (!row) throw new Error(`the Configurations section has no row for "${name}"`);
+    return row;
+  };
+  const activeIn = (bytes: Uint8Array) => parseSlx(buffer(bytes), 'saved.slx').configSets.filter((c: any) => c.active).map((c: any) => c.name);
+  const flags = (posts: any[], names: string[]) => names.map((n) => [n, setRow(posts, n)._canSetActive, setRow(posts, n)._setActiveWhy, setRow(posts, n).Name.iconId]);
+
+  it("says of each set whether it is made active, and why not, and of no other row", async () => {
+    const o = await openModel('acs_sets.slx');
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast', 'Slow']), [
+      ['Configuration', false, 'It is the active one already', 'check_settings'],
+      ['Fast', true, undefined, 'settings'],
+      ['Slow', true, undefined, 'settings'],
+    ]);
+    assert.ok(tableOf(o.view.posts).filter((r) => r.parent !== CONFIG).every((r) => !('_canSetActive' in r)));
+  });
+
+  it.each(['acs_sets.slx', 'acs_sets_R2013b.slx'])('%s: makes a set active as one edit, painted again, saved, and undone', async (file) => {
+    const o = await openModel(file);
+    // Every row is painted again, as after an Add or a Delete: once the payload is built.
+    const painted = (active: string) => waitFor(`${active} painted active`, () => setRow(o.view.posts, active).Name.iconId === 'check_settings');
+    o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
+    assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    await painted('Fast');
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
+      ['Configuration', true, undefined, 'settings'],
+      ['Fast', false, 'It is the active one already', 'check_settings'],
+    ]);
+    assert.strictEqual(o.index.dirty, true);
+    const saved = o.save();
+    assert.deepStrictEqual(activeIn(saved), ['Fast']);
+    assert.strictEqual(o.index.dirty, false);
+    o.undo();
+    await painted('Configuration');
+    assert.deepStrictEqual(flags(o.view.posts, ['Configuration', 'Fast']), [
+      ['Configuration', false, 'It is the active one already', 'check_settings'],
+      ['Fast', true, undefined, 'settings'],
+    ]);
+    assert.strictEqual(o.index.dirty, true, 'the file holds Fast active');
+    assert.deepStrictEqual(activeIn(o.save()), ['Configuration']);
+    o.redo();
+    await painted('Fast');
+  });
+
+  it("makes a reference active, warning in core's words that MATLAB alone can check it", async () => {
+    const o = await openModel('acs_ref.slx');
+    const caution =
+      '"RefFromDict" refers to the configuration set "dictCfg" in the data dictionary "acs_dict.sldd". Without MATLAB this editor ' +
+      'cannot check that the set is there: open the model in MATLAB to confirm.';
+    const ref = setRow(o.view.posts, 'RefFromDict');
+    assert.deepStrictEqual([ref._canSetActive, ref._setActiveWhy, ref._setActiveCaution], [true, undefined, caution]);
+    assert.strictEqual(setRow(o.view.posts, 'Configuration')._setActiveCaution, undefined, 'a plain set warns of nothing');
+    o.view.send({ type: 'setActiveConfigSet', rowId: ref.ID });
+    assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    assert.deepStrictEqual(o.notices, [{ level: 'warning', message: caution }]);
+    await waitFor('the reference painted active', () => setRow(o.view.posts, 'RefFromDict').Name.iconId === 'check_configurationReference');
+    assert.deepStrictEqual(activeIn(o.save()), ['RefFromDict']);
+  });
+
+  it('warns of nothing as a set that is no reference is made active', async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
+    assert.strictEqual(o.events.length, 1);
+    assert.deepStrictEqual(o.notices, []);
+  });
+});

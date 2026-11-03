@@ -155,7 +155,8 @@ are the extension's own table protocol (`TableHostMessage`,
 
 Editing is the other half of a source. An `EditableTableSource` (`isEditable(source)`)
 takes one command per gesture (`edit`, `copy`, `cut`, `delete`, `paste`, `addChild`,
-`addEntry`, `undo`, `redo`, `dragStart`, `dragEnd`, `drop`, `requestEditText`). None
+`addEntry`, `undo`, `redo`, `dragStart`, `dragEnd`, `drop`, `requestEditText`, and a
+model's `setActiveConfigSet`, which a source without one is not asked). None
 returns anything: what a command did comes back through `subscribe`, as the repaints of
 what it changed and as editing changes (`select`, `beginRename`, `invalid`, `refused`,
 `editText`, and the `clipboard`, `drag` and `sectionRules` a table predicts a paste or a

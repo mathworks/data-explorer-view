@@ -47,7 +47,7 @@ function undoChordOf(ev) {
 // act on.
 const SELECTION_ACTIONS = new Set(['copy', 'cut', 'delete']);
 /** The editing menu's own items, which a choice of is a command rather than the app's action. */
-const EDITING_ACTIONS = new Set(['undo', 'redo', 'copy', 'cut', 'delete', 'paste', 'addChild', 'locateInText']);
+const EDITING_ACTIONS = new Set(['undo', 'redo', 'copy', 'cut', 'delete', 'paste', 'addChild', 'locateInText', 'setActiveConfigSet']);
 /** Wire the editing half: the listeners go on through `host.listen`, the state stays in here. */
 export function wireEditing(host) {
     const { table, source, errorDialog } = host;
@@ -131,6 +131,8 @@ export function wireEditing(host) {
         }
         if (actionId === 'locateInText')
             host.textView?.locate(anchorRowId);
+        else if (actionId === 'setActiveConfigSet')
+            source?.setActiveConfigSet?.(anchorRowId);
         else
             source?.[actionId](anchorRowId);
         return true;

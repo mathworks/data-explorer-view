@@ -64,7 +64,7 @@ function observe(session, mat, srcId, run) {
     const before = new Map();
     for (const v of mat.children)
         before.set(v, v.id);
-    const observed = { steps: 0, touched: new Set(), added: new Set(), replaced: new Map(), before, order: [...mat.children] };
+    const observed = { steps: 0, touched: new Set(), added: new Set(), replaced: new Map(), before, order: [...mat.children], outside: false };
     // The variable a node is or is under, while it is in the file; a variable just removed is
     // known by having been in it.
     const variableOf = (node) => {
@@ -73,10 +73,23 @@ function observe(session, mat, srcId, run) {
                 return n;
         return before.has(node) ? node : null;
     };
+    // The file the variables are in (a model, where `mat` is its workspace), and each node above them.
+    const above = new Set();
+    for (let n = mat; n; n = n.parent)
+        above.add(n);
+    const fileOf = (node) => {
+        let n = node;
+        while (n?.parent)
+            n = n.parent;
+        return n;
+    };
+    const file = fileOf(mat);
     const touch = (node) => {
         const v = variableOf(node);
         if (v)
             observed.touched.add(v);
+        else if (node && !above.has(node) && fileOf(node) === file)
+            observed.outside = true;
         return v;
     };
     const bus = session.bus;
@@ -521,7 +534,7 @@ export class MatEngine {
         catch {
             return void this.repaintAll();
         }
-        if (variablesMoved(mat, observed))
+        if (variablesMoved(mat, observed) || observed.outside)
             return void this.repaintAll();
         const present = [...observed.touched].filter((v) => v.parent === mat);
         for (const view of [...this.views]) {
@@ -1116,6 +1129,27 @@ class MatView {
                 return;
             }
             this.emit({ kind: 'select', rowIds: [child.id] });
+        });
+    }
+    // A model's configuration set made the active one, where core says it is (a model engine's rows
+    // say so first, `_canSetActive`): one edit, which every row is painted again after. A reference is
+    // made active with core's warning of what that cannot check, which the document says.
+    setActiveConfigSet(rowId) {
+        this.handle('setActiveConfigSet', () => {
+            const refused = this.session.activeConfigSetRefusal(rowId);
+            if (refused) {
+                this.refused('setActive', refused);
+                return;
+            }
+            const caution = this.session.activeConfigSetCaution(rowId);
+            let made = false;
+            const observed = this.gesture('Set active configuration', () => {
+                made = this.session.setActiveConfigSet(rowId);
+            });
+            if (observed && !made)
+                this.error('Could not make this configuration set the active one.');
+            else if (observed && caution)
+                this.doc.notify('warning', this.doc.describe(caution));
         });
     }
     // --- The clipboard and row drags ---------------------------------------------------------------

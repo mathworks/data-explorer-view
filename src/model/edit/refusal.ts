@@ -16,13 +16,14 @@
 // ("Failed to apply edit: ..."): core and the editor disagreeing is a bug to see, not a reason.
 import type { Session } from 'data-explorer-core';
 
-export type RefusedGesture = 'addChild' | 'delete' | 'add';
+export type RefusedGesture = 'addChild' | 'delete' | 'add' | 'setActive';
 
 /** The dialog's title for each refused gesture. */
 export const REFUSAL_TITLES: Readonly<Record<RefusedGesture, string>> = {
   addChild: 'Cannot Add Child',
   delete: 'Cannot Delete',
   add: 'Cannot Add',
+  setActive: 'Cannot Set Active Configuration',
 };
 
 /** The part of core's session the refusals ask. */

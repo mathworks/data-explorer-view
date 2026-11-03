@@ -63,6 +63,7 @@ const WIRE_CLIENT_TYPES = new Set([
     'dragEnd',
     'drop',
     'requestEditText',
+    'setActiveConfigSet',
 ]);
 /**
  * Answer the table's end of `port` from `source`, until the returned function is called:
@@ -193,6 +194,10 @@ export function serveTable(source, port, options = {}) {
                 if (typeof msg.rowId !== 'string')
                     return;
                 return editing.requestEditText?.(msg.rowId);
+            case 'setActiveConfigSet':
+                if (typeof msg.rowId !== 'string')
+                    return;
+                return editing.setActiveConfigSet?.(msg.rowId);
         }
     });
     return () => {

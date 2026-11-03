@@ -3,6 +3,7 @@ export const REFUSAL_TITLES = {
     addChild: 'Cannot Add Child',
     delete: 'Cannot Delete',
     add: 'Cannot Add',
+    setActive: 'Cannot Set Active Configuration',
 };
 /** Why core adds no child to the row `nodeId` names (addChildTo), or null where it adds one. */
 export const addChildRefusal = (session, nodeId) => session.addChildRefusal(nodeId);
