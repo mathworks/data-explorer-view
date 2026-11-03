@@ -35,6 +35,8 @@ export interface OperandRow {
    */
   _canSetActive?: boolean;
   _setActiveWhy?: string;
+  /** What making it active cannot check, where it is a reference (core's activeSetCaution). */
+  _setActiveCaution?: string;
 }
 
 export interface Operands {

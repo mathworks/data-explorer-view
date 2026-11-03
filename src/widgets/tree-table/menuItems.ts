@@ -311,7 +311,8 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
     : [];
 
   // A model's configuration set made the active one: on the sets alone, which the model engine
-  // marks, and so on a selection of nothing else. Greyed with core's reason where the set is not.
+  // marks, and so on a selection of nothing else. Greyed with core's reason where the set is not;
+  // a reference says, as its tooltip, what making it active cannot check.
   const sets = ops.deleteIds.map((id) => byId.get(id));
   const setActive: ContextMenuItem[] = sets.every((r) => r?._canSetActive !== undefined)
     ? [
@@ -324,6 +325,7 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
             : soleRow && !soleRow._canSetActive && soleRow._setActiveWhy
               ? { reason: soleRow._setActiveWhy }
               : {}),
+          ...(n === 1 && soleRow?._setActiveCaution ? { title: soleRow._setActiveCaution } : {}),
         },
       ]
     : [];

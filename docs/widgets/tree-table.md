@@ -77,7 +77,8 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
   the menu, with Cmd/Ctrl+L.
 - **A model's configuration sets:** the rows a model's source marks (`_canSetActive`) lead their
   menu with Set as Active Configuration, which is the source's `setActiveConfigSet`, and is greyed
-  with the row's reason (`_setActiveWhy`) where the set is not made active.
+  with the row's reason (`_setActiveWhy`) where the set is not made active; a reference's row says
+  what making it active cannot check (`_setActiveCaution`), as the item's tooltip.
 - **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
   and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
 

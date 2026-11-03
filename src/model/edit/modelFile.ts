@@ -42,7 +42,8 @@ function shownOnly(rows: TreeTableRow[], variables: any): TreeTableRow[] {
 
 // Each of the model's configuration sets says whether it is made the active one (`_canSetActive`)
 // and, where it is not, core's reason as a sentence (`_setActiveWhy`, ModelNode.activeSetRefusal),
-// which the menu's Set as Active Configuration is greyed with.
+// which the menu's Set as Active Configuration is greyed with; a reference, what making it active
+// cannot check (`_setActiveCaution`, ModelNode.activeSetCaution), its tooltip.
 function setsMarked(rows: TreeTableRow[], root: any): TreeTableRow[] {
   const sets: any[] = root?.getSection?.('config')?.children ?? [];
   if (sets.length === 0 || typeof root.activeSetRefusal !== 'function') return rows;
@@ -53,6 +54,8 @@ function setsMarked(rows: TreeTableRow[], root: any): TreeTableRow[] {
     const refused = why.get(id)!;
     row._canSetActive = refused === null;
     if (refused !== null) row._setActiveWhy = refused.charAt(0).toUpperCase() + refused.slice(1);
+    const caution = typeof root.activeSetCaution === 'function' ? root.activeSetCaution(sets.find((s) => String(s.id) === id)) : null;
+    if (caution) row._setActiveCaution = caution;
   }
   return rows;
 }

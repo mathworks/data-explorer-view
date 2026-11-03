@@ -1132,7 +1132,8 @@ class MatView {
         });
     }
     // A model's configuration set made the active one, where core says it is (a model engine's rows
-    // say so first, `_canSetActive`): one edit, which every row is painted again after.
+    // say so first, `_canSetActive`): one edit, which every row is painted again after. A reference is
+    // made active with core's warning of what that cannot check, which the document says.
     setActiveConfigSet(rowId) {
         this.handle('setActiveConfigSet', () => {
             const refused = this.session.activeConfigSetRefusal(rowId);
@@ -1140,12 +1141,15 @@ class MatView {
                 this.refused('setActive', refused);
                 return;
             }
+            const caution = this.session.activeConfigSetCaution(rowId);
             let made = false;
             const observed = this.gesture('Set active configuration', () => {
                 made = this.session.setActiveConfigSet(rowId);
             });
             if (observed && !made)
                 this.error('Could not make this configuration set the active one.');
+            else if (observed && caution)
+                this.doc.notify('warning', this.doc.describe(caution));
         });
     }
     // --- The clipboard and row drags ---------------------------------------------------------------
