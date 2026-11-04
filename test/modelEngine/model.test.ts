@@ -9,7 +9,7 @@ import * as assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'vitest';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import { createSession, parseSlx } from 'data-explorer-core';
 import { MODEL_FILE } from '../../src/host/index.js';
 import { createRegisters } from '../../src/model/index.js';
@@ -44,15 +44,18 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.ok(!set.add.classes.includes('Simulink.AliasType'), 'no alias type in a model workspace');
   });
 
-  it("offers Delete of the workspace's variables, and of no other section's rows", async () => {
+  it("offers Delete of the workspace's variables and the configuration sets, and of no other section's rows", async () => {
     const o = await openModel('slxcases.slx');
     const rows = tableOf(o.view.posts);
     const ws = rows.filter((r) => r.parent === WS);
     assert.ok(ws.length > 0);
     assert.ok(ws.every((r) => r._canDelete === true), 'every workspace variable offers Delete');
-    const others = rows.filter((r) => r.parent && r.parent !== WS && String(r.parent).startsWith('section:'));
+    const sets = rows.filter((r) => r.parent === 'section:config');
+    assert.ok(sets.length > 0);
+    assert.ok(sets.every((r) => r._canDelete === true && r._canCut === false), 'every set offers Delete, and no Cut');
+    const others = rows.filter((r) => r.parent && r.parent !== WS && r.parent !== 'section:config' && String(r.parent).startsWith('section:'));
     assert.ok(others.length > 0);
-    assert.ok(others.every((r) => r._canDelete === false), 'no block, configuration, reference or data source does');
+    assert.ok(others.every((r) => r._canDelete === false), 'no block, reference or data source does');
   });
 
   it("a value edit marks the variable, saves into the workspace part alone, and clears the mark", async () => {
@@ -216,5 +219,79 @@ describe("a model's active configuration set, made another", () => {
     o.view.send({ type: 'setActiveConfigSet', rowId: setRow(o.view.posts, 'Fast').ID });
     assert.strictEqual(o.events.length, 1);
     assert.deepStrictEqual(o.notices, []);
+  });
+});
+
+describe("a model's configuration sets, edited as a dictionary's are", () => {
+  const CONFIG = 'section:config';
+  const setRow = (posts: any[], name: string): any => tableOf(posts).find((r) => r.parent === CONFIG && nameOf(r) === name);
+  const setsIn = (bytes: Uint8Array) =>
+    parseSlx(buffer(bytes), 'saved.slx').configSets.map((c: any) => [c.name, c.objectClass || 'Simulink.ConfigSet', c.description ?? '']);
+  const lastSet = (posts: any[]) => [...posts].reverse().find((p) => p.type === 'setRows');
+
+  it("offers the gallery's Configurations tiles beside the workspace's classes", async () => {
+    const o = await openModel('acs_sets.slx');
+    const set = lastSet(o.view.posts);
+    assert.deepStrictEqual(set.addSections, ['config']);
+    assert.ok(set.add.classes.includes('Simulink.Parameter'));
+  });
+
+  it.each(['acs_sets.slx', 'acs_sets_R2013b.slx'])('%s: adds a set and a reference from the tiles, one edit each, and saves them', async (file) => {
+    const o = await openModel(file);
+    o.view.send({ type: 'addEntry', className: 'Simulink.ConfigSet', section: 'config', rename: true });
+    await waitFor('the added set', () => !!setRow(o.view.posts, 'Configuration1'));
+    assert.ok(o.view.posts.some((p) => p.type === 'beginRename' && p.rowId === setRow(o.view.posts, 'Configuration1').ID), 'its name editor opens');
+    o.view.send({ type: 'addEntry', className: 'Simulink.ConfigSetRef', section: 'config' });
+    await waitFor('the added reference', () => !!setRow(o.view.posts, 'Reference'));
+    assert.strictEqual(o.events.length, 2, 'two edits reached the stack');
+    assert.strictEqual(setRow(o.view.posts, 'Configuration1')._canDelete, true);
+    assert.deepStrictEqual(setsIn(o.save()).slice(-2), [
+      ['Configuration1', 'Simulink.ConfigSet', ''],
+      ['Reference', 'Simulink.ConfigSetRef', ''],
+    ]);
+    o.undo();
+    await waitFor('the reference gone', () => !setRow(o.view.posts, 'Reference'));
+  });
+
+  it('renames a set and gives it a Description, one edit each, and saves both', async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'edit', rowId: setRow(o.view.posts, 'Fast').ID, columnId: 'Name', oldValue: 'Fast', newValue: 'Faster' });
+    await waitFor('the renamed set', () => !!setRow(o.view.posts, 'Faster'));
+    o.view.send({ type: 'edit', rowId: setRow(o.view.posts, 'Faster').ID, columnId: 'Description', oldValue: '', newValue: 'Quick runs' });
+    await waitFor('its Description', () => setRow(o.view.posts, 'Faster').Description === 'Quick runs');
+    assert.strictEqual(o.events.length, 2);
+    assert.deepStrictEqual(setsIn(o.save())[1], ['Faster', 'Simulink.ConfigSet', 'Quick runs']);
+  });
+
+  it("refuses a name MATLAB does not give a set, in MATLAB's words, and changes nothing", async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'edit', rowId: setRow(o.view.posts, 'Fast').ID, columnId: 'Name', oldValue: 'Fast', newValue: 'R&D' });
+    const invalid = o.view.posts.find((p) => p.type === 'validationError' || p.type === 'invalid');
+    assert.ok(invalid, 'the cell is told the edit was refused');
+    assert.match(JSON.stringify(invalid), /Invalid character in name for configuration object/);
+    assert.strictEqual(o.events.length, 0);
+    assert.strictEqual(o.index.dirty, false);
+  });
+
+  it('deletes a set as one edit, and refuses the active one, saying why', async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'delete', rowIds: [setRow(o.view.posts, 'Slow').ID] });
+    await waitFor('the set gone', () => !setRow(o.view.posts, 'Slow'));
+    assert.strictEqual(o.events.length, 1);
+    assert.deepStrictEqual(setsIn(o.save()).map((s) => s[0]), ['Configuration', 'Fast']);
+    o.view.send({ type: 'delete', rowIds: [setRow(o.view.posts, 'Configuration').ID] });
+    const refusal = o.view.posts.filter((p) => p.type === 'refused').pop();
+    assert.match(refusal?.reason ?? '', /it is the active configuration set, which MATLAB does not delete: make another set active first/);
+    assert.strictEqual(o.events.length, 1, 'nothing more reached the stack');
+  });
+
+  it('a package whose sets are not laid out as MATLAB writes them offers no tile, and no Delete of a set', async () => {
+    const entries = unzipSync(model('acs_sets.slx'));
+    const index = new TextDecoder().decode(entries['simulink/configSetInfo.json']);
+    entries['simulink/configSetInfo.json'] = new TextEncoder().encode(JSON.stringify(JSON.parse(index)));
+    const o = await open('acs_sets.slx', zipSync(entries), { file: MODEL_FILE });
+    assert.strictEqual(lastSet(o.view.posts).addSections, undefined);
+    const sets = tableOf(o.view.posts).filter((r) => r.parent === CONFIG);
+    assert.ok(sets.length === 3 && sets.every((r) => r._canDelete === false && r.Name.editable === false));
   });
 });

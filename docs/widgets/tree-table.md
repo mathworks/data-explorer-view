@@ -180,6 +180,14 @@ The classes a MAT-file's gallery offers, as core lists the classes a MAT-file ca
 null, the default, for a dictionary's gallery, which offers every tile. The gallery draws the
 tiles of these classes only (the model's matCatalog). Property only.
 
+### `addSections`
+
+type `readonly string[] | null` · default `null` · property only
+
+With `addClasses`, the sections beside the file's variables whose every tile its gallery
+offers too, each tile naming its section: a model's configuration sets, `config`. Null, the
+default: none. Property only.
+
 ### `rowDrag`
 
 type `boolean` · default `true` · attribute `row-drag`
@@ -325,7 +333,10 @@ export interface AddEntryDetail extends AddTileDetail {
   rename: boolean;
 }
 
-/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
+/**
+ * What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's variable; a
+ * section of the file's own, `sections`, by its key) and its label.
+ */
 export interface AddTileDetail {
   className: string;
   section: string;

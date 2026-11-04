@@ -48,6 +48,14 @@ dictionary's gallery. Given, the tiles are those classes' (the model's matCatalo
 no sections, so no tile names one, and nothing is offered that the file cannot take.
 Default null. Property only.
 
+### `sections`
+
+type `readonly string[] | null` · default `null` · property only
+
+With `classes`, the sections beside the file's variables whose every tile is offered too, each
+tile naming its section: a model's configuration sets, `config`, beside its Model Workspace.
+Default null: none. Property only.
+
 ## Methods
 
 None.
@@ -65,7 +73,10 @@ A tile was clicked: add one entry of its class. The table stops it and sends `de
 `detail` is a `AddTileDetail`:
 
 ```ts
-/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
+/**
+ * What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's variable; a
+ * section of the file's own, `sections`, by its key) and its label.
+ */
 export interface AddTileDetail {
   className: string;
   section: string;

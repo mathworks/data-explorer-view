@@ -67,6 +67,8 @@ export interface SetRowsMessage {
   warnings?: WarningBanner;
   /** What the Add gallery offers, where it is not every tile (TableView.add). */
   add?: { classes: readonly string[] };
+  /** The sections beside `add`'s classes whose tiles the gallery offers too (TableView.addSections). */
+  addSections?: readonly string[];
 }
 
 /**

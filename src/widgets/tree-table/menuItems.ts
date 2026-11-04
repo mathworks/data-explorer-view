@@ -251,8 +251,10 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
   // delete of the entry it copied, so "may this child leave its container" is a
   // different question and answering Cut with it would wrongly disable Cut "A" for a
   // struct-array field. Delete below is the item that correctly reads the row's flag. And
-  // being a copy, it is never offered where Copy is not.
-  const uncuttableEntry = undeletableEntry ?? ops.entryIds.find((id) => !byId.get(id)?._canCopy);
+  // being a copy, it is never offered where Copy is not, nor where the entry says it is
+  // deleted but not moved (`_canCut: false`, a model's configuration set).
+  const uncuttableEntry =
+    undeletableEntry ?? ops.entryIds.find((id) => !byId.get(id)?._canCopy || byId.get(id)?._canCut === false);
   const cut: ContextMenuItem = {
     id: 'cut',
     icon: 'cut',

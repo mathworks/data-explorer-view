@@ -103,7 +103,13 @@ function observe(session, mat, srcId, run) {
             if (touch(e.node) === e.node)
                 observed.added.add(e.node);
         }),
-        bus.subscribe('node/deleted', (e) => void touch(e.node)),
+        // And the container it left: a node taken out of the tree has no parent to find its file by,
+        // and a model's configuration set is in no variable.
+        bus.subscribe('node/deleted', (e) => {
+            touch(e.node);
+            if (e.section)
+                touch(e.section);
+        }),
     ];
     try {
         run();
@@ -630,6 +636,9 @@ class MatView {
         // writes as read — so an edit that changes it, or the undo or redo of one, repaints the whole
         // table, which tells the gallery again (refreshGallery).
         this.lastClasses = [];
+        // And the sections beside the variables it was last told it adds to (EngineFile.addSections), which
+        // an edit can change as well: a model's sets made unwritable by none today, but asked all the same.
+        this.lastSections = [];
         // What follows the paint `open()` last answered, until it is delivered (`opened`). A repaint
         // sends its own after its own rows.
         this.after = null;
@@ -740,8 +749,10 @@ class MatView {
                 columnGroups: { ...COLUMN_GROUPS },
                 editable: !notice,
                 ...(notice === undefined ? {} : { notice }),
-                // The gallery offers the classes core says this file can take a new variable of.
+                // The gallery offers the classes core says this file can take a new variable of, and the
+                // tiles of the sections beside them it adds to (a model's configuration sets).
                 add: { classes: (this.lastClasses = allowedClasses(mat)) },
+                ...((this.lastSections = this.addSections()).length > 0 ? { addSections: this.lastSections } : {}),
                 ...(warnings === undefined ? {} : { warnings }),
             };
             return { view, trailer: { notice, mat, clipMark: built.clipMark } };
@@ -842,8 +853,18 @@ class MatView {
         catch {
             return;
         }
-        if (!sameList(allowedClasses(mat), this.lastClasses))
+        if (!sameList(allowedClasses(mat), this.lastClasses) || !sameList(this.addSections(), this.lastSections))
             void this.repaintAll();
+    }
+    // The sections beside the variables the gallery adds to, as the file says now; none where asking
+    // throws, which is no tile rather than no table.
+    addSections() {
+        try {
+            return this.doc.file.addSections?.(this.doc.root()) ?? [];
+        }
+        catch {
+            return [];
+        }
     }
     /**
      * The narrow repaint that keeps the clipboard mark this view painted (`paintedMark`) current: on
@@ -1077,11 +1098,14 @@ class MatView {
     // class's own default name, `var` for a plain variable, with a counter where it is taken) and
     // makes MATLAB's default value of it. Then its name editor, unless the gallery is pinned. An add
     // core refuses adds nothing, and says core's reason, asked before the add (refusal.ts). One that
-    // fails after core said yes is a failure.
+    // fails after core said yes is a failure. A tile of a section beside the variables (a model's
+    // configuration set, EngineFile.addSections) adds to that section, as a dictionary's tile does.
     addEntry(msg) {
         this.handle('addEntry', () => {
             const className = msg.className || 'MatlabVariable';
-            const refused = addEntryRefusal(this.session, this.doc.file.target(this.doc.srcId, this.doc.model()), className);
+            const section = msg.section && this.addSections().includes(msg.section) ? this.doc.root().getSection(msg.section) : null;
+            const target = section ? String(section.id) : this.doc.file.target(this.doc.srcId, this.doc.model());
+            const refused = addEntryRefusal(this.session, target, className);
             if (refused) {
                 this.refused('add', refused);
                 return;
@@ -1090,9 +1114,9 @@ class MatView {
             let refusal = null;
             const observed = this.gesture('Add', (mat) => {
                 this.session.setActiveContext(mat);
-                added = this.session.addEntry(this.doc.file.addSection, className);
+                added = this.session.addEntry(section ? msg.section : this.doc.file.addSection, className);
                 if (!added)
-                    refusal = this.session.addEntryRefusal();
+                    refusal = section ? this.session.addEntryRefusal(target, className) : this.session.addEntryRefusal();
             });
             if (!observed)
                 return;

@@ -178,16 +178,28 @@ export const MAT_OMITTED = [
  * Architectural Data tiles of the same classes, and every class core does not list (an
  * enumeration, the variants, a configuration set), are left out, and so is a category none of
  * whose tiles is left. Every category left is Design Data's alone, so no tile is badged.
+ *
+ * `sections` are the sections beside the variables whose every tile is offered too, each tile
+ * naming its section (`sectionTile`): a model's configuration sets, `config`, beside its Model
+ * Workspace. Their tiles are Configurations', a category of its own, so no tile is badged then
+ * either.
  */
-export function matCatalog(classes) {
+export function matCatalog(classes, sections = []) {
     const offered = new Set(classes);
     const out = [];
     for (const c of ADD_CATALOG) {
-        const tiles = c.tiles.filter((t) => t.section === 'design' && offered.has(t.className));
+        const tiles = c.tiles.filter((t) => (t.section === 'design' && offered.has(t.className)) || sections.includes(t.section));
         if (tiles.length > 0)
             out.push(category(c.title, tiles));
     }
     return out;
+}
+/**
+ * Whether a tile of a MAT-file's gallery adds to a section of its own (`sections`, matCatalog's),
+ * and so names it, rather than a variable of the file, which names none.
+ */
+export function sectionTile(tile, sections) {
+    return !!sections && tile.section !== 'design' && sections.includes(tile.section);
 }
 /** Every tile, flat, in display order — the order a keyboard walk follows. */
 export function allTiles() {

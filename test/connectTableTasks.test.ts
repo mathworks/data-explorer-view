@@ -165,4 +165,25 @@ describe("the first paint's editing state lands in the task that delivers it", (
       rowDraggable: 'true',
     });
   });
+
+  it("a model's paint gives the gallery the sections beside its classes, and a MAT-file's none", async () => {
+    const { table, send } = hosted();
+    const paint = (add: unknown, addSections?: unknown) =>
+      nextTask(
+        () =>
+          send({
+            type: 'setRows',
+            docUri: 'file:///fx/m.slx',
+            rows: [{ ID: 'm/x', parent: null, Name: { label: 'x' } }],
+            columns: ['Name'],
+            columnLabels: { Name: 'Name' },
+            editable: true,
+            add,
+            addSections,
+          }),
+        () => ({ addClasses: table.addClasses, addSections: table.addSections, addButton: table.shadowRoot!.querySelector('.add-button')?.getAttribute('title') }),
+      );
+    expect(await paint({ classes: ['double'] }, ['config', 7])).toEqual({ addClasses: ['double'], addSections: ['config'], addButton: 'Add an entry' });
+    expect(await paint({ classes: ['double'] })).toEqual({ addClasses: ['double'], addSections: null, addButton: 'Add a variable' });
+  });
 });

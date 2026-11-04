@@ -94,8 +94,18 @@ export declare const MAT_OMITTED: readonly {
  * Architectural Data tiles of the same classes, and every class core does not list (an
  * enumeration, the variants, a configuration set), are left out, and so is a category none of
  * whose tiles is left. Every category left is Design Data's alone, so no tile is badged.
+ *
+ * `sections` are the sections beside the variables whose every tile is offered too, each tile
+ * naming its section (`sectionTile`): a model's configuration sets, `config`, beside its Model
+ * Workspace. Their tiles are Configurations', a category of its own, so no tile is badged then
+ * either.
  */
-export declare function matCatalog(classes: readonly string[]): GalleryCategory[];
+export declare function matCatalog(classes: readonly string[], sections?: readonly string[]): GalleryCategory[];
+/**
+ * Whether a tile of a MAT-file's gallery adds to a section of its own (`sections`, matCatalog's),
+ * and so names it, rather than a variable of the file, which names none.
+ */
+export declare function sectionTile(tile: GalleryTile, sections: readonly string[] | null | undefined): boolean;
 /** Every tile, flat, in display order — the order a keyboard walk follows. */
 export declare function allTiles(): GalleryTile[];
 /**

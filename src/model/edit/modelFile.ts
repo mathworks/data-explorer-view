@@ -3,11 +3,15 @@
 // A `.slx` model as the MAT-file engine edits it (engineFile.ts): its Model Workspace, which core
 // makes a MAT-file's editor over the workspace part (ModelWorkspaceNode), is the node every gesture
 // edits; the table shows the whole model, section by section, as the read-only view does, and only
-// the workspace takes an edit, a paste or a drop. Every other section is shown and not edited:
-// core refuses every edit of it (ModelSectionNode._editRefusal), and its rows offer no Delete or
-// Cut. Each configuration set says whether it is made the active one (Set as Active Configuration,
-// core's setActiveConfigSet). A save is the model's package with its workspace part written anew,
-// and the active set marked where another was made active (core's ModelFileWriter).
+// the workspace takes a paste or a drop. Its configuration sets take the edits a dictionary's do,
+// where core says the model's sets take one (ModelNode.configEditRefusal): a rename and a
+// Description (core's row flags), an Add from the gallery's Configurations tiles (`addSections`),
+// and a Delete, which core refuses for the active set, saying why; no Cut, as a move into another
+// document takes its original out of this one by variable name. Every other section is shown and
+// not edited: core refuses every edit of it (ModelSectionNode._editRefusal), and its rows offer no
+// Delete or Cut. Each configuration set says whether it is made the active one (Set as Active
+// Configuration, core's setActiveConfigSet). A save is the model's package with its workspace part
+// written anew, its sets as edited and the active one marked (core's ModelFileWriter).
 import type { Session } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildEntryRows } from '../rows/rowBuilder.js';
@@ -17,6 +21,8 @@ import type { EngineFile } from './engineFile.js';
 
 /** The key of a model's Model Workspace among its sections, which every id of a variable in it starts after. */
 export const WORKSPACE_SECTION = 'workspace';
+/** The key of a model's configuration sets among its sections. */
+const CONFIG_SECTION = 'config';
 
 // The Model Workspace of `root`, where it is a MAT-file's editor (core's ModelWorkspaceNode, a
 // MatNode under the model), or the section of what was read, which takes no edit (a part core could
@@ -29,13 +35,22 @@ function workspaceOf(root: any): any {
 // refused (_fileRefusal), which a section of what was read does not.
 const editsAsMatFile = (variables: any): boolean => typeof variables?._fileRefusal === 'function';
 
+// Whether the model's configuration sets take an edit: core's answer (ModelNode.configEditRefusal),
+// which a core that edits none does not give.
+function setsTakeEdits(root: any): boolean {
+  return typeof root?.configEditRefusal === 'function' && root.configEditRefusal() === null;
+}
+
 // Every row of a section other than the workspace offers no Delete, and so no Cut: core refuses
-// either there. Its other flags are core's, as every row's are.
-function shownOnly(rows: TreeTableRow[], variables: any): TreeTableRow[] {
+// either there. A configuration set is the one row outside it that is deleted, where the model's
+// sets take an edit, and it is not cut. Its other flags are core's, as every row's are.
+function shownOnly(rows: TreeTableRow[], variables: any, root: any): TreeTableRow[] {
   const prefix = (variables?.id ?? '') + '/';
+  const sets = setsTakeEdits(root) ? new Set<string>((root.getSection(CONFIG_SECTION)?.children ?? []).map((set: any) => String(set.id))) : new Set<string>();
   for (const row of rows as any[]) {
     const id = String(row.ID ?? '');
-    if (row._canDelete && !id.startsWith(prefix)) row._canDelete = false;
+    if (sets.has(id)) row._canCut = false;
+    else if (row._canDelete && !id.startsWith(prefix)) row._canDelete = false;
   }
   return rows;
 }
@@ -71,9 +86,14 @@ export const MODEL_FILE: EngineFile = {
   section: WORKSPACE_SECTION,
   target: (_srcId, variables) => variables.id,
   addSection: WORKSPACE_SECTION,
+  // The gallery's Configurations tiles, where core says the model's sets take a new one.
+  addSections(root) {
+    const config = root?.getSection?.(CONFIG_SECTION);
+    return setsTakeEdits(root) && config?.entryRefusal?.('Simulink.ConfigSet') === null ? [CONFIG_SECTION] : [];
+  },
   payload(name, root, variables, budget, opts) {
     const planned = rowPlannerFor(name).payload(root, budget, opts);
-    return { rows: setsMarked(shownOnly(planned.rows, variables), root), plan: planned.plan };
+    return { rows: setsMarked(shownOnly(planned.rows, variables, root), root), plan: planned.plan };
   },
   variableRows: (variable, budget, saved, opts) =>
     buildEntryRows(variable, WORKSPACE_SECTION, undefined, opts.clipMark, undefined, budget, saved),
