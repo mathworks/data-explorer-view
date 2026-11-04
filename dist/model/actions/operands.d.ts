@@ -7,6 +7,12 @@ export interface OperandRow {
     _canDelete?: boolean;
     _canAddChild?: boolean;
     /**
+     * False where the row's entry is deleted but not cut: a model's configuration set, which a move
+     * into another document could not take out of the model (the model engine's stamp). Absent: a
+     * cut is what Copy and Delete together allow.
+     */
+    _canCut?: boolean;
+    /**
      * On a model's configuration set alone (the model engine's stamp): whether it is made the active
      * one, and core's reason where it is not.
      */

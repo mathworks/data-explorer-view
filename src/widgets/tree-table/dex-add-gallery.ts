@@ -20,7 +20,7 @@ import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineIcon } from '../shared/dex-icon.js';
-import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '../../model/ids/addCatalog.js';
+import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog, sectionTile } from '../../model/ids/addCatalog.js';
 import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js';
 
 /**
@@ -54,7 +54,10 @@ import type { GalleryCategory, GalleryTile } from '../../model/ids/addCatalog.js
  */
 const ICON_SIZE = 24;
 
-/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
+/**
+ * What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's variable; a
+ * section of the file's own, `sections`, by its key) and its label.
+ */
 export interface AddTileDetail {
   className: string;
   section: string;
@@ -480,6 +483,13 @@ export class DexAddGallery extends LitElement {
   @property({ attribute: false }) classes: readonly string[] | null = null;
 
   /**
+   * With `classes`, the sections beside the file's variables whose every tile is offered too, each
+   * tile naming its section: a model's configuration sets, `config`, beside its Model Workspace.
+   * Default null: none. Property only.
+   */
+  @property({ attribute: false }) sections: readonly string[] | null = null;
+
+  /**
    * Which tile is the grid's one tab stop — the roving tabindex.
    *
    * 28 tiles were 28 tab stops, so reaching Configurations from the keyboard cost 20-odd
@@ -600,7 +610,7 @@ export class DexAddGallery extends LitElement {
   private _onTile(tile: GalleryTile): void {
     this.dispatchEvent(
       new CustomEvent<AddTileDetail>('dex-add-tile', {
-        detail: { className: tile.className, section: this.classes ? '' : tile.section, label: tile.label },
+        detail: { className: tile.className, section: this.classes && !sectionTile(tile, this.sections) ? '' : tile.section, label: tile.label },
         bubbles: true,
         composed: true,
       }),
@@ -661,7 +671,7 @@ export class DexAddGallery extends LitElement {
     // disagree with the DOM order it names.
     let index = 0;
     return html`
-      <div role="dialog" aria-label=${this.classes ? 'Add a variable' : 'Add an entry'} @keydown=${this._onKeyDown} @focusin=${this._onFocusIn}>
+      <div role="dialog" aria-label=${this.classes && !this.sections?.length ? 'Add a variable' : 'Add an entry'} @keydown=${this._onKeyDown} @focusin=${this._onFocusIn}>
         <div class="gallery-header">
           <span class="gallery-title">Add</span>
           <label
@@ -676,7 +686,7 @@ export class DexAddGallery extends LitElement {
             Keep open
           </label>
         </div>
-        ${(this.classes ? matCatalog(this.classes) : ADD_CATALOG).map(
+        ${(this.classes ? matCatalog(this.classes, this.sections ?? []) : ADD_CATALOG).map(
           (category) => html`
             <div class="kind-header">
               <span class="kind-name">${category.title}</span>
@@ -691,12 +701,14 @@ export class DexAddGallery extends LitElement {
   }
 
   private _renderTile(category: GalleryCategory, tile: GalleryTile, index: number) {
-    // A MAT-file's tiles name no destination: the file is the only one.
+    // A MAT-file's tiles name no destination: the file is the only one, but for a section of its
+    // own (`sections`), whose category's heading names it.
     const badge = this.classes ? null : badgeOf(category, tile);
     // The accessible name has to carry the destination whether or not a badge does:
     // a screen reader gets no heading context from a button inside a group, and the
     // destination is the one thing about a tile that is not in its label.
-    const description = this.classes ? `Add ${tile.label}` : `Add ${tile.label} to ${SECTION_LABEL[tile.section]}`;
+    const description =
+      this.classes && !sectionTile(tile, this.sections) ? `Add ${tile.label}` : `Add ${tile.label} to ${SECTION_LABEL[tile.section]}`;
     return html`
       <button
         type="button"

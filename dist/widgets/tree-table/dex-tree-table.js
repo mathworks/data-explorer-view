@@ -309,6 +309,12 @@ export class DexTreeTable extends LitElement {
          */
         this.addClasses = null;
         /**
+         * With `addClasses`, the sections beside the file's variables whose every tile its gallery
+         * offers too, each tile naming its section: a model's configuration sets, `config`. Null, the
+         * default: none. Property only.
+         */
+        this.addSections = null;
+        /**
          * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
          * document cannot be changed: no row is draggable, and a drag from another table draws no drop
          * target here, on a row or on the empty body. Default true. Attribute `row-drag`.
@@ -4224,7 +4230,7 @@ export class DexTreeTable extends LitElement {
       <button
         type="button"
         class="add-button"
-        title=${this.addClasses ? 'Add a variable' : 'Add an entry'}
+        title=${this.addClasses && !this.addSections?.length ? 'Add a variable' : 'Add an entry'}
         aria-haspopup="dialog"
         aria-expanded=${this._addGalleryOpen}
         @click=${(e) => this._onAddButtonClick(e)}
@@ -4257,6 +4263,7 @@ export class DexTreeTable extends LitElement {
       <dex-add-gallery
         .pinned=${this._addPinned}
         .classes=${this.addClasses}
+        .sections=${this.addSections}
         @dex-add-tile=${this._onAddTile}
         @dex-add-pin-changed=${(e) => {
             this._addPinned = !!e.detail.pinned;
@@ -4395,6 +4402,9 @@ __decorate([
 __decorate([
     property({ attribute: false })
 ], DexTreeTable.prototype, "addClasses", void 0);
+__decorate([
+    property({ attribute: false })
+], DexTreeTable.prototype, "addSections", void 0);
 __decorate([
     property({ type: Boolean, attribute: 'row-drag' })
 ], DexTreeTable.prototype, "rowDrag", void 0);

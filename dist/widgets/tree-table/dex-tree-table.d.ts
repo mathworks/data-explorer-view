@@ -155,6 +155,12 @@ export declare class DexTreeTable extends LitElement {
      */
     addClasses: readonly string[] | null;
     /**
+     * With `addClasses`, the sections beside the file's variables whose every tile its gallery
+     * offers too, each tile naming its section: a model's configuration sets, `config`. Null, the
+     * default: none. Property only.
+     */
+    addSections: readonly string[] | null;
+    /**
      * Whether a row can be dragged, or a dragged row let go over one. Set it false where the
      * document cannot be changed: no row is draggable, and a drag from another table draws no drop
      * target here, on a row or on the empty body. Default true. Attribute `row-drag`.

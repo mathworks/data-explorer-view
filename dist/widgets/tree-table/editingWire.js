@@ -316,6 +316,9 @@ export function wireEditing(host) {
             table.canAdd = editable;
             // A MAT-file's gallery offers the classes its host lists, a dictionary's every tile.
             table.addClasses = view.add && Array.isArray(view.add.classes) ? view.add.classes.filter((c) => typeof c === 'string') : null;
+            // And the sections beside its variables whose tiles it offers too: a model's configuration sets.
+            table.addSections =
+                table.addClasses && Array.isArray(view.addSections) ? view.addSections.filter((c) => typeof c === 'string') : null;
             // A document that is read-only now has no drop rule left that is about it. Only then: an
             // editable paint's rules come AFTER it (a host sends sectionRules behind its rows), so
             // wiping them here would leave the table rule-less until the next change.

@@ -25,7 +25,7 @@ import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { defineIcon } from '../shared/dex-icon.js';
-import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog } from '../../model/ids/addCatalog.js';
+import { ADD_CATALOG, SECTION_LABEL, badgeOf, labelLinesOf, matCatalog, sectionTile } from '../../model/ids/addCatalog.js';
 /**
  * How big a tile's icon is, in px.
  *
@@ -83,6 +83,12 @@ export class DexAddGallery extends LitElement {
          * Default null. Property only.
          */
         this.classes = null;
+        /**
+         * With `classes`, the sections beside the file's variables whose every tile is offered too, each
+         * tile naming its section: a model's configuration sets, `config`, beside its Model Workspace.
+         * Default null: none. Property only.
+         */
+        this.sections = null;
         /**
          * Which tile is the grid's one tab stop — the roving tabindex.
          *
@@ -588,7 +594,7 @@ export class DexAddGallery extends LitElement {
     }
     _onTile(tile) {
         this.dispatchEvent(new CustomEvent('dex-add-tile', {
-            detail: { className: tile.className, section: this.classes ? '' : tile.section, label: tile.label },
+            detail: { className: tile.className, section: this.classes && !sectionTile(tile, this.sections) ? '' : tile.section, label: tile.label },
             bubbles: true,
             composed: true,
         }));
@@ -646,7 +652,7 @@ export class DexAddGallery extends LitElement {
         // disagree with the DOM order it names.
         let index = 0;
         return html `
-      <div role="dialog" aria-label=${this.classes ? 'Add a variable' : 'Add an entry'} @keydown=${this._onKeyDown} @focusin=${this._onFocusIn}>
+      <div role="dialog" aria-label=${this.classes && !this.sections?.length ? 'Add a variable' : 'Add an entry'} @keydown=${this._onKeyDown} @focusin=${this._onFocusIn}>
         <div class="gallery-header">
           <span class="gallery-title">Add</span>
           <label
@@ -661,7 +667,7 @@ export class DexAddGallery extends LitElement {
             Keep open
           </label>
         </div>
-        ${(this.classes ? matCatalog(this.classes) : ADD_CATALOG).map((category) => html `
+        ${(this.classes ? matCatalog(this.classes, this.sections ?? []) : ADD_CATALOG).map((category) => html `
             <div class="kind-header">
               <span class="kind-name">${category.title}</span>
             </div>
@@ -673,12 +679,13 @@ export class DexAddGallery extends LitElement {
     `;
     }
     _renderTile(category, tile, index) {
-        // A MAT-file's tiles name no destination: the file is the only one.
+        // A MAT-file's tiles name no destination: the file is the only one, but for a section of its
+        // own (`sections`), whose category's heading names it.
         const badge = this.classes ? null : badgeOf(category, tile);
         // The accessible name has to carry the destination whether or not a badge does:
         // a screen reader gets no heading context from a button inside a group, and the
         // destination is the one thing about a tile that is not in its label.
-        const description = this.classes ? `Add ${tile.label}` : `Add ${tile.label} to ${SECTION_LABEL[tile.section]}`;
+        const description = this.classes && !sectionTile(tile, this.sections) ? `Add ${tile.label}` : `Add ${tile.label} to ${SECTION_LABEL[tile.section]}`;
         return html `
       <button
         type="button"
@@ -706,6 +713,9 @@ __decorate([
 __decorate([
     property({ attribute: false })
 ], DexAddGallery.prototype, "classes", void 0);
+__decorate([
+    property({ attribute: false })
+], DexAddGallery.prototype, "sections", void 0);
 __decorate([
     state()
 ], DexAddGallery.prototype, "_activeIndex", void 0);

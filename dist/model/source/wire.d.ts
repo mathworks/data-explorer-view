@@ -46,6 +46,8 @@ export interface SetRowsMessage {
     add?: {
         classes: readonly string[];
     };
+    /** The sections beside `add`'s classes whose tiles the gallery offers too (TableView.addSections). */
+    addSections?: readonly string[];
 }
 /**
  * The rows of one entry, the entry's row first, replacing the rows of the entry the table shows

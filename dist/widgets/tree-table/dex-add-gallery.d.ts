@@ -1,5 +1,8 @@
 import { LitElement } from 'lit';
-/** What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's) and its label. */
+/**
+ * What `dex-add-tile` carries: the tile's class, its section ('' for a MAT-file's variable; a
+ * section of the file's own, `sections`, by its key) and its label.
+ */
 export interface AddTileDetail {
     className: string;
     section: string;
@@ -35,6 +38,12 @@ export declare class DexAddGallery extends LitElement {
      * Default null. Property only.
      */
     classes: readonly string[] | null;
+    /**
+     * With `classes`, the sections beside the file's variables whose every tile is offered too, each
+     * tile naming its section: a model's configuration sets, `config`, beside its Model Workspace.
+     * Default null: none. Property only.
+     */
+    sections: readonly string[] | null;
     /**
      * Which tile is the grid's one tab stop — the roving tabindex.
      *

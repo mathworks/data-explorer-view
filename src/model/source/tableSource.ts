@@ -60,6 +60,12 @@ export interface TableView {
    * Absent: every tile, a dictionary's, each naming its section.
    */
   add?: { classes: readonly string[] };
+  /**
+   * With `add`, the sections beside its classes whose every tile the gallery offers too, each tile
+   * naming its section: a model's configuration sets, `config`, beside its Model Workspace. Absent:
+   * none.
+   */
+  addSections?: readonly string[];
 }
 
 /** The rows under one row whose children a paint held back (`_lazy`). */

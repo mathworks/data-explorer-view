@@ -114,6 +114,8 @@ export function messageSource(port, options = {}) {
             ...(isRecord(m.add) && Array.isArray(m.add.classes)
                 ? { add: { classes: m.add.classes.filter((c) => typeof c === 'string') } }
                 : {}),
+            // The sections beside them likewise: anything but a list is none.
+            ...(Array.isArray(m.addSections) ? { addSections: m.addSections.filter((c) => typeof c === 'string') } : {}),
         };
     };
     /** Send a command: nothing waits for an answer. */

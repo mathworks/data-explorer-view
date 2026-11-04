@@ -30,6 +30,11 @@ export interface EngineFile {
   target(srcId: string, variables: any): string;
   /** The section core's addEntry is asked to add into. */
   readonly addSection: string;
+  /**
+   * The sections beside the variables that the gallery adds an entry to, by key, each where core
+   * says it takes one now: a model's configuration sets (`config`). Absent: none.
+   */
+  addSections?(root: any): readonly string[];
   /** The rows of the whole table, within `budget`, and what was held back. */
   payload(name: string, root: any, variables: any, budget: number, opts: PlanOptions): { rows: TreeTableRow[]; plan: RowPlan };
   /** The rows of one variable, its own row first: what a repaint of it splices in. */

@@ -162,6 +162,8 @@ export function messageSource(port: TablePort, options: MessageSourceOptions = {
       ...(isRecord(m.add) && Array.isArray(m.add.classes)
         ? { add: { classes: m.add.classes.filter((c: unknown): c is string => typeof c === 'string') } }
         : {}),
+      // The sections beside them likewise: anything but a list is none.
+      ...(Array.isArray(m.addSections) ? { addSections: m.addSections.filter((c: unknown): c is string => typeof c === 'string') } : {}),
     };
   };
 
