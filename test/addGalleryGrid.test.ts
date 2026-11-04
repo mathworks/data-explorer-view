@@ -51,9 +51,10 @@ function layOut(el: DexAddGallery, columns: number, sizes: number[] = ADD_CATALO
   return place;
 }
 
-async function gallery(classes: readonly string[] | null = null): Promise<DexAddGallery> {
+async function gallery(classes: readonly string[] | null = null, sections: readonly string[] | null = null): Promise<DexAddGallery> {
   const el = document.createElement('dex-add-gallery') as DexAddGallery;
   el.classes = classes;
+  el.sections = sections;
   document.body.appendChild(el);
   await el.updateComplete;
   return el;
@@ -176,6 +177,26 @@ describe('the MAT-file gallery', () => {
     const tile = $$(el, '.tile')[0];
     tile.click();
     expect(asked).toEqual([{ className: tile.dataset.className, section: '', label: matCatalog(CLASSES)[0].tiles[0].label }]);
+  });
+
+  it("offers a model's Configurations tiles beside its classes, each naming its section, as a dictionary's do", async () => {
+    const el = await gallery(CLASSES, ['config']);
+    const tiles = $$(el, '.tile');
+    const expected = matCatalog(CLASSES, ['config']).flatMap((c) => c.tiles);
+    expect(tiles.map((t) => t.dataset.className)).toEqual(expected.map((t) => t.className));
+    expect(tiles.slice(-2).map((t) => t.dataset.className)).toEqual(['Simulink.ConfigSet', 'Simulink.ConfigSetRef']);
+    expect(el.shadowRoot!.querySelector('[role="dialog"]')!.getAttribute('aria-label')).toBe('Add an entry');
+    expect($$(el, '.tile-badge')).toEqual([]);
+    expect(tiles.at(-1)!.getAttribute('aria-label')).toBe('Add Config Reference to Configurations');
+    expect(tiles[0].getAttribute('aria-label')).toBe(`Add ${expected[0].label}`);
+    const asked: any[] = [];
+    el.addEventListener('dex-add-tile', (e) => asked.push((e as CustomEvent).detail));
+    tiles.at(-2)!.click();
+    tiles[0].click();
+    expect(asked).toEqual([
+      { className: 'Simulink.ConfigSet', section: 'config', label: 'Config Set' },
+      { className: expected[0].className, section: '', label: expected[0].label },
+    ]);
   });
 
   it('a file that can take no new variable shows an empty gallery the keys do nothing in', async () => {

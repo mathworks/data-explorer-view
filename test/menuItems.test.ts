@@ -206,6 +206,17 @@ describe('disabled reasons', () => {
     expect(byId(items, 'cut')!.label).toBe('Cut "A"');
     expect(byId(items, 'delete')!.disabled).toBe(true);
   });
+
+  it("offers Copy and Delete but no Cut of an entry that says it is not moved (a model's configuration set)", () => {
+    const rows = ROWS.map((r) => (r.ID === 'u/design/A' ? { ...r, _canCut: false } : r));
+    const items = menu({ rows });
+    expect(byId(items, 'copy')!.disabled).toBeFalsy();
+    expect(byId(items, 'delete')!.disabled).toBeFalsy();
+    expect(byId(items, 'cut')!.disabled).toBe(true);
+    expect(byId(items, 'cut')!.reason).toBe(`"A" can't be cut`);
+    // And so the chord: Cmd/Ctrl+X is enabled by the same item.
+    expect(byId(menu({ rows, selectedRowIds: ['u/design/B'], anchorRowId: 'u/design/B' }), 'cut')!.disabled).toBe(false);
+  });
 });
 
 describe('menu shape', () => {
