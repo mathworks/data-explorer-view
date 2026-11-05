@@ -35,6 +35,20 @@ export interface EngineFile {
     variableRows(variable: any, budget: number, saved: SavedStatus, opts: PlanOptions): TreeTableRow[];
     /** Where a paste or a drop into the table lands, and what it admits. */
     rules(root: any, variables: any, label: string): SectionRule[];
+    /**
+     * Where a paste or a drop onto `rowId` lands, where it is a section beside the variables: its
+     * name and the id core is asked to paste into (a model's configuration sets). Absent, or null:
+     * the variables (`section`, `target`).
+     */
+    pasteTarget?(root: any, rowId: string): {
+        sectionName: string;
+        containerId: string;
+    } | null;
+    /**
+     * The nodes beside the variables that a move into another document takes out of this one, each
+     * known by the token its copy carried (a model's configuration sets). Absent: none.
+     */
+    movedOut?(root: any): readonly any[];
     /** Whether the variables take no edit at all. */
     readOnly(variables: any): boolean;
     /**

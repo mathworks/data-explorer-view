@@ -42,6 +42,41 @@
       "type": "text"
      }
     ]
+   },
+   {
+    "title": "Other",
+    "properties": [
+     {
+      "name": "Components",
+      "value": "<10x1 Simulink.ConfigComponent>",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "ConfigPrmDlgPosition",
+      "value": "[0, 0, 0, 0]",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "CurrentDlgPage",
+      "value": "Solver",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "ExtraOptions",
+      "value": "",
+      "editable": false,
+      "type": "text"
+     },
+     {
+      "name": "Version",
+      "value": "26.1.0",
+      "editable": false,
+      "type": "text"
+     }
+    ]
    }
   ]
  }

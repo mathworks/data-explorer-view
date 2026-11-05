@@ -627,9 +627,18 @@ export class MatEngine {
       if (named) named.push(v);
       else byName.set(v.name, [v]);
     }
+    // The nodes beside the variables a move takes out (a model's configuration sets, EngineFile
+    // .movedOut), known by the token their copy carried alone: their names are another namespace's.
+    const beside: readonly any[] = this.file.movedOut?.(this.root()) ?? [];
     const variables: any[] = [];
+    const others: any[] = [];
     for (const target of targets) {
       const { name } = toEntrySelector(target);
+      const taken = typeof target === 'object' && target.origin ? beside.find((n) => this.origins.get(n) === target.origin) : undefined;
+      if (taken) {
+        others.push(taken);
+        continue;
+      }
       const named = byName.get(name) ?? [];
       if (named.length > 1) return { removed: false, reason: `it holds more than one "${name}", and a move takes its original out by name` };
       // The variable that holds the name now must be the one that was taken: a cut is lazy, and
@@ -645,16 +654,22 @@ export class MatEngine {
       }
       variables.push(...named);
     }
-    if (variables.length === 0) return { removed: false, reason: NOT_FOUND_REASON };
+    if (variables.length === 0 && others.length === 0) return { removed: false, reason: NOT_FOUND_REASON };
+    // What core refuses to take out (the active configuration set), in its words, before anything is.
+    const refused = others.length > 0 ? deleteRefusal(this.session, others.map((n) => n.id)) : null;
+    if (refused) return { removed: false, reason: this.describe(refused) };
     const observed = this.record(
       'Move (remove source)',
-      () => this.session.deleteNodesById(variables.map((v) => v.id)),
+      () => {
+        if (variables.length > 0) this.session.deleteNodesById(variables.map((v) => v.id));
+        for (const node of others) this.session.deleteNodeById(node.id);
+      },
       () => variables,
     );
     // Answered from what the file holds now, not from whether core threw: a delete it recorded
     // before throwing took the originals out all the same (and is an edit the stack was handed),
     // and telling the user to remove them by hand would have them look for what is gone.
-    const gone = variables.every((v) => v.parent !== mat);
+    const gone = variables.every((v) => v.parent !== mat) && others.every((n) => !n.parent);
     if (observed.error) this.repaintAll();
     if (gone && observed.steps > 0) return { removed: true };
     if (observed.error) return { removed: false, reason: this.describe(observed.error) };
@@ -1404,7 +1419,7 @@ class MatView implements EditableTableSource {
   // format (the registers' deleters). What is left here is what the edit IS in a MAT-file: core's
   // pasteEntries into this file, all of the entries or none, as ONE undo step, inside a gesture so
   // that it is ONE edit with the Status column and the repaint every edit has.
-  private transferAdapter(): TransferAdapter<TransferTarget> {
+  private transferAdapter(): TransferAdapter<TransferTarget & { containerId?: string }> {
     // Thrown by the adapter where the view has already been told why (a gesture reports its own
     // refusals and failures), so that the transfer's failure path says nothing more.
     class Told extends Error {}
@@ -1413,16 +1428,17 @@ class MatView implements EditableTableSource {
       // One section: a same-file move is always the no-op, so the policy never asks this file to
       // take entries out and paste them in one edit — and refuses, should it ever have to.
       takesRemoveFirst: false,
-      // Any row, and no row at all (''), is the file.
-      resolveTarget: () => {
+      // Any row, and no row at all (''), is the file's variables; but a row of a section beside them
+      // that takes a paste (a model's configuration sets), which is that section (EngineFile.pasteTarget).
+      resolveTarget: (rowId) => {
         if (!this.treeOrSay()) throw new Told();
-        return { sectionName: this.doc.file.section };
+        return this.doc.file.pasteTarget?.(this.doc.root(), rowId) ?? { sectionName: this.doc.file.section };
       },
       validate: () => {
         const mat = this.doc.model();
         if (this.doc.file.readOnly(mat)) throw new TransferRefused(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
       },
-      commit: ({ payloads, removeFirst, label }) => {
+      commit: ({ target, payloads, removeFirst, label }) => {
         // The policy guarantees none (takesRemoveFirst: false); a paste that went on regardless
         // would leave the originals standing beside what it pasted.
         if (removeFirst.length > 0) throw new Error(`a move within ${this.name} reached its paste`);
@@ -1432,9 +1448,12 @@ class MatView implements EditableTableSource {
           () => {
             // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
             // spelling for stays itself): the register keeps its records for the next paste.
-            result = this.session.pasteEntries(this.doc.file.target(this.doc.srcId, this.doc.model()), payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
+            const into = target.containerId ?? this.doc.file.target(this.doc.srcId, this.doc.model());
+            result = this.session.pasteEntries(into, payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
           },
-          () => (result && 'nodes' in result ? result.nodes : []),
+          // The variables it made, whose Status the save marks keep: a set pasted beside them (a
+          // model's configuration sets) shows none, as one added or renamed shows none.
+          () => (result && 'nodes' in result ? result.nodes.filter((n: any) => n.parent === this.doc.model()) : []),
         );
         if (!observed) throw new Told();
         // Refused whole by core, in its words: nothing was made, recorded or published.

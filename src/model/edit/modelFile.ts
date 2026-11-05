@@ -5,15 +5,17 @@
 // edits; the table shows the whole model, section by section, as the read-only view does, and only
 // the workspace takes a paste or a drop. Its configuration sets take the edits a dictionary's do,
 // where core says the model's sets take one (ModelNode.configEditRefusal): a rename and a
-// Description (core's row flags), an Add from the gallery's Configurations tiles (`addSections`),
-// and a Delete, which core refuses for the active set, saying why; no Cut, as a move into another
-// document takes its original out of this one by variable name. Every other section is shown and
+// Description (core's row flags), an Add from the gallery's Configurations tiles (`addSections`), a
+// paste or a drop of a set or a reference (`pasteTarget`), a Delete, which core refuses for the
+// active set, saying why, and a Cut or a drag into another document, which takes it out of this
+// one (`movedOut`). Every other section is shown and
 // not edited: core refuses every edit of it (ModelSectionNode._editRefusal), and its rows offer no
 // Delete or Cut. Each configuration set says whether it is made the active one (Set as Active
 // Configuration, core's setActiveConfigSet). A save is the model's package with its workspace part
 // written anew, its sets as edited and the active one marked (core's ModelFileWriter).
 import type { Session } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
+import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { buildEntryRows } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
@@ -42,17 +44,22 @@ function setsTakeEdits(root: any): boolean {
 }
 
 // Every row of a section other than the workspace offers no Delete, and so no Cut: core refuses
-// either there. A configuration set is the one row outside it that is deleted, where the model's
-// sets take an edit, and it is not cut. Its other flags are core's, as every row's are.
+// either there. A configuration set is the one row outside it that is deleted and cut, where the
+// model's sets take an edit: a move into another document takes it out (`movedOut`). Its other
+// flags are core's, as every row's are.
 function shownOnly(rows: TreeTableRow[], variables: any, root: any): TreeTableRow[] {
   const prefix = (variables?.id ?? '') + '/';
-  const sets = setsTakeEdits(root) ? new Set<string>((root.getSection(CONFIG_SECTION)?.children ?? []).map((set: any) => String(set.id))) : new Set<string>();
+  const sets = new Set<string>(setsOf(root).map((set: any) => String(set.id)));
   for (const row of rows as any[]) {
     const id = String(row.ID ?? '');
-    if (sets.has(id)) row._canCut = false;
-    else if (row._canDelete && !id.startsWith(prefix)) row._canDelete = false;
+    if (row._canDelete && !id.startsWith(prefix) && !sets.has(id)) row._canDelete = false;
   }
   return rows;
+}
+
+// The model's configuration sets, where they take an edit; none where they do not.
+function setsOf(root: any): any[] {
+  return setsTakeEdits(root) ? (root.getSection(CONFIG_SECTION)?.children ?? []) : [];
 }
 
 // Each of the model's configuration sets says whether it is made the active one (`_canSetActive`)
@@ -97,9 +104,20 @@ export const MODEL_FILE: EngineFile = {
   },
   variableRows: (variable, budget, saved, opts) =>
     buildEntryRows(variable, WORKSPACE_SECTION, undefined, opts.clipMark, undefined, budget, saved),
-  // The workspace alone takes a paste or a drop: a model's other sections, which take none, are no
-  // target, and a section with no rule is refused one (the table's sectionRuleForRow).
-  rules: (root) => sectionRules(root).filter((rule) => rule.sectionName === WORKSPACE_SECTION),
+  // The workspace takes a paste or a drop, and the configuration sets where they take an edit (a
+  // set or a reference, which core pastes into them): a model's other sections, which take none,
+  // are no target, and a section with no rule is refused one (the table's sectionRuleForRow).
+  rules: (root) =>
+    sectionRules(root).filter((rule) => rule.sectionName === WORKSPACE_SECTION || (rule.sectionName === CONFIG_SECTION && setsTakeEdits(root))),
+  // A set moved into another document is taken out of the model.
+  movedOut: (root) => setsOf(root),
+  // A paste or a drop onto the Configurations heading or a set lands in the sets.
+  pasteTarget(root, rowId) {
+    const config = root?.getSection?.(CONFIG_SECTION);
+    if (!config || !setsTakeEdits(root)) return null;
+    const id = String(config.id);
+    return rowId === buildSectionRowId(CONFIG_SECTION) || rowId.startsWith(id + '/') ? { sectionName: CONFIG_SECTION, containerId: id } : null;
+  },
   readOnly: (variables) => !editsAsMatFile(variables) || !!variables.readOnly,
   // Core's words, which say why: a workspace made anew from another source as the model opens, a
   // package a save could not put back together.
