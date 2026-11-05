@@ -1239,18 +1239,19 @@ class MatView {
             // One section: a same-file move is always the no-op, so the policy never asks this file to
             // take entries out and paste them in one edit — and refuses, should it ever have to.
             takesRemoveFirst: false,
-            // Any row, and no row at all (''), is the file.
-            resolveTarget: () => {
+            // Any row, and no row at all (''), is the file's variables; but a row of a section beside them
+            // that takes a paste (a model's configuration sets), which is that section (EngineFile.pasteTarget).
+            resolveTarget: (rowId) => {
                 if (!this.treeOrSay())
                     throw new Told();
-                return { sectionName: this.doc.file.section };
+                return this.doc.file.pasteTarget?.(this.doc.root(), rowId) ?? { sectionName: this.doc.file.section };
             },
             validate: () => {
                 const mat = this.doc.model();
                 if (this.doc.file.readOnly(mat))
                     throw new TransferRefused(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
             },
-            commit: ({ payloads, removeFirst, label }) => {
+            commit: ({ target, payloads, removeFirst, label }) => {
                 // The policy guarantees none (takesRemoveFirst: false); a paste that went on regardless
                 // would leave the originals standing beside what it pasted.
                 if (removeFirst.length > 0)
@@ -1259,7 +1260,8 @@ class MatView {
                 const observed = this.gesture(label, () => {
                     // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
                     // spelling for stays itself): the register keeps its records for the next paste.
-                    result = this.session.pasteEntries(this.doc.file.target(this.doc.srcId, this.doc.model()), payloads.map((p) => cloneForPaste(p)));
+                    const into = target.containerId ?? this.doc.file.target(this.doc.srcId, this.doc.model());
+                    result = this.session.pasteEntries(into, payloads.map((p) => cloneForPaste(p)));
                 }, () => (result && 'nodes' in result ? result.nodes : []));
                 if (!observed)
                     throw new Told();

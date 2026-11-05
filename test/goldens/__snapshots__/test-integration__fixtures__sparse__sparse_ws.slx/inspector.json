@@ -1,6 +1,6 @@
 {
  "digested": true,
- "sha256": "be4bbbb1e76c7960b05cd9246d4a1320b6e6fae121643fb3c1ee036a78f154cc",
+ "sha256": "7461f302148b4f1af9a8dc610f378e1fab8f566f4881627ace20c0d0da106bb6",
  "entryCount": 240,
  "entries": {
   "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/workspace/c": "23ecf100fcbee04e",
@@ -242,6 +242,6 @@
   "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/workspace/st/d": "8b37e43b5726334c",
   "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/workspace/st/d/1": "5d2e547b4ae4c895",
   "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/workspace/st/d/2": "acc29aa6cdb4d105",
-  "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/config/Configuration": "d965c9de3b6e19b4"
+  "file:///fx/test-integration/fixtures/sparse/sparse_ws.slx/config/Configuration": "dfba095aa9234a92"
  }
 }

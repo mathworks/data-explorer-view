@@ -1,4 +1,5 @@
 import { sectionRules } from '../actions/sectionRules.js';
+import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { buildEntryRows } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 /** The key of a model's Model Workspace among its sections, which every id of a variable in it starts after. */
@@ -79,9 +80,18 @@ export const MODEL_FILE = {
         return { rows: setsMarked(shownOnly(planned.rows, variables, root), root), plan: planned.plan };
     },
     variableRows: (variable, budget, saved, opts) => buildEntryRows(variable, WORKSPACE_SECTION, undefined, opts.clipMark, undefined, budget, saved),
-    // The workspace alone takes a paste or a drop: a model's other sections, which take none, are no
-    // target, and a section with no rule is refused one (the table's sectionRuleForRow).
-    rules: (root) => sectionRules(root).filter((rule) => rule.sectionName === WORKSPACE_SECTION),
+    // The workspace takes a paste or a drop, and the configuration sets where they take an edit (a
+    // set or a reference, which core pastes into them): a model's other sections, which take none,
+    // are no target, and a section with no rule is refused one (the table's sectionRuleForRow).
+    rules: (root) => sectionRules(root).filter((rule) => rule.sectionName === WORKSPACE_SECTION || (rule.sectionName === CONFIG_SECTION && setsTakeEdits(root))),
+    // A paste or a drop onto the Configurations heading or a set lands in the sets.
+    pasteTarget(root, rowId) {
+        const config = root?.getSection?.(CONFIG_SECTION);
+        if (!config || !setsTakeEdits(root))
+            return null;
+        const id = String(config.id);
+        return rowId === buildSectionRowId(CONFIG_SECTION) || rowId.startsWith(id + '/') ? { sectionName: CONFIG_SECTION, containerId: id } : null;
+    },
     readOnly: (variables) => !editsAsMatFile(variables) || !!variables.readOnly,
     // Core's words, which say why: a workspace made anew from another source as the model opens, a
     // package a save could not put back together.

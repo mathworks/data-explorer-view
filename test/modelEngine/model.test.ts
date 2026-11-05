@@ -14,7 +14,7 @@ import { createSession, parseSlx } from 'data-explorer-core';
 import { MODEL_FILE } from '../../src/host/index.js';
 import { createRegisters } from '../../src/model/index.js';
 import { buffer, errorsIn, fixture as matFixture, nameOf, open, tableOf, waitFor } from '../matEngine/harness.js';
-import { open as openDictionary } from '../jsonEngine/harness.js';
+import { chunkOf, open as openDictionary } from '../jsonEngine/harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -32,14 +32,14 @@ const workspaceOf = (bytes: Uint8Array): Record<string, any> =>
   Object.fromEntries(parseSlx(buffer(bytes), 'saved.slx').workspace.map((v: any) => [v.name, v]));
 
 describe('a model, edited by the MAT-file engine', () => {
-  it('shows every section, takes a paste into its workspace alone, and offers its classes', async () => {
+  it('shows every section, takes a paste into its workspace and its configuration sets alone, and offers its classes', async () => {
     const o = await openModel('slxcases.slx');
     const set = o.view.posts.find((p) => p.type === 'setRows');
     assert.strictEqual(set.editable, true);
     assert.strictEqual(set.notice, undefined);
     assert.deepStrictEqual(sectionRows(o.view.posts), ['section:blocks', 'section:workspace', 'section:config', 'section:references', 'section:dataSources']);
     const rules = o.view.posts.find((p) => p.type === 'sectionRules');
-    assert.deepStrictEqual(rules.rules.map((r: any) => r.sectionName), ['workspace']);
+    assert.deepStrictEqual(rules.rules.map((r: any) => r.sectionName), ['workspace', 'config']);
     assert.ok(set.add.classes.includes('Simulink.Parameter'));
     assert.ok(!set.add.classes.includes('Simulink.Bus'), 'no bus in a model workspace');
     assert.ok(!set.add.classes.includes('Simulink.AliasType'), 'no alias type in a model workspace');
@@ -330,7 +330,11 @@ describe("a configuration set pasted into a model's Configurations, and out of o
     assert.deepStrictEqual(setsIn(m.save()), ['Configuration', 'Fast', 'Slow', 'Fast1']);
     m.view.send({ type: 'copy', rowIds: [setRow(m.view.posts, 'Slow').ID] });
     dict.view.send({ type: 'paste', rowId: CONFIG });
-    await waitFor('the set in the dictionary', () => tableOf(dict.view.posts).some((r) => r.parent === CONFIG && nameOf(r) === 'Slow'));
+    await waitFor('the set in the dictionary', () => dict.names().includes('Slow'));
+    // With its settings: Slow is acs_sets's fixed-step set, StopTime 20.
+    const slow = (chunkOf(dict.text.text).entries as any[]).find((e) => e.name === 'Slow');
+    const solver = slow.value._elements[0]._properties.Components._elements.find((c: any) => c._object_class === 'Simulink.SolverCC');
+    assert.strictEqual(solver._properties.SolverName, 'FixedStepDiscrete');
   });
 
   it("an older layout's set is not copied, nor a set pasted into one, saying why; a workspace takes none", async () => {
