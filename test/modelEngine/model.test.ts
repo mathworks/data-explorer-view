@@ -13,7 +13,8 @@ import { unzipSync, zipSync } from 'fflate';
 import { createSession, parseSlx } from 'data-explorer-core';
 import { MODEL_FILE } from '../../src/host/index.js';
 import { createRegisters } from '../../src/model/index.js';
-import { buffer, fixture as matFixture, nameOf, open, tableOf, waitFor } from '../matEngine/harness.js';
+import { buffer, errorsIn, fixture as matFixture, nameOf, open, tableOf, waitFor } from '../matEngine/harness.js';
+import { open as openDictionary } from '../jsonEngine/harness.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -293,5 +294,58 @@ describe("a model's configuration sets, edited as a dictionary's are", () => {
     assert.strictEqual(lastSet(o.view.posts).addSections, undefined);
     const sets = tableOf(o.view.posts).filter((r) => r.parent === CONFIG);
     assert.ok(sets.length === 3 && sets.every((r) => r._canDelete === false && r.Name.editable === false));
+  });
+});
+
+describe("a configuration set pasted into a model's Configurations, and out of one", () => {
+  const CONFIG = 'section:config';
+  const setRow = (posts: any[], name: string): any => tableOf(posts).find((r) => r.parent === CONFIG && nameOf(r) === name);
+  const setsIn = (bytes: Uint8Array) => parseSlx(buffer(bytes), 'saved.slx').configSets.map((c: any) => c.name);
+  const lastSet = (posts: any[]) => [...posts].reverse().find((p) => p.type === 'setRows');
+
+  it('a copy of one of its own sets: named as MATLAB names a duplicate, one edit, saved', async () => {
+    const o = await openModel('acs_sets.slx');
+    const rules = [...o.view.posts].reverse().find((p) => p.type === 'sectionRules');
+    assert.deepStrictEqual(rules.rules.map((r: any) => [r.sectionName, r.allowedTypes]), [
+      ['workspace', rules.rules[0].allowedTypes],
+      ['config', ['Simulink.ConfigSet', 'Simulink.ConfigSetRef']],
+    ]);
+    o.view.send({ type: 'copy', rowIds: [setRow(o.view.posts, 'Fast').ID] });
+    o.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the pasted set', () => !!setRow(o.view.posts, 'Fast1'));
+    assert.strictEqual(o.events.length, 1, 'one edit reached the stack');
+    assert.deepStrictEqual(setsIn(o.save()), ['Configuration', 'Fast', 'Slow', 'Fast1']);
+    o.undo();
+    await waitFor('the paste undone', () => !setRow(o.view.posts, 'Fast1'));
+  });
+
+  it("a dictionary's set pasted into the model, and the model's into the dictionary", async () => {
+    const registers = createRegisters();
+    const dict = await openDictionary('pd.sldd', model('pd.sldd'), { registers });
+    const m = await openModel('acs_sets.slx', { registers });
+    const fromDict = tableOf(dict.view.posts).find((r) => r.parent === CONFIG && nameOf(r) === 'Fast');
+    dict.view.send({ type: 'copy', rowIds: [fromDict.ID] });
+    m.view.send({ type: 'paste', rowId: setRow(m.view.posts, 'Slow').ID });
+    await waitFor('the pasted set', () => !!setRow(m.view.posts, 'Fast1'));
+    assert.deepStrictEqual(setsIn(m.save()), ['Configuration', 'Fast', 'Slow', 'Fast1']);
+    m.view.send({ type: 'copy', rowIds: [setRow(m.view.posts, 'Slow').ID] });
+    dict.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the set in the dictionary', () => tableOf(dict.view.posts).some((r) => r.parent === CONFIG && nameOf(r) === 'Slow'));
+  });
+
+  it("an older layout's set is not copied, nor a set pasted into one, saying why; a workspace takes none", async () => {
+    const registers = createRegisters();
+    const old = await openModel('acs_sets_R2013b.slx', { registers });
+    old.view.send({ type: 'copy', rowIds: [setRow(old.view.posts, 'Fast').ID] });
+    await waitFor('the refusal', () => errorsIn(old.view.posts).length > 0);
+    assert.match(errorsIn(old.view.posts).at(-1)!, /a configuration set's settings are copied out of a model saved in R2026b or later/);
+    const m = await openModel('acs_sets.slx', { registers });
+    m.view.send({ type: 'copy', rowIds: [setRow(m.view.posts, 'Fast').ID] });
+    old.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the paste refused', () => old.view.posts.some((p) => /written into a model saved in R2026b or later/.test(JSON.stringify(p))));
+    assert.strictEqual(old.events.length, 0);
+    m.view.send({ type: 'paste', rowId: 'section:workspace' });
+    await waitFor('the workspace refusal', () => m.view.posts.some((p) => /Simulink\.ConfigSet/.test(JSON.stringify(p)) && (p.type === 'error' || p.type === 'refused')));
+    assert.ok(!lastSet(m.view.posts).rows.some((r: any) => r.parent === 'section:workspace' && nameOf(r) === 'Fast'), 'no set lands in the workspace');
   });
 });

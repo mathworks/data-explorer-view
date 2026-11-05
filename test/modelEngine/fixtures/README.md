@@ -17,3 +17,4 @@ named:
 | `acs_sets.slx` | `test/fixtures/active-config/acs_sets.slx` | `test/parity/matlab/gen_active_config.m` (R2027a): three configuration sets, Configuration active |
 | `acs_sets_R2013b.slx` | `test/fixtures/active-config/acs_sets_R2013b.slx` | the same, exported to R2013b: the sets inline in the block diagram |
 | `acs_ref.slx` | `test/fixtures/active-config/acs_ref.slx` | `gen_active_config.m`: a set and a `Simulink.ConfigSetRef` into a dictionary |
+| `pd.sldd` | `test/fixtures/config-set-paste/pd.sldd` | `test/parity/matlab/gen_config_set_paste.m` (R2027a): a text dictionary holding Fast (fixed-step, StopTime 2) and R, a reference |
