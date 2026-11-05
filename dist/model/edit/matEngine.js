@@ -462,9 +462,18 @@ export class MatEngine {
             else
                 byName.set(v.name, [v]);
         }
+        // The nodes beside the variables a move takes out (a model's configuration sets, EngineFile
+        // .movedOut), known by the token their copy carried alone: their names are another namespace's.
+        const beside = this.file.movedOut?.(this.root()) ?? [];
         const variables = [];
+        const others = [];
         for (const target of targets) {
             const { name } = toEntrySelector(target);
+            const taken = typeof target === 'object' && target.origin ? beside.find((n) => this.origins.get(n) === target.origin) : undefined;
+            if (taken) {
+                others.push(taken);
+                continue;
+            }
             const named = byName.get(name) ?? [];
             if (named.length > 1)
                 return { removed: false, reason: `it holds more than one "${name}", and a move takes its original out by name` };
@@ -481,13 +490,22 @@ export class MatEngine {
             }
             variables.push(...named);
         }
-        if (variables.length === 0)
+        if (variables.length === 0 && others.length === 0)
             return { removed: false, reason: NOT_FOUND_REASON };
-        const observed = this.record('Move (remove source)', () => this.session.deleteNodesById(variables.map((v) => v.id)), () => variables);
+        // What core refuses to take out (the active configuration set), in its words, before anything is.
+        const refused = others.length > 0 ? deleteRefusal(this.session, others.map((n) => n.id)) : null;
+        if (refused)
+            return { removed: false, reason: this.describe(refused) };
+        const observed = this.record('Move (remove source)', () => {
+            if (variables.length > 0)
+                this.session.deleteNodesById(variables.map((v) => v.id));
+            for (const node of others)
+                this.session.deleteNodeById(node.id);
+        }, () => variables);
         // Answered from what the file holds now, not from whether core threw: a delete it recorded
         // before throwing took the originals out all the same (and is an edit the stack was handed),
         // and telling the user to remove them by hand would have them look for what is gone.
-        const gone = variables.every((v) => v.parent !== mat);
+        const gone = variables.every((v) => v.parent !== mat) && others.every((n) => !n.parent);
         if (observed.error)
             this.repaintAll();
         if (gone && observed.steps > 0)
@@ -1262,7 +1280,10 @@ class MatView {
                     // spelling for stays itself): the register keeps its records for the next paste.
                     const into = target.containerId ?? this.doc.file.target(this.doc.srcId, this.doc.model());
                     result = this.session.pasteEntries(into, payloads.map((p) => cloneForPaste(p)));
-                }, () => (result && 'nodes' in result ? result.nodes : []));
+                }, 
+                // The variables it made, whose Status the save marks keep: a set pasted beside them (a
+                // model's configuration sets) shows none, as one added or renamed shows none.
+                () => (result && 'nodes' in result ? result.nodes.filter((n) => n.parent === this.doc.model()) : []));
                 if (!observed)
                     throw new Told();
                 // Refused whole by core, in its words: nothing was made, recorded or published.

@@ -44,6 +44,11 @@ export interface EngineFile {
         sectionName: string;
         containerId: string;
     } | null;
+    /**
+     * The nodes beside the variables that a move into another document takes out of this one, each
+     * known by the token its copy carried (a model's configuration sets). Absent: none.
+     */
+    movedOut?(root: any): readonly any[];
     /** Whether the variables take no edit at all. */
     readOnly(variables: any): boolean;
     /**

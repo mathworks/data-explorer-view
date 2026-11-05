@@ -6,9 +6,9 @@
 // the workspace takes a paste or a drop. Its configuration sets take the edits a dictionary's do,
 // where core says the model's sets take one (ModelNode.configEditRefusal): a rename and a
 // Description (core's row flags), an Add from the gallery's Configurations tiles (`addSections`), a
-// paste or a drop of a set or a reference (`pasteTarget`), and a Delete, which core refuses for the
-// active set, saying why; no Cut, as a move into another document takes its original out of this
-// one by variable name. Every other section is shown and
+// paste or a drop of a set or a reference (`pasteTarget`), a Delete, which core refuses for the
+// active set, saying why, and a Cut or a drag into another document, which takes it out of this
+// one (`movedOut`). Every other section is shown and
 // not edited: core refuses every edit of it (ModelSectionNode._editRefusal), and its rows offer no
 // Delete or Cut. Each configuration set says whether it is made the active one (Set as Active
 // Configuration, core's setActiveConfigSet). A save is the model's package with its workspace part
@@ -44,17 +44,22 @@ function setsTakeEdits(root: any): boolean {
 }
 
 // Every row of a section other than the workspace offers no Delete, and so no Cut: core refuses
-// either there. A configuration set is the one row outside it that is deleted, where the model's
-// sets take an edit, and it is not cut. Its other flags are core's, as every row's are.
+// either there. A configuration set is the one row outside it that is deleted and cut, where the
+// model's sets take an edit: a move into another document takes it out (`movedOut`). Its other
+// flags are core's, as every row's are.
 function shownOnly(rows: TreeTableRow[], variables: any, root: any): TreeTableRow[] {
   const prefix = (variables?.id ?? '') + '/';
-  const sets = setsTakeEdits(root) ? new Set<string>((root.getSection(CONFIG_SECTION)?.children ?? []).map((set: any) => String(set.id))) : new Set<string>();
+  const sets = new Set<string>(setsOf(root).map((set: any) => String(set.id)));
   for (const row of rows as any[]) {
     const id = String(row.ID ?? '');
-    if (sets.has(id)) row._canCut = false;
-    else if (row._canDelete && !id.startsWith(prefix)) row._canDelete = false;
+    if (row._canDelete && !id.startsWith(prefix) && !sets.has(id)) row._canDelete = false;
   }
   return rows;
+}
+
+// The model's configuration sets, where they take an edit; none where they do not.
+function setsOf(root: any): any[] {
+  return setsTakeEdits(root) ? (root.getSection(CONFIG_SECTION)?.children ?? []) : [];
 }
 
 // Each of the model's configuration sets says whether it is made the active one (`_canSetActive`)
@@ -104,6 +109,8 @@ export const MODEL_FILE: EngineFile = {
   // are no target, and a section with no rule is refused one (the table's sectionRuleForRow).
   rules: (root) =>
     sectionRules(root).filter((rule) => rule.sectionName === WORKSPACE_SECTION || (rule.sectionName === CONFIG_SECTION && setsTakeEdits(root))),
+  // A set moved into another document is taken out of the model.
+  movedOut: (root) => setsOf(root),
   // A paste or a drop onto the Configurations heading or a set lands in the sets.
   pasteTarget(root, rowId) {
     const config = root?.getSection?.(CONFIG_SECTION);

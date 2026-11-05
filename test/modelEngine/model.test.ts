@@ -45,7 +45,7 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.ok(!set.add.classes.includes('Simulink.AliasType'), 'no alias type in a model workspace');
   });
 
-  it("offers Delete of the workspace's variables and the configuration sets, and of no other section's rows", async () => {
+  it("offers Delete and Cut of the workspace's variables and the configuration sets, and of no other section's rows", async () => {
     const o = await openModel('slxcases.slx');
     const rows = tableOf(o.view.posts);
     const ws = rows.filter((r) => r.parent === WS);
@@ -53,7 +53,7 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.ok(ws.every((r) => r._canDelete === true), 'every workspace variable offers Delete');
     const sets = rows.filter((r) => r.parent === 'section:config');
     assert.ok(sets.length > 0);
-    assert.ok(sets.every((r) => r._canDelete === true && r._canCut === false), 'every set offers Delete, and no Cut');
+    assert.ok(sets.every((r) => r._canDelete === true && r._canCut === undefined), 'every set offers Delete, and so Cut');
     const others = rows.filter((r) => r.parent && r.parent !== WS && r.parent !== 'section:config' && String(r.parent).startsWith('section:'));
     assert.ok(others.length > 0);
     assert.ok(others.every((r) => r._canDelete === false), 'no block, reference or data source does');
@@ -317,6 +317,35 @@ describe("a configuration set pasted into a model's Configurations, and out of o
     assert.deepStrictEqual(setsIn(o.save()), ['Configuration', 'Fast', 'Slow', 'Fast1']);
     o.undo();
     await waitFor('the paste undone', () => !setRow(o.view.posts, 'Fast1'));
+  });
+
+  it('a pasted set shows no Status, as an added one shows none, before a save and after', async () => {
+    const o = await openModel('acs_sets.slx');
+    o.view.send({ type: 'copy', rowIds: [setRow(o.view.posts, 'Fast').ID] });
+    o.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the pasted set', () => !!setRow(o.view.posts, 'Fast1'));
+    // As the set it was copied out of shows it: none.
+    assert.deepStrictEqual([setRow(o.view.posts, 'Fast1').Status, setRow(o.view.posts, 'Fast').Status], ['', '']);
+    o.save();
+    assert.strictEqual(setRow(o.view.posts, 'Fast1').Status, '');
+  });
+
+  it('a set cut and pasted into another model is taken out of the first, one edit in each; the active one is not', async () => {
+    const registers = createRegisters();
+    const from = await openModel('acs_sets.slx', { registers });
+    const to = await openModel('acs_ref.slx', { registers });
+    from.view.send({ type: 'cut', rowIds: [setRow(from.view.posts, 'Fast').ID] });
+    to.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the set moved', () => !!setRow(to.view.posts, 'Fast') && !setRow(from.view.posts, 'Fast'));
+    assert.deepStrictEqual([from.events.length, to.events.length], [1, 1]);
+    assert.deepStrictEqual(setsIn(from.save()), ['Configuration', 'Slow']);
+    assert.deepStrictEqual(setsIn(to.save()), ['Configuration', 'RefFromDict', 'Fast']);
+    // The active set lands, and stays where it was, core saying why.
+    from.view.send({ type: 'cut', rowIds: [setRow(from.view.posts, 'Configuration').ID] });
+    to.view.send({ type: 'paste', rowId: CONFIG });
+    await waitFor('the copy landed', () => !!setRow(to.view.posts, 'Configuration1'));
+    await waitFor('the refusal', () => to.view.posts.some((p) => /it is the active configuration set/.test(JSON.stringify(p))));
+    assert.ok(setRow(from.view.posts, 'Configuration'), 'the original stays');
   });
 
   it("a dictionary's set pasted into the model, and the model's into the dictionary", async () => {
