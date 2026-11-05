@@ -90,14 +90,14 @@
     "test:gallery": "playwright test -c gallery/playwright.config.ts"
   },
   "peerDependencies": {
-    "data-explorer-core": "^1.56.0",
+    "data-explorer-core": "^1.58.0",
     "lit": "^3.2.0"
   },
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@playwright/test": "1.62.0",
     "@vitest/coverage-v8": "4.1.12",
-    "data-explorer-core": "github:mathworks/data-explorer-core#v1.57.1",
+    "data-explorer-core": "github:mathworks/data-explorer-core#v1.58.0",
     "fflate": "^0.8.3",
     "happy-dom": "^21.0.4",
     "lit": "^3.2.0",
