@@ -2,9 +2,10 @@
 //
 // A property inspector that follows a feed of pages: a connected table's handle (its selection,
 // inspected) or the pages a host sends (inspectorFeed). It shows each page, says when there is
-// nothing to show, opens the variable editor on its Value row's matrix glyph and fills it, and
-// hands a clicked cross-reference to the app. The feed can change (follow()): one inspector beside
-// several tables shows the active one's.
+// nothing to show, opens the variable editor on its Value row's matrix glyph and fills it, hands a
+// clicked cross-reference to the app, and hands a change of an editable row to a feed that takes
+// edits (`edit`: a table's handle). The feed can change (follow()): one inspector beside several
+// tables shows the active one's.
 //
 // The VS Code extension's inspector webview (its pi-main.ts) with the extension taken out: the
 // same rules, so that the extension, which uses this over its own channel, shows its inspector as
@@ -37,6 +38,8 @@ export function connectInspector(inspector, feed, options = {}) {
     // the table beside it opened in the same editor.
     let openedHere = false;
     let disposed = false;
+    // The row of the page on screen, which a change of one of its fields is an edit of.
+    let shownRowId;
     const setEmpty = (isEmpty) => {
         const empty = options.empty;
         if (typeof empty === 'function')
@@ -66,14 +69,31 @@ export function connectInspector(inspector, feed, options = {}) {
             for (const listener of [...navigate])
                 listener(target);
     };
+    // A change of an editable row: a cell edit of the page's row, its key the column, for the feed to
+    // write back. A feed that takes no edits has pages with no editable rows, and is asked nothing.
+    const onChanged = (e) => {
+        const detail = e.detail;
+        const feed = following;
+        if (!feed?.edit || shownRowId === undefined || typeof detail?.key !== 'string' || detail.key === '')
+            return;
+        feed.edit({ rowId: shownRowId, columnId: detail.key, oldValue: String(detail.oldValue ?? ''), newValue: String(detail.newValue ?? '') });
+    };
     inspector.addEventListener('dex-matrix-open', onOpen);
     inspector.addEventListener('dex-property-navigate', onNavigate);
+    inspector.addEventListener('dex-property-changed', onChanged);
     const show = (page) => {
         // Each page replaces every row a grid opened from here was anchored to.
         if (openedHere)
             variableEditor?.close();
         openedHere = false;
         const groups = Array.isArray(page.groups) ? page.groups : [];
+        const rowId = typeof page.rowId === 'string' && groups.length > 0 ? page.rowId : undefined;
+        // Another row's page, with the focus still in a field (a move that blurs nothing: a menu's Back,
+        // a command, a host's select): what is typed there is the row it was typed for, written to it
+        // while the inspector still names that row and its feed.
+        if (rowId !== shownRowId)
+            inspector.commit();
+        shownRowId = rowId;
         inspector.groups = groups;
         setEmpty(groups.length === 0);
     };
@@ -87,6 +107,8 @@ export function connectInspector(inspector, feed, options = {}) {
         follow(next) {
             if (disposed || next === following)
                 return;
+            // What is typed in a field is the row of the feed it was typed in, written before it is left.
+            inspector.commit();
             stop();
             // The rows shown, and a grid opened on one of them, are the last feed's.
             if (openedHere)
@@ -95,9 +117,14 @@ export function connectInspector(inspector, feed, options = {}) {
             following = next;
             if (next)
                 variableEditor = editorFor(next);
+            shownRowId = undefined;
             inspector.groups = [];
             setEmpty(true);
             stop = next ? next.onPage(show) : () => { };
+        },
+        commit() {
+            if (!disposed)
+                inspector.commit();
         },
         dispose() {
             if (disposed)
@@ -106,6 +133,7 @@ export function connectInspector(inspector, feed, options = {}) {
             stop();
             inspector.removeEventListener('dex-matrix-open', onOpen);
             inspector.removeEventListener('dex-property-navigate', onNavigate);
+            inspector.removeEventListener('dex-property-changed', onChanged);
             navigate.clear();
             made?.remove();
         },

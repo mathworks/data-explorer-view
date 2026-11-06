@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
-import type { EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
+import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DexTreeTable } from './dex-tree-table.js';
 import { type MenuRow } from './menuItems.js';
 /**
@@ -13,6 +13,25 @@ export interface TableTextView {
     available: boolean | ((view: TableView | undefined) => boolean);
     /** Show the row's text there. */
     locate(rowId: string): void;
+}
+/**
+ * One editing gesture the table handed its source (the handle's `ran`): which of the editing menu's
+ * items it was, the rows it carried, and how many it acted on.
+ */
+export interface EditingRun {
+    /** The editing menu's item: 'copy', 'cut', 'paste', 'delete', 'addChild', 'undo', 'redo', 'locateInText', 'setActiveConfigSet'. */
+    actionId: string;
+    /**
+     * The rows it was handed: the selection, for Copy, Cut and Delete; the row it was anchored at, for
+     * the rest (none for a paste into the document itself, and for Undo and Redo).
+     */
+    rowIds: string[];
+    /**
+     * How many it acted on, as its item's label counts them: the entries Copy or Cut carried, the
+     * items Delete took, the entries the clipboard held for Paste; one for a gesture on one row; none
+     * for Undo and Redo.
+     */
+    count: number;
 }
 /** What the editing half needs of the connected table it is part of. */
 export interface EditingHost {
@@ -32,6 +51,8 @@ export interface EditingHost {
     view(): TableView | undefined;
     select(rowIds: readonly string[]): void;
     beginRename(rowId: string): void;
+    /** A gesture handed to the source was not refused by the end of the task it was handed in. */
+    ran(run: EditingRun): void;
 }
 /** What connectTable asks of the editing half. */
 export interface EditingWire {
@@ -56,8 +77,19 @@ export interface EditingWire {
     run(actionId: string): boolean;
     /** Settled once every cell edit handed to the source so far is the document's, or refused. */
     editsSettled(): Promise<void>;
-    /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
+    /**
+     * A committed edit made outside the table (an inspector's row), written back as a cell edit is:
+     * settled once the source has it, or refused, which the table shows as it shows a cell's. It is
+     * one of the edits `editsSettled` waits for.
+     */
+    edit(edit: CellEdit): Promise<void>;
+    /**
+     * Undo or Redo, as its menu item does, where the document may be edited and its source does not
+     * say there is nothing to undo (or redo); false where not.
+     */
     history(action: 'undo' | 'redo'): boolean;
+    /** The source said an error (the banner's): no gesture handed to it this task is told as done. */
+    failed(): void;
 }
 /** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
 export declare function isTypingInField(ev: KeyboardEvent): boolean;

@@ -76,6 +76,15 @@ type `boolean` · default `false` · attribute `can-up`
 
 Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.
 
+### `mono`
+
+type `boolean` · default `false` · attribute `mono`, reflected
+
+Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a
+toolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a
+file's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute
+`mono`, reflected so a page's stylesheet can follow it.
+
 ## Methods
 
 None.

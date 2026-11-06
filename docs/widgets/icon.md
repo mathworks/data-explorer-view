@@ -55,6 +55,18 @@ type `number` · default `16` · attribute `size`
 
 Its width and height in CSS pixels. Default 16. Attribute `size`.
 
+### `mono`
+
+type `boolean` · default `false` · attribute `mono`
+
+Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an
+activity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so
+the button's own background shows through them. The dark set's `--dex-icon-filter` is not
+applied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so
+it is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id
+with no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the
+icon in the colours its file has. Attribute `mono`.
+
 ## Methods
 
 None.

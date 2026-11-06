@@ -65,9 +65,10 @@ export function connectModules(context) {
         copy: (text) => copyText(host, text),
         failed: context.failed,
     });
-    // Search: the open files' names, read off their tables' rows, and the folder's index.
+    // Search: the open files' names, read off their tables' rows with what each row shows of its
+    // entry (its value and its type), and the folder's index.
     const search = connectSearchPane(parts.search, {
-        openRecords: () => context.tabs().flatMap((t) => (t.doc && t.table ? namesOfRows(t.table.rows, t.doc.uri, t.doc.kind) : [])),
+        openRecords: () => context.tabs().flatMap((t) => (t.doc && t.table ? namesOfRows(t.table.rows, t.doc.uri, t.doc.kind, { cells: true }) : [])),
         folderNames: () => context.folder()?.session.names,
         open: (uri, name) => context.openOn(uri, name),
         failed: context.failed,
@@ -91,8 +92,9 @@ export function connectModules(context) {
                 editable,
                 // Painted, and still taking no entry: a .mdl, a file kept for viewing only.
                 ...(handle.view && !editable ? { note: `${tab.name} takes no edits.` } : {}),
-                // What a cell editor still open holds is the document's before the add.
+                // What a cell editor or an inspector field still open holds is the document's before the add.
                 add: async (entry) => {
+                    context.parts.inspector.commit();
                     await handle.commitEdit();
                     if (isEditable(source))
                         source.addEntry(entry);

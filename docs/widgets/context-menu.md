@@ -44,15 +44,18 @@ None.
 
 ## Methods
 
-### `show(x: number, y: number, items: ContextMenuItem[]): void`
+### `show(x: number, y: number, items: ContextMenuItem[], options?: ContextMenuShowOptions): void`
 
 Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
 (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-open is replaced: it closes first, and says so (`dex-menu-closed`).
+open is replaced: it closes first, and says so (`dex-menu-closed`). With `focusFirst`, the
+keyboard is on the first item at once, and goes back where it was as the menu closes.
 
 ### `close(): void`
 
-Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`).
+Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). A menu opened with
+`focusFirst` that holds the keyboard as it closes (Escape, a scroll, a right-click outside,
+close()) gives it back where it was.
 
 ## Events
 

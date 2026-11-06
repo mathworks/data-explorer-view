@@ -35,10 +35,10 @@ export interface ToolbarActionDetail {
 }
 /**
  * A row of buttons, the items an app hands it: each an icon over a small label (beside it with
- * `compact`), the items of a group together with a separator between groups, and the `end` items
- * pushed to the right. A click on an item that is not disabled sends `dex-toolbar-action` with its
- * id; a disabled item is greyed and sends nothing. Each item's tooltip is its `title`, or its label
- * and shortcut.
+ * `compact`, and in the label's colour with `mono`), the items of a group together with a separator
+ * between groups, and the `end` items pushed to the right. A click on an item that is not disabled
+ * sends `dex-toolbar-action` with its id; a disabled item is greyed and sends nothing. Each item's
+ * tooltip is its `title`, or its label and shortcut.
  *
  * The toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and
  * wrap at either end; Home and End go to the first and the last; Enter and Space press the one the
@@ -64,6 +64,13 @@ export declare class DexToolbar extends LitElement {
      * Attribute `compact`, reflected so a page's stylesheet can follow it.
      */
     compact: boolean;
+    /**
+     * Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's
+     * toolbar drew its glyphs; off, the default, draws them in their files' colours. A disabled
+     * item's icon is greyed with its label either way. Attribute `mono`, reflected so a page's
+     * stylesheet can follow it.
+     */
+    mono: boolean;
     /**
      * What a screen reader calls the toolbar, so a page with more than one can tell them apart.
      * Default `Toolbar`. Attribute `label`.

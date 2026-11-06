@@ -29,6 +29,12 @@ export interface TableContextMenuDetail {
     y: number;
     rowId: string | null;
     graphTarget?: string;
+    /**
+     * A key opened it (`keyboardMenu`), not a right-click: the menu is to take the keyboard at once,
+     * and give it back to the grid when it closes (the context menu's `focusFirst`). Absent for a
+     * right-click.
+     */
+    keyboard?: true;
 }
 /**
  * What `dex-row-drag-start` carries: the rows dragged — the selection when the row grabbed is in
@@ -178,6 +184,17 @@ export declare class DexTreeTable extends LitElement {
      * to the attribute `readonly`.
      */
     readonly: boolean;
+    /**
+     * Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+     * `dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+     * the selection's last, whichever the table shows), placed under that row as a right-click on it
+     * is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+     * the space under the rows. Both keys are spent, so the browser's own menu event for them does
+     * not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+     * cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+     * they always were. Attribute `keyboard-menu`.
+     */
+    keyboardMenu: boolean;
     private get _addsEntries();
     private get _dragsRows();
     /**
@@ -402,6 +419,9 @@ export declare class DexTreeTable extends LitElement {
     private _expandAncestors;
     private _onContainerContextMenu;
     private _onRowContextMenu;
+    private _openMenu;
+    private _onMenuKey;
+    private _keyboardRow;
     private _onCellClick;
     private _onRowClick;
     private _dragModeFrom;
@@ -546,8 +566,9 @@ export interface TreeTableEventMap {
      */
     'dex-request-children': CustomEvent<RequestChildrenDetail>;
     /**
-     * A right-click on a row (after selecting it) or on the space under the rows: open a context
-     * menu there.
+     * A right-click on a row (after selecting it) or on the space under the rows, or with
+     * `keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a
+     * context menu there.
      */
     'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
     /** The user started dragging rows. */

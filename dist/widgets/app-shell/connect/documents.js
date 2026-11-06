@@ -57,10 +57,13 @@ export function clearSelection(tab) {
     table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: [] }, bubbles: true, composed: true }));
 }
 // --- The widgets ---------------------------------------------------------------------------------
-/** A table in `tab`'s panel, its column choices kept under `storageKey`. */
-export function newTable(tab, storageKey, editable = false) {
+/** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
+export function newTable(tab, storageKey, editable = false, tableStyle = 'normal') {
     const table = document.createElement('dex-tree-table');
     table.readonly = !editable;
+    table.tableStyle = tableStyle;
+    // Shift+F10 and the ContextMenu key open the selected row's menu, as a right-click on it does.
+    table.keyboardMenu = true;
     // Before it is connected: the table reads its column choices from the key it has then.
     table.storageKey = storageKey;
     tab.panel.append(table);
@@ -70,7 +73,7 @@ export function newTable(tab, storageKey, editable = false) {
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export function connectDocument(tab, doc, storageKey, wiring) {
     const { host } = wiring;
-    const handle = connectTable(newTable(tab, storageKey, doc.editable), doc.table, {
+    const handle = connectTable(newTable(tab, storageKey, doc.editable, wiring.tableStyle()), doc.table, {
         variableEditor: wiring.editor,
         contextMenu: wiring.menu,
         // Every document wired for editing: one that takes no edits (a .mdl, a .slx or MAT-file
@@ -80,12 +83,20 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         readOnlyMenu: true,
         copyText: true,
         undoChords: true,
+        // The inspector beside it shows the file's page while no row is selected, a section's, several
+        // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
+        inspectorPages: true,
+        inspectorEditing: true,
         errorDialog: wiring.dialog,
         // The host's clipboard, or the page's for a host without one, asked at each copy.
         copy: (text) => copyText(host, text),
-        // Usage is core's in a model; in a dictionary or a MAT-file the shown folder's usage
-        // graphs fill it, so a file outside the folder has none.
-        columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),
+        // Usage is answered over the open tabs until a folder is shown, and from then on over the
+        // folder: a model's is its own blocks' and workspace's either way, but a dictionary or a
+        // MAT-file outside the folder shown has none.
+        columns: (column) => {
+            const folder = wiring.folder();
+            return column !== 'UsedBy' || doc.kind === 'model' || !folder || folder.lists(doc.uri);
+        },
         // A name a link holds means the file the folder's tree shows for it.
         resolveLink: (link, fromUri) => wiring.folder()?.resolveLink(link, fromUri),
         // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).

@@ -45,9 +45,11 @@ export declare const BOX_HEADER = 44;
 export declare const OPEN_HEADER = 30;
 /** The height of an item. */
 export declare const ITEM_HEIGHT = 22;
+/** The layouts there are: the prototype's top-down trees (the default), and indented trees. */
+export type GraphLayoutStyle = 'tree' | 'indented';
 /**
  * The layout of `graph` with the boxes `expanded` names open: each shows its items, and each other
- * box the items of its own those reach (shownItems). Pure: the same graph and the same open boxes
- * give the same layout.
+ * box the items of its own those reach (shownItems), in the `style` given ('tree', the default, or
+ * 'indented'). Pure: the same graph, open boxes and style give the same layout.
  */
-export declare function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<string>): GraphLayout;
+export declare function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<string>, style?: GraphLayoutStyle): GraphLayout;

@@ -19,9 +19,11 @@ export interface LocationTab {
 }
 /**
  * The bar's segments for `rowId` in `tab` (or the file, for null; or Root, for no tab), and the
- * place Up goes to (null at Root, which has nothing above it).
+ * place Up goes to (null at Root, which has nothing above it). `preview`, at Root: the file
+ * selected in the graph, a dimmed segment after Root whose place is Root still (the shell opens
+ * its file when it is pressed).
  */
-export declare function locationOf(tab: LocationTab | null, rowId: string | null, rowOf: (rowId: string) => TreeTableRow | undefined, rootLabel?: string): {
+export declare function locationOf(tab: LocationTab | null, rowId: string | null, rowOf: (rowId: string) => TreeTableRow | undefined, rootLabel?: string, preview?: LocationSegment): {
     segments: LocationStep[];
     up: ShellPlace | null;
 };

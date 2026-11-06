@@ -54,14 +54,17 @@ export function toolbarItems(state) {
     return [
         item('open-file', 'Open', 'openFolder', 'open', false),
         ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
-        item('save', 'Save', 'saved', 'save', !(active?.editable && active.dirty)),
+        // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
+        item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty)),
         item('save-as', 'Save As', 'saveAs', 'save', !active?.editable),
         item('save-all', 'Save All', 'save_all', 'save', !state.anyDirty),
         item('close-tab', 'Close', 'close', 'close', active === null),
         table('undo', 'Undo', 'undo', 'history'),
         table('redo', 'Redo', 'redo', 'history'),
         table('add-child', 'Add Child', 'addBlockChild', 'add'),
-        table('cut', 'Cut', 'cut', 'clipboard'),
+        // The scissors alone: the `cut` tile the table's menu draws is light greys and a dotted line,
+        // which beside Copy's solid tile made an enabled Cut look disabled.
+        table('cut', 'Cut', 'scissorToolUI', 'clipboard'),
         table('copy', 'Copy', 'copy', 'clipboard'),
         table('paste', 'Paste', 'paste', 'clipboard'),
         table('delete', 'Delete', 'delete', 'delete'),

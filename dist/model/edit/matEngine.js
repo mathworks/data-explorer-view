@@ -39,10 +39,9 @@
 // gesture's (its refusal, its selection) only the view it was made in.
 import { cloneForPaste, toEntrySelector } from 'data-explorer-core';
 import { matCatalog } from '../ids/addCatalog.js';
-import { uriPathBasename } from '../ids/pathUtil.js';
+import { basename, uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw } from '../raw/rawView.js';
@@ -1018,19 +1017,23 @@ class MatView {
         const { matrix, message } = matrixCellsMessage(nodeId, this.findForRead(nodeId));
         return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
     }
-    async inspect(selection) {
-        const rowIds = typeof selection === 'string' ? [selection] : selection;
-        let view = { groups: [] };
-        const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
-        new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-        return view;
+    // The inspector's page (inspectTree), off the tree as edited, as the Raw pane's: the MAT-file, or the
+    // model whose Model Workspace this edits. The file's page says it holds edits while its undo stack
+    // is off the save point.
+    async inspect(selection, options) {
+        if (this.closed || this.doc.disposed)
+            return { groups: [] };
+        const doc = this.doc;
+        const tree = { root: () => doc.root(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: doc.session, dirty: () => doc.options.index.dirty };
+        return inspectTree(tree, selection, options);
     }
     // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree as edited: the MAT-file, or the
-    // model whose Model Workspace this edits. Nothing once closed.
-    async raw(rowId) {
+    // model whose Model Workspace this edits; with `record`, a variable's record for its bytes.
+    // Nothing once closed.
+    async raw(rowId, options) {
         if (this.closed || this.doc.disposed)
             return noRaw();
-        return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId);
+        return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId, options);
     }
     subscribe(listener) {
         this.listeners.add(listener);
@@ -1336,6 +1339,10 @@ class MatView {
         });
     }
     // --- Undo, redo, and the whole text of a Value --------------------------------------------------
+    /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+    get history() {
+        return this.doc.options.history;
+    }
     undo() {
         this.handle('undo', () => this.doc.options.sink.undo());
     }

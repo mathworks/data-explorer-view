@@ -97,8 +97,17 @@ export interface SettingsChangeDetail {
 export interface ShellSettings {
   /** The theme, or `'auto'` to follow the system's (see `effectiveTheme`). */
   theme: Theme | 'auto';
-  /** The toolbar's density: labelled buttons, or icons alone. */
+  /** The toolbar's density: each label under its icon, or a lower row with smaller icons and the labels beside them. */
   toolbar: 'normal' | 'compact';
+  /**
+   * The icons of the shell's own buttons (the toolbar's, the location bar's Back, Forward and Up,
+   * the activity bars' and the status bar's): `minimal` draws each in one colour, the text's, and
+   * `colorful` as its file has it. A file's or an entry's icon keeps its colours either way: there
+   * the colour tells kinds apart.
+   */
+  iconStyle: 'minimal' | 'colorful';
+  /** How the tables are ruled: `grid`, a line round every cell, or `rows`, a faint line between rows alone. */
+  tableStyle: 'grid' | 'rows';
 }
 
 /** A theme a page can be drawn in: the three theme.css defines. */

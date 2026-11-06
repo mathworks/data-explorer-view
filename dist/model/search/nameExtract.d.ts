@@ -6,6 +6,9 @@ export interface NameRecord {
     kind: EntryKind;
     selectName?: string;
     blockPath?: string;
+    value?: string;
+    dataType?: string;
+    className?: string;
 }
 export declare function namesFromSldd(names: readonly string[], sourceUri: string): NameRecord[];
 export declare function namesFromMat(names: readonly string[], sourceUri: string): NameRecord[];

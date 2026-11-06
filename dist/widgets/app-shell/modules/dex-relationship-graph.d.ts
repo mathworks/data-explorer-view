@@ -1,5 +1,6 @@
 import { LitElement, type PropertyValues } from 'lit';
 import { type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import { type GraphLayoutStyle } from '../../../model/graph/layout.js';
 /** What `dex-graph-selected` carries: the box or item now selected, or null for none. */
 export interface GraphSelectedDetail {
     /** A box's id (a file's uri, for a file given) or an item's; null when the selection was cleared. */
@@ -28,26 +29,32 @@ export interface GraphExpandDetail {
     expanded: boolean;
 }
 /**
- * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,
- * each a box of its kind's colour, a file referenced and not open dashed, and the edges between
- * them. Every box starts closed. An open box lists the blocks and variables that take
- * part, a model's workspace variables under a divider, and every other box the items of its own
- * those reach (a model open shows, in a dictionary, the variables its blocks read), with an edge
- * from each block to each variable it reads, labelled with the block parameter. The edges run under
- * the boxes; what the selection reaches is drawn over them. The graph comes from
- * `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
+ * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of
+ * their references, the data files on the right, each a box of its kind's colour, a file referenced
+ * and not open dashed, and the edges between them. Every box starts closed. An open box lists the
+ * blocks and variables that take part, a model's workspace variables under a divider, and every
+ * other box the items of its own those reach (a model open shows, in a dictionary, the variables
+ * its blocks read), with an edge from each block to each variable it reads, labelled with the block
+ * parameter. The edges run under the boxes; what the selection reaches is drawn over them. The
+ * graph comes from `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
  *
  * A click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges
  * reach, dimming the rest; a click on the background clears it. A double-click asks to open the
  * file (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names
  * it, for the app to look for. A box's − or + asks to hide or show its
- * items (`dex-graph-expand`); the app answers by setting `expanded`. The wheel, the + and − buttons
- * and a drag of the background zoom and pan; the fit button and fit() show the whole graph, and
- * reveal() brings one box or item to the middle. A Legend, closed at first, names the kinds.
+ * items (`dex-graph-expand`); the app answers by setting `expanded`. A box so opened is zoomed to
+ * with the files it reaches, the rest dimmed, as the prototype's expand did, until it is closed,
+ * Escape is pressed or the background clicked; a double-click on the background asks to close
+ * every box and fits the graph. The pointer on an item traces what it is joined to, as a selection
+ * of it would; on an edge, it fades the others. The wheel, the + and − buttons and a drag of the
+ * background zoom and pan; the fit button and fit() show the whole graph, reveal() brings one box
+ * or item to the middle, and zoomToReach() one and what it reaches. A Legend, closed at first,
+ * names the kinds.
  *
  * The keyboard: the canvas is one stop of the tab order; the arrows move the selection to the
  * nearest box that way, Enter opens the selected box or item, Space shows or hides the selected
- * box's items, + and − zoom and 0 fits.
+ * box's items, Escape clears the selection and the dimming of a box opened, + and − zoom and 0
+ * fits.
  *
  * @tagname dex-relationship-graph
  */
@@ -74,9 +81,26 @@ export declare class DexRelationshipGraph extends LitElement {
      * changes it.
      */
     expanded: string[];
+    /**
+     * How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down
+     * trees, what a file references side by side in the row under it. 'indented' draws each column
+     * as a file tree, one box a row, what a file references in the rows under it a step to the right,
+     * which draws a large set of files narrower and so at a larger scale: fifteen files that fit a
+     * 1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is
+     * dealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A
+     * change fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A
+     * value it does not know is 'tree'. Attribute `layout`.
+     */
+    layout: GraphLayoutStyle;
     private _view;
     private _legendOpen;
     private _panning;
+    private _opened;
+    private _openedStack;
+    private _stamp;
+    private _selectedAt;
+    private _hoverItem;
+    private _hoverEdge;
     private _layout;
     private _rects;
     private _boxes;
@@ -86,12 +110,16 @@ export declare class DexRelationshipGraph extends LitElement {
     private _domIds;
     private _fittedTo;
     private _pending;
+    private _wasOpen;
     private _press;
     private _resize;
     private readonly _wheel;
     connectedCallback(): void;
     disconnectedCallback(): void;
     protected willUpdate(changed: PropertyValues<this>): void;
+    private _noteOpened;
+    private _letGo;
+    private get _openedNewer();
     private _relayout;
     private _graph;
     private _boxIds;
@@ -101,7 +129,7 @@ export declare class DexRelationshipGraph extends LitElement {
     private _doPending;
     /**
      * Scales and moves the view so the whole graph shows, centred, at no more than its own size and
-     * no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
+     * no less than 0.7 of it: a graph bigger than that shows from its top left, to pan from.
      * Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
      * lays out; before the element has a size (not on the page yet, or hidden), once it has one.
      */
@@ -114,7 +142,17 @@ export declare class DexRelationshipGraph extends LitElement {
      * hold moves nothing.
      */
     reveal(id: string): void;
+    /**
+     * Zooms the view onto the box or item `id` and what a selection of it lights (it, what its edges
+     * reach, and their boxes), centred, at no more than their own size and no less than the least a
+     * fit shrinks to; where they do not fit at that, the box or item itself is kept in view, its top
+     * left first. For an app's "Show in Graph", which sets `selected` (and `expanded`) too and may call
+     * this straight after: with a draw to come, it zooms onto where that draw puts them. Changes
+     * neither the selection nor which boxes are open; an id the graph does not hold moves nothing.
+     */
+    zoomToReach(id: string): void;
     private _fitNow;
+    private _zoomNow;
     private _revealNow;
     private _bounded;
     private _zoomAt;
@@ -123,6 +161,10 @@ export declare class DexRelationshipGraph extends LitElement {
     private _onPointerDown;
     private _onPointerMove;
     private _onPointerUp;
+    private _clear;
+    private _onDblClick;
+    private _onPointerOver;
+    private _onPointerLeave;
     private _endPress;
     private _select;
     private _open;
@@ -130,16 +172,22 @@ export declare class DexRelationshipGraph extends LitElement {
     private _expanded;
     private _isOpen;
     private _toggle;
-    private _reachOf;
-    private _reach;
-    /** What the selection lights: it, what its edges reach and those things' boxes. Null for none. */
+    private _reaches;
+    private _reachFrom;
+    private _lit;
+    /**
+     * What `id` lights: it, what its edges (of `kinds`, every kind for null) reach and those things'
+     * boxes. Null for an id the graph does not hold.
+     */
     private _reachNow;
     private _onKeydown;
     private _step;
     private _choose;
     private _status;
+    private _openedStatus;
     private _onTop;
     private _dim;
+    private _paint;
     private _renderUnder;
     private _renderOver;
     private _stub;

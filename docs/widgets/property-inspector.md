@@ -89,7 +89,11 @@ The groups shown, in order; none, the default, draws an empty panel. Property on
 
 ## Methods
 
-None.
+### `commit(): void`
+
+Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
+is not its row's value. For an app's Save, which a chord gives with the focus still in the field,
+to take what was typed there. Nothing when the focus is in no field.
 
 ## Events
 
@@ -107,6 +111,11 @@ An editable row's field was changed and committed (its change event).
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
   propName: string;
+  /**
+   * The property's key (its row's `key`), which an edit of it names as its column; absent for a
+   * row that has none.
+   */
+  key?: string;
   newValue: string;
   oldValue: string;
 }

@@ -41,8 +41,8 @@ export declare function statusOf(tab: OpenTab | undefined): string;
  * so, which is what connectTable (its `select`, the inspector's feed) hears.
  */
 export declare function clearSelection(tab: OpenTab): void;
-/** A table in `tab`'s panel, its column choices kept under `storageKey`. */
-export declare function newTable(tab: OpenTab, storageKey: string, editable?: boolean): DexTreeTable;
+/** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
+export declare function newTable(tab: OpenTab, storageKey: string, editable?: boolean, tableStyle?: DexTreeTable['tableStyle']): DexTreeTable;
 /** The shared parts a document's table is connected with, and the folder it is read against. */
 export interface DocumentWiring {
     host: ShellHost;
@@ -51,6 +51,8 @@ export interface DocumentWiring {
     dialog: DexErrorDialog;
     /** The folder shown now, if any: its Usage, and the files its tree shows for a link's names. */
     folder(): FolderView | undefined;
+    /** How a table made now is ruled: the table style setting's. */
+    tableStyle(): DexTreeTable['tableStyle'];
 }
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export declare function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiring: DocumentWiring): TableHandle;

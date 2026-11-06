@@ -19,12 +19,15 @@
 // Root's relationship graph (graphPane.ts).
 import { parseLinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
+import { isEditable } from '../../../model/source/tableSource.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
+import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
 import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
 import { clearSelection, connectDocument, docTabOf, newTable, repaintProjects, showProject, statusOf, SHOW_IN_GRAPH, } from './documents.js';
-import { explorerFiles } from './explorerFiles.js';
+import { ranNote } from './editingNotes.js';
+import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import { connectGraphPane } from './graphPane.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination } from './links.js';
@@ -46,6 +49,24 @@ import { carryOut } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
+/** A feed of the one page of a file selected in the graph: it has no matrix, and takes no edit. */
+function pageFeed(file) {
+    const page = { ...(file.box.uri ? { rowId: file.box.uri } : {}), groups: file.groups };
+    return {
+        onPage(listener) {
+            listener(page);
+            return () => { };
+        },
+        matrix: async (nodeId) => ({ nodeId, message: 'This file has no value to show as a table.' }),
+    };
+}
+/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path, and why it is dimmed. */
+function previewOf(file) {
+    if (!file)
+        return undefined;
+    const { box } = file;
+    return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}), description: 'selected in the graph' };
+}
 /**
  * Fill an empty `<dex-app-shell>` with the app, over `options.host`, and return the handle the host
  * drives it by. The elements it builds must be defined first (the parts' define functions, and the
@@ -67,12 +88,26 @@ export function connectShell(shell, options) {
     let nextId = 0;
     // The Log, which every part of the shell writes to.
     const log = (level, text) => parts.log.appendEntry({ level, message: text });
-    // The Usage column is filled from the shown folder's session (ws.setUsage when one is shown).
+    // The Usage column is answered over the open tabs, as each holds its file (read or saved), until
+    // a folder is shown, whose session answers it from then on (ws.setUsage). A change to what is
+    // open (a tab opened, closed, saved or reloaded; refresh() tells it) repaints, once the burst is
+    // over, each table whose column was answered over other tabs than are open now.
+    const openUsage = createOpenFilesUsage({
+        files: () => tabs.items.flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
+        refill(uris) {
+            if (disposed || folderNow())
+                return;
+            for (const uri of uris)
+                void ws.get(uri)?.repaint().catch((err) => log('error', `Could not fill the Usage column: ${message(err)}`));
+        },
+    });
+    stops.push(() => openUsage.dispose());
     // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
     // document says the table cannot show is a toast, as it stands, and a line of the Log, which
     // keeps what a toast lets go by.
     const ws = createWorkspace({
         editing: true,
+        usage: openUsage,
         notify(notice) {
             toasts.show(notice);
             log(notice.level === 'status' ? 'info' : notice.level, notice.message);
@@ -84,21 +119,31 @@ export function connectShell(shell, options) {
         log(level, text);
     };
     const failed = (text) => say('error', text);
-    // The inspector follows the active tab's table, or none (its empty text).
+    // The inspector follows the active tab's table, or at Root the page of the file selected in the
+    // graph, or none (its empty text). A link on it goes where a table's link goes: through the folder
+    // shown, to the file its tree shows for the name the link holds; at Root, to the graph's file.
     const inspector = connectInspector(parts.inspector, null, { variableEditor: editor, empty: parts.inspectorEmpty });
-    inspector.on('navigate', (target) => {
-        if (tabs.active)
-            void navigate(tabs.active, parseLinkTarget(target));
-    });
+    inspector.on('navigate', (target) => void followInspectorLink(target));
+    async function followInspectorLink(target) {
+        const from = tabs.active;
+        if (!from)
+            return graph.openLink(target);
+        const link = parseLinkTarget(target);
+        const uri = await Promise.resolve(folderNow()?.resolveLink(link, sourceUri(from.path))).catch(() => undefined);
+        if (isOpen(from))
+            await navigate(from, link, uri ?? undefined);
+    }
     // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
     const folderNow = () => folders.current;
-    const wiring = { host, editor, menu, dialog, folder: folderNow };
+    // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
+    const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
     const popovers = connectPopovers(shell, parts, {
         store: pageStorage(),
         key: `${key}:settings`,
         system: options.systemTheme ?? systemThemeFromMedia(),
         appName,
         about: options.about ?? [],
+        tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
     });
     stops.push(() => popovers.dispose());
     // The shell's confirm dialog, one question at a time (questions.ts), for a host with none.
@@ -134,12 +179,25 @@ export function connectShell(shell, options) {
         },
     });
     const visit = () => nav.visit();
+    // The location bar's segments as last drawn: what a press on one names.
+    let located = [];
     // The inspector and the folder's tree follow the active tab.
     const follow = () => {
-        inspector.follow(tabs.active?.handle ?? null);
+        followInspector();
         if (tabs.active)
             folderNow()?.reveal(sourceUri(tabs.active.path));
     };
+    // The inspector's feed: the active tab's table; at Root, a page of the file selected in the graph
+    // (the same feed while it is the same page), or none.
+    let rootPage = null;
+    function followInspector() {
+        if (tabs.active)
+            return inspector.follow(tabs.active.handle ?? null);
+        const file = tabs.items.length > 0 ? graph.selectedFile() : null;
+        if (file !== rootPage?.file)
+            rootPage = file ? { file, feed: pageFeed(file) } : null;
+        inspector.follow(rootPage?.feed ?? null);
+    }
     function paint() {
         const active = tabs.active;
         strip.tabs = tabs.items.map(docTabOf);
@@ -178,6 +236,8 @@ export function connectShell(shell, options) {
     const toolbarState = () => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac());
     function refresh() {
         const active = tabs.active;
+        // First: at Root, the location bar draws the file the inspector shows.
+        followInspector();
         toolbar.items = toolbarItems(toolbarState());
         explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
         // The rows the active table holds now: its paint, the entries repainted since, the children
@@ -186,14 +246,18 @@ export function connectShell(shell, options) {
         const rowId = here().rowId;
         const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
         explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-        const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel);
+        const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file));
         nav.located(at);
+        located = at.segments;
         location.segments = at.segments;
         location.canBack = nav.canBack;
         location.canForward = nav.canForward;
         location.canUp = nav.canUp;
         modules.refresh();
         graph.refresh();
+        // A tab opened, closed, saved or reloaded since: the Usage it answers is owed to the others.
+        if (!folderNow())
+            openUsage.changed();
     }
     // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
     // everything that follows the active tab follows this one; the user has been here.
@@ -228,7 +292,9 @@ export function connectShell(shell, options) {
         // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
         if (!fromCommand)
             await modules.idle();
-        // A cell editor still open holds what the user typed: the save takes it.
+        // A cell editor still open, or a field of the inspector the focus is in, holds what the user
+        // typed: the save takes it.
+        inspector.commit();
         await tab.handle?.commitEdit();
         const writes = as || !!tab.doc?.dirty;
         const result = await saver.save(tab, as);
@@ -259,7 +325,8 @@ export function connectShell(shell, options) {
     // An edit a Terminal line still running makes is one too, as it is for a save.
     async function requestClose(tab) {
         await modules.idle();
-        // What a cell editor still open holds is an unsaved edit too.
+        // What a cell editor still open holds is an unsaved edit too, and so is an inspector field's.
+        inspector.commit();
         await tab.handle?.commitEdit();
         if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab))
             close(tab);
@@ -358,15 +425,28 @@ export function connectShell(shell, options) {
                 // An edit keeps a preview tab: it is not the user's to lose by looking at another file.
                 if (dirty)
                     tab.preview = false;
+                // The file's page says whether it holds edits; its table hears nothing of a save.
+                tab.handle?.refreshInspector();
                 paint();
             }));
             const handle = connectDocument(tab, doc, storageKey, wiring);
+            // Where the document's undo stack stands: the toolbar's Undo and Redo move with it, whether or
+            // not its table changes (a reload of the text it already held empties the stack).
+            const history = isEditable(doc.table) ? doc.table.history : undefined;
+            if (history)
+                tab.stops.push(history.onChange(() => later()));
             tab.stops.push(handle.on('navigate', ({ link, uri: to }) => void navigate(tab, link, to)), handle.on('select', (rowIds) => {
                 tab.selection = rowIds;
                 if (tab === tabs.active)
                     visit();
                 later();
             }), handle.on('copyFailed', (failure) => log('error', `Could not copy: ${failure.message}`)), 
+            // What Copy, Cut, Paste and Delete did, from the toolbar, a chord or the menu, said briefly.
+            handle.on('ran', (run) => {
+                const note = ranNote(run);
+                if (note)
+                    say('info', note, 2000);
+            }), 
             // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box) brought forward.
             handle.on('action', ({ actionId, rowId }) => {
                 if (actionId !== SHOW_IN_GRAPH.id)
@@ -393,7 +473,7 @@ export function connectShell(shell, options) {
         catch (err) {
             if (disposed)
                 return;
-            const table = tab.table ?? newTable(tab, storageKey);
+            const table = tab.table ?? newTable(tab, storageKey, false, popovers.tableStyle());
             table.banners = { error: `Failed to open ${tab.name}: ${message(err)}` };
             log('error', table.banners.error);
         }
@@ -491,6 +571,8 @@ export function connectShell(shell, options) {
         open: openOn,
         notOpen: (ref) => say('info', `${ref} is not open`),
         failed,
+        // Its selection is the inspector's page at Root, and the location bar's dimmed file.
+        selected: later,
     });
     stops.push(() => graph.dispose());
     // --- The parts' requests -----------------------------------------------------------------------
@@ -505,7 +587,11 @@ export function connectShell(shell, options) {
         move: (tab, index) => tabs.move(tab, index) && paint(),
         showRoot,
         toStep(index) {
-            nav.toStep(index);
+            // The dimmed file at Root opens, as a double-click on its box does; any other is a place.
+            if (located[index]?.preview)
+                graph.openSelected();
+            else
+                nav.toStep(index);
             later();
         },
         toggle: (id, anchor) => popovers.toggle(id, anchor),
@@ -527,6 +613,8 @@ export function connectShell(shell, options) {
         shown(shown) {
             log('info', `Showing the folder ${shown.root}`);
             modules.scope(basenameOf(shown.root));
+            // The folder's usage from now on. A Close Folder, should one come, hands it back to the open
+            // tabs: ws.setUsage(openUsage), then openUsage.changed().
             void ws.setUsage(shown.session.usage, shown.session.reposts);
             repaintProjects(tabs.items, shown, log);
             follow();
@@ -560,6 +648,7 @@ export function connectShell(shell, options) {
             if (disposed)
                 return true;
             await modules.idle();
+            inspector.commit();
             await Promise.all(tabs.items.map((t) => t.handle?.commitEdit()));
             return settle(tabs.items, confirmClose, (t) => save(t));
         },

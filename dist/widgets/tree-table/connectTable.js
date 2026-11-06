@@ -24,6 +24,7 @@ import { resolveOperands } from '../../model/actions/operands.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget } from '../../model/ids/linkTarget.js';
 import { isEditable, isSourceClosed, } from '../../model/source/tableSource.js';
+import { usedByGroup } from '../../model/inspector/inspectorPages.js';
 import { wireEditing } from './editingWire.js';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
@@ -59,6 +60,7 @@ export function connectTable(table, source, options = {}) {
         action: new Set(),
         copyFailed: new Set(),
         painted: new Set(),
+        ran: new Set(),
     };
     // Each listener on its own: one that throws is the app's to fix, said on the console as the
     // workspace says a listener's failure, and costs the table nothing (what a paint does after it,
@@ -288,6 +290,8 @@ export function connectTable(table, source, options = {}) {
                 return;
             }
             case 'error':
+                // A gesture just handed to the source did not happen, whatever the banner says of it.
+                editing?.failed();
                 return failed(change.message);
             default:
                 // The editing changes, which a table that does not edit ignores.
@@ -405,6 +409,10 @@ export function connectTable(table, source, options = {}) {
             view: () => view,
             select: selectRows,
             beginRename: beginRenameRow,
+            ran: (run) => {
+                if (!disposed)
+                    emit('ran', run);
+            },
         });
     }
     // --- The context menu: read-only, or the editing one -------------------------------------------
@@ -500,8 +508,13 @@ export function connectTable(table, source, options = {}) {
                 contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
                 menuListening = true;
             }
-            // After show(): a menu it replaces says it closed, which clears every table's context.
-            contextMenu.show(x, y, items);
+            // After show(): a menu it replaces says it closed, which clears every table's context. A menu
+            // a key opened takes the keyboard at once, and gives it back to the grid as it closes: left on
+            // the grid, the first arrow would move the selection the menu acts on too.
+            if (e.detail.keyboard)
+                contextMenu.show(x, y, items, { focusFirst: true });
+            else
+                contextMenu.show(x, y, items);
             menuOwners.set(contextMenu, menuOwner);
             menuContext = context;
         });
@@ -518,6 +531,26 @@ export function connectTable(table, source, options = {}) {
         for (const listener of [...pageListeners])
             listener(page);
     };
+    // The selection the inspector shows: the one the table last said, or, with `inspectorPages`, none
+    // (the file's page) until it says one.
+    const toInspect = () => inspected ?? (options.inspectorPages ? [] : null);
+    // What the source is asked past the first row's properties: the pages, and editable rows where
+    // the document may be edited now. No options at all without either, as the source was always asked.
+    const inspectOptions = () => {
+        const pages = !!options.inspectorPages;
+        const editable = !!options.inspectorEditing && !!editing?.editable();
+        return pages || editable ? { pages, editable } : undefined;
+    };
+    // The page for `rowIds`, and with `inspectorPages` its row's Usage links as a group of their own,
+    // as the table's cell holds them.
+    const pageOf = async (rowIds) => {
+        const asked = inspectOptions();
+        const page = await (asked ? source.inspect(rowIds, asked) : source.inspect(rowIds));
+        if (!options.inspectorPages || page.rowId === undefined || rowIds.length !== 1)
+            return page;
+        const usedBy = usedByGroup(table.rows.find((r) => r.ID === page.rowId));
+        return usedBy ? { ...page, groups: [...page.groups, usedBy] } : page;
+    };
     /** Whether the grid open on the inspector's row would show other cells for `rowId`'s. */
     const cellsChanged = async (rowId) => {
         if (!shown?.cells)
@@ -532,7 +565,7 @@ export function connectTable(table, source, options = {}) {
         if (pageListeners.size === 0)
             return;
         const ask = ++asking;
-        void source.inspect(rowIds).then(async (page) => {
+        void pageOf(rowIds).then(async (page) => {
             if (ask !== asking || disposed)
                 return;
             if (page.rowId === undefined) {
@@ -551,8 +584,9 @@ export function connectTable(table, source, options = {}) {
         }, () => { });
     };
     const refreshInspector = () => {
-        if (inspected)
-            inspect(inspected, true);
+        const rowIds = toInspect();
+        if (rowIds)
+            inspect(rowIds, true);
     };
     const followSelection = (rowIds) => {
         inspected = rowIds;
@@ -607,13 +641,26 @@ export function connectTable(table, source, options = {}) {
         redo() {
             editing?.history('redo');
         },
+        edit(change) {
+            if (disposed || !editing || !options.inspectorEditing || !editing.editable())
+                return;
+            void editing.edit(change).then(() => {
+                if (disposed)
+                    return;
+                // Sent again whatever it now says: a field the source refused still holds what was typed.
+                shown = null;
+                refreshInspector();
+            });
+        },
+        refreshInspector,
         onPage(listener) {
             pageListeners.add(listener);
             // What is selected now, told to this listener alone: the page the others were last sent is
             // not sent again, and an inspector that follows this table once more has nothing shown.
-            if (inspected) {
+            const selection = toInspect();
+            if (selection) {
                 const at = asking;
-                void source.inspect(inspected).then((page) => {
+                void pageOf(selection).then((page) => {
                     if (disposed || at !== asking || !pageListeners.has(listener))
                         return;
                     listener(page.rowId === undefined ? { groups: [] } : page);

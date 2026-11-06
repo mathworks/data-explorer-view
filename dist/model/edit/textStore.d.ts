@@ -1,3 +1,4 @@
+import type { EditHistory } from '../source/tableSource.js';
 import type { TextStore } from './hooks.js';
 /** A TextStore of the page's own, and what only its owner does to it: save it, and read it from the disk again. */
 export interface PageTextStore extends TextStore {
@@ -19,6 +20,12 @@ export interface PageTextStore extends TextStore {
      * file any more, so the store is dirty until the next save or reset, heard as a save's change is.
      */
     diverged(): void;
+    /**
+     * Where its undo stack stands, for the table its dictionary is shown in to offer Undo and Redo by
+     * (EditableTableSource.history): told once an edit, an undo or a redo has landed and been heard,
+     * and once a reset has emptied the stack, the text it already held included.
+     */
+    readonly history: EditHistory;
 }
 /**
  * A store of `text`, as read from its file: clean, at version 1. A listener's throw goes to

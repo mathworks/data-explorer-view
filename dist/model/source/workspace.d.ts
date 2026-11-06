@@ -63,7 +63,8 @@ export interface UsageReposts {
  * Over a folder, the graph for a document is core's `planSummaries(cache, reader, files, uri)` —
  * the summaries of just the files that can reach it — through `buildUsageGraphFromSummaries`.
  * The document must be open under the uri the folder lists it by (`sourceUri(path)`), since that
- * is the uri the graph's answers name it by.
+ * is the uri the graph's answers name it by. Over the files a page has open, with no folder, the
+ * same graphs over their bytes (usage/openFilesUsage.ts).
  */
 export interface UsageSource {
     /** The graph that answers for the document opened under `uri`. A rejection leaves the cells as the file has them. */

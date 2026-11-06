@@ -2,9 +2,9 @@ import { type ContextMenuItem, type DexContextMenu } from '../context-menu/dex-c
 import { type DexVariableEditor } from '../variable-editor/dex-variable-editor.js';
 import { type DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { type LinkTarget } from '../../model/ids/linkTarget.js';
-import { type InspectorFeed, type TableSource, type TableView } from '../../model/source/tableSource.js';
+import { type CellEdit, type InspectorFeed, type TableSource, type TableView } from '../../model/source/tableSource.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
-import { type TableTextView } from './editingWire.js';
+import { type EditingRun, type TableTextView } from './editingWire.js';
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
 export interface TableMenuContext {
     /** The row right-clicked, or null for the space under the rows. */
@@ -25,7 +25,8 @@ export interface ConnectTableOptions {
     /**
      * Whether a right-click opens a context menu: by default it does, with Copy Name and Copy
      * Value for the selection, then `menuItems`. False for none, for an app that answers
-     * `dex-table-context-menu` itself.
+     * `dex-table-context-menu` itself. The menu the table's `keyboardMenu` keys open takes the
+     * keyboard at once, and gives it back to the grid when it closes holding it.
      */
     menu?: boolean;
     /**
@@ -115,6 +116,22 @@ export interface ConnectTableOptions {
      * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
      */
     copyText?: boolean;
+    /**
+     * The pages an inspector following this table (its handle) is sent past the first selected
+     * row's properties: the file's own page while no row is selected (what it is, where, whether it
+     * holds edits, and the open files it references and is referenced by, as links), a section
+     * heading's (its entries counted by type), a selection of several rows' ("3 selected"), and a
+     * row's Usage links as a group of their own. Default false: the first row's properties alone,
+     * and nothing for no row or a section heading, as the VS Code extension's inspector shows them.
+     */
+    inspectorPages?: boolean;
+    /**
+     * With `editing`: the inspector's rows are editable where the document takes an edit of the
+     * property, and a change of one (`dex-property-changed`, which connectInspector hands to
+     * `handle.edit`) is written back as a cell edit is, a refusal shown in the table's dialog. Not
+     * where the document may not be edited. Default false: every row is read-only.
+     */
+    inspectorEditing?: boolean;
 }
 /** A link the table does not answer itself: a row of another document, or a file. */
 export interface NavigateRequest {
@@ -169,6 +186,15 @@ export interface TableHandleEventMap {
      * the table goes on.)
      */
     painted: TableView;
+    /**
+     * With `editing`: an editing menu item's gesture was handed to the source, from the menu, its
+     * chord, `run()` or `undo()`/`redo()`, with the rows it carried and how many it acted on: for an
+     * app to say "Copied to clipboard" or "2 entries deleted". Told a task later, and not at all where
+     * the source refused it or said an error meanwhile, as a source in the page does before then; a
+     * source across a channel (the VS Code extension's) answers later, and its gesture is told before
+     * any refusal arrives. A disabled item hands nothing, and tells nothing.
+     */
+    ran: EditingRun;
 }
 /** A table wired to a source: what connectTable returns. */
 export interface TableHandle extends InspectorFeed {
@@ -209,7 +235,8 @@ export interface TableHandle extends InspectorFeed {
      * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
      * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
      * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
-     * source says (its clipboard, a repaint). False where the document may not be edited, for Copy
+     * source says (its clipboard, a repaint, and where its undo stack stands: its `history`, whose
+     * `onChange` says when Undo and Redo move). False where the document may not be edited, for Copy
      * Name and Copy Value (`copyText`) and the items the app added (`menuItems`), which are not the
      * editing menu's own, and without `editing`.
      */
@@ -230,10 +257,25 @@ export interface TableHandle extends InspectorFeed {
     commitEdit(): Promise<void>;
     /**
      * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
-     * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+     * app's Edit menu. Nothing where the document may not be edited, where its source's `history` says
+     * there is nothing to undo (or redo), or without `editing`.
      */
     undo(): void;
     redo(): void;
+    /**
+     * With `editing` and `inspectorEditing`: write back a change of an inspector's editable row, as
+     * a cell edit of `rowId` is (connectInspector calls it); a refusal is shown in the table's
+     * dialog, and the page is sent again either way, so a field the source refused shows what the
+     * document holds. `commitEdit()` waits for it. Nothing without the options, or where the
+     * document may not be edited.
+     */
+    edit(edit: CellEdit): void;
+    /**
+     * Ask the source for the inspector's page again, for a change the table does not hear of: that
+     * the document now holds edits, or none, on the file's page (`inspectorPages`). A listener is sent
+     * it only if it is not the page last sent.
+     */
+    refreshInspector(): void;
     /** Stop: the table keeps what it shows and hears nothing more. */
     dispose(): void;
 }

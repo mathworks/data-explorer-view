@@ -28,6 +28,8 @@ import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 // draws (the two disagreed, 26 against 28, until 0.2).
 const DEFAULT_ROW_HEIGHT = 28;
 const BUFFER_ROWS = 10;
+// The keys that open the row menu with `keyboardMenu`, as aria-keyshortcuts names them.
+const MENU_KEYS = 'Shift+F10 ContextMenu';
 // Default column widths as RELATIVE weights: only their ratio matters, because
 // _getColWidth renders each one as its share of the weights of the columns
 // actually visible. So the numbers stay meaningful whatever subset of columns the
@@ -332,6 +334,20 @@ export class DexTreeTable extends LitElement {
          * to the attribute `readonly`.
          */
         this.readonly = false;
+        // Rows take no focus (the grid does, and the arrows move a cursor over its rows), so the browser's
+        // own menu event for Shift+F10 and the ContextMenu key reaches the grid as a right-click on no row,
+        // and Chromium on macOS sends none at all: without this a keyboard user has no row menu.
+        /**
+         * Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+         * `dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+         * the selection's last, whichever the table shows), placed under that row as a right-click on it
+         * is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+         * the space under the rows. Both keys are spent, so the browser's own menu event for them does
+         * not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+         * cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+         * they always were. Attribute `keyboard-menu`.
+         */
+        this.keyboardMenu = false;
         /**
          * Where the user's column choices (which are shown, and their order) are kept: the page's
          * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
@@ -2827,15 +2843,21 @@ export class DexTreeTable extends LitElement {
     // answers a right-click on a row a second time.
     _onContainerContextMenu(e) {
         e.preventDefault();
-        this.dispatchEvent(new CustomEvent('dex-table-context-menu', {
-            detail: { x: e.clientX, y: e.clientY, rowId: null },
-            bubbles: true,
-            composed: true,
-        }));
+        this._openMenu(null, e.clientX, e.clientY);
     }
     _onRowContextMenu(rowId, e) {
         e.preventDefault();
         e.stopPropagation();
+        this._openMenu(rowId, e.clientX, e.clientY);
+    }
+    // The menu for `rowId` (null: the space under the rows) at (x, y), a right-click's or the
+    // keyboard's (`keyboard`). A row is selected first where it is not, since a menu is the selection's.
+    _openMenu(rowId, x, y, keyboard = false) {
+        const by = keyboard ? { keyboard: true } : {};
+        if (rowId === null) {
+            this.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x, y, rowId: null, ...by }, bubbles: true, composed: true }));
+            return;
+        }
         if (!this.selectedRowIds.includes(rowId)) {
             this.selectedRowIds = [rowId];
             this._lastClickedId = rowId;
@@ -2848,10 +2870,47 @@ export class DexTreeTable extends LitElement {
         const row = this._getVisibleRows().find((r) => r.ID === rowId);
         const graphTarget = row ? row._graphTarget : undefined;
         this.dispatchEvent(new CustomEvent('dex-table-context-menu', {
-            detail: { x: e.clientX, y: e.clientY, rowId, graphTarget },
+            detail: { x, y, rowId, graphTarget, ...by },
             bubbles: true,
             composed: true,
         }));
+    }
+    // Shift+F10 or the ContextMenu key on the grid, or on an empty table's "No data" (keyboardMenu):
+    // the menu a right-click on the keyboard's row opens, or on no row. As Chromium tells them: the
+    // ContextMenu key alone, Shift+F10 with Shift alone. Pressed on what the grid holds that takes keys
+    // of its own (a cell editor, a header's filter button), they are left to it. Returns whether the
+    // key was one of them; its keyup is spent too, which is when Windows sends the browser's own event.
+    _onMenuKey(e) {
+        if (!this.keyboardMenu || e.ctrlKey || e.metaKey || e.altKey)
+            return false;
+        const menuKey = (e.key === 'ContextMenu' && !e.shiftKey) || (e.key === 'F10' && e.shiftKey);
+        if (!menuKey || e.composedPath()[0] !== e.currentTarget)
+            return false;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type !== 'keydown')
+            return true;
+        const box = e.currentTarget.getBoundingClientRect();
+        const rowId = this._keyboardRow();
+        const tr = [...(this.shadowRoot?.querySelectorAll('tr[data-row-id]') ?? [])].find((r) => r.getAttribute('data-row-id') === rowId);
+        // Under the row, as a menu a key opens is placed, and inside the grid: a row half scrolled out
+        // has its menu at the grid's edge, beside what is left of it. No row, or one drawn nowhere now
+        // (scrolled away): at the top of the grid.
+        const at = tr?.getBoundingClientRect();
+        if (!at)
+            this._openMenu(rowId, box.left, box.top, true);
+        else
+            this._openMenu(rowId, Math.max(at.left, box.left), Math.min(Math.max(at.bottom, box.top), box.bottom), true);
+        return true;
+    }
+    // The keyboard's row, for its menu: the row the arrows last moved to, else the selection's last,
+    // either only while the table shows it. Neither is cleared as the rows change (a delete takes the
+    // arrows' row away), and a menu for a row that is gone would select it.
+    _keyboardRow() {
+        const shown = new Set(this._getVisibleRows().map((r) => r.ID));
+        if (this._focusedRowId && shown.has(this._focusedRowId))
+            return this._focusedRowId;
+        return [...this.selectedRowIds].reverse().find((id) => shown.has(id)) ?? null;
     }
     _onCellClick(rowId, colIdx, e) {
         this._focusedCol = colIdx;
@@ -3248,6 +3307,8 @@ export class DexTreeTable extends LitElement {
         this._onCellDblClick(rowId, 'Value', text, undefined, undefined, true);
     }
     _onTableKeyDown(e) {
+        if (this._onMenuKey(e))
+            return;
         if (this._editingCell)
             return;
         const visibleRows = this._getVisibleRows();
@@ -4050,6 +4111,9 @@ export class DexTreeTable extends LitElement {
         return html `<div
       class="empty-state"
       tabindex="-1"
+      aria-keyshortcuts=${this.keyboardMenu ? MENU_KEYS : nothing}
+      @keydown=${this._onMenuKey}
+      @keyup=${this._onMenuKey}
       @contextmenu=${this._onContainerContextMenu}
       @dragover=${this._onBodyDragOver}
       @drop=${this._onBodyDrop}
@@ -4080,10 +4144,12 @@ export class DexTreeTable extends LitElement {
         aria-colcount=${visibleCols.length}
         aria-label="Data entries"
         aria-readonly=${this.readonly ? 'true' : nothing}
+        aria-keyshortcuts=${this.keyboardMenu ? MENU_KEYS : nothing}
         tabindex="0"
         ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
         @keydown=${this._onTableKeyDown}
+        @keyup=${this._onMenuKey}
         @contextmenu=${this._onContainerContextMenu}
         @dragover=${this._onBodyDragOver}
         @drop=${this._onBodyDrop}
@@ -4411,6 +4477,9 @@ __decorate([
 __decorate([
     property({ type: Boolean, reflect: true })
 ], DexTreeTable.prototype, "readonly", void 0);
+__decorate([
+    property({ type: Boolean, attribute: 'keyboard-menu' })
+], DexTreeTable.prototype, "keyboardMenu", void 0);
 __decorate([
     property({ type: String, attribute: 'storage-key' })
 ], DexTreeTable.prototype, "storageKey", void 0);

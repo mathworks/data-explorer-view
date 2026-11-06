@@ -4,6 +4,11 @@ export type { PropertyGroup, PropertyRow };
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
     propName: string;
+    /**
+     * The property's key (its row's `key`), which an edit of it names as its column; absent for a
+     * row that has none.
+     */
+    key?: string;
     newValue: string;
     oldValue: string;
 }
@@ -13,8 +18,9 @@ export interface PropertyNavigateDetail {
 }
 /**
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
- * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
- * sends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
+ * field (a text, a choice from its `options`, or a text of several lines; a change sends
+ * `dex-property-changed`), a link (on its name, or on its value; a click sends
+ * `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
  * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
@@ -24,7 +30,19 @@ export declare class DexPropertyInspector extends LitElement {
     static styles: import("lit").CSSResult[];
     /** The groups shown, in order; none, the default, draws an empty panel. Property only. */
     groups: PropertyGroup[];
+    private readonly _fields;
+    private readonly _typed;
+    private readonly _sent;
+    /**
+     * Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
+     * is not its row's value. For an app's Save, which a chord gives with the focus still in the field,
+     * to take what was typed there. Nothing when the focus is in no field.
+     */
+    commit(): void;
     private _onPropertyChange;
+    private _onTyped;
+    private _onLeft;
+    private _typing;
     private _onLinkClick;
     private _renderPropertyValue;
     render(): import("lit-html").TemplateResult<1>;

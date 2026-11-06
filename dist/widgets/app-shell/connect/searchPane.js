@@ -7,11 +7,16 @@
 // The open files' names are read off the rows their tables hold (namesOfRows), the same records the
 // folder's index takes from the same file, so a file is searched once, by whichever list has it,
 // and an open one by its own: what its table shows, unsaved edits and all, rather than what the
-// index read from its disk. The folder's index answers in its own time (a first build reads every
-// file), so the panel says it is searching meanwhile, and the answer to a query the typing has
-// moved past is dropped. An index that cannot be read says so once, not on every query, until it
-// answers again.
-import { searchEntries, sortNameRecords } from '../../../model/search/searchItems.js';
+// index read from its disk, with each entry's value and type beside its name. The matches are
+// ranked as the prototype's were (searchRanked: the name, the value or the type, a prefix before a
+// substring before the name's letters in order), so Enter on the first row takes the best; a
+// folder's entries, whose index reads names alone, match by name.
+//
+// The folder's index answers in its own time (a first build reads every file), so the panel says
+// it is searching meanwhile, and the answer to a query the typing has moved past is dropped. An
+// index that cannot be read says so once, not on every query, until it answers again.
+import { sortNameRecords } from '../../../model/search/searchItems.js';
+import { searchRanked } from '../../../model/search/searchRank.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
 /**
  * The records a search runs over: every open file's, then the folder's of the files not open (an
@@ -39,7 +44,7 @@ export function connectSearchPane(panel, context) {
         const index = context.folderNames();
         if (!index) {
             panel.searching = false;
-            panel.results = searchEntries(mergeSearchRecords(open, []), query);
+            panel.results = searchRanked(mergeSearchRecords(open, []), query);
             return;
         }
         panel.searching = true;
@@ -48,7 +53,7 @@ export function connectSearchPane(panel, context) {
                 refused = null;
             if (ask !== asked)
                 return;
-            panel.results = searchEntries(mergeSearchRecords(open, folder), query);
+            panel.results = searchRanked(mergeSearchRecords(open, folder), query);
             panel.searching = false;
         }, (err) => {
             if (ask !== asked)
@@ -57,7 +62,7 @@ export function connectSearchPane(panel, context) {
             if (refused !== index)
                 context.failed(`Could not search the folder: ${message(err)}`);
             refused = index;
-            panel.results = searchEntries(mergeSearchRecords(open, []), query);
+            panel.results = searchRanked(mergeSearchRecords(open, []), query);
             panel.searching = false;
         });
     };

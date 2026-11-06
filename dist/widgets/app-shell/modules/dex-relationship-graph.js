@@ -19,9 +19,11 @@ import { BOX_ICONS, } from '../../../model/graph/graphTypes.js';
 import { layoutGraph, } from '../../../model/graph/layout.js';
 // The view's bounds, and how far each step moves it: the prototype's numbers.
 const MIN_SCALE = 0.3;
-// The least a fit shrinks to: below it a box's 11px label is under 7px and no longer reads. A graph
-// bigger than the canvas at this scale shows its top left, and the user pans to the rest.
-const FIT_MIN_SCALE = 0.6;
+// The least a fit, or a zoom onto a reach, shrinks to: a box's 11px label is near 8px there, an
+// item's 10px name 7px. A graph bigger than the canvas at this scale shows its top left, and the
+// user pans to the rest. At 0.6, the first floor, a label was 6.6px and did not read in the shell
+// at 1440 by 900.
+const FIT_MIN_SCALE = 0.7;
 const MAX_SCALE = 3;
 const BUTTON_STEP = 0.2;
 // The wheel zooms by a factor of how far it scrolled, e^(-rate * pixels): a wheel's notch of about
@@ -33,19 +35,34 @@ const LINE_PIXELS = 16;
 const DRAG_SLOP = 3;
 // A box's border, which the items inside it are placed within.
 const BORDER = 2;
+// The room left around what a zoom onto a reach shows: the layout's own margin around the graph.
+const REACH_MARGIN = 40;
 // The corner radius a route's turns are drawn with.
 const CORNER = 8;
-const EDGE_KINDS = ['model-ref', 'sldd-ref', 'data-link', 'param-usage', 'ws-usage'];
-const EDGE_LABELS = {
-    'model-ref': 'Model Reference',
-    'sldd-ref': 'Dictionary Reference',
-    'data-link': 'Data Link',
-    'param-usage': 'Parameter Usage',
-    'ws-usage': 'Workspace Usage',
-};
+// The Legend's lines: each colour an edge is drawn in from what core extracts, and what it says. A
+// dictionary reference and a data link to a dictionary are near one colour (one in high contrast):
+// where they run tells them apart, a reference between dictionaries, a link across the gap.
+const LEGEND_LINES = [
+    ['model-ref', 'Model Reference'],
+    ['sldd-ref', 'Dictionary Reference'],
+    ['data-link to-sldd', 'Data Link to Dictionary'],
+    ['data-link to-mat', 'Data Link to MAT-File'],
+    ['param-usage', 'Parameter Usage'],
+    ['ws-usage', 'Workspace Usage'],
+];
 const BOX_LABELS = { model: 'Model', sldd: 'Dictionary', mat: 'MAT-File' };
 // The edges that join two items, whose ends are inside boxes.
 const USAGE = new Set(['param-usage', 'ws-usage']);
+// What a box opened reaches along: everything but a model reference. A box is opened to see the
+// data its blocks read (or, a data file, the blocks that read it), as the prototype's expand lit
+// the files a model links and no other model.
+const OPENED = new Set(['sldd-ref', 'data-link', 'param-usage', 'ws-usage']);
+const PAINTS = ['model-ref', 'sldd-ref', 'data-link', 'data-link to-sldd', 'data-link to-mat', 'param-usage', 'ws-usage'];
+const markerOf = (paint) => paint.replace(' ', '-');
+/** Names for a screen reader: five of them, then how many more. */
+function named(names) {
+    return names.length > 5 ? `${names.slice(0, 5).join(', ')} and ${names.length - 5} more` : names.join(', ');
+}
 /** A route as SVG path data, its turns rounded as the prototype's curves rounded them. */
 function pathOf(points) {
     const n = (v) => String(Math.round(v * 100) / 100);
@@ -63,26 +80,32 @@ function pathOf(points) {
     return `${d} L${n(last.x)},${n(last.y)}`;
 }
 /**
- * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,
- * each a box of its kind's colour, a file referenced and not open dashed, and the edges between
- * them. Every box starts closed. An open box lists the blocks and variables that take
- * part, a model's workspace variables under a divider, and every other box the items of its own
- * those reach (a model open shows, in a dictionary, the variables its blocks read), with an edge
- * from each block to each variable it reads, labelled with the block parameter. The edges run under
- * the boxes; what the selection reaches is drawn over them. The graph comes from
- * `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
+ * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of
+ * their references, the data files on the right, each a box of its kind's colour, a file referenced
+ * and not open dashed, and the edges between them. Every box starts closed. An open box lists the
+ * blocks and variables that take part, a model's workspace variables under a divider, and every
+ * other box the items of its own those reach (a model open shows, in a dictionary, the variables
+ * its blocks read), with an edge from each block to each variable it reads, labelled with the block
+ * parameter. The edges run under the boxes; what the selection reaches is drawn over them. The
+ * graph comes from `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
  *
  * A click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges
  * reach, dimming the rest; a click on the background clears it. A double-click asks to open the
  * file (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names
  * it, for the app to look for. A box's − or + asks to hide or show its
- * items (`dex-graph-expand`); the app answers by setting `expanded`. The wheel, the + and − buttons
- * and a drag of the background zoom and pan; the fit button and fit() show the whole graph, and
- * reveal() brings one box or item to the middle. A Legend, closed at first, names the kinds.
+ * items (`dex-graph-expand`); the app answers by setting `expanded`. A box so opened is zoomed to
+ * with the files it reaches, the rest dimmed, as the prototype's expand did, until it is closed,
+ * Escape is pressed or the background clicked; a double-click on the background asks to close
+ * every box and fits the graph. The pointer on an item traces what it is joined to, as a selection
+ * of it would; on an edge, it fades the others. The wheel, the + and − buttons and a drag of the
+ * background zoom and pan; the fit button and fit() show the whole graph, reveal() brings one box
+ * or item to the middle, and zoomToReach() one and what it reaches. A Legend, closed at first,
+ * names the kinds.
  *
  * The keyboard: the canvas is one stop of the tab order; the arrows move the selection to the
  * nearest box that way, Enter opens the selected box or item, Space shows or hides the selected
- * box's items, + and − zoom and 0 fits.
+ * box's items, Escape clears the selection and the dimming of a box opened, + and − zoom and 0
+ * fits.
  *
  * @tagname dex-relationship-graph
  */
@@ -110,9 +133,38 @@ export class DexRelationshipGraph extends LitElement {
          * changes it.
          */
         this.expanded = [];
+        /**
+         * How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down
+         * trees, what a file references side by side in the row under it. 'indented' draws each column
+         * as a file tree, one box a row, what a file references in the rows under it a step to the right,
+         * which draws a large set of files narrower and so at a larger scale: fifteen files that fit a
+         * 1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is
+         * dealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A
+         * change fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A
+         * value it does not know is 'tree'. Attribute `layout`.
+         */
+        this.layout = 'tree';
         this._view = { x: 0, y: 0, scale: 1 };
         this._legendOpen = false;
         this._panning = false;
+        // The box the user opened last and has not closed, whose reach is lit until Escape or a click on
+        // the background: over the selection when it was opened after the selection was made
+        // (_openedNewer), else while nothing is selected.
+        this._opened = null;
+        // Every box the user opened, oldest first, while it stays open and in the graph, each with when
+        // it was opened: closing the last gives the lighting back to the one before, over the selection
+        // only if that one too was opened after the selection was made. Emptied by Escape and a click on
+        // the background. One count stamps the openings and the changes of the selection, so which is
+        // newer is exact whatever was closed between them.
+        this._openedStack = [];
+        this._stamp = 0;
+        this._selectedAt = 0;
+        // The item under the pointer, whose connections are lit while it is there, over any selection.
+        // Each enter and leave draws the world again (24 ms and 13 ms on a 230-box graph, every box
+        // open); a requestAnimationFrame throttle of _hoverItem is the next step if that grows.
+        this._hoverItem = null;
+        // Whether an edge is under the pointer: the others fade (the stylesheet's :hover picks it out).
+        this._hoverEdge = false;
         // Derived from `graph` and `expanded` before each draw that changed them.
         this._layout = null;
         this._rects = new Map();
@@ -124,16 +176,20 @@ export class DexRelationshipGraph extends LitElement {
         this._domIds = new Map();
         // The boxes the view was last fitted to, so a rebuilt graph of the same files keeps the view.
         this._fittedTo = '';
-        // A fit or a reveal asked for before the canvas had a size, done when it has one.
+        // A fit, a reveal or a zoom asked for before the canvas had a size, done when it has one.
         this._pending = null;
+        // The boxes open at the last draw: one open now and not then was opened.
+        this._wasOpen = new Set();
         // A press on the background, until it is let go: a drag pans, a click clears the selection.
         this._press = null;
         this._resize = null;
         // An object, so its `passive: false` reaches addEventListener: a wheel that zooms must be able to
         // stop the page from scrolling.
         this._wheel = { handleEvent: (e) => this._onWheel(e), passive: false };
-        // The last selection's reach, so a draw that only moves the view does not walk the edges again.
-        this._reachOf = null;
+        // Each reach asked for since the last layout, so a draw that only moves the view, or a pointer
+        // going back and forth over one item, does not walk the edges again; and the same Reach each
+        // time, which the world's guard compares.
+        this._reaches = new Map();
     }
     static { this.styles = [hiddenStyles, buttonFocusRingStyles, highContrastStyles, relationshipGraphStyles]; }
     connectedCallback() {
@@ -153,21 +209,68 @@ export class DexRelationshipGraph extends LitElement {
         this._resize = null;
     }
     willUpdate(changed) {
-        if (changed.has('graph') || changed.has('expanded'))
+        // Whether boxes were drawn before this, of these files: only then is a box newly open one the
+        // user opened, rather than one the graph came with.
+        let watch = this._layout !== null;
+        if (changed.has('graph') || changed.has('expanded') || changed.has('layout'))
             this._relayout();
+        // Another layout, after the first draw: every box is elsewhere, so the view is fitted afresh
+        // (over a fit still waiting, and not over a reveal or a zoom the app asked for with it).
+        if (changed.has('layout') && changed.get('layout') !== undefined && (this._pending === null || this._pending === 'fit')) {
+            this._pending = 'fit';
+        }
         if (changed.has('graph')) {
             const boxes = this._boxIds();
             // A reveal the app asked for with the new graph wins over the fit the new graph would get.
             if (boxes !== this._fittedTo && boxes !== '[]') {
                 this._fittedTo = boxes;
                 this._pending ??= 'fit';
+                watch = false;
             }
         }
+        // A box opened with a change of the selection is the app's doing (a Show in Graph sets both), not
+        // the user's: it is not taken as opened. A change of the selection on its own is newer than the
+        // box opened before it, and lights over it.
+        const selection = changed.has('selected');
+        if (selection)
+            this._selectedAt = ++this._stamp;
+        if (changed.has('graph') || changed.has('expanded'))
+            this._noteOpened(watch && !selection);
         // A size known before the draw (the canvas is drawn already): the fit is done in this update.
         if (this._pending && this._size().width > 0)
             this._doPending();
     }
+    // The box opened since the last draw, if one was: it is what is lit, newer than the selection,
+    // and the view moves onto it and what it reaches, unless the app asked for a view of its own with
+    // the change. One that closes, or leaves the graph, is let go, and the one opened before it is
+    // lit again.
+    _noteOpened(watch) {
+        const open = new Set([...this._expanded()].filter((id) => this._boxes.has(id)));
+        const opened = watch ? [...open].filter((id) => !this._wasOpen.has(id)) : [];
+        this._wasOpen = open;
+        this._openedStack = [
+            ...this._openedStack.filter((o) => open.has(o.id) && !opened.includes(o.id)),
+            ...opened.map((id) => ({ id, at: ++this._stamp })),
+        ];
+        this._opened = this._openedStack[this._openedStack.length - 1]?.id ?? null;
+        if (opened.length > 0) {
+            // Over a fit still waiting for a size, which would show the graph as it was before.
+            if (this._pending === null || this._pending === 'fit')
+                this._pending = { zoom: this._opened, opened: true };
+        }
+    }
+    // No box's reach lit: every box the user opened let go.
+    _letGo() {
+        this._openedStack = [];
+        this._opened = null;
+    }
+    // Whether the box opened last was opened after the selection was last changed: then it lights.
+    get _openedNewer() {
+        const last = this._openedStack[this._openedStack.length - 1];
+        return last !== undefined && last.at > this._selectedAt;
+    }
     _relayout() {
+        this._reaches = new Map();
         const graph = this._graph();
         this._boxes = new Map(graph.boxes.map((b) => [b.id, b]));
         this._items = new Map(graph.boxes.flatMap((b) => b.items.map((i) => [i.id, i])));
@@ -179,7 +282,7 @@ export class DexRelationshipGraph extends LitElement {
             this._domIds = new Map();
             return;
         }
-        this._layout = layoutGraph(graph, this._expanded());
+        this._layout = layoutGraph(graph, this._expanded(), this.layout === 'indented' ? 'indented' : 'tree');
         this._boxLayouts = new Map(this._layout.boxes.map((b) => [b.id, b]));
         this._rects = new Map();
         this._domIds = new Map();
@@ -215,12 +318,14 @@ export class DexRelationshipGraph extends LitElement {
         this._pending = null;
         if (pending === 'fit')
             this._fitNow();
-        else if (pending)
+        else if (pending && 'reveal' in pending)
             this._revealNow(pending.reveal);
+        else if (pending)
+            this._zoomNow(pending.zoom, pending.opened ? OPENED : null);
     }
     /**
      * Scales and moves the view so the whole graph shows, centred, at no more than its own size and
-     * no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
+     * no less than 0.7 of it: a graph bigger than that shows from its top left, to pan from.
      * Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
      * lays out; before the element has a size (not on the page yet, or hidden), once it has one.
      */
@@ -243,6 +348,20 @@ export class DexRelationshipGraph extends LitElement {
         else
             this._revealNow(id);
     }
+    /**
+     * Zooms the view onto the box or item `id` and what a selection of it lights (it, what its edges
+     * reach, and their boxes), centred, at no more than their own size and no less than the least a
+     * fit shrinks to; where they do not fit at that, the box or item itself is kept in view, its top
+     * left first. For an app's "Show in Graph", which sets `selected` (and `expanded`) too and may call
+     * this straight after: with a draw to come, it zooms onto where that draw puts them. Changes
+     * neither the selection nor which boxes are open; an id the graph does not hold moves nothing.
+     */
+    zoomToReach(id) {
+        if (this.isUpdatePending)
+            this._pending = { zoom: id };
+        else
+            this._zoomNow(id, null);
+    }
     _fitNow() {
         const { width, height } = this._size();
         const layout = this._layout;
@@ -254,10 +373,44 @@ export class DexRelationshipGraph extends LitElement {
         }
         // Done, so what was waiting for a size (the first fit of this graph) is not done over it.
         this._pending = null;
-        const scale = Math.max(FIT_MIN_SCALE, Math.min(width / layout.width, height / layout.height, 1) * 0.9);
+        // The layout's own margin is the room left around it.
+        const scale = Math.max(FIT_MIN_SCALE, Math.min(width / layout.width, height / layout.height, 1));
         // Centred along each side the graph fits, and from its start along a side it does not.
         const along = (room, size) => Math.max(0, (room - size * scale) / 2);
         this._view = { x: along(width, layout.width), y: along(height, layout.height), scale };
+    }
+    // The view onto `id` and its reach along `kinds` (every kind for null).
+    _zoomNow(id, kinds) {
+        const own = this._rects.get(id) ?? this._rects.get(this._items.get(id)?.boxId ?? '');
+        const reach = this._reachFrom(id, kinds);
+        if (!own || !reach)
+            return;
+        const { width, height } = this._size();
+        if (width === 0 || height === 0) {
+            this._pending = kinds ? { zoom: id, opened: true } : { zoom: id };
+            return;
+        }
+        this._pending = null;
+        // The boxes it lights, each drawn whole; an item's own box among them.
+        const rects = [...reach.boxes].flatMap((b) => this._rects.get(b) ?? []);
+        const left = Math.min(...rects.map((r) => r.x)) - REACH_MARGIN;
+        const top = Math.min(...rects.map((r) => r.y)) - REACH_MARGIN;
+        const right = Math.max(...rects.map((r) => r.x + r.width)) + REACH_MARGIN;
+        const bottom = Math.max(...rects.map((r) => r.y + r.height)) + REACH_MARGIN;
+        const scale = Math.max(FIT_MIN_SCALE, Math.min(width / (right - left), height / (bottom - top), 1));
+        let x = width / 2 - ((left + right) / 2) * scale;
+        let y = height / 2 - ((top + bottom) / 2) * scale;
+        // Too big to show whole at the least scale: the thing itself in view, its top left winning.
+        const at = (v, start, size, room) => {
+            const end = v + (start + size) * scale;
+            if (end > room)
+                v -= end - room;
+            const begin = v + start * scale;
+            return begin < 0 ? v - begin : v;
+        };
+        x = at(x, own.x, own.width, width);
+        y = at(y, own.y, own.height, height);
+        this._view = { x, y, scale };
     }
     _revealNow(id) {
         const rect = this._rects.get(id) ?? this._rects.get(this._items.get(id)?.boxId ?? '');
@@ -337,9 +490,49 @@ export class DexRelationshipGraph extends LitElement {
         const press = this._press;
         this._press = null;
         this._panning = false;
-        // A press let go where it was is a click on the background: it clears the selection.
-        if (press && !press.moved && this.selected !== null)
+        // A press let go where it was is a click on the background: it clears the selection, and lets
+        // the box opened last go.
+        if (press && !press.moved)
+            this._clear();
+    }
+    // Nothing selected, and no box's reach lit. True when there was something to clear.
+    _clear() {
+        const had = this.selected !== null || this._opened !== null;
+        this._letGo();
+        if (this.selected !== null)
             this._select(null);
+        return had;
+    }
+    // A double-click on the background: every box asked closed, as the prototype's collapsed them
+    // all, and the whole graph fitted. On a box it is the box's (it opens the file).
+    _onDblClick(e) {
+        if (e.target?.closest?.('.box') || !this._layout)
+            return;
+        this._letGo();
+        for (const id of this._expanded()) {
+            if (!this._boxes.has(id))
+                continue;
+            const detail = { id, expanded: false };
+            this.dispatchEvent(new CustomEvent('dex-graph-expand', { detail, bubbles: true, composed: true }));
+        }
+        this.fit();
+    }
+    // What the pointer is over, while no drag is on: an item is traced, an edge fades the others.
+    _onPointerOver(e) {
+        if (this._press)
+            return;
+        const target = e.target;
+        const item = target?.closest?.('.item');
+        const id = item?.dataset.id ?? null;
+        if (id !== this._hoverItem)
+            this._hoverItem = id;
+        const edge = !item && !!target?.closest?.('svg.under path.edge');
+        if (edge !== this._hoverEdge)
+            this._hoverEdge = edge;
+    }
+    _onPointerLeave() {
+        this._hoverItem = null;
+        this._hoverEdge = false;
     }
     // A drag the pointer left without a release of its own (cancelled, or its capture taken away):
     // over, and no click.
@@ -383,19 +576,29 @@ export class DexRelationshipGraph extends LitElement {
         const detail = { id, expanded: !this._isOpen(id) };
         this.dispatchEvent(new CustomEvent('dex-graph-expand', { detail, bubbles: true, composed: true }));
     }
-    _reach() {
-        const memo = this._reachOf;
-        if (memo && memo.layout === this._layout && memo.selected === this.selected)
-            return memo.reach;
-        const reach = this._reachNow();
-        this._reachOf = { layout: this._layout, selected: this.selected, reach };
-        return reach;
-    }
-    /** What the selection lights: it, what its edges reach and those things' boxes. Null for none. */
-    _reachNow() {
-        const id = this.selected;
+    _reachFrom(id, kinds) {
         if (!id)
             return null;
+        const key = `${kinds ? 'opened' : 'all'}:${id}`;
+        if (!this._reaches.has(key))
+            this._reaches.set(key, this._reachNow(id, kinds));
+        return this._reaches.get(key);
+    }
+    // What is lit now: the item under the pointer; else the box opened last when it is newer than the
+    // selection; else the selection, and with none the box opened last.
+    _lit() {
+        const hover = this._reachFrom(this._hoverItem, null);
+        if (hover)
+            return hover;
+        const opened = this._reachFrom(this._opened, OPENED);
+        const selection = this._reachFrom(this.selected, null);
+        return this._openedNewer ? (opened ?? selection) : (selection ?? opened);
+    }
+    /**
+     * What `id` lights: it, what its edges (of `kinds`, every kind for null) reach and those things'
+     * boxes. Null for an id the graph does not hold.
+     */
+    _reachNow(id, kinds) {
         const box = this._boxes.get(id);
         const item = this._items.get(id);
         if (!box && !item)
@@ -427,6 +630,8 @@ export class DexRelationshipGraph extends LitElement {
                 reach.boxes.add(other);
         };
         for (const e of this._graph().edges) {
+            if (kinds && !kinds.has(e.kind))
+                continue;
             if (ends.has(e.from))
                 add(e.to);
             else if (ends.has(e.to))
@@ -440,10 +645,11 @@ export class DexRelationshipGraph extends LitElement {
     // --- The keyboard -------------------------------------------------------------------------
     _onKeydown(e) {
         // A chord is the app's, never a move in the graph; a key on a button inside it (a box's toggle,
-        // focused by a click) is the button's, which Space and Enter press.
+        // focused by a click) is the button's, which Space and Enter press, but for Escape, which a
+        // button has no use for and which ends the dimming of the box just opened by that click.
         if (e.altKey || e.ctrlKey || e.metaKey || !this._layout)
             return;
-        if (e.target?.closest?.('button'))
+        if (e.key !== 'Escape' && e.target?.closest?.('button'))
             return;
         switch (e.key) {
             case 'ArrowUp':
@@ -474,14 +680,21 @@ export class DexRelationshipGraph extends LitElement {
             case '0':
                 this.fit();
                 break;
+            case 'Escape':
+                // Nothing to clear: the key is the app's.
+                if (!this._clear())
+                    return;
+                break;
             default:
                 return;
         }
         e.preventDefault();
     }
     // The nearest box the arrow's way, from the selected box (or the box of the selected item); the
-    // first box when nothing is selected. Nearest by distance along the arrow, with distance across
-    // it counted double, so a box in line wins over a nearer one off to the side.
+    // first box when nothing is selected. That way is wholly past the selected box's side, so in an
+    // indented column of boxes of unlike widths Left and Right leave the column and Up and Down go
+    // along it. Nearest by distance along the arrow, with distance across it counted double, so a box
+    // in line wins over a nearer one off to the side.
     _step(key) {
         const boxes = this._layout.boxes;
         const at = this.selected ? this._boxLayouts.get(this._items.get(this.selected)?.boxId ?? this.selected) : undefined;
@@ -498,12 +711,14 @@ export class DexRelationshipGraph extends LitElement {
                     : [(p) => from.y - p.y, (p) => p.x - from.x];
         let best = null;
         let bestScore = Infinity;
+        const past = (b) => key === 'ArrowRight' ? b.x >= at.x + at.width
+            : key === 'ArrowLeft' ? b.x + b.width <= at.x
+                : key === 'ArrowDown' ? b.y >= at.y + at.height
+                    : b.y + b.height <= at.y;
         for (const b of boxes) {
-            if (b.id === at.id)
+            if (b.id === at.id || !past(b))
                 continue;
             const c = centre(b);
-            if (along(c) <= 1)
-                continue;
             const score = along(c) + 2 * Math.abs(across(c));
             if (score < bestScore)
                 [best, bestScore] = [b, score];
@@ -524,12 +739,17 @@ export class DexRelationshipGraph extends LitElement {
             this._revealNow(id);
     }
     // --- Drawing ------------------------------------------------------------------------------
-    // What a screen reader hears of the selection: the thing, and what its edges link it to, which is
-    // what the dimming shows a sighted reader. Five of them by name, then how many more.
-    _status(reach) {
+    // What a screen reader hears of what is lit: the selection, the thing and what its edges link it
+    // to, which is what the dimming shows a sighted reader, five of them by name, then how many more;
+    // or the box opened last and what it reaches, when that is what is lit. Never the item under the
+    // pointer: a pointer crossing the graph would talk over everything.
+    _status() {
+        if (this._openedNewer && this._opened)
+            return this._openedStatus();
         const id = this.selected;
+        const reach = this._reachFrom(id, null);
         if (!id || !reach)
-            return '';
+            return this._openedStatus();
         const item = this._items.get(id);
         const box = this._boxes.get(item ? item.boxId : id);
         if (!box)
@@ -541,8 +761,16 @@ export class DexRelationshipGraph extends LitElement {
         const said = item ? `Selected ${itemName(item)}.` : `Selected ${box.label}, ${BOX_LABELS[box.kind] ?? box.kind}${box.ghost ? ', not open' : ''}.`;
         if (linked.length === 0)
             return said;
-        const named = linked.length > 5 ? `${linked.slice(0, 5).join(', ')} and ${linked.length - 5} more` : linked.join(', ');
-        return `${said} Linked to ${named}.`;
+        return `${said} Linked to ${named(linked)}.`;
+    }
+    _openedStatus() {
+        const id = this._opened;
+        const reach = this._reachFrom(id, OPENED);
+        const box = id ? this._boxes.get(id) : undefined;
+        if (!reach || !box)
+            return '';
+        const linked = [...reach.boxes].filter((x) => x !== id).map((x) => this._boxes.get(x)?.label ?? '');
+        return linked.length === 0 ? `Showing ${box.label}.` : `Showing ${box.label} and what it reaches: ${named(linked)}.`;
     }
     // THE LAYERS. An edge between two boxes runs UNDER the boxes, so one that has to pass a box on
     // its way passes behind it, not through its items: with every item of a large graph shown, usages
@@ -560,6 +788,12 @@ export class DexRelationshipGraph extends LitElement {
     _dim(edge, reach) {
         return reach !== null && !reach.edges.has(edge.id) ? ' dim' : '';
     }
+    _paint(edge) {
+        if (edge.kind !== 'data-link')
+            return edge.kind;
+        const kind = this._boxes.get(edge.to)?.kind;
+        return kind === 'mat' ? 'data-link to-mat' : kind === 'sldd' ? 'data-link to-sldd' : 'data-link';
+    }
     _renderUnder(edges, reach) {
         return edges.map((e) => {
             const edge = this._edges.get(e.id);
@@ -567,11 +801,12 @@ export class DexRelationshipGraph extends LitElement {
                 return nothing;
             // A usage's dot and arrowhead are inside the boxes, so its stubs over them carry them.
             const ends = !USAGE.has(edge.kind);
+            const paint = this._paint(edge);
             return svg `<path
-        class="edge ${edge.kind}${this._dim(edge, reach)}"
+        class="edge ${paint}${this._dim(edge, reach)}"
         d=${pathOf(e.points)}
-        marker-start=${ends ? `url(#dex-graph-dot-${edge.kind})` : nothing}
-        marker-end=${ends ? `url(#dex-graph-arrow-${edge.kind})` : nothing}
+        marker-start=${ends ? `url(#dex-graph-dot-${markerOf(paint)})` : nothing}
+        marker-end=${ends ? `url(#dex-graph-arrow-${markerOf(paint)})` : nothing}
       ></path>`;
         });
     }
@@ -582,13 +817,15 @@ export class DexRelationshipGraph extends LitElement {
                 return nothing;
             const dim = this._dim(edge, reach);
             const start = e.points[0];
-            const label = edge.label && !dim ? svg `<text class="edge-label" x=${start.x + 4} y=${start.y - 3}>${edge.label}</text>` : nothing;
+            // The parameter as a property of the block (`.Gain`), as the prototype wrote it.
+            const label = edge.label && !dim ? svg `<text class="edge-label" x=${start.x + 4} y=${start.y - 3}>.${edge.label}</text>` : nothing;
             if (this._onTop(edge, reach)) {
+                const paint = markerOf(this._paint(edge));
                 return svg `<path
-          class="edge ${edge.kind}${dim}"
+          class="edge ${this._paint(edge)}${dim}"
           d=${pathOf(e.points)}
-          marker-start="url(#dex-graph-dot-${edge.kind})"
-          marker-end="url(#dex-graph-arrow-${edge.kind})"
+          marker-start="url(#dex-graph-dot-${paint})"
+          marker-end="url(#dex-graph-arrow-${paint})"
         ></path>${label}`;
             }
             if (!USAGE.has(edge.kind))
@@ -616,15 +853,15 @@ export class DexRelationshipGraph extends LitElement {
         const border = { x: next.x === at.x ? at.x : x, y: next.y === at.y ? at.y : y };
         return end === 'start' ? [at, border] : [border, at];
     }
-    // A dot where an edge leaves and an arrowhead where it arrives, one pair per kind, filled with
-    // the kind's colour by the same class rule as the edge.
+    // A dot where an edge leaves and an arrowhead where it arrives, one pair per colour an edge is
+    // drawn in, filled with it by the same class rule as the edge.
     _markers() {
-        return svg `<defs>${EDGE_KINDS.map((kind) => svg `
-        <marker id="dex-graph-dot-${kind}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5">
-          <circle class=${kind} cx="5" cy="5" r="4"></circle>
+        return svg `<defs>${PAINTS.map((paint) => svg `
+        <marker id="dex-graph-dot-${markerOf(paint)}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5">
+          <circle class=${paint} cx="5" cy="5" r="4"></circle>
         </marker>
-        <marker id="dex-graph-arrow-${kind}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path class=${kind} d="M0,1 L9,5 L0,9 Z"></path>
+        <marker id="dex-graph-arrow-${markerOf(paint)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path class=${paint} d="M0,1 L9,5 L0,9 Z"></path>
         </marker>
       `)}</defs>`;
     }
@@ -727,7 +964,7 @@ export class DexRelationshipGraph extends LitElement {
           @click=${() => (this._legendOpen = !open)}
         >Legend</button>
         <ul class="legend-content" id="legend" ?hidden=${!open}>
-          ${EDGE_KINDS.map((kind) => html `<li><span class="swatch line ${kind}"></span>${EDGE_LABELS[kind]}</li>`)}
+          ${LEGEND_LINES.map(([paint, label]) => html `<li><span class="swatch line ${paint}"></span>${label}</li>`)}
           ${['model', 'sldd', 'mat'].map((kind) => html `<li><span class="swatch file ${kind}"></span>${BOX_LABELS[kind]}</li>`)}
           <li><span class="swatch file ghost"></span>Not Open</li>
         </ul>
@@ -758,7 +995,7 @@ export class DexRelationshipGraph extends LitElement {
         </div>
       `;
         }
-        const reach = this._reach();
+        const reach = this._lit();
         const { x, y, scale } = this._view;
         const active = this.selected ? this._domIds.get(this.selected) ?? this._domIds.get(this._items.get(this.selected)?.boxId ?? '') : undefined;
         return html `
@@ -775,17 +1012,20 @@ export class DexRelationshipGraph extends LitElement {
         @pointerup=${this._onPointerUp}
         @pointercancel=${this._endPress}
         @lostpointercapture=${this._endPress}
+        @pointerover=${this._onPointerOver}
+        @pointerleave=${this._onPointerLeave}
+        @dblclick=${this._onDblClick}
         @wheel=${this._wheel}
       >
         <div
-          class="world"
+          class="world ${this._hoverEdge ? 'edge-hover' : ''}"
           ${styleProps({
             width: `${layout.width}px`,
             height: `${layout.height}px`,
             transform: `translate(${x}px, ${y}px) scale(${scale})`,
         })}
         >
-          ${guard([layout, this.selected], () => this._renderWorld(layout, reach))}
+          ${guard([layout, this.selected, reach], () => this._renderWorld(layout, reach))}
         </div>
       </div>
       <div class="zoom" role="group" aria-label="Zoom">
@@ -798,7 +1038,7 @@ export class DexRelationshipGraph extends LitElement {
         </button>
       </div>
       ${this._renderLegend()}
-      <div class="sr-only" role="status" aria-live="polite">${this._status(reach)}</div>
+      <div class="sr-only" role="status" aria-live="polite">${this._status()}</div>
     `;
     }
 }
@@ -812,6 +1052,9 @@ __decorate([
     property({ attribute: false })
 ], DexRelationshipGraph.prototype, "expanded", void 0);
 __decorate([
+    property({ type: String })
+], DexRelationshipGraph.prototype, "layout", void 0);
+__decorate([
     state()
 ], DexRelationshipGraph.prototype, "_view", void 0);
 __decorate([
@@ -820,6 +1063,15 @@ __decorate([
 __decorate([
     state()
 ], DexRelationshipGraph.prototype, "_panning", void 0);
+__decorate([
+    state()
+], DexRelationshipGraph.prototype, "_opened", void 0);
+__decorate([
+    state()
+], DexRelationshipGraph.prototype, "_hoverItem", void 0);
+__decorate([
+    state()
+], DexRelationshipGraph.prototype, "_hoverEdge", void 0);
 /** Registers the widget as `<dex-relationship-graph>`, or under `tag`, and the `<dex-icon>` its boxes draw. */
 export function defineRelationshipGraph(tag = 'dex-relationship-graph') {
     defineIcon();

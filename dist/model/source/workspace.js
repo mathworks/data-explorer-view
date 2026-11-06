@@ -15,8 +15,7 @@
 // through the Doc's save half (`serialize`, `saved`).
 import { createSession, exceedsTextSyncLimit, extOf, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw } from '../raw/rawView.js';
@@ -82,8 +81,8 @@ class InPageDoc {
             open: async () => this.open(),
             children: (rowId) => this.children(rowId),
             matrix: async (nodeId) => this.matrix(nodeId),
-            inspect: async (selection) => this.inspect(selection),
-            raw: async (rowId) => this.raw(rowId),
+            inspect: async (selection, options) => this.inspect(selection, options),
+            raw: async (rowId, options) => this.raw(rowId, options),
             subscribe: (listener) => {
                 this.listeners.add(listener);
                 return () => void this.listeners.delete(listener);
@@ -266,25 +265,28 @@ class InPageDoc {
         const { matrix, message } = matrixCellsMessage(nodeId, this.find(nodeId));
         return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
     }
-    inspect(selection) {
-        const rowIds = typeof selection === 'string' ? [selection] : selection;
-        let view = { groups: [] };
-        // The inspector's own rule for which row a selection shows (the first, unless it is a section
-        // heading), with this document's lookup.
-        const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
-        new InspectorSelection(show, (_uri, id) => this.find(id)).show(this.uri, rowIds);
-        return view;
+    /**
+     * The inspector's page for a selection (inspectTree), off the current read: the file itself named
+     * by its uri or by the srcId its tree is under, as the Raw pane's is. It never holds edits, and
+     * takes none, so it has no row to edit whatever `options` asks.
+     */
+    inspect(selection, options) {
+        const r = this.reading;
+        if (!r)
+            return { groups: [] };
+        const tree = { root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id), name: this.name, sources: this.shared.registry.session };
+        return inspectTree(tree, selection, { ...options, editable: false });
     }
     /**
      * The Raw pane's answer for a row of the current read (rawOfRow), the file itself named by its
      * uri or by the srcId its tree is under. Nothing to show for a document that did not read, a
      * project, or one that is closed.
      */
-    raw(rowId) {
+    raw(rowId, options) {
         const r = this.reading;
         if (!r)
             return noRaw();
-        return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
+        return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId, options);
     }
 }
 /** Who hears a document's `dirty` change: each listener told on its own terms, once per change. */
@@ -328,13 +330,13 @@ class EditableDoc {
         this.uri = uri;
         this.name = name;
         this.editable = true;
-        this.stack = new EditStack();
         this.index = new EditStackIndex();
         this.dirtyCheck = false;
         this.disposed = false;
         /** The state of the stack each save read (EditStackIndex.state), by save. */
         this.saveStates = new WeakMap();
         this.bell = new DirtyBell(listenerFailure(shared.notify, name));
+        this.stack = new EditStack(listenerFailure(shared.notify, name));
         const index = this.index;
         this.watched = {
             get dirty() {
@@ -442,6 +444,7 @@ class EditableMatDoc extends EditableDoc {
             bytes,
             sink: this.stack,
             index: this.watched,
+            history: this.stack,
             registers: shared.registers,
             notify: shared.notify,
             budget: shared.budget,
@@ -516,6 +519,7 @@ class EditableBinaryDoc extends EditableDoc {
             bytes,
             sink: this.stack,
             index: this.watched,
+            history: this.stack,
             registers: shared.registers,
             notify: shared.notify,
             budget: shared.budget,
@@ -574,6 +578,7 @@ class EditableJsonDoc {
             uri,
             name,
             text: this.text,
+            history: this.text.history,
             registers: shared.registers,
             notify: shared.notify,
             budget: shared.budget,
@@ -722,6 +727,7 @@ class EditableModelDoc extends EditableDoc {
             file: MODEL_FILE,
             sink: this.stack,
             index: this.watched,
+            history: this.stack,
             registers: shared.registers,
             notify: shared.notify,
             budget: shared.budget,
@@ -754,6 +760,17 @@ class EditableModelDoc extends EditableDoc {
         this.tellDirty();
         this.graph = undefined;
         await this.engine.replace(arrayBufferOf(bytes));
+    }
+    async repaint() {
+        if (this.disposed)
+            return;
+        this.graph = undefined;
+        await super.repaint();
+    }
+    // A usage source that came later (setUsage) answers its blocks' parameters and its variables'
+    // users afresh: painted again, as the read-only model is, though no repost reaches it.
+    async refillUsage() {
+        await this.repaint();
     }
 }
 /**

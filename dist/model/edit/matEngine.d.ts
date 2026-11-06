@@ -1,6 +1,6 @@
 import { type Session } from 'data-explorer-core';
 import type { TreeTableRow } from '../rows/tableRow.js';
-import { type EditableTableSource, type TableView } from '../source/tableSource.js';
+import { type EditableTableSource, type EditHistory, type TableView } from '../source/tableSource.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import { type Registers } from './registers.js';
 import { type EngineFile } from './engineFile.js';
@@ -25,6 +25,13 @@ export interface MatEngineOptions {
     sink: EditSink;
     /** Where the stack stands, and its save point. */
     index: EditIndex;
+    /**
+     * Where the stack the edits go on (`sink`) stands, which its tables hand on as their `history`
+     * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+     * to undo or redo: in the page, the stack itself (EditStack). Default: none, and Undo and Redo are
+     * offered wherever the document may be edited (in the VS Code extension the stack is VS Code's).
+     */
+    history?: EditHistory;
     /** The registers the window's documents share. */
     registers: Registers;
     /** Where a notice the table does not show goes. Default: nowhere. */

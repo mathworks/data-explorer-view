@@ -1,5 +1,5 @@
 import { dropDecision } from '../../model/actions/dropDecision.js';
-import { sectionRowIdOf } from '../../model/actions/operands.js';
+import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import { sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
 import { buildContextMenuItems, resolveShortcutAction, shouldOpenCellEditor, shouldShowContextMenu, } from './menuItems.js';
 // Whether a value read off a change is an object — the one shape every list element below
@@ -105,18 +105,64 @@ export function wireEditing(host) {
                 ? { sectionName: rule.sectionName, sectionLabel: rule.sectionLabel, isDerived: rule.isDerived, allowedTypes: rule.allowedTypes }
                 : null,
             docUri: host.docUri(),
+            // Where the document's undo stack stands, when the source says: Undo and Redo only where
+            // there is a step. A source whose stack is an editor's says nothing, and offers both.
+            ...(source?.history ? { history: source.history } : {}),
         });
+    };
+    // The gestures handed to the source in this task, each told (`ran`) once the task ends unless the
+    // source refused or failed one meanwhile. A source in the page refuses as it is called, or a few
+    // promise turns later (a JSON dictionary's structural edits wait their turn on its text), so before
+    // the task ends; one across a channel answers later than that, and its gesture is told before. A
+    // refusal marks every gesture still waiting, as which one it was is not said: none is told rather
+    // than the wrong one. So a refusal that comes late for an earlier gesture (one queued behind a slow
+    // edit) silences an unrelated gesture handed in the task it lands in: that one is then not said.
+    let waiting = [];
+    let telling = null;
+    // Hand the gesture over (`give`), waiting before it is given, so that a refusal said while the
+    // source takes it is its own; one the source throws for is not told, and the throw goes on.
+    const hand = (actionId, rowIds, count, give) => {
+        const w = { run: { actionId, rowIds, count }, refused: false };
+        waiting.push(w);
+        telling ??= setTimeout(() => {
+            telling = null;
+            const done = waiting;
+            waiting = [];
+            for (const d of done)
+                if (!d.refused)
+                    host.ran(d.run);
+        }, 0);
+        try {
+            give();
+        }
+        catch (err) {
+            w.refused = true;
+            throw err;
+        }
+    };
+    const refused = () => {
+        for (const w of waiting)
+            w.refused = true;
+    };
+    // How many a selection's gesture acts on, as its item's label counts them (buildContextMenuItems).
+    const countOf = (actionId, rowIds) => {
+        const ops = resolveOperands(rowIds, host.rowsNow());
+        return (actionId === 'delete' ? ops.deleteIds : ops.entryIds).length;
     };
     // An action, as the source's command with the operand shape that action takes.
     const act = (actionId, anchorRowId) => {
         if (!EDITING_ACTIONS.has(actionId))
             return false;
         if (actionId === 'undo' || actionId === 'redo') {
-            source?.[actionId]();
+            if (source)
+                hand(actionId, [], 0, () => source[actionId]());
             return true;
         }
         if (SELECTION_ACTIONS.has(actionId)) {
-            source?.[actionId](host.selectedRowIds());
+            if (!source)
+                return true;
+            const rowIds = host.selectedRowIds();
+            hand(actionId, rowIds, countOf(actionId, rowIds), () => source[actionId](rowIds));
             return true;
         }
         if (!anchorRowId) {
@@ -125,16 +171,23 @@ export function wireEditing(host) {
             // only one that offers it, and this says so again here rather than trusting every
             // path that reaches act to have asked: a dictionary has no section to put a row-less
             // paste in.
-            if (actionId === 'paste' && wholeFileRule())
-                source?.paste('');
+            if (actionId === 'paste' && wholeFileRule() && source)
+                hand('paste', [], clipboardState.items.length, () => source.paste(''));
             return true;
         }
-        if (actionId === 'locateInText')
-            host.textView?.locate(anchorRowId);
-        else if (actionId === 'setActiveConfigSet')
-            source?.setActiveConfigSet?.(anchorRowId);
-        else
-            source?.[actionId](anchorRowId);
+        const count = actionId === 'paste' ? clipboardState.items.length : 1;
+        const textView = host.textView;
+        if (actionId === 'locateInText') {
+            if (textView)
+                hand(actionId, [anchorRowId], count, () => textView.locate(anchorRowId));
+        }
+        else if (actionId === 'setActiveConfigSet') {
+            if (source?.setActiveConfigSet)
+                hand(actionId, [anchorRowId], count, () => source.setActiveConfigSet?.(anchorRowId));
+        }
+        else if (source) {
+            hand(actionId, [anchorRowId], count, () => source[actionId](anchorRowId));
+        }
         return true;
     };
     // The gesture the editing menu's item `actionId` stands for on the CURRENT selection, or undefined
@@ -243,10 +296,13 @@ export function wireEditing(host) {
         ev.stopPropagation();
         gesture();
     }, true);
-    // Undo and Redo, as their menu items do, where the document may be edited (their items are
-    // disabled where it may not).
+    // Undo and Redo, as their menu items do, where the document may be edited and the source does not
+    // say there is nothing to take back or make again (their items are disabled there).
     const history = (action) => {
         if (!editable)
+            return false;
+        const stack = source?.history;
+        if (stack && !(action === 'undo' ? stack.canUndo : stack.canRedo))
             return false;
         act(action, null);
         return true;
@@ -316,15 +372,16 @@ export function wireEditing(host) {
     // The cell edits the source is still writing (a source whose write finishes later returns its
     // promise), for commitEdit to wait on. A refusal is the source's to show: here it only settles.
     const writing = new Set();
-    host.listen('dex-edit-completed', (e) => {
-        const detail = e.detail;
-        const written = source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
+    const write = (edit) => {
+        const written = source?.edit({ rowId: edit.rowId, columnId: edit.columnId, oldValue: edit.oldValue, newValue: edit.newValue });
         if (!written)
-            return;
+            return Promise.resolve();
         const settled = Promise.resolve(written).then(() => undefined, () => undefined);
         writing.add(settled);
         void settled.then(() => writing.delete(settled));
-    });
+        return settled;
+    };
+    host.listen('dex-edit-completed', (e) => void write(e.detail));
     return {
         painting(view) {
             // A source that takes no edits is a read-only document whatever its view says.
@@ -386,6 +443,7 @@ export function wireEditing(host) {
                         host.beginRename(change.rowId);
                     return true;
                 case 'invalid':
+                    refused();
                     // An invalid cell edit: the dialog scoped to this table. The source follows it with a
                     // repaint of the rejected row's entry, so the cell is back to its previous value by
                     // the time the dialog is dismissed.
@@ -397,6 +455,7 @@ export function wireEditing(host) {
                     });
                     return true;
                 case 'refused':
+                    refused();
                     // A refused Add Child, Delete or Add: the same dialog, titled by the gesture, which
                     // stays until it is closed. A banner would be cleared by the next repaint.
                     errorDialog.show({ title: change.title, reason: change.reason });
@@ -429,6 +488,8 @@ export function wireEditing(host) {
         can,
         run,
         editsSettled: () => Promise.all([...writing]).then(() => undefined),
+        edit: write,
         history,
+        failed: refused,
     };
 }
