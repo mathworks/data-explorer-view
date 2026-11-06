@@ -45,6 +45,10 @@ export interface ConfirmOptions {
  * button, never on a danger one, and Tab stays among its buttons while it is open. It sends no
  * events: the promise is the answer.
  *
+ * It paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later
+ * in the document is on top: append it last in the body, outside any element that makes a
+ * stacking context of its own.
+ *
  * @tagname dex-confirm-dialog
  */
 export class DexConfirmDialog extends LitElement {
@@ -158,6 +162,8 @@ export class DexConfirmDialog extends LitElement {
   @state() private _open = false;
   private _answer: ((id: string) => void) | null = null;
   private _returnFocusTo: HTMLElement | null = null;
+  // Whether the press that the coming click ends began on the backdrop itself.
+  private _pressedOnBackdrop = false;
 
   /**
    * Opens the dialog with `options` and resolves to the id of the button pressed, or to
@@ -165,9 +171,14 @@ export class DexConfirmDialog extends LitElement {
    * page. A second show() while one is open answers the first with the first's `cancelId` and
    * asks the second in its place. Focus opens on the first primary button, or with none on the
    * first that is not a danger one, and returns, when the dialog closes, to the element that had
-   * it when the first of these questions was asked.
+   * it when the first of these questions was asked. On an element that is not on the page it
+   * resolves to `cancelId` at once.
    */
   show(options: ConfirmOptions): Promise<string> {
+    // Off the page nobody could see the question or answer it, and leaving the page is what
+    // answers an open one with cancelId (disconnectedCallback): the same answer, at once, and no
+    // key listener left on the document for an element that is not there.
+    if (!this.isConnected) return Promise.resolve(options.cancelId);
     if (this._open) {
       // Answered before the next is asked, so the awaiting code never sees two questions as one.
       // Focus stays where the first show() found it: it is in this dialog now.
@@ -198,6 +209,7 @@ export class DexConfirmDialog extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this.addEventListener('pointerdown', this._onPointerDown);
     this.addEventListener('click', this._onBackdropClick);
   }
 
@@ -248,7 +260,10 @@ export class DexConfirmDialog extends LitElement {
   }
 
   // On the document, in capture, while open: Escape must answer the dialog wherever focus is, and
-  // Tab must not reach the page behind the backdrop. Every other key goes on as it came.
+  // Tab must not reach the page behind the backdrop. Every other key is left to do what it does
+  // (Enter presses the focused button); one pressed inside the dialog is then stopped at the
+  // dialog by its keydown binding in render(), so the page's own listeners on the way up (the
+  // context menu's arrows and Enter, the table's shortcuts) never act on what is behind a modal.
   private _onKeyDown = (e: KeyboardEvent): void => {
     if (!this._open) return;
     if (e.key === 'Escape') {
@@ -274,8 +289,18 @@ export class DexConfirmDialog extends LitElement {
     buttons[next]!.focus();
   }
 
+  // A click is sent to the nearest element holding both the press and the release, so a drag
+  // that selects the file's name in the message and lets go over the backdrop clicks the host,
+  // past the dialog's own guard. Only a press that began on the backdrop cancels: composedPath,
+  // since a listener on the host sees every press inside its shadow root retargeted to itself.
+  private _onPointerDown = (e: PointerEvent): void => {
+    this._pressedOnBackdrop = e.composedPath()[0] === this;
+  };
+
   private _onBackdropClick = (e: MouseEvent): void => {
-    if (e.target === this) this.close();
+    const pressed = this._pressedOnBackdrop;
+    this._pressedOnBackdrop = false;
+    if (pressed && e.target === this && e.composedPath()[0] === this) this.close();
   };
 
   override render() {
@@ -291,6 +316,7 @@ export class DexConfirmDialog extends LitElement {
         aria-describedby="message"
         tabindex="-1"
         @click=${(e: MouseEvent) => e.stopPropagation()}
+        @keydown=${(e: KeyboardEvent) => e.stopPropagation()}
       >
         <div class="title" id="title">${options.title}</div>
         <div class="body">

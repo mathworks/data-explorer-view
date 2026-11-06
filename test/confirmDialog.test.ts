@@ -164,18 +164,39 @@ describe('the answer', () => {
 
   it('is cancelId on Escape even when focus has left the dialog', async () => {
     // As dex-error-dialog: Escape is heard on the document, so a modal is never left with no way
-    // out by keyboard.
+    // out by keyboard. And stopped there, in capture: the page's own Escape (a table closing its
+    // editor) does not also act on it.
     await open();
     const outside = document.createElement('input');
     document.body.appendChild(outside);
     outside.focus();
-    key('Escape');
+    const heard: string[] = [];
+    const listen = (e: KeyboardEvent) => heard.push(e.key);
+    document.addEventListener('keydown', listen);
+    outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true }));
+    document.removeEventListener('keydown', listen);
     await expect(answer).resolves.toBe('cancel');
+    expect(heard).toEqual([]);
     outside.remove();
   });
 
   it('is cancelId on a click on the backdrop', async () => {
     const el = await open();
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await expect(answer).resolves.toBe('cancel');
+  });
+
+  it('is not given by a drag that began in the dialog and was let go over the backdrop', async () => {
+    // Selecting the file's name in the message by dragging, and letting go past the dialog's
+    // edge: the browser sends that click to the host, the nearest element holding both ends,
+    // and it is no request to cancel.
+    const el = await open();
+    el.shadowRoot!.querySelector('.message')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(el.hasAttribute('open')).toBe(true);
+    // And the next press that does begin on the backdrop still cancels.
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
     el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await expect(answer).resolves.toBe('cancel');
   });
@@ -224,6 +245,16 @@ describe('the answer', () => {
     expect(ev.defaultPrevented).toBe(false);
   });
 
+  it('is cancelId at once when the dialog is not on the page', async () => {
+    // Nobody could see it or answer it; a promise left pending would hang the close awaiting it.
+    dialog = new DexConfirmDialog();
+    await expect(dialog.show(CLOSE)).resolves.toBe('cancel');
+    expect(dialog.hasAttribute('open')).toBe(false);
+    // And no key listener was left on the document for it.
+    expect(key('Tab').defaultPrevented).toBe(false);
+    expect(key('Escape').defaultPrevented).toBe(false);
+  });
+
   it('can be asked again once answered', async () => {
     // One element serves every question the shell asks.
     const el = await open(CLOSE);
@@ -242,9 +273,15 @@ describe('keyboard focus', () => {
     expect(focused(el)).toBe('Save');
   });
 
-  it('never opens on a danger button, even the first one, when there is no primary', async () => {
+  it('never opens on a danger button, even when it comes first and there is no primary', async () => {
     // A reflex Enter on an autofocused Reload or Don't Save throws the user's edits away.
-    const el = await open(RELOAD);
+    const el = await open({
+      ...RELOAD,
+      buttons: [
+        { id: 'reload', label: 'Reload', kind: 'danger' },
+        { id: 'keep', label: 'Keep My Edits' },
+      ],
+    });
     expect(focused(el)).toBe('Keep My Edits');
   });
 
@@ -294,6 +331,27 @@ describe('keyboard focus', () => {
       document.dispatchEvent(ev);
       expect(ev.defaultPrevented).toBe(false);
       expect(el.hasAttribute('open')).toBe(true);
+    }
+  });
+
+  it('lets no key pressed in it reach the page behind it', async () => {
+    // The context menu and the table listen for keys on the document as they bubble: an Enter or
+    // an arrow pressed on the dialog's focused button reached them, and acted on the page behind
+    // a modal. Escape is stopped on the document before it gets that far.
+    const el = await open();
+    const heard: string[] = [];
+    const listen = (e: KeyboardEvent) => heard.push(e.key);
+    document.addEventListener('keydown', listen);
+    try {
+      const button = el.shadowRoot!.activeElement as HTMLButtonElement;
+      expect(button.textContent?.trim()).toBe('Save');
+      for (const k of ['Enter', 'ArrowDown', 'Escape']) {
+        button.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true }));
+      }
+      expect(heard).toEqual([]);
+      await expect(answer).resolves.toBe('cancel');
+    } finally {
+      document.removeEventListener('keydown', listen);
     }
   });
 
