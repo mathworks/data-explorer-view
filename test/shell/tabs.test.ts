@@ -246,6 +246,44 @@ describe('the tab row', () => {
     await settled();
     expect(graph().shadowRoot!.activeElement ?? null).toBeNull();
   });
+
+  it("Show Graph pressed in a table gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // The table's panel hides as Root shows: a browser drops the focus inside it to the page's
+    // body. Its chord pressed there, the keyboard goes where the tab row's does as Root shows.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const grid = () => tableOf('params.sldd')!.shadowRoot!.querySelector<HTMLElement>('.table-container')!;
+    const chord = (el: HTMLElement) => {
+      // Mod is Cmd on macOS and Ctrl elsewhere: the one the page's platform reads.
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'H', shiftKey: true, ...(mac ? { metaKey: true } : { ctrlKey: true }), bubbles: true, composed: true, cancelable: true }));
+    };
+    grid().focus();
+    expect(document.activeElement).toBe(tableOf('params.sldd'));
+    chord(grid());
+    await until(() => docTabs().hidden && graphShown());
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    grid().focus();
+    chord(grid());
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the panel (on the toolbar's Open): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    toolbarButton('Open')!.focus();
+    page.command('show-graph');
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
+  });
 });
 
 describe('preview tabs', () => {

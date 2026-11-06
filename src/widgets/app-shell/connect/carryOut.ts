@@ -25,12 +25,21 @@ export interface CarryOutContext {
   close(tab: OpenTab): void;
   /** Another tab is active: everything that follows the active tab follows it. */
   shown(): void;
+  /** Root is shown: the keyboard to the Explorer's Root row, or to what fills the center. */
+  keyboardToRoot(): void;
   later(): void;
   /** Something could not be done: say so. */
   failed(message: string): void;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** The element the focus is on, through the shadow roots on the way: a table's grid, not it. */
+function focusedElement(): HTMLElement | null {
+  let el = document.activeElement as HTMLElement | null;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement as HTMLElement;
+  return el;
+}
 
 /**
  * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
@@ -99,9 +108,22 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       on.nav[id]();
       on.later();
       break;
-    case 'show-graph':
-      // The Explorer's Root, where the relationship graph is drawn.
-      if (on.tabs.deactivate()) on.shown();
+    case 'show-graph': {
+      // The Explorer's Root, where the relationship graph is drawn. The active tab's panel hides as
+      // it shows, and a browser drops a focus inside it (a table's, its chord pressed there) to the
+      // page's body: that one goes where the tab row's does as Root shows. Read before the panel
+      // hides, by the shadow host the focus is in, which :focus-within matches the panel by; and
+      // let go of first, as the tab row's is, so a graph still being drawn takes it once it is.
+      const panel = on.tabs.active?.panel;
+      const held = !!panel && !!document.activeElement && panel.contains(document.activeElement);
+      if (on.tabs.deactivate()) {
+        on.shown();
+        if (held) {
+          focusedElement()?.blur();
+          on.keyboardToRoot();
+        }
+      }
       break;
+    }
   }
 }

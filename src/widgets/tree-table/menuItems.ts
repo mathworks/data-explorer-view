@@ -114,6 +114,15 @@ function navigatorIsMac(): boolean {
   return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 }
 
+/**
+ * Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is
+ * Backspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace
+ * alike. Exported so that an app's toolbar names the key the menu does.
+ */
+export function deleteKeyLabel(mac: boolean): string {
+  return mac ? '⌫' : 'Del';
+}
+
 // Map a keydown to the context-menu action it should trigger, or null if the
 // chord isn't a recognized shortcut. Mirrors the shortcuts the menu advertises:
 //   Cmd/Ctrl+C -> copy, Cmd/Ctrl+X -> cut, Cmd/Ctrl+V -> paste (no Shift/Alt),
@@ -312,7 +321,7 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
   const del: ContextMenuItem = {
     id: 'delete',
     icon: 'delete',
-    shortcut: navigatorIsMac() ? '⌫' : 'Del',
+    shortcut: deleteKeyLabel(navigatorIsMac()),
     disabled: !editable || !!undeletableRow,
     ...operandLabel('Delete', 'Items', deleteNames),
     ...(undeletableRow ? { reason: "This element can't be removed from its parent" } : {}),

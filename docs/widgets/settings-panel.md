@@ -4,11 +4,11 @@ The shell's Settings popover, opened from the gear on an activity bar: the theme
 Dark, Hi-Con), the toolbar's density (Normal, or Compact: a lower row, its icons smaller and
 beside their labels), the icons of the shell's own buttons (Minimal, in one colour, or Colorful),
 how the tables are ruled (Grid, or Rows) and how Root's relationship graph is laid out (Tree, or
-Indented), each a row of segments that is a radio group. It
-shows `settings` and asks for a change: a click, or an arrow key inside a row, sends
-`dex-settings-change` with the whole new record, and the panel changes nothing by itself. The app
-applies the settings, keeps them, and sets `settings` back. The popover stays open meanwhile, so
-the themes can be tried one after another.
+Indented), each a row of segments that is a radio group. It shows `settings` and asks for a
+change: a click, or an arrow key inside a row, sends `dex-settings-change` with the whole new
+record, and the panel changes nothing by itself. The app applies the settings, keeps them, and
+sets `settings` back. The popover stays open meanwhile, so the themes can be tried one after
+another.
 
 show() opens it beside the button that opened it, focused on the chosen theme. Escape, a press
 outside it or close() closes it, and the focus goes back to the button.

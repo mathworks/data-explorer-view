@@ -14,6 +14,7 @@
 // opens, as the prototype's did ("Open File").
 
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
+import { deleteKeyLabel } from '../../tree-table/menuItems.js';
 import type { ToolbarItem } from '../dex-toolbar.js';
 import { chordOf } from './keys.js';
 import type { ShellCommand } from './types.js';
@@ -52,11 +53,6 @@ const TABLE_CHORDS: Partial<Record<ShellCommand, string>> = {
   paste: 'Mod+V',
 };
 
-/**
- * Delete's key, as the table's menu names it: a key and not a chord (the table answers Delete and
- * Backspace alike), ⌫ on macOS, whose key marked delete is Backspace, and Del elsewhere.
- */
-const deleteKey = (mac: boolean): string => (mac ? '⌫' : 'Del');
 
 /** Each editing button's item of the table's menu. */
 const TABLE_ACTIONS: Partial<Record<ShellCommand, TableActionId>> = {
@@ -78,7 +74,8 @@ export function tableActionOf(command: ShellCommand): TableActionId | undefined 
 export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   const item = (id: ShellCommand, label: string, icon: string, group: string, disabled: boolean, align?: 'end'): ToolbarItem => {
     const chord = TABLE_CHORDS[id] ?? chordOf(id);
-    const shortcut = id === 'delete' ? deleteKey(state.mac) : chord ? chordLabel(parseChord(chord), state.mac) : undefined;
+    // Delete's is a key the menu names itself, not a chord.
+    const shortcut = id === 'delete' ? deleteKeyLabel(state.mac) : chord ? chordLabel(parseChord(chord), state.mac) : undefined;
     return {
       id,
       label,

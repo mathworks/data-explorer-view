@@ -714,11 +714,10 @@ and leaves Undo and Redo to a table, which undoes its own document.
 A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Root's
 graph, Settings, the command palette and the views' chords, and the menu the
-rest. In a browser
-tab, a few chords are the browser's whatever the page does: a browser keeps
-Cmd/Ctrl+N for a new window (Chromium and Firefox both do), and Chromium keeps
-Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs; there the toolbar,
-the tab row and the command palette do the same. The shell's own
+rest. In a browser tab, a few chords are the browser's whatever the page does:
+a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox both do), and
+Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs; there
+the toolbar, the tab row and the command palette do the same. The shell's own
 chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows

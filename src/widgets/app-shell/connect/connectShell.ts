@@ -654,7 +654,19 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
   // What the document commands are carried out with (carryOut.ts).
-  const carrying: CarryOutContext = { host, tabs, nav, openPaths, openNew, save, close: (tab) => void requestClose(tab), shown, later, failed };
+  const carrying: CarryOutContext = {
+    host,
+    tabs,
+    nav,
+    openPaths,
+    openNew,
+    save,
+    close: (tab) => void requestClose(tab),
+    shown,
+    keyboardToRoot: rootTakesTheKeyboard,
+    later,
+    failed,
+  };
 
   // --- The modules' views ------------------------------------------------------------------------
 
