@@ -28,7 +28,7 @@
 // DOM-free.
 import { sourceKind } from 'data-explorer-core';
 import { basename } from '../ids/pathUtil.js';
-import { sourceUri } from '../source/sourceUri.js';
+import { sourceUri, uriPath } from '../source/sourceUri.js';
 import { sortEntries, type FolderEntry } from './folderEntries.js';
 import { fileIconOf, type FolderHierarchy, type HierarchyItem } from './folderHierarchy.js';
 import type { SourceType } from './graphModel.js';
@@ -291,6 +291,21 @@ export class FolderTree {
     this.copies.set(own, row);
     return own;
   }
+}
+
+/**
+ * The path of a row's file or folder, for a menu's Reveal and Copy Path: the row's own `path` (a
+ * row a FolderTree made from an entry: a folder, a data file, another file), else its file's read
+ * back from its uri (`uriPath(id)`), since a reference row is the hierarchy's and carries no path
+ * of its own. Undefined for a row of no file (External Data, a notice, an unresolved reference).
+ *
+ * A uri reads back as the path sourceUri was given, as a host that lists absolute paths names it
+ * (Electron's main). A page's folder, whose paths start at the picked folder, reads back with a
+ * `/` before them: Copy Path there copies that spelling, and such a page shows no Reveal.
+ */
+export function rowPath(item: HierarchyItem): string | undefined {
+  if (item.path !== undefined) return item.path;
+  return item.id !== undefined ? uriPath(item.id) : undefined;
 }
 
 // A promise's outcome as a value, for a pair of asks one of which may fail alone.

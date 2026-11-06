@@ -91,9 +91,9 @@ const own = (file: string, m: ModuleEvents): string[] => [...m.dispatched.keys()
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 55 events from 35 widgets: a parse that found none would pass everything below.
+    // 56 events from 35 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(55);
+    expect(new Set(names).size).toBe(56);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 

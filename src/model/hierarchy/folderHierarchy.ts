@@ -88,7 +88,11 @@ export interface HierarchyItem {
   // FolderHierarchy makes, so the VS Code extension's trees, drawn from these rows, never see them.
   /** A file the app does not open (FolderTree's other files): drawn dimmed, opens nothing. */
   dimmed?: boolean;
-  /** The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and Copy Path). */
+  /**
+   * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
+   * Copy Path). Only on a row a FolderTree made from an entry: a reference row has none, and
+   * `rowPath(item)` reads its file's from its uri.
+   */
   path?: string;
   /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
   relation?: string;

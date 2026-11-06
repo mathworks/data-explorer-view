@@ -6,19 +6,48 @@ import { defineElement } from '../shared/define.js';
 import { defineIcon } from '../shared/dex-icon.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { styleProps } from '../shared/styleProps.js';
-import { DECORATIONS } from '../../model/hierarchy/health.js';
+import { DECORATIONS, type HealthState } from '../../model/hierarchy/health.js';
 import type { HierarchyItem } from '../../model/hierarchy/folderHierarchy.js';
 
 export type { HierarchyItem };
 
 /** What `dex-hierarchy-selected` carries: the row chosen. */
 export interface HierarchySelectedDetail {
-  /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
+  /**
+   * The file the row opens (its `id`), or null for a row that is no file: a folder, External Data,
+   * a reference no file answers; and for a `dimmed` row, a file the app does not open.
+   */
   uri: string | null;
   /** The row's key, as `selectedKey` now holds it. */
   key: string;
   /** The row. */
   item: HierarchyItem;
+}
+
+/**
+ * How a row's file stands in the tabs, by its uri (HierarchyItem.id): the tabs' own vocabulary,
+ * so a row reads as the tab of its file does. Every row of the file is marked, wherever it is.
+ */
+export interface RowMark {
+  /** Open in a tab: a bar in the accent at the row's left edge (a border in forced colours). */
+  open?: boolean;
+  /** The active tab: the row drawn as a selected one is (not `selectedKey`), and `aria-current="true"`. */
+  active?: boolean;
+  /** Unsaved: ● after the label, the tab's mark, which a screen reader reads as unsaved changes. The index's own `modified` mark is the same badge: a row never shows two. */
+  unsaved?: boolean;
+  /** A preview tab (one a single click opened, which the next replaces): the label in italics. */
+  preview?: boolean;
+}
+
+/** What `dex-hierarchy-menu` carries: the row whose menu is asked for, and where to show it. */
+export interface HierarchyMenuDetail {
+  /** The row. */
+  item: HierarchyItem;
+  /** Where the menu goes, in the viewport's pixels: the pointer, or for the keyboard the row's lower left. */
+  x: number;
+  y: number;
+  /** Asked by the keyboard (Shift+F10, the ContextMenu key): the menu takes the focus to its first item. */
+  keyboard?: true;
 }
 
 /** One row as drawn: the item, where it sits, and whether it is open. */
@@ -41,6 +70,13 @@ interface Line {
  * file's name and kind, an unresolved reference a warning, a file's mark a badge (a circular
  * reference, unsaved changes), and a notice (a folder of which only the first files are shown) an
  * information mark.
+ *
+ * For a folder drawn as a file browser draws it (FolderTree's rows), a `dimmed` row is a file the
+ * app does not open, in the muted ink, disabled for a screen reader and opening nothing; a row's
+ * `relation` says after its name what it is to the row above it; and `marks` mark each file's rows
+ * as its tab stands (open, active, unsaved, a preview). A right click, Shift+F10 or the ContextMenu
+ * key asks for a row's menu (`dex-hierarchy-menu`), which the app draws. Rows without these fields,
+ * and a tree without marks, draw as they always have.
  *
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it
  * opens, and a row with rows under it opens or closes. The arrow keys move through the rows
@@ -83,6 +119,19 @@ export class DexHierarchy extends LitElement {
       background: var(--dex-bg-hover, #e8e8e8);
     }
 
+    /* A file the app does not open: the muted ink at full opacity (4.5:1 in every theme), before
+       the selected row's rule, so a selected one reads in the selection's ink. */
+    .row.dimmed {
+      color: var(--dex-color-text-muted, #666);
+      cursor: default;
+    }
+
+    /* The active tab's row: drawn as a selected row is, and not the tree's selection. */
+    .row.active {
+      background: var(--dex-color-accent-bg, #cde4f7);
+      color: var(--dex-selection-fg, #333);
+    }
+
     /* The selection's surface and its ink together, as the table's selected row. */
     .row[aria-selected='true'] {
       background: var(--dex-color-accent-bg, #cde4f7);
@@ -91,6 +140,20 @@ export class DexHierarchy extends LitElement {
 
     .row:focus-visible {
       box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
+    }
+
+    /* Open in a tab: a bar at the left edge, and the focus ring beside it rather than over it. */
+    .row.open {
+      box-shadow: inset 2px 0 0 var(--dex-color-accent, #0078d4);
+    }
+
+    .row.open:focus-visible {
+      box-shadow: inset 2px 0 0 var(--dex-color-accent, #0078d4), inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
+    }
+
+    /* A preview tab's file, as the tab's own label is. */
+    .preview .label {
+      font-style: italic;
     }
 
     .indent {
@@ -183,9 +246,20 @@ export class DexHierarchy extends LitElement {
     }
 
     @media (forced-colors: active) {
-      .row[aria-selected='true'] {
+      .row[aria-selected='true'],
+      .row.active {
         background: Highlight;
         color: HighlightText;
+      }
+
+      /* Forced colours drop a shadow: the open bar is a border there, the row's padding given up for it. */
+      .row.open {
+        border-left: 2px solid Highlight;
+        padding-left: 2px;
+      }
+
+      .row.dimmed {
+        color: GrayText;
       }
 
       .row:focus-visible {
@@ -212,6 +286,11 @@ export class DexHierarchy extends LitElement {
    * whose key is here opens as soon as it is shown. Default none.
    */
   @property({ attribute: false }) expandedKeys: string[] = [];
+  /**
+   * How each file's rows stand in the tabs, by the file's uri (a row's `id`): open, the active
+   * tab, unsaved, a preview. Setting it redraws the rows; it sends nothing. Default none.
+   */
+  @property({ attribute: false }) marks: ReadonlyMap<string, RowMark> = new Map();
   /** The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing. */
   @property({ attribute: false }) selectedKey: string | null = null;
   /** What a screen reader calls the tree. Default `Files`. Attribute `label`. */
@@ -237,6 +316,9 @@ export class DexHierarchy extends LitElement {
   private _openedTop = new Set<string>();
   // The row revealRow() is to scroll into view once it is drawn.
   private _scrollKey: string | null = null;
+  // A menu the keyboard asked for, whose own contextmenu event (which the browser sends for the
+  // same key) is not a second ask. A pointer's press lets go of it: a right click always has one.
+  private _keyMenu = false;
 
   /**
    * Show a row: open each row of `path` but the last (the rows from a top-level row down to it,
@@ -352,11 +434,33 @@ export class DexHierarchy extends LitElement {
   private _announce(item: HierarchyItem): void {
     this.dispatchEvent(
       new CustomEvent<HierarchySelectedDetail>('dex-hierarchy-selected', {
-        detail: { uri: item.id ?? null, key: item.key, item },
+        // A dimmed row opens nothing, whatever it names.
+        detail: { uri: item.dimmed ? null : (item.id ?? null), key: item.key, item },
         bubbles: true,
         composed: true,
       }),
     );
+  }
+
+  private _menu(detail: HierarchyMenuDetail): void {
+    this.dispatchEvent(new CustomEvent<HierarchyMenuDetail>('dex-hierarchy-menu', { detail, bubbles: true, composed: true }));
+  }
+
+  // A right click: the menu where the pointer is, and not the browser's.
+  private _onContextMenu(e: MouseEvent, item: HierarchyItem): void {
+    e.preventDefault();
+    if (this._keyMenu) {
+      this._keyMenu = false;
+      return;
+    }
+    this._focusKey = item.key;
+    this._menu({ item, x: e.clientX, y: e.clientY });
+  }
+
+  // Chromium on Windows opens its own menu on the ContextMenu key's keyup unless it is spent; the
+  // keydown asked for the row's.
+  private _onKeyup(e: KeyboardEvent): void {
+    if (e.key === 'ContextMenu') e.preventDefault();
   }
 
   private _onKeydown(e: KeyboardEvent): void {
@@ -364,6 +468,14 @@ export class DexHierarchy extends LitElement {
     if (lines.length === 0) return;
     const at = Math.max(0, lines.findIndex((l) => l.item.key === this._focusKey));
     const line = lines[at]!;
+    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      // The focused row's menu, below it, and the browser's own contextmenu for the key let go of.
+      e.preventDefault();
+      const box = this._rowElement(line.item.key)?.getBoundingClientRect();
+      this._keyMenu = true;
+      this._menu({ item: line.item, x: box?.left ?? 0, y: box?.bottom ?? 0, keyboard: true });
+      return;
+    }
     const go = (to: Line | undefined): void => {
       if (to) this._focus(to.item.key);
     };
@@ -415,8 +527,10 @@ export class DexHierarchy extends LitElement {
     return item.icon ? html`<dex-icon .iconId=${item.icon} size="16"></dex-icon>` : nothing;
   }
 
-  private _badge(item: HierarchyItem) {
-    const health = item.health;
+  // The row's one badge: the index's own mark (a cycle before unsaved changes), else the tabs'
+  // unsaved mark as the same badge, so a row never shows two.
+  private _badge(item: HierarchyItem, mark: RowMark | undefined) {
+    const health: HealthState | null | undefined = item.health ?? (mark?.unsaved ? 'modified' : null);
     if (!health || !Object.hasOwn(DECORATIONS, health)) return nothing;
     const { badge, tooltip } = DECORATIONS[health];
     return html`<span class="badge" title=${tooltip} aria-hidden="true">${badge}</span><span class="sr-only">${tooltip}</span>`;
@@ -425,9 +539,20 @@ export class DexHierarchy extends LitElement {
   private _row(line: Line, tabbable: boolean) {
     const { item, level, open, loading } = line;
     const twisty = item.collapsible === 'collapsed';
+    const mark = item.id !== undefined ? this.marks.get(item.id) : undefined;
+    const health = item.health ?? (mark?.unsaved ? 'modified' : null);
+    const classes = [
+      'row',
+      health ? `health-${health}` : '',
+      item.kind === 'notice' ? 'notice' : '',
+      item.dimmed ? 'dimmed' : '',
+      mark?.open ? 'open' : '',
+      mark?.active ? 'active' : '',
+      mark?.preview ? 'preview' : '',
+    ].filter(Boolean);
     return html`
       <div
-        class="row ${item.health ? `health-${item.health}` : ''} ${item.kind === 'notice' ? 'notice' : ''}"
+        class=${classes.join(' ')}
         role="treeitem"
         data-key=${item.key}
         aria-level=${level}
@@ -435,10 +560,13 @@ export class DexHierarchy extends LitElement {
         aria-posinset=${line.posInSet}
         aria-expanded=${twisty ? String(open) : nothing}
         aria-selected=${String(item.key === this.selectedKey)}
+        aria-current=${mark?.active ? 'true' : nothing}
+        aria-disabled=${item.dimmed ? 'true' : nothing}
         aria-busy=${loading ? 'true' : nothing}
         tabindex=${tabbable ? '0' : '-1'}
         title=${item.tooltip ?? nothing}
         @click=${() => this._choose(item)}
+        @contextmenu=${(e: MouseEvent) => this._onContextMenu(e, item)}
         @focus=${() => (this._focusKey = item.key)}
       >
         <span class="indent" ${styleProps({ width: `${(level - 1) * 16}px` })}></span>
@@ -451,7 +579,8 @@ export class DexHierarchy extends LitElement {
         ${this._icon(item)}
         <span class="label">${item.label}</span>
         ${item.description ? html`<span class="description">${item.description}</span>` : nothing}
-        ${this._badge(item)}
+        ${item.relation ? html`<span class="description relation">${item.relation}</span>` : nothing}
+        ${this._badge(item, mark)}
       </div>
     `;
   }
@@ -463,7 +592,13 @@ export class DexHierarchy extends LitElement {
       [this._focusKey, this.selectedKey].find((key) => key !== null && lines.some((l) => l.item.key === key)) ??
       lines[0]?.item.key;
     return html`
-      <div role="tree" aria-label=${this.label} @keydown=${this._onKeydown}>
+      <div
+        role="tree"
+        aria-label=${this.label}
+        @keydown=${this._onKeydown}
+        @keyup=${this._onKeyup}
+        @pointerdown=${() => (this._keyMenu = false)}
+      >
         ${lines.map((line) => this._row(line, line.item.key === tabbable))}
       </div>
     `;
@@ -484,9 +619,15 @@ export function defineHierarchy(tag = 'dex-hierarchy'): void {
 export interface HierarchyEventMap {
   /**
    * A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
-   * null for a row that is no file. Sent again each time a row is chosen.
+   * null for a row that is no file (or a dimmed one). Sent again each time a row is chosen.
    */
   'dex-hierarchy-selected': CustomEvent<HierarchySelectedDetail>;
+  /**
+   * A row's menu is asked for: a right click on it (the browser's own menu kept away), or Shift+F10
+   * or the ContextMenu key on the focused row (`keyboard`, at the row's lower left). The tree
+   * draws no menu: the app does, for the row's `item`.
+   */
+  'dex-hierarchy-menu': CustomEvent<HierarchyMenuDetail>;
 }
 
 declare global {

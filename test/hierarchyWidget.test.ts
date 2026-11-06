@@ -6,7 +6,16 @@
 // what it tells the app. Over hand-made items, so each case shows the rows it is about; the rows a
 // real folder makes are FolderHierarchy's (folderHierarchy.test.ts, goldens/hierarchy.test.ts).
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { defineHierarchy, type DexHierarchy, type HierarchyItem, type HierarchySelectedDetail } from '../src/widgets/hierarchy/index.js';
+import {
+  DexHierarchy as HierarchyClass,
+  defineHierarchy,
+  type DexHierarchy,
+  type HierarchyItem,
+  type HierarchyMenuDetail,
+  type HierarchySelectedDetail,
+  type RowMark,
+} from '../src/widgets/hierarchy/index.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineHierarchy());
 afterEach(() => document.body.replaceChildren());
@@ -378,5 +387,206 @@ describe('an empty tree', () => {
     expect(rows(el)).toEqual([]);
     expect(el.shadowRoot!.querySelector('[role="tree"]')!.getAttribute('aria-label')).toBe('Simulink data');
     el.shadowRoot!.querySelector('[role="tree"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
+});
+
+// The Folder view's rows (FolderTree's): files the app does not open, what a reference is, how a
+// row's file stands in the tabs, and the menu a row asks for. All off unless a row or the app says.
+describe('rows of the Folder view', () => {
+  const NOTES = item('/w/notes', 'notes.md', { kind: 'other', dimmed: true, icon: 'documentList', path: '/w/notes.md' });
+  const REF = item('/w/m/p', 'params.sldd', { id: 'file:///w/params.sldd', health: null, relation: 'data dictionary', icon: 'simulink_database' });
+  const GONE_REF = item('/w/m/g', 'gone.slx', { kind: 'missing', description: 'unresolved reference', relation: 'model reference' });
+  const FOLDER_ROWS: Record<string, HierarchyItem[]> = { '/w': [MODEL, DICT, NOTES], '/w/m': [REF, GONE_REF] };
+
+  async function folder(marks?: ReadonlyMap<string, RowMark>): Promise<DexHierarchy> {
+    const el = await tree({ children: FOLDER_ROWS });
+    if (marks) el.marks = marks;
+    el.expandedKeys = ['/w', '/w/m'];
+    await settle(el);
+    return el;
+  }
+
+  it('draws another file dimmed and disabled for a screen reader, and opens nothing when it is chosen', async () => {
+    const el = await folder();
+    const notes = rowOf(el, 'notes.md');
+    expect(notes.classList.contains('dimmed')).toBe(true);
+    expect(notes.getAttribute('aria-disabled')).toBe('true');
+    expect(rowOf(el, 'd.sldd').classList.contains('dimmed')).toBe(false);
+    expect(rowOf(el, 'd.sldd').hasAttribute('aria-disabled')).toBe(false);
+    const sent: HierarchySelectedDetail[] = [];
+    el.addEventListener('dex-hierarchy-selected', (e) => sent.push(e.detail));
+    notes.click();
+    await settle(el);
+    expect(sent).toEqual([{ uri: null, key: '/w/notes', item: NOTES }]);
+    expect(el.selectedKey).toBe('/w/notes');
+    press(el, 'Enter');
+    expect(sent.map((d) => d.uri)).toEqual([null, null]);
+    // Even a dimmed row that names a file opens nothing.
+    const named = { ...NOTES, id: 'file:///w/notes.md' };
+    el.items = [named];
+    await settle(el);
+    rowOf(el, 'notes.md').click();
+    expect(sent.at(-1)!.uri).toBeNull();
+  });
+
+  it('says what a reference is after its name, in the muted ink, and after its description when it has one', async () => {
+    const el = await folder();
+    const ref = rowOf(el, 'params.sldd');
+    expect([...ref.querySelectorAll('.description')].map((d) => d.textContent)).toEqual(['data dictionary']);
+    const gone = rowOf(el, 'gone.slx');
+    expect([...gone.querySelectorAll('.description')].map((d) => d.textContent)).toEqual(['unresolved reference', 'model reference']);
+    // A row with no relation draws no more than it did.
+    expect(rowOf(el, 'd.sldd').querySelectorAll('.description')).toHaveLength(0);
+  });
+
+  it("marks a file's rows by how it stands in the tabs: open, the active tab, unsaved, a preview", async () => {
+    const marks = new Map<string, RowMark>([
+      ['file:///w/m.slx', { open: true, active: true }],
+      ['file:///w/params.sldd', { open: true, unsaved: true, preview: true }],
+    ]);
+    const el = await folder(marks);
+    const model = rowOf(el, 'm.slx');
+    expect(model.classList.contains('open')).toBe(true);
+    expect(model.classList.contains('active')).toBe(true);
+    expect(model.getAttribute('aria-current')).toBe('true');
+    // The active tab is no selection: the tree's own stays as it is.
+    expect(model.getAttribute('aria-selected')).toBe('false');
+    const ref = rowOf(el, 'params.sldd');
+    expect(ref.classList.contains('open')).toBe(true);
+    expect(ref.classList.contains('preview')).toBe(true);
+    expect(ref.hasAttribute('aria-current')).toBe(false);
+    expect(ref.querySelectorAll('.badge')).toHaveLength(1);
+    expect(ref.querySelector('.badge')!.textContent).toBe('●');
+    expect(ref.querySelector('.sr-only')!.textContent).toContain('unsaved');
+    // A row of no file in the tabs is marked nothing.
+    const plain = rowOf(el, 'notes.md');
+    expect(['open', 'active', 'preview'].filter((c) => plain.classList.contains(c))).toEqual([]);
+    // New marks redraw the rows, and none marks none.
+    el.marks = new Map();
+    await settle(el);
+    expect(rowOf(el, 'm.slx').classList.contains('open')).toBe(false);
+    expect(rowOf(el, 'm.slx').hasAttribute('aria-current')).toBe(false);
+    expect(rowOf(el, 'params.sldd').querySelectorAll('.badge')).toHaveLength(0);
+  });
+
+  it("draws one badge for a file the index marks unsaved and the tabs do too, and a cycle's before it", async () => {
+    // d.sldd's row is `modified` already (the index's own mark).
+    const el = await folder(new Map([['file:///w/d.sldd', { unsaved: true }]]));
+    expect(rowOf(el, 'd.sldd').querySelectorAll('.badge')).toHaveLength(1);
+    const CYCLE = item('/w/c', 'c.sldd', { id: 'file:///w/c.sldd', health: 'cycle', description: '↻ circular reference' });
+    el.items = [CYCLE];
+    el.marks = new Map([['file:///w/c.sldd', { unsaved: true }]]);
+    await settle(el);
+    const badges = rowOf(el, 'c.sldd').querySelectorAll('.badge');
+    expect([...badges].map((b) => b.textContent)).toEqual(['↻']);
+  });
+
+  it('asks for a row\'s menu on a right click, with the pointer where it is, and keeps the browser\'s own', async () => {
+    const el = await folder();
+    const asked: HierarchyMenuDetail[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    const ref = rowOf(el, 'params.sldd');
+    ref.dispatchEvent(new PointerEvent('pointerdown', { button: 2, bubbles: true, composed: true }));
+    const right = new MouseEvent('contextmenu', { clientX: 40, clientY: 90, bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(right);
+    expect(right.defaultPrevented).toBe(true);
+    expect(asked).toEqual([{ item: REF, x: 40, y: 90 }]);
+  });
+
+  it.each([
+    ['Shift+F10', { key: 'F10', shiftKey: true }],
+    ['the ContextMenu key', { key: 'ContextMenu' }],
+  ])('asks for the focused row\'s menu on %s, at the row\'s lower left, once', async (_name, key) => {
+    const el = await folder();
+    const asked: HierarchyMenuDetail[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    const ref = rowOf(el, 'params.sldd');
+    ref.getBoundingClientRect = () => ({ left: 12, bottom: 140, top: 112, right: 300, width: 288, height: 28, x: 12, y: 112, toJSON: () => ({}) });
+    ref.focus();
+    ref.click();
+    const down = new KeyboardEvent('keydown', { ...key, bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    // The browser's own contextmenu event, which the key also sends: no second menu, and no native one.
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(native);
+    expect(native.defaultPrevented).toBe(true);
+    expect(asked).toEqual([{ item: REF, x: 12, y: 140, keyboard: true }]);
+    // The key's keyup is spent too, where a browser opens its own menu on it.
+    const up = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(up);
+    expect(up.defaultPrevented).toBe(true);
+    // A right click after it is a menu of its own.
+    ref.dispatchEvent(new PointerEvent('pointerdown', { button: 2, bubbles: true, composed: true }));
+    ref.dispatchEvent(new MouseEvent('contextmenu', { clientX: 5, clientY: 6, bubbles: true, composed: true, cancelable: true }));
+    expect(asked).toHaveLength(2);
+  });
+
+  it('asks for no menu on F10 alone, and moves nothing', async () => {
+    const el = await folder();
+    const asked: unknown[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    rowOf(el, 'w').focus();
+    press(el, 'F10');
+    expect(asked).toEqual([]);
+  });
+});
+
+// WCAG's contrast ratio of two colours written #rgb or #rrggbb.
+function contrast(a: string, b: string): number {
+  const luminance = (colour: string): number => {
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour)![1]!;
+    const parts = (hex.length === 3 ? [...hex].map((h) => h + h) : hex.match(/../g)!).map((h) => parseInt(h, 16));
+    const [r, g, bl] = parts.map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+describe('the look of the marks', () => {
+  // The rules as text (happy-dom matches no media query), comments taken out.
+  const sheets = (): string =>
+    [HierarchyClass.styles].flat(Infinity).map((s) => (s as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')).join('\n');
+  const rule = (selector: string, within = sheets()): string => {
+    for (const [, selectors, body] of within.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (selectors!.split(',').some((one) => one.trim() === selector)) return body!;
+    }
+    throw new Error(`no rule for ${selector}`);
+  };
+  const forced = (): string => /@media \(forced-colors: active\) \{([\s\S]*)\}\s*$/.exec(sheets())![1]!;
+
+  it('draws another file in the muted ink, at full opacity, readable in every theme', () => {
+    const dimmed = rule('.row.dimmed');
+    expect(dimmed).toContain('color: var(--dex-color-text-muted, #666)');
+    expect(dimmed).not.toContain('opacity');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      expect(contrast(tokens.get('--dex-color-text-muted')!, tokens.get('--dex-bg-primary')!), set).toBeGreaterThanOrEqual(4.5);
+    }
+    // Selected, it reads in the selection's ink: the selected row's rule comes after it.
+    const all = sheets();
+    expect(all.indexOf(".row[aria-selected='true']")).toBeGreaterThan(all.indexOf('.row.dimmed'));
+  });
+
+  it("draws an open file's bar in the accent, the focus ring beside it, and as a border in forced colours", () => {
+    expect(rule('.row.open')).toContain('box-shadow: inset 2px 0 0 var(--dex-color-accent, #0078d4)');
+    expect(rule('.row.open:focus-visible')).toContain(
+      'box-shadow: inset 2px 0 0 var(--dex-color-accent, #0078d4), inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4))',
+    );
+    expect(rule('.row.open', forced())).toContain('border-left: 2px solid Highlight');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      expect(contrast(tokens.get('--dex-color-accent')!, tokens.get('--dex-bg-primary')!), set).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("draws the active tab's row as a selected one, a preview's name in italics, and another file in GrayText in forced colours", () => {
+    expect(rule('.row.active')).toContain('background: var(--dex-color-accent-bg, #cde4f7)');
+    expect(rule('.row.active')).toContain('color: var(--dex-selection-fg, #333)');
+    expect(rule('.preview .label')).toContain('font-style: italic');
+    expect(rule('.row.active', forced())).toContain('background: Highlight');
+    expect(rule('.row.dimmed', forced())).toContain('color: GrayText');
   });
 });

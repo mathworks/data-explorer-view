@@ -10,12 +10,13 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { SourceFile } from 'data-explorer-core';
 import { nodeSourceReader } from 'data-explorer-core/node';
-import { FolderHierarchy } from '../src/model/index.js';
+import { FolderHierarchy, FolderTree, entryKindOf, type FolderEntry } from '../src/model/index.js';
 import {
   connectHierarchy,
   defineHierarchy,
   type ConnectHierarchyOptions,
   type DexHierarchy,
+  type HierarchyMenuDetail,
 } from '../src/widgets/hierarchy/index.js';
 
 beforeAll(() => defineHierarchy());
@@ -259,5 +260,106 @@ describe('reveal', () => {
     const { el, handle } = connected();
     await settle(el);
     expect(await handle.reveal(PARAMS)).toBe(false);
+  });
+});
+
+describe('a tree of rows of its own (a FolderTree)', () => {
+  // The Folder view's rows over the same folder: the workspace folder as a file browser lists it,
+  // a file only referenced (params.sldd) a row of its folder too, and another file dimmed. Every
+  // ask for rows goes through the tree: the top level, a row's rows, a reveal, and the walk down
+  // to the row the user chose. The hierarchy is still what says the folder changed.
+  const PARAMS = 'file:///workspace/params.sldd';
+  const entries = async (dir: string): Promise<FolderEntry[]> =>
+    dir === '/workspace'
+      ? [...listed.map((f) => f.path), '/workspace/notes.md'].map((path) => ({ name: path.slice(path.lastIndexOf('/') + 1), path, kind: entryKindOf(path) }))
+      : [];
+
+  function withTree(options: ConnectHierarchyOptions = {}) {
+    const el = document.createElement('dex-hierarchy');
+    document.body.append(el);
+    const hierarchy = workspace();
+    const tree = new FolderTree({ hierarchy, entries, root: '/workspace' });
+    const handle = connectHierarchy(el, hierarchy, { tree, expandTopLevel: true, ...options });
+    cleanups.push(() => handle.dispose());
+    return { el, hierarchy, handle };
+  }
+
+  it("draws the tree's rows, and opens rows through it", async () => {
+    const { el } = withTree();
+    await settle(el);
+    expect(labels(el)).toEqual(['workspace', 'binary.sldd', 'data.sldd', 'model.slx', 'notes.md', 'params.sldd']);
+    expect(rowOf(el, 'notes.md').classList.contains('dimmed')).toBe(true);
+    rowOf(el, 'model.slx').querySelector<HTMLElement>('.twisty')!.click();
+    await settle(el);
+    expect(labels(el)).toEqual(['workspace', 'binary.sldd', 'data.sldd', 'model.slx', 'plant.slx', 'External Data', 'notes.md', 'params.sldd']);
+    // The tree's relation words: its rows, not the hierarchy's.
+    expect(rowOf(el, 'plant.slx').querySelector('.relation')?.textContent).toBe('model reference');
+  });
+
+  it('reveals a file where the tree has it: in its own folder', async () => {
+    const { el, handle } = withTree();
+    await settle(el);
+    expect(await handle.reveal(PARAMS)).toBe(true);
+    await settle(el);
+    expect(el.selectedKey).toBe(rows(el).find((r) => r.getAttribute('aria-level') === '2' && r.querySelector('.label')!.textContent === 'params.sldd')!.dataset.key);
+  });
+
+  it('keeps the row the user chose through the tree: the walk to it is the tree\'s', async () => {
+    const { el, handle } = withTree();
+    await settle(el);
+    rowOf(el, 'model.slx').querySelector<HTMLElement>('.twisty')!.click();
+    await settle(el);
+    rowOf(el, 'External Data').click();
+    await settle(el);
+    const deep = rows(el).find((r) => r.getAttribute('aria-level') === '4' && r.querySelector('.label')!.textContent === 'params.sldd')!;
+    deep.click();
+    expect(await handle.reveal(PARAMS)).toBe(true);
+    expect(el.selectedKey).toBe(deep.dataset.key);
+  });
+
+  it('draws again through the tree when the hierarchy says the folder changed', async () => {
+    const { el, hierarchy } = withTree();
+    await settle(el);
+    listed = listed.filter((f) => !f.path.endsWith('binary.sldd'));
+    hierarchy.rebuild();
+    await settle(el);
+    expect(labels(el)).toEqual(['workspace', 'data.sldd', 'model.slx', 'notes.md', 'params.sldd']);
+  });
+
+  it('opens nothing for a dimmed row', async () => {
+    const { el, handle } = withTree();
+    const opened: string[] = [];
+    handle.on('open', (uri) => opened.push(uri));
+    await settle(el);
+    rowOf(el, 'notes.md').click();
+    rowOf(el, 'data.sldd').click();
+    expect(opened).toEqual(['file:///workspace/data.sldd']);
+  });
+});
+
+describe('marks and menus', () => {
+  it("marks each file's rows as the app says its tabs stand, and again when they change", async () => {
+    const { el, handle } = connected(undefined, { expandTopLevel: true });
+    await settle(el);
+    handle.setMarks(new Map([['file:///workspace/data.sldd', { open: true, active: true }]]));
+    await settle(el);
+    expect(el.marks.get('file:///workspace/data.sldd')).toEqual({ open: true, active: true });
+    expect(rowOf(el, 'data.sldd').getAttribute('aria-current')).toBe('true');
+    handle.setMarks(new Map());
+    await settle(el);
+    expect(rowOf(el, 'data.sldd').hasAttribute('aria-current')).toBe(false);
+  });
+
+  it("hands the app a row's menu, until disposed", async () => {
+    const { el, handle } = connected(undefined, { expandTopLevel: true });
+    const asked: HierarchyMenuDetail[] = [];
+    handle.on('menu', (detail) => asked.push(detail));
+    await settle(el);
+    const row = rowOf(el, 'data.sldd');
+    row.dispatchEvent(new MouseEvent('contextmenu', { clientX: 3, clientY: 4, bubbles: true, composed: true, cancelable: true }));
+    expect(asked.map((d) => [d.item.label, d.x, d.y])).toEqual([['data.sldd', 3, 4]]);
+    handle.dispose();
+    row.dispatchEvent(new MouseEvent('contextmenu', { clientX: 3, clientY: 4, bubbles: true, composed: true, cancelable: true }));
+    expect(asked).toHaveLength(1);
   });
 });

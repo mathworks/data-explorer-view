@@ -124,6 +124,53 @@ that says only the first files are shown.
 Over a worker's port, or a `MessagePort`, `serveFolder(folder, port, { transfer: true })` hands
 each file's bytes over rather than copying them.
 
+### A folder as a file browser shows it
+
+A `FolderTree` (`data-explorer-view/model`) draws the same folder one level at a time: its
+folders, its data files (each the hierarchy's own row, with its references under it) and its
+other files. Its rows carry three fields the hierarchy's never do, which the tree draws:
+
+- `dimmed`: a file the app does not open. Its row is in the muted ink, `aria-disabled`, and a
+  click or Enter selects it and sends `dex-hierarchy-selected` with `uri: null`, so nothing opens.
+- `relation`: what a reference is to the row above it ("model reference", "data dictionary",
+  "referenced dictionary", "MAT-file"), drawn after the name in the muted ink.
+- `path`: the row's folder or file, for re-rooting and the menu. A reference row has none:
+  `rowPath(item)` reads its file's path from its uri.
+
+`connectHierarchy(element, hierarchy, { tree })` draws a tree's rows in place of the hierarchy's:
+every ask for rows goes to it (the top level, a row's rows, `reveal`, the walk back to the row the
+user chose), and the hierarchy's refreshes and rebuilds still draw again.
+
+```js
+const tree = new FolderTree({ hierarchy, entries: (dir) => folder.entries(dir), root });
+const handle = connectHierarchy(element, hierarchy, { tree, expandTopLevel: true });
+```
+
+### Marks: how each file stands in the tabs
+
+`marks` (or `handle.setMarks(marks)`) is a map from a file's uri (a row's `id`) to how its tab
+stands, in the tabs' own vocabulary, on every row of that file: `open`, a bar in the accent at the
+row's left edge (a border in forced colours); `active`, the active tab, drawn as a selected row is
+and `aria-current="true"`, which is not the tree's selection; `unsaved`, the ● after the label (the
+index's own unsaved mark is the same badge, so a row never shows two); `preview`, the label in
+italics. Set it again as the tabs change; an empty map marks nothing.
+
+```js
+handle.setMarks(new Map(tabs.map((t) => [t.uri, { open: true, active: t.active, unsaved: t.dirty, preview: t.preview }])));
+```
+
+### A row's menu
+
+A right click on a row, or Shift+F10 or the ContextMenu key on the focused row, sends
+`dex-hierarchy-menu` with the row (`item`) and where to draw the menu: the pointer, or for the
+keyboard (`keyboard: true`) the row's lower left. The browser's own menu is kept away, and the
+tree draws none: the app does (a `<dex-context-menu>`), and a connected tree hands it on as the
+handle's `menu`.
+
+```js
+handle.on('menu', ({ item, x, y, keyboard }) => contextMenu.show(x, y, menuFor(item), { focusFirst: keyboard === true }));
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance
