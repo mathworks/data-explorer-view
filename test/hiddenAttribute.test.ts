@@ -58,6 +58,7 @@ describe('the hidden attribute', () => {
       'DexProjectPage',
       'DexPropertyInspector',
       'DexRawViewer',
+      'DexRelationshipGraph',
       'DexSearchPanel',
       'DexSettingsPanel',
       'DexShellAction',

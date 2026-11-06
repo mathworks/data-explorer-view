@@ -120,6 +120,27 @@
   --dex-bg-toolbar: #fff;
   --dex-bg-tabbar: #f0f0f0;
   --dex-shell-resizer-hover: #0078d4;
+  /* The relationship graph (dex-relationship-graph): each kind of box's surface, border and
+     selected border, each kind of edge (the legend's swatches too), and the items inside a box,
+     a model's workspace variables in a tint of the workspace edge. */
+  --dex-graph-model-bg: #e8f0f7;
+  --dex-graph-model-border: #8bafc4;
+  --dex-graph-model-selected: #4a7a99;
+  --dex-graph-sldd-bg: #e8f4ec;
+  --dex-graph-sldd-border: #8bb8a0;
+  --dex-graph-sldd-selected: #4a8a66;
+  --dex-graph-mat-bg: #f4f0e8;
+  --dex-graph-mat-border: #c4b08b;
+  --dex-graph-mat-selected: #8a7044;
+  --dex-graph-edge-model-ref: #7ba3c4;
+  --dex-graph-edge-sldd-ref: #7bab8a;
+  --dex-graph-edge-data-link: #8a9a6b;
+  --dex-graph-edge-param-usage: #9b8bb4;
+  --dex-graph-edge-ws-usage: #6b9b8b;
+  --dex-graph-item-bg: rgba(0, 0, 0, 0.04);
+  --dex-graph-item-border: rgba(0, 0, 0, 0.1);
+  --dex-graph-ws-item-bg: rgba(107, 155, 139, 0.08);
+  --dex-graph-ws-item-border: rgba(107, 155, 139, 0.25);
 }
 
 [data-theme="dark"] {
@@ -198,6 +219,26 @@
   --dex-bg-toolbar: #1e1e1e;
   --dex-bg-tabbar: #252526;
   --dex-shell-resizer-hover: #4ba3e3;
+  /* Dark surfaces of the light set's hues, lighter borders and edges, and a selected border
+     lighter still, since here lighter is what stands out. */
+  --dex-graph-model-bg: #1e2a35;
+  --dex-graph-model-border: #4f7590;
+  --dex-graph-model-selected: #8fbbd9;
+  --dex-graph-sldd-bg: #1d2e24;
+  --dex-graph-sldd-border: #4f8566;
+  --dex-graph-sldd-selected: #8fcca7;
+  --dex-graph-mat-bg: #322b1f;
+  --dex-graph-mat-border: #8a7752;
+  --dex-graph-mat-selected: #d6bb85;
+  --dex-graph-edge-model-ref: #6f9cc4;
+  --dex-graph-edge-sldd-ref: #6fae84;
+  --dex-graph-edge-data-link: #a3b27a;
+  --dex-graph-edge-param-usage: #ab9bd6;
+  --dex-graph-edge-ws-usage: #6fb3a0;
+  --dex-graph-item-bg: rgba(255, 255, 255, 0.05);
+  --dex-graph-item-border: rgba(255, 255, 255, 0.14);
+  --dex-graph-ws-item-bg: rgba(111, 179, 160, 0.12);
+  --dex-graph-ws-item-border: rgba(111, 179, 160, 0.35);
 }
 
 [data-theme="high-contrast"] {
@@ -272,4 +313,23 @@
   --dex-bg-toolbar: #fff;
   --dex-bg-tabbar: #e8e8e8;
   --dex-shell-resizer-hover: #0050a0;
+  /* Hard borders and dark edges that clear 3:1 against the canvas, and black for a selection. */
+  --dex-graph-model-bg: #e3eef8;
+  --dex-graph-model-border: #00508f;
+  --dex-graph-model-selected: #000;
+  --dex-graph-sldd-bg: #e3f3e8;
+  --dex-graph-sldd-border: #1b5e20;
+  --dex-graph-sldd-selected: #000;
+  --dex-graph-mat-bg: #f8f0e0;
+  --dex-graph-mat-border: #6d4c00;
+  --dex-graph-mat-selected: #000;
+  --dex-graph-edge-model-ref: #00508f;
+  --dex-graph-edge-sldd-ref: #1b5e20;
+  --dex-graph-edge-data-link: #4a5a00;
+  --dex-graph-edge-param-usage: #4a148c;
+  --dex-graph-edge-ws-usage: #00695c;
+  --dex-graph-item-bg: #fff;
+  --dex-graph-item-border: #555;
+  --dex-graph-ws-item-bg: #fff;
+  --dex-graph-ws-item-border: #00695c;
 }
