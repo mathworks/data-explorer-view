@@ -31,8 +31,14 @@ export declare const SHOW_IN_GRAPH: {
 };
 /** Put `text` on the host's clipboard, or the page's for a host without one, asked at each copy. */
 export declare function copyText(host: ShellHost, text: string): Promise<void>;
-/** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
-export declare function docTabOf(tab: OpenTab): DocTab;
+/**
+ * How the tab row draws `tab`: its name and its kind's icon, `title` as the tooltip (its path, as the
+ * host says it), its marks. While its selection is in a section of its file (a dictionary's Design
+ * Data, a model's Model Workspace), the section's name and icon, with the file's name as the
+ * subtitle: the section the Explorer marks for the same selection, and what the prototype's tab
+ * read for a section it showed.
+ */
+export declare function docTabOf(tab: OpenTab, title?: string): DocTab;
 /** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
 export declare function statusOf(tab: OpenTab | undefined): string;
 /**
@@ -41,6 +47,11 @@ export declare function statusOf(tab: OpenTab | undefined): string;
  * so, which is what connectTable (its `select`, the inspector's feed) hears.
  */
 export declare function clearSelection(tab: OpenTab): void;
+/**
+ * The note `tab`'s panel shows while its file is read and parsed, which for a large file takes a
+ * while: "Opening plant.sldd…", as a status. Remove it once the file is shown, or failed.
+ */
+export declare function openingNote(tab: OpenTab): HTMLElement;
 /** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
 export declare function newTable(tab: OpenTab, storageKey: string, editable?: boolean, tableStyle?: DexTreeTable['tableStyle']): DexTreeTable;
 /** The shared parts a document's table is connected with, and the folder it is read against. */

@@ -85,6 +85,8 @@ export { layoutGraph } from './graph/layout.js';
 // The command window's interpreter (the app shell's Terminal): a line run over a document, through
 // a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.
 export { addChoicesOf, runCommand } from './shell/commands.js';
+// This package's version, for an app's About (written from package.json by scripts/gen-version.mjs).
+export { VIEW_VERSION } from './version.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).

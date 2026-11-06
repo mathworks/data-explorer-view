@@ -14,7 +14,10 @@
 //
 // The folder's index answers in its own time (a first build reads every file), so the panel says
 // it is searching meanwhile, and the answer to a query the typing has moved past is dropped. An
-// index that cannot be read says so once, not on every query, until it answers again.
+// index that cannot be read says so once, not on every query, until it answers again. Once the
+// folder's names are read again after a change, the query in the box is asked again, so the
+// results on show are the folder's as it is now (as the folder's own search box, gone for this
+// view, kept them).
 import { sortNameRecords } from '../../../model/search/searchItems.js';
 import { searchRanked } from '../../../model/search/searchRank.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
@@ -27,13 +30,12 @@ export function mergeSearchRecords(open, folder) {
     const opened = new Set(open.map((r) => r.sourceUri));
     return sortNameRecords([...open, ...folder.filter((r) => !opened.has(r.sourceUri))]);
 }
-/** Wire `panel` to the open files and the folder; `scope(folderName)` says what it searches. */
+/** Wire `panel` to the open files and the folder. */
 export function connectSearchPane(panel, context) {
     let asked = 0;
     // The index whose last answer was a failure, said already.
     let refused = null;
-    const onQuery = (e) => {
-        const query = e.detail.query;
+    const run = (query) => {
         const ask = ++asked;
         if (query.trim() === '') {
             panel.searching = false;
@@ -66,12 +68,18 @@ export function connectSearchPane(panel, context) {
             panel.searching = false;
         });
     };
+    const onQuery = (e) => run(e.detail.query);
     const onOpen = (e) => context.open(e.detail.sourceUri, e.detail.revealName);
     panel.addEventListener('dex-search-query', onQuery);
     panel.addEventListener('dex-search-open', onOpen);
     return {
         scope(folderName) {
             panel.scope = folderName ? `Open files and ${folderName}` : 'Open files';
+        },
+        again() {
+            // An empty box shows no results, and has nothing to ask.
+            if (panel.query.trim() !== '')
+                run(panel.query);
         },
         dispose() {
             asked++;

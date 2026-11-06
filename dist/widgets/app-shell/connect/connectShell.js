@@ -14,21 +14,25 @@
 // The rules themselves are the modules beside this one; this file orchestrates. Several are pieces
 // of it moved out: what it builds (parts.ts), a tab's document and its widgets (documents.ts), the
 // settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
-// the parts' requests (requests.ts), the document commands (carryOut.ts), the folder shown
-// (shownFolder.ts), the modules' views (modules.ts: Raw, Search, the Gallery, the Terminal), and
-// Root's relationship graph (graphPane.ts).
+// the parts' requests (requests.ts), the rows dropped on the Explorer (explorerDrop.ts), the
+// document commands (carryOut.ts), the folder shown (shownFolder.ts), the modules' views
+// (modules.ts: Raw, Search, the Gallery, the Terminal), and Root's relationship graph (graphPane.ts).
+import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { isEditable } from '../../../model/source/tableSource.js';
+import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
-import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
+import { basenameOf, isProjectFile, isSlddFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
-import { clearSelection, connectDocument, docTabOf, newTable, repaintProjects, showProject, statusOf, SHOW_IN_GRAPH, } from './documents.js';
+import { clearSelection, connectDocument, docTabOf, newTable, openingNote, repaintProjects, showProject, statusOf, SHOW_IN_GRAPH, } from './documents.js';
 import { ranNote } from './editingNotes.js';
+import { connectExplorerDrop } from './explorerDrop.js';
 import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import { connectGraphPane } from './graphPane.js';
+import { followDropMark } from './drop.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination } from './links.js';
 import { locationOf } from './location.js';
@@ -43,12 +47,14 @@ import { inPageQuestions, shellPrompts } from './questions.js';
 import { ReloadGate } from './reload.js';
 import { Saver, settle } from './saving.js';
 import { TabList } from './tabs.js';
-import { systemThemeFromMedia } from './theme.js';
+import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf } from './toolbarItems.js';
 import { carryOut } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
+/** Whether two files' bytes are the same. */
+const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 /** A feed of the one page of a file selected in the graph: it has no matrix, and takes no edit. */
 function pageFeed(file) {
     const page = { ...(file.box.uri ? { rowId: file.box.uri } : {}), groups: file.groups };
@@ -60,12 +66,12 @@ function pageFeed(file) {
         matrix: async (nodeId) => ({ nodeId, message: 'This file has no value to show as a table.' }),
     };
 }
-/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path, and why it is dimmed. */
-function previewOf(file) {
+/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path (as `titleOf` says it), and why it is dimmed. */
+function previewOf(file, titleOf) {
     if (!file)
         return undefined;
     const { box } = file;
-    return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}), description: 'selected in the graph' };
+    return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: titleOf(uriPath(box.uri)) } : {}), description: 'selected in the graph' };
 }
 /**
  * Fill an empty `<dex-app-shell>` with the app, over `options.host`, and return the handle the host
@@ -102,18 +108,31 @@ export function connectShell(shell, options) {
         },
     });
     stops.push(() => openUsage.dispose());
-    // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
+    // Its documents share one clipboard, so a row copied in one tab pastes into another, and one drag
+    // register, whose drag in flight the Explorer's drops are judged by (explorerDrop.ts). What a
     // document says the table cannot show is a toast, as it stands, and a line of the Log, which
-    // keeps what a toast lets go by.
+    // keeps what a toast lets go by. Each is counted, and the latest kept, so that a drop's refusal the
+    // workspace said since the drop was handed over (a move that left its original behind) is not said
+    // twice.
+    const registers = createRegisters();
+    let dragging = null;
+    stops.push(registers.listen({ drag: (descriptor) => void (dragging = descriptor) }));
+    let notices = 0;
+    const noticed = [];
     const ws = createWorkspace({
         editing: true,
+        registers,
         usage: openUsage,
         notify(notice) {
+            noticed.push({ at: ++notices, message: notice.message });
+            if (noticed.length > 16)
+                noticed.shift();
             toasts.show(notice);
             log(notice.level === 'status' ? 'info' : notice.level, notice.message);
         },
     });
-    // What the shell must say: a toast, and its line in the Log; what it caught, as an error.
+    // What the shell must say: a toast, and its line in the Log; what it caught, as an error. A
+    // page's own notice (notify) is said the same way.
     const say = (level, text, ms) => {
         toasts.show({ level, message: text, ...(ms === undefined ? {} : { ms }) });
         log(level, text);
@@ -137,10 +156,13 @@ export function connectShell(shell, options) {
     const folderNow = () => folders.current;
     // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
     const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
+    // The system's theme for Auto: the source the host gave (the page's media queries by default),
+    // until the host tells one itself (setSystemTheme).
+    const system = settableSystemTheme(options.systemTheme ?? systemThemeFromMedia());
     const popovers = connectPopovers(shell, parts, {
         store: pageStorage(),
         key: `${key}:settings`,
-        system: options.systemTheme ?? systemThemeFromMedia(),
+        system,
         appName,
         about: options.about ?? [],
         tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
@@ -200,8 +222,6 @@ export function connectShell(shell, options) {
     }
     function paint() {
         const active = tabs.active;
-        strip.tabs = tabs.items.map(docTabOf);
-        strip.active = active?.id ?? '';
         for (const tab of tabs.items)
             tab.panel.hidden = tab !== active;
         // Root: the relationship graph while files are open, the welcome while none is.
@@ -233,20 +253,30 @@ export function connectShell(shell, options) {
         });
     }
     // What the toolbar's buttons, and the palette's rows for them, can do now.
-    const toolbarState = () => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac());
+    const toolbarState = () => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac(), !!host.newFile);
+    // What a file's tooltips say of its path: the host's words for it, if its paths are of its making.
+    const titleOf = (path) => host.pathTitle?.(path) ?? path;
     function refresh() {
         const active = tabs.active;
         // First: at Root, the location bar draws the file the inspector shows.
         followInspector();
         toolbar.items = toolbarItems(toolbarState());
-        explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
+        // The tab row, each tab as its selection names it (the section it is in), here with what else
+        // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
+        strip.tabs = tabs.items.map((t) => docTabOf(t, titleOf(t.path)));
+        strip.active = active?.id ?? '';
+        if (!active && strip.shadowRoot?.activeElement)
+            rootTakesTheKeyboard();
+        strip.hidden = !active;
+        explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })));
         // The rows the active table holds now: its paint, the entries repainted since, the children
         // it was answered; none for a project page or a file still being read.
         const rows = active?.table?.rows ?? [];
         const rowId = here().rowId;
         const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
         explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-        const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file));
+        const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
+        const at = locationOf(place, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
         nav.located(at);
         located = at.segments;
         location.segments = at.segments;
@@ -258,6 +288,17 @@ export function connectShell(shell, options) {
         // A tab opened, closed, saved or reloaded since: the Usage it answers is owed to the others.
         if (!folderNow())
             openUsage.changed();
+    }
+    // The tab row hides at Root with the focus on one of its tabs (Alt+Up from a tab): rather than fall
+    // to the page's body, the keyboard goes to the Explorer's Root row, where the user went, or, with
+    // the Explorer off screen, to the graph that fills the center where the row was (once it is drawn,
+    // if it is still being built).
+    function rootTakesTheKeyboard() {
+        strip.shadowRoot?.activeElement?.blur();
+        const left = shell.layout.left;
+        if (left.open && left.view === 'explorer' && explorer.focusRow({ fileId: null }))
+            return;
+        parts.graph.focus();
     }
     // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
     // everything that follows the active tab follows this one; the user has been here.
@@ -357,7 +398,7 @@ export function connectShell(shell, options) {
      * Open the file at `path` in a tab, or go to its tab. `preview`: the file is only being looked at
      * (a click in the folder's tree, a search pick, a link), so it takes the place of the preview tab
      * there is, unless that one holds edits; a file opened for good is kept, and so is its tab when
-     * it was a preview.
+     * it was a preview. `created`: a new dictionary to make there (openNew), not a file to read.
      */
     async function open(path, how = {}) {
         // A file by its uri, as the workspace knows it: on Windows the folder's tree and a link spell
@@ -389,19 +430,23 @@ export function connectShell(shell, options) {
         if (at >= 0)
             tabs.move(tab, at);
         shown();
-        tab.ready = load(tab, uri);
+        // Until the file is shown (its table, its banner, its page), the panel says it is opening it.
+        const note = openingNote(tab);
+        tab.ready = load(tab, uri, !!how.created).finally(() => note.remove());
         await tab.ready;
         return tab;
     }
     // Read the file of a tab just added and show it: on its page, a project; in a table connected to
-    // its document, any other file; and in the table's banner why it could not be.
-    async function load(tab, uri) {
+    // its document, any other file; and in the table's banner why it could not be. A new dictionary
+    // (`created`) is made in the page, and nothing is read for it.
+    async function load(tab, uri, created = false) {
         const { path } = tab;
         if (isProjectFile(path))
             return showProject(tab, { host, folder: folderNow, open: (to) => open(to, { preview: true }), log });
         const storageKey = `${key}:${uri}`;
         try {
-            const bytes = await host.readFile(path);
+            // A new file's bytes are the dictionary it is made as: what the graph draws until a save writes it.
+            const bytes = created ? newDictionaryBytes() : await host.readFile(path);
             // The shell was taken down meanwhile, and the host told of every file it had open.
             if (disposed)
                 return;
@@ -413,13 +458,18 @@ export function connectShell(shell, options) {
                     host.closeFile?.(path);
                 return;
             }
-            const doc = await ws.open(bytes, tab.name, uri);
+            const doc = await (created ? ws.create(tab.name, uri) : ws.open(bytes, tab.name, uri));
             if (disposed || !tabs.items.includes(tab)) {
                 doc.dispose();
                 return;
             }
             tab.doc = doc;
             tab.bytes = bytes;
+            // A new file holds unsaved edits from the start, which no change of its dirty state tells.
+            if (doc.dirty) {
+                tab.dirty = true;
+                paint();
+            }
             tab.stops.push(doc.onDirty((dirty) => {
                 tab.dirty = dirty;
                 // An edit keeps a preview tab: it is not the user's to lose by looking at another file.
@@ -468,7 +518,7 @@ export function connectShell(shell, options) {
             if (tab === tabs.active)
                 follow();
             later();
-            log('info', `Opened ${tab.name}`);
+            log('info', created ? `Opened ${tab.name}, a new data dictionary` : `Opened ${tab.name}`);
         }
         catch (err) {
             if (disposed)
@@ -493,6 +543,60 @@ export function connectShell(shell, options) {
         const tab = await open(uri ? uriPath(uri) : to.path, { preview: true });
         if (to.select)
             tab.handle?.selectByName(to.select);
+    }
+    // A new data dictionary at `path`, where the host's New said it goes (ShellHost.newFile), in a tab
+    // of its own and unsaved until the user saves it. Not over a file a tab has open, whose edits it
+    // would take the place of; and only a dictionary, the one kind of file New makes. A path it does
+    // not open the host is told it has not (closeFile), as one that may have begun watching it.
+    async function openNew(path) {
+        if (disposed)
+            return;
+        const name = basenameOf(path);
+        const holder = tabs.find((t) => sourceUri(t.path) === sourceUri(path));
+        if (holder)
+            return keepOpenFile(holder, name);
+        if (!isSlddFile(path)) {
+            host.closeFile?.(path);
+            return failed(`Could not make ${name}: a new file is a data dictionary, whose name ends in .sldd.`);
+        }
+        await open(path, { created: true });
+    }
+    // New named the file `tab` has open, which it does not make. A browser's save picker has emptied
+    // that file as it closed (Chromium makes or empties the file it names): what the tab holds of it,
+    // as the shell last read or saved it, is written back. Where that write fails, or the tab holds
+    // no copy, a document the page edits is kept over the emptied file (Doc.keepOver), unsaved, for a
+    // Save to write; one it does not edit cannot be saved, and is left as it is.
+    async function keepOpenFile(tab, name) {
+        const now = await host.readFile(tab.path).catch(() => undefined);
+        if (disposed || !isOpen(tab))
+            return;
+        const emptied = now !== undefined && now.length === 0 && (tab.bytes === undefined || tab.bytes.length > 0);
+        if (!emptied) {
+            failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
+            // The read has made the file as it is now the one the host watches for: a change it held, which
+            // the host's watcher would not tell now, is the tab's to take (or to ask about) as any is.
+            if (now && tab.bytes && !sameBytes(now, tab.bytes))
+                void reloads.changedOnDisk(tab, tab.doc?.dirty ?? false);
+            return;
+        }
+        const said = `Could not make ${name}: it was open in a tab, and the browser emptied it while picking`;
+        let why;
+        if (tab.bytes) {
+            try {
+                await host.saveFile(tab.path, tab.bytes);
+                return failed(`${said}, so its saved copy was written back.`);
+            }
+            catch (err) {
+                why = message(err);
+                log('error', `Could not write ${name} back: ${why}`);
+            }
+        }
+        // The host's reason ends its own sentence, as an error's message often does.
+        if (!tab.doc?.editable)
+            return failed(why === undefined ? `${said}.` : `${said}, and its copy could not be written back: ${why.replace(/\.?$/, '.')}`);
+        tab.bytes = now;
+        await tab.doc.keepOver(now);
+        failed(`${said}. Save the tab to write it back.`);
     }
     function openPaths(paths) {
         // In order, so the last one named ends up active.
@@ -543,7 +647,7 @@ export function connectShell(shell, options) {
         });
     }
     // What the document commands are carried out with (carryOut.ts).
-    const carrying = { host, tabs, nav, openPaths, save, close: (tab) => void requestClose(tab), shown, later, failed };
+    const carrying = { host, tabs, nav, openPaths, openNew, save, close: (tab) => void requestClose(tab), shown, later, failed };
     // --- The modules' views ------------------------------------------------------------------------
     // Raw, Search, the Gallery and the Terminal (modules.ts), over the active tab and the folder.
     const modules = connectModules({
@@ -603,7 +707,24 @@ export function connectShell(shell, options) {
             later();
         },
     }));
-    stops.push(installKeys(command, { nativeMenu: options.nativeMenu }));
+    // New's chord only for a host that makes files, asked at each press as the host's members are.
+    stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
+    // Files dragged over the page, where the page's installFileDrop takes them: the documents' area
+    // is outlined as where they open.
+    stops.push(followDropMark(docs, (dragging) => (docs.dropping = dragging)));
+    // Table rows dragged onto the Explorer, onto a file or a section of one, open in a tab whether or
+    // not it is on screen: moved or copied there, and said as an edit is.
+    stops.push(connectExplorerDrop(explorer, {
+        drag: () => dragging,
+        tabOf: (id) => tabs.find((t) => t.id === id),
+        tabOfUri: (uri) => tabs.find((t) => t.doc?.uri === uri),
+        dropped: (text) => say('info', text, 2000),
+        mark: () => notices,
+        refused: (text, since) => {
+            if (!noticed.some((n) => n.at > since && n.message === text))
+                failed(text);
+        },
+    }));
     // --- The folder --------------------------------------------------------------------------------
     // Every open table is painted again, its Usage filled from the folder shown, and every
     // project's page from its store, again when the folder says its marker changed (a matlab.toml
@@ -624,6 +745,8 @@ export function connectShell(shell, options) {
             repaintProjects(tabs.items, shown, log, uris);
             graph.stale();
         },
+        // The Search view's results on show are the folder's as it is now.
+        namesChanged: () => modules.namesChanged(),
         failed: (text) => log('error', `This folder could not be read: ${text}`),
     });
     // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
@@ -644,6 +767,20 @@ export function connectShell(shell, options) {
                 void reloads.changedOnDisk(tab, tab.doc.dirty);
         },
         command,
+        notify(notice) {
+            if (disposed)
+                return;
+            // A page in plain JavaScript may hand anything: text that is no string is said as text, and no
+            // text is nothing to say (no empty toast); a level that is none of the three is the plainest.
+            const text = notice?.text == null ? '' : String(notice.text);
+            if (text === '')
+                return;
+            say(notice.level === 'warning' || notice.level === 'error' ? notice.level : 'info', text);
+        },
+        setSystemTheme(theme) {
+            if (!disposed)
+                system.set(theme);
+        },
         async requestClose() {
             if (disposed)
                 return true;

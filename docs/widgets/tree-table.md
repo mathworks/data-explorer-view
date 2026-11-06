@@ -229,6 +229,22 @@ Whether a row can be dragged, or a dragged row let go over one. Set it false whe
 document cannot be changed: no row is draggable, and a drag from another table draws no drop
 target here, on a row or on the empty body. Default true. Attribute `row-drag`.
 
+### `dragOut`
+
+type `boolean` · default `false` · attribute `drag-out`
+
+Whether rows are dragged out of the table, onto another part of the page that takes them (the
+app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+drag allows no move, so the document never loses an entry by it, and no row of this table takes
+a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+icon and name) follows the pointer over the rest of the page too, until the drag is let go
+anywhere, saying there what the part under the pointer says a drop would do: the words of the
+nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+`drag-out`.
+
 ### `readonly`
 
 type `boolean` · default `false` · attribute `readonly`, reflected
@@ -236,9 +252,10 @@ type `boolean` · default `false` · attribute `readonly`, reflected
 A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
 No cell editor opens — not on a double-click, not on Enter, not for beginRename or
 openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
 what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
 False, the default, is the table as it always was, each cell's own flags deciding. Reflected
 to the attribute `readonly`.

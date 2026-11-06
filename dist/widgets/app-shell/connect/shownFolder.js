@@ -2,14 +2,14 @@
 //
 // The folder in the Explorer, as the shell shows one and then another in its place: the folder's
 // part (its title, its note) and its tree filled from the folder read across its port (folder.ts's
-// showFolder), its name search, and what listens to the folder, let go of with it. connectShell says
-// what a chosen file and a change mean (a tab opened, the documents' Usage and project pages
-// painted again); this keeps the folder's own half.
+// showFolder), and what listens to the folder, let go of with it. connectShell says what a chosen
+// file and a change mean (a tab opened, the documents' Usage and project pages painted again, the
+// Search view asked again); this keeps the folder's own half.
 //
-// Lifted from data-explorer-app src/renderer/app.ts at 0983920 (its showFolder and its search's
-// install), where the note and the title were elements of index.html.
+// Lifted from data-explorer-app src/renderer/app.ts at 0983920 (its showFolder), where the note
+// and the title were elements of index.html, and the folder had a search box of its own, which the
+// Search view stands for here.
 import { showFolder } from './folder.js';
-import { installSearch } from './folderSearch.js';
 /** Show folders in `part`, with `tree` as their tree. */
 export function connectShownFolder(part, tree, actions) {
     let folder;
@@ -22,7 +22,6 @@ export function connectShownFolder(part, tree, actions) {
         folder?.dispose();
         folder = undefined;
     };
-    const search = installSearch(part.searchInput, part.searchResults, tree, () => folder?.session.names, (uri, name) => actions.open(uri, name));
     return {
         get current() {
             return folder;
@@ -43,15 +42,13 @@ export function connectShownFolder(part, tree, actions) {
                 },
             });
             folder = shown;
-            // The search reads the folder's names again each time the folder takes a change: its tree is
-            // built again once its names are read again.
-            stops = [shown.onChange((uris) => actions.changed(shown, uris)), shown.session.hierarchy.subscribe(() => search.reset())];
-            search.reset();
+            // The folder's names are read again each time it takes a change: its tree is built again
+            // once they are, which is when a search of them is asked again.
+            stops = [shown.onChange((uris) => actions.changed(shown, uris)), shown.session.hierarchy.subscribe(() => actions.namesChanged?.(shown))];
             actions.shown(shown);
         },
         dispose() {
             drop();
-            search.dispose();
         },
     };
 }

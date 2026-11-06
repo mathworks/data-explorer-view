@@ -117,6 +117,7 @@ export function connectModules(context) {
         shown: focusBox,
         idle: () => terminal.idle(),
         scope: (folderName) => search.scope(folderName),
+        namesChanged: () => search.again(),
         dispose() {
             disposed = true;
             raw.dispose();

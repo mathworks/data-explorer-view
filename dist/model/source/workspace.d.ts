@@ -34,7 +34,9 @@ export interface WorkspaceOptions {
      * limit the extension's table editor has) or compressed. Its table is then an
      * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
      * stack of its own (a JSON dictionary's text's), and it saves through the Doc's `serialize` and
-     * `saved`. Default false: every document is read-only, as before.
+     * `saved`. A document it keeps read-only (a `.mdl`, a dictionary past the text limit) still lets
+     * its rows be dragged out, to be copied into one it edits: its table has `dragStart` and `dragEnd`.
+     * Default false: every document is read-only, as before.
      */
     editing?: boolean;
     /**
@@ -168,6 +170,16 @@ export interface Workspace {
      * with what the table's error banner says.
      */
     open(bytes: ArrayBuffer | Uint8Array, name: string, uri?: string): Promise<Doc>;
+    /**
+     * Open a new data dictionary `name` (a `.sldd`), empty, which no file holds yet: the shell's New.
+     * It is what MATLAB writes for a new dictionary, a text one, edited as any JSON dictionary is, and
+     * unsaved from the start: dirty, whatever is undone, until a save of it lands (`saved`), which
+     * writes the file. `uri` is as for `open`.
+     *
+     * Rejects for a workspace not made with `editing`, a name that is not a dictionary's, and as `open`
+     * does: a uri already open here, or a workspace that is closed.
+     */
+    create(name: string, uri?: string): Promise<Doc>;
     /** The open document of `uri`, if there is one. */
     get(uri: string): Doc | undefined;
     /**

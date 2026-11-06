@@ -94,8 +94,11 @@ async function write(handle, bytes) {
         throw err;
     }
 }
-/** Hand `bytes` to the browser as a download named `name`. */
-function download(document, name, bytes) {
+/**
+ * Hand `bytes` to the browser as a download named `name`: Save As with no save picker, and the Save
+ * of a new file the page keeps (newFile.ts).
+ */
+export function download(document, name, bytes) {
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
     const a = document.createElement('a');
     a.href = url;

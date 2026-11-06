@@ -149,6 +149,12 @@ no less than 0.7 of it: a graph bigger than that shows from its top left, to pan
 Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
 lays out; before the element has a size (not on the page yet, or hidden), once it has one.
 
+### `focus(options?: FocusOptions): void`
+
+Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
+there is no graph to draw yet (an app still building it), once there is, unless the focus has
+gone somewhere in the page by then (anywhere but its body).
+
 ### `reveal(id: string): void`
 
 Moves the view so the box or item `id` is at the middle of the canvas, at the scale it has; an

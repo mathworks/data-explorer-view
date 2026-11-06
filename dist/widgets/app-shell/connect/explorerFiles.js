@@ -45,7 +45,7 @@ export function explorerFiles(tabs) {
         return {
             id: tab.id,
             label: tab.name,
-            title: tab.path,
+            title: tab.title ?? tab.path,
             group,
             ...(icon ? { icon } : {}),
             dirty: !!tab.dirty,

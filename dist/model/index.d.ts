@@ -81,6 +81,8 @@ export type { BoxLayout, EdgeLayout, GraphLayout, GraphLayoutStyle, GraphPoint, 
 export { addChoicesOf, runCommand } from './shell/commands.js';
 export type { AddChoice, CommandDoc, CommandOutput, CommandRaw, CommandTarget, OutputLine } from './shell/commands.js';
 export type { ShellSettings, Theme } from './shell/settings.js';
+export type { AboutLine } from './shell/about.js';
+export { VIEW_VERSION } from './version.js';
 export type { ShellLayoutState, ShellSide, SideState } from './shell/shellLayout.js';
 export type { Rect } from './shell/placement.js';
 export { inspectorFeed, messageSource } from './source/messageSource.js';

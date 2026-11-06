@@ -7,6 +7,18 @@
 // connectShell's, before any of this.
 import { tableActionOf } from './toolbarItems.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
+/**
+ * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
+ * `untitled1.sldd` and on, as Simulink names a new model, so two new files are told apart.
+ */
+export function untitledName(taken) {
+    const names = new Set(taken);
+    for (let n = 0;; n++) {
+        const name = `untitled${n === 0 ? '' : n}.sldd`;
+        if (!names.has(name))
+            return name;
+    }
+}
 /** Carry out the command `id` on `tab`, the tab active when it was given. */
 export function carryOut(id, tab, on) {
     const action = tableActionOf(id);
@@ -18,14 +30,23 @@ export function carryOut(id, tab, on) {
     // NotAllowedError) says why; one the user cancelled (AbortError) is an answer, and says nothing.
     const pickFailed = (what) => (err) => {
         if (!(err instanceof Error && err.name === 'AbortError'))
-            on.failed(`Could not open ${what}: ${message(err)}`);
+            on.failed(`Could not ${what}: ${message(err)}`);
     };
     switch (id) {
+        case 'new-file': {
+            // Where it goes, a name no tab has offered; null is a cancel.
+            const suggested = untitledName(on.tabs.items.map((t) => t.name));
+            void on.host
+                .newFile?.(suggested)
+                .then((path) => (path === null ? undefined : on.openNew(path)), pickFailed('make a new file'))
+                .catch((err) => on.failed(`Could not make a new file: ${message(err)}`));
+            break;
+        }
         case 'open-file':
-            void on.host.pickFiles().then(on.openPaths, pickFailed('a file'));
+            void on.host.pickFiles().then(on.openPaths, pickFailed('open a file'));
             break;
         case 'open-folder':
-            void on.host.pickFolder?.().catch(pickFailed('a folder'));
+            void on.host.pickFolder?.().catch(pickFailed('open a folder'));
             break;
         case 'save':
         case 'save-as':

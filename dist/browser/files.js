@@ -6,11 +6,22 @@
 // for a file of the n-th pick (or drop), and `<root>/<rel>` for a file of a shown folder, whose root
 // is `/<folder name>`. The shell keeps the path a file opened under as its tab's, links resolve
 // beside it, and connectShell hands it back to the host for every read and save; so the registry
-// is where a path turns back into something that reads.
+// is where a path turns back into something that reads. An app's own files (bytes it fetched) may go
+// into a group it names, a pick's folder that later files join, so files fetched one at a time
+// still sit beside each other.
 //
 // Lifted from data-explorer-app src/web/files.ts at b13a860.
 import { dirName } from './walk.js';
 const nameOf = (path) => path.slice(path.lastIndexOf('/') + 1);
+/**
+ * What a tooltip says of the file at `path`: what the path means to the user rather than the path
+ * made up for it. A pick's folder, `/files/<n>/`, is the page's own, so a pick's file is its name; a
+ * shown folder's file is its place in the folder (`plant/models/ctrlA.slx`), the root's slash being
+ * the page's too.
+ */
+export function titleOfPath(path) {
+    return /^\/files\/\d+\/(.+)$/.exec(path)?.[1] ?? path.replace(/^\//, '');
+}
 /** The two folders are one: two handles to one directory. Two lists of Files are never told to be. */
 async function sameDir(a, b) {
     if (a.kind !== 'handle' || b.kind !== 'handle')
@@ -38,6 +49,21 @@ export async function stampOf(source) {
     return s && `${s.lastModified}:${s.size}`;
 }
 /**
+ * Whether `next` is the file `held` reads already, as far as can be told without reading it: bytes
+ * equal to the bytes held, or a File of the same size and date (a File is a reference to a file on
+ * disk, which these say the version of). Any other pair is another file, a handle among them (one
+ * to the same file is told by pathOf, before this is asked).
+ */
+function sameFile(held, next) {
+    if (held.kind === 'bytes' && next.kind === 'bytes') {
+        const [a, b] = [held.bytes, next.bytes];
+        return a.length === b.length && a.every((byte, i) => byte === b[i]);
+    }
+    if (held.kind === 'file' && next.kind === 'file')
+        return held.file.size === next.file.size && held.file.lastModified === next.file.lastModified;
+    return false;
+}
+/**
  * The browser host's registry of the files a page has, by the paths the page made for them. One per
  * host, inside it: an app sees only `host.files` (BrowserFiles: addPicked, get and has), so the path
  * scheme, the folder roots and the reads stay the host's to change.
@@ -46,6 +72,8 @@ export class WebFiles {
     constructor() {
         this.entries = new Map();
         this.folders = new Map();
+        /** The pick folder of each group an app named (addToGroup), by its name. */
+        this.groups = new Map();
         this.picks = 0;
     }
     /** A file picked on its own: `/files/<n>/<name>`, so two `a.sldd` from two picks differ. */
@@ -79,6 +107,47 @@ export class WebFiles {
             paths.push(path);
         }
         return paths;
+    }
+    /**
+     * Files of the app's own into the group named `group`: a folder `/files/<n>/` made the first time
+     * the name has a file, which every later file of the group joins, so a link from one to another
+     * finds it whenever each was added. A group is one folder, so it holds one file of a name: a file
+     * of a name the group has takes that file's place, its path then reading the new source (as a
+     * file copied into a folder replaces the one of its name there), and its path is in `replaced`.
+     * The same file again (sameFile) replaces nothing: a page that fetches its samples again has
+     * changed none of them. A handle to a file the page has a path for already keeps that path,
+     * wherever it is, as in a pick.
+     */
+    async addToGroup(group, added) {
+        const paths = [];
+        const replaced = [];
+        // The paths this call wrote: one given twice in it is the call's own file, the later standing.
+        const written = new Set();
+        for (const { name, source } of added) {
+            const known = source.kind === 'handle' ? await this.pathOf(source.handle) : undefined;
+            if (known) {
+                paths.push(known);
+                continue;
+            }
+            let n = this.groups.get(group);
+            if (n === undefined) {
+                n = ++this.picks;
+                this.groups.set(group, n);
+            }
+            const path = `/files/${n}/${name}`;
+            const held = this.entries.get(path);
+            if (held && sameFile(held.source, source)) {
+                paths.push(path);
+                continue;
+            }
+            // A file the group held before the call (a handle's kept path among them) is replaced.
+            if (held && !written.has(path))
+                replaced.push(path);
+            this.entries.set(path, { name, source });
+            written.add(path);
+            paths.push(path);
+        }
+        return { paths, replaced };
     }
     /** The path of a file read through a handle to the file `handle` is to, if the page has one. */
     async pathOf(handle) {

@@ -41,6 +41,7 @@ export const ICON_ASSETS: Readonly<Record<string, string>> = {
   'link_database': new URL('../../../icons/link_database.svg', import.meta.url).href,
   'matlabWorkspaceFile': new URL('../../../icons/matlabWorkspaceFile.svg', import.meta.url).href,
   'modelReference': new URL('../../../icons/modelReference.svg', import.meta.url).href,
+  'new_server': new URL('../../../icons/new_server.svg', import.meta.url).href,
   'openFolder': new URL('../../../icons/openFolder.svg', import.meta.url).href,
   'openTerminal': new URL('../../../icons/openTerminal.svg', import.meta.url).href,
   'paste': new URL('../../../icons/paste.svg', import.meta.url).href,

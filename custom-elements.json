@@ -34,7 +34,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's\nname) and the lines the app hands it, each a label and its value (the app's version, the\nversions it is built on). The app's words are drawn as text, never as markup.\n\nshow() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a\npress outside it, or close() closes it, and focus goes back to the button. It sends nothing.",
+          "description": "The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's\nname) and the lines the app hands it, each a label and its value (the app's version, the\nversions it is built on). A line may name a section (`section: 'Built on'`): the lines with none\ncome first, under the app's name, then each section under its own heading, in the order its\nfirst line has. The app's words are drawn as text, never as markup.\n\nshow() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a\npress outside it, or close() closes it, and focus goes back to the button. It sends nothing.",
           "name": "DexAboutPanel",
           "members": [
             {
@@ -51,10 +51,10 @@
               "kind": "field",
               "name": "lines",
               "type": {
-                "text": "{ label: string; value: string }[]"
+                "text": "AboutLine[]"
               },
               "default": "[]",
-              "description": "The lines under the heading, in order: a label (Version) and its value (1.0.0)."
+              "description": "The lines under the heading, in order: a label (Version) and its value (1.0.0), and the heading\nof the section the line is in (`section`), if any. The lines with no section are drawn first;\neach section follows, once, where its first line is."
             },
             {
               "kind": "field",
@@ -119,6 +119,10 @@
             {
               "name": "--dex-border-color",
               "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
             },
             {
               "name": "--dex-color-text",
@@ -543,7 +547,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`.\n\nA preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the\nkeyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),\nkeeps the active tab in view, and offers a … button listing every tab. The arrow keys move the\nfocus along the tabs, and Home and End to either end.",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end.",
           "name": "DexDocTabs",
           "members": [
             {
@@ -657,6 +661,10 @@
               "default": "#666"
             },
             {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
               "name": "--dex-focus-ring",
               "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
             },
@@ -708,7 +716,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The open files, as the app shell's Explorer lists them: Root first, then each kind of file\nunder a heading of its own (Simulink Models, Data Dictionaries, MAT-Files, Projects, Other,\nalways in that order, and a heading only over files), each file with a twisty that opens it\nonto its sections.\n\nIt draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open`\nfor it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends\n`dex-explorer-menu`. Which file a row is, what opening it means and which row is the current\none are the app's: the row `selected` names is highlighted, and a click changes nothing of it.\nWhich files are open in the tree (their twisty) is the element's own, but for one thing: a\n`selected` that moves to a section of a closed file opens that file, at once or as soon as the\nfile lists the section, and the row `selected` moves to is scrolled into view. A file that\nleaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the\nfocus to the next row.\n\nThe arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,\nLeft closes it or goes from a section to its file, Home and End go to the first and the last.",
+          "description": "The open files, as the app shell's Explorer lists them: Root first, then each kind of file\nunder a heading of its own (Simulink Models, Data Dictionaries, MAT-Files, Projects, Other,\nalways in that order, and a heading only over files), each file with a twisty that opens it\nonto its sections.\n\nIt draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open`\nfor it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends\n`dex-explorer-menu`. Which file a row is, what opening it means and which row is the current\none are the app's: the row `selected` names is highlighted, and a click changes nothing of it.\nWhich files are open in the tree (their twisty) is the element's own, but for one thing: a\n`selected` that moves to a section of a closed file opens that file, at once or as soon as the\nfile lists the section, and the row `selected` moves to is scrolled into view. A file that\nleaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the\nfocus to the next row.\n\nThe arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,\nLeft closes it or goes from a section to its file, Home and End go to the first and the last.\n\nTable rows dragged onto a file's row or a section's (a drag that carries `application/dex-rows`)\nare the app's to judge too: on each dragover the element asks `dropPredictor` about the row under\nthe pointer, with the mode the keys held ask (a move; a copy with Option on macOS and Ctrl\nelsewhere, as a drag in a table asks), and outlines the row in the accent for a drop it takes, in\nthe error colour for one it refuses, the answer's words its tooltip and said to a screen reader;\nno answer draws nothing and takes no drop. The row carries the words in `data-drop-hint` too, and\n`data-drop-refused` for a refusal, which the dragged table's box at the pointer says (the tree\ntable's `dragOut`): the browser shows no tooltip during a drag. A drop it still takes sends\n`dex-explorer-drop`, in the mode of the last dragover. Root, a heading and a drag of anything else\nare no drop target.",
           "name": "DexExplorer",
           "members": [
             {
@@ -738,6 +746,33 @@
               "default": "'Root'",
               "description": "What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`.",
               "attribute": "root-label"
+            },
+            {
+              "kind": "field",
+              "name": "dropPredictor",
+              "type": {
+                "text": "((target: ExplorerDropTarget, mode: DragMode) => ExplorerDropVerdict | null) | null"
+              },
+              "default": "null",
+              "description": "What a drag of table rows let go over a file's row or a section's would do: asked on each\ndragover of such a drag, with the row and the mode the keys held ask, and again as it is let go.\nIts answer is drawn on the row (an outline, a tooltip, words for a screen reader) and decides\nwhether the row takes the drop; null takes none there and draws nothing (a drop that would do\nnothing, a file that takes none). Null, the default: the explorer takes no drop. Property only."
+            },
+            {
+              "kind": "method",
+              "name": "focusRow",
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "at",
+                  "type": {
+                    "text": "ExplorerSelection"
+                  }
+                }
+              ],
+              "description": "Give the keyboard to the row `at` names: Root for `{ fileId: null }`, a file, or a section of an\nopen file, as the arrow keys would land on it. Whether the row took it: false for one not drawn\n(a file not listed, a section of a closed file, an Explorer not drawn yet)."
             }
           ],
           "events": [
@@ -754,6 +789,13 @@
                 "text": "CustomEvent<ExplorerMenuDetail>"
               },
               "description": "Show this file's menu at this point of the viewport: a file's row was right-clicked. A request."
+            },
+            {
+              "name": "dex-explorer-drop",
+              "type": {
+                "text": "CustomEvent<ExplorerDropDetail>"
+              },
+              "description": "Table rows were let go over this file's row, or this section's, and `dropPredictor` takes the\ndrop: move or copy them there. A request: the explorer changes nothing itself."
             }
           ],
           "attributes": [
@@ -779,8 +821,21 @@
               "default": "#e8e8e8"
             },
             {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
               "name": "--dex-color-accent-bg",
               "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-modified",
+              "description": "The Status column's \"Modified\".",
+              "default": "#b45309"
             },
             {
               "name": "--dex-color-text",
@@ -2025,6 +2080,30 @@
         },
         {
           "kind": "js",
+          "name": "ExplorerDropDetail",
+          "declaration": {
+            "name": "ExplorerDropDetail",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerDropTarget",
+          "declaration": {
+            "name": "ExplorerDropTarget",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerDropVerdict",
+          "declaration": {
+            "name": "ExplorerDropVerdict",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "ExplorerEventMap",
           "declaration": {
             "name": "ExplorerEventMap",
@@ -2524,6 +2603,14 @@
           "name": "ShellHost",
           "declaration": {
             "name": "ShellHost",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellNotice",
+          "declaration": {
+            "name": "ShellNotice",
             "module": "./connect/types.js"
           }
         }
@@ -3481,6 +3568,25 @@
                 }
               },
               "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size and\nno less than 0.7 of it: a graph bigger than that shows from its top left, to pan from.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
+            },
+            {
+              "kind": "method",
+              "name": "focus",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ],
+              "description": "Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while\nthere is no graph to draw yet (an app still building it), once there is, unless the focus has\ngone somewhere in the page by then (anywhere but its body)."
             },
             {
               "kind": "method",
@@ -7119,12 +7225,22 @@
             },
             {
               "kind": "field",
+              "name": "dragOut",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether rows are dragged out of the table, onto another part of the page that takes them (the\napp shell's Explorer, onto an open file). Where the table takes no row drag of its own\n(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the\ndrag allows no move, so the document never loses an entry by it, and no row of this table takes\na drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's\nicon and name) follows the pointer over the rest of the page too, until the drag is let go\nanywhere, saying there what the part under the pointer says a drop would do: the words of the\nnearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),\nas a refusal where that element has `data-drop-refused` too; nothing where none has. Default\nfalse: a table that takes no row drag drags none, and the box stays over the table. Attribute\n`drag-out`.",
+              "attribute": "drag-out"
+            },
+            {
+              "kind": "field",
               "name": "readonly",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with\n`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send\n(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is\nsent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
               "attribute": "readonly",
               "reflects": true
             },
@@ -7421,12 +7537,21 @@
               "fieldName": "rowDrag"
             },
             {
+              "name": "drag-out",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether rows are dragged out of the table, onto another part of the page that takes them (the\napp shell's Explorer, onto an open file). Where the table takes no row drag of its own\n(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the\ndrag allows no move, so the document never loses an entry by it, and no row of this table takes\na drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's\nicon and name) follows the pointer over the rest of the page too, until the drag is let go\nanywhere, saying there what the part under the pointer says a drop would do: the words of the\nnearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),\nas a refusal where that element has `data-drop-refused` too; nothing where none has. Default\nfalse: a table that takes no row drag drags none, and the box stays over the table. Attribute\n`drag-out`.",
+              "fieldName": "dragOut"
+            },
+            {
               "name": "readonly",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with\n`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send\n(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is\nsent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
               "fieldName": "readonly"
             },
             {
@@ -7801,9 +7926,25 @@
         },
         {
           "kind": "js",
+          "name": "DropResult",
+          "declaration": {
+            "name": "DropResult",
+            "module": "./editingWire.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "EditingRun",
           "declaration": {
             "name": "EditingRun",
+            "module": "./editingWire.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableDropDecision",
+          "declaration": {
+            "name": "TableDropDecision",
             "module": "./editingWire.js"
           }
         },

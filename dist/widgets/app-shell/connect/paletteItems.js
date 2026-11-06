@@ -7,14 +7,16 @@
 // (chordLabel). Pure: connectShell hands it the toolbar's state as the palette opens.
 //
 // The labels are the toolbar's where they say what they do out of the toolbar ("Save"), and longer
-// where they lean on its icons ("Open" is Open File…, "Close" is Close Tab), as a menu would name
-// them; the ellipsis marks a command that asks something before it acts.
+// where they lean on its icons ("Open" is Open File…, "New" New Data Dictionary…, "Close" is Close
+// Tab), as a menu would name them; the ellipsis marks a command that asks something before it acts
+// (New asks where the file goes, where the host has a dialog for it).
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
 import { chordOf } from './keys.js';
 import { toolbarItems } from './toolbarItems.js';
 import { SHELL_VIEWS } from './views.js';
 /** The palette's names for the toolbar's actions, where its own label would not do. */
 const LABELS = {
+    'new-file': 'New Data Dictionary…',
     'open-file': 'Open File…',
     'open-folder': 'Open Folder…',
     'save-as': 'Save As…',

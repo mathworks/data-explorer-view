@@ -16,6 +16,8 @@ export interface LocationTab {
     id: string;
     name: string;
     path: string;
+    /** The file segment's tooltip: its path, as the host says it (ShellHost.pathTitle). Default the path. */
+    title?: string;
 }
 /**
  * The bar's segments for `rowId` in `tab` (or the file, for null; or Root, for no tab), and the

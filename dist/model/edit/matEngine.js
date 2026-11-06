@@ -1332,11 +1332,15 @@ class MatView {
             this.transferred(runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps()));
         });
     }
+    // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
     drop(rowId, mode) {
+        let run;
         this.handle('drop', () => {
             const registers = this.doc.options.registers;
-            this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()));
+            run = runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+            this.transferred(run);
         });
+        return run?.then(() => undefined, () => undefined);
     }
     // --- Undo, redo, and the whole text of a Value --------------------------------------------------
     /** Where the document's undo stack stands, as the engine was given it (its `history`). */

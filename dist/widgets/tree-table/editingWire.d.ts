@@ -1,5 +1,6 @@
 import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
+import { type DragMode, type DropDecision } from '../../model/actions/dropDecision.js';
 import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DexTreeTable } from './dex-tree-table.js';
 import { type MenuRow } from './menuItems.js';
@@ -33,11 +34,50 @@ export interface EditingRun {
      */
     count: number;
 }
+/**
+ * What a drop of the drag in flight would do on a row of the table's document (TableHandle's
+ * `dropDecision`): the table's own prediction for that row, and the row it lands on.
+ */
+export interface TableDropDecision extends DropDecision {
+    /**
+     * The row the drop lands on: the one asked about; for the document as a whole, the row of the
+     * section it lands in, or '' for the document itself where it is one target (a MAT-file).
+     */
+    rowId: string;
+}
+/** How a drop handed over by TableHandle's `drop` ended, once the source had the chance to refuse it. */
+export interface DropResult {
+    /** It was handed to the source, which refused nothing by the end of the task: the entries are going in. */
+    dropped: boolean;
+    /** How many entries the drag carried: none where the document takes no drop, or no drag is in flight. */
+    count: number;
+    /** Why it was not dropped, where something said: the prediction's reason, or the source's refusal. */
+    reason?: string;
+}
+/** Where a table's rows go as they are dragged out of it (EditingHost.dragOutSource). */
+export interface DragOutSource {
+    /** These rows are being dragged out: take their entries into the drag register. */
+    dragStart(rowIds: readonly string[]): void;
+    /** That drag ended, dropped or not. */
+    dragEnd(): void;
+}
 /** What the editing half needs of the connected table it is part of. */
 export interface EditingHost {
     table: DexTreeTable;
     /** The source's commands, or null for a source that takes none (every gesture is then refused). */
     source: EditableTableSource | null;
+    /**
+     * Whether rows are dragged out of the table onto other parts of the page
+     * (ConnectTableOptions.dragOut): the table's `dragOut`, and a document that may not be edited
+     * letting its rows go too, as a copy, through `dragOutSource`.
+     */
+    dragOut?: boolean;
+    /**
+     * Who takes the rows dragged out of a document that may not be edited into the drag register: the
+     * source, where it can (an editable one, or a read-only one that has dragStart and dragEnd), else
+     * null, and none are dragged out of it.
+     */
+    dragOutSource?: DragOutSource | null;
     textView?: TableTextView;
     /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
     undoChords?: boolean;
@@ -88,8 +128,24 @@ export interface EditingWire {
      * say there is nothing to undo (or redo); false where not.
      */
     history(action: 'undo' | 'redo'): boolean;
-    /** The source said an error (the banner's): no gesture handed to it this task is told as done. */
-    failed(): void;
+    /**
+     * With the drag in flight: what a drop onto `rowId` would do, as the table predicts a drop on its
+     * own row there, or, for `rowId` null, a drop onto the document as a whole (documentDrop: the
+     * section the entries came from, else the first that takes them); null where no drop can be
+     * predicted (no drag, a document that may not be edited, a row whose section has no rule).
+     */
+    dropDecision(rowId: string | null, mode: DragMode): TableDropDecision | null;
+    /**
+     * Drop the drag in flight onto `rowId` as a drop on that row does, where `dropDecision` allows it;
+     * settled once the source is done with it (a task after its promise, or after the call for a source
+     * that returns none), with whether the source refused it.
+     */
+    drop(rowId: string, mode: DragMode): Promise<DropResult>;
+    /**
+     * The source said an error (the banner's, `reason`): no gesture handed to it this task is told as
+     * done.
+     */
+    failed(reason?: string): void;
 }
 /** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
 export declare function isTypingInField(ev: KeyboardEvent): boolean;

@@ -8,7 +8,7 @@ export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMoveDetail, TabPinDeta
 export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
-export type { ExplorerEventMap, ExplorerFile, ExplorerGroup, ExplorerMenuDetail, ExplorerOpenDetail, ExplorerSection, ExplorerSelection, } from './dex-explorer.js';
+export type { ExplorerDropDetail, ExplorerDropTarget, ExplorerDropVerdict, ExplorerEventMap, ExplorerFile, ExplorerGroup, ExplorerMenuDetail, ExplorerOpenDetail, ExplorerSection, ExplorerSelection, } from './dex-explorer.js';
 export { DexSettingsPanel, defineSettingsPanel } from './dex-settings-panel.js';
 export type { SettingsChangeDetail, SettingsPanelEventMap } from './dex-settings-panel.js';
 export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';
@@ -33,4 +33,4 @@ export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from '.
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from './connect/types.js';
+export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost, ShellNotice } from './connect/types.js';

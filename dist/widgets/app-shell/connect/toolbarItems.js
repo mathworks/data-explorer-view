@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The shell's toolbar, as the data <dex-toolbar> draws: the prototype's row (Open, Folder |
+// The shell's toolbar, as the data <dex-toolbar> draws: the prototype's row (New, Open, Folder |
 // Save, Save As, Save All | Close at the start; Undo, Redo | Add Child | Cut, Copy, Paste | Delete at
 // the end), each button with the chord that does the same and whether it can be pressed now. Pure:
 // connectShell says what is open and what the active table can do, and hands the toolbar the items
@@ -52,6 +52,8 @@ export function toolbarItems(state) {
     const { active } = state;
     const table = (id, label, icon, group) => item(id, label, icon, group, !state.can(TABLE_ACTIONS[id]), 'end');
     return [
+        // A new data dictionary, the one kind of file New makes, as the prototype's tooltip said.
+        ...(state.canNewFile ? [newFile(item('new-file', 'New', 'new_server', 'open', false))] : []),
         item('open-file', 'Open', 'openFolder', 'open', false),
         ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
         // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
@@ -70,9 +72,17 @@ export function toolbarItems(state) {
         table('delete', 'Delete', 'delete', 'delete'),
     ];
 }
-/** The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or not. */
-export function toolbarStateOf(active, tabs, canOpenFolder, mac) {
+/** The New button, whose tooltip names what it makes. */
+function newFile(item) {
+    return { ...item, title: `New Data Dictionary${item.shortcut ? ` (${item.shortcut})` : ''}` };
+}
+/**
+ * The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or
+ * not, and that makes new files or not.
+ */
+export function toolbarStateOf(active, tabs, canOpenFolder, mac, canNewFile = false) {
     return {
+        canNewFile,
         canOpenFolder,
         active: active ? { editable: !!active.doc?.editable, dirty: !!active.dirty } : null,
         anyDirty: tabs.some((t) => t.dirty),

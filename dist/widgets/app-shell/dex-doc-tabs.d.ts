@@ -3,8 +3,13 @@ import { LitElement, type PropertyValues } from 'lit';
 export interface DocTab {
     /** What the requests name the tab by. Unique in the row. */
     id: string;
-    /** The text on the tab: the file's name. */
+    /** The text on the tab: the file's name, or the part of it the tab shows (with the file as `subtitle`). */
     label: string;
+    /**
+     * Smaller, muted text drawn before the icon and the label: the file's name, while the label names
+     * a part of it (a dictionary's `Design Data`), so the tab reads as a path does. None, none.
+     */
+    subtitle?: string;
     /** An icon id drawn before the label, at 14px (`simulink_database`). None, no icon. */
     icon?: string;
     /** The tooltip: the file's whole path, say. The label when there is none. */
@@ -41,9 +46,12 @@ export interface TabMoveDetail {
  * `dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what
  * order, and which is active stay the app's: nothing here changes `tabs` or `active`.
  *
- * A preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the
- * keyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),
- * keeps the active tab in view, and offers a … button listing every tab. The arrow keys move the
+ * A tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the
+ * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
+ * where its × is, until the pointer or the keyboard comes onto it. A row too long for its width
+ * scrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it
+ * then offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly
+ * out past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the
  * focus along the tabs, and Home and End to either end.
  *
  * @tagname dex-doc-tabs
@@ -57,7 +65,6 @@ export declare class DexDocTabs extends LitElement {
     private _focusId;
     private _dragging;
     private _over;
-    private _crowded;
     private _menuOpen;
     private _menuFocus;
     private _focusTo;
@@ -67,6 +74,7 @@ export declare class DexDocTabs extends LitElement {
     disconnectedCallback(): void;
     protected firstUpdated(): void;
     protected willUpdate(changed: PropertyValues<this>): void;
+    private _activeRedrawn;
     protected updated(): void;
     private _list;
     private _tabElement;
@@ -76,7 +84,10 @@ export declare class DexDocTabs extends LitElement {
     private _pin;
     private _move;
     private _keepFocus;
+    private _layout;
     private _measure;
+    private _scrollActive;
+    private _markClipped;
     private _observe;
     private _onTabKeydown;
     private _onFocusOut;
@@ -97,8 +108,10 @@ export declare class DexDocTabs extends LitElement {
     private _focusMenuItem;
     private _chooseFromMenu;
     private _onMenuKeydown;
+    private _title;
     private _name;
     private _icon;
+    private _subtitle;
     private _tab;
     private _menu;
     render(): import("lit-html").TemplateResult<1>;

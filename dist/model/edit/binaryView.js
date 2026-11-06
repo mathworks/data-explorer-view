@@ -758,11 +758,12 @@ export class BinaryView {
         const registers = this.doc.options.registers;
         void runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps());
     }
+    // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
     drop(rowId, mode) {
         if (this.closed)
             return;
         const registers = this.doc.options.registers;
-        void runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+        return runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()).then(() => undefined, () => undefined);
     }
     // --- Undo, redo, and the whole text of a Value ---------------------------------------------------
     /** Where the document's undo stack stands, as the engine was given it (its `history`). */

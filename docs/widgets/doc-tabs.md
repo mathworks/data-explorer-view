@@ -150,5 +150,6 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-color-modified` | `#b45309` | The Status column's "Modified". |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-muted` | `#666` |  |
+| `--dex-color-text-secondary` | `#555` |  |
 | `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |

@@ -31,7 +31,7 @@ export function locationOf(tab, rowId, rowOf, rootLabel = 'Root', preview) {
     const file = {
         label: tab.name,
         ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }),
-        title: tab.path,
+        title: tab.title ?? tab.path,
         place: { tabId: tab.id, rowId: null },
     };
     // The row and its parents, from the row up; a parent that is not there, or one already passed

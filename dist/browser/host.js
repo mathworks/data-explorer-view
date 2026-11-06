@@ -9,12 +9,13 @@
 //
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
-// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; and a drop opens
-// through openDropped.
+// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; a drop opens
+// through openDropped; and New's files are made in newFile.ts.
 import { isSupportedPath } from 'data-explorer-core';
 import { dropSources } from './drop.js';
 import { folderLooks, serveWebFolder } from './folder.js';
-import { WebFiles } from './files.js';
+import { titleOfPath, WebFiles } from './files.js';
+import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
 import { watchOpenFiles } from './watch.js';
@@ -26,10 +27,10 @@ import { watchOpenFiles } from './watch.js';
 export const LOOK_EVERY_MS = 3000;
 /**
  * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
- * inputs, reads and saves through WebFiles (in place where the browser gives a handle, a download
- * where it does not), open files watched, a folder served in the page, and drops. The shell gets
- * its folder and its files' changes back through `onFolder` and `onChanged`; docs/browser-host.md
- * says what works in which browser.
+ * inputs, New through its save picker or as a file the page keeps, reads and saves through WebFiles
+ * (in place where the browser gives a handle, a download where it does not), open files watched, a
+ * folder served in the page, and drops. The shell gets its folder and its files' changes back
+ * through `onFolder` and `onChanged`; docs/browser-host.md says what works in which browser.
  */
 export function browserHost(options = {}) {
     const files = new WebFiles();
@@ -40,6 +41,10 @@ export function browserHost(options = {}) {
     const deps = { window: win, document: doc, navigator: nav };
     const { onFolder, onChanged } = options;
     const watcher = onChanged ? watchOpenFiles(files, onChanged, deps) : undefined;
+    const made = new NewFiles(files, deps);
+    // The files the shell has open, as it says: each it reads, and each New it is given, until it
+    // closes it. A New over one is not written: the emptied file is the shell's to write back.
+    const opened = new Set();
     let shown;
     let edited = false;
     // A look at the shown folder: the files it touched the page reads again. One at a time; one asked
@@ -131,8 +136,44 @@ export function browserHost(options = {}) {
         // The registry's few members an app needs, and none of the rest.
         files: {
             addPicked: (name, source) => files.addPicked(name, source),
+            async addToGroup(group, added) {
+                const { paths, replaced } = await files.addToGroup(group, added);
+                // A file replaced under a tab is a change on disk to it, told once: the watcher knows it by
+                // the new file's stamp, so its next look does not tell it again.
+                for (const path of replaced) {
+                    if (!watcher?.has(path))
+                        continue;
+                    watcher.watch(path, await files.stamp(path));
+                    onChanged?.(path);
+                }
+                return paths;
+            },
             get: (path) => files.get(path),
             has: (path) => files.has(path),
+        },
+        async newFile(suggestedName) {
+            // The open files are not looked at while the picker is up: the one it names is made or emptied
+            // as it closes, which is no other program's change, and a look meanwhile would report it.
+            const paused = [...opened];
+            for (const p of paused)
+                watcher?.saving(p);
+            let path = null;
+            try {
+                path = await made.make(suggestedName, (p) => opened.has(p));
+            }
+            finally {
+                // A file on disk is watched from now on, as one read is, known by what is there now: the new
+                // dictionary, or an open file as the picker left it, which is then no change to reload from.
+                // The others are known as they were.
+                const stamp = path !== null && !made.keeps(path) ? await files.stamp(path) : null;
+                for (const p of paused)
+                    watcher?.ownWrite(p, p === path ? stamp : null);
+                if (path !== null && !made.keeps(path))
+                    watcher?.watch(path, stamp);
+            }
+            if (path !== null)
+                opened.add(path);
+            return path;
         },
         pickFiles: () => pickFiles(files, deps),
         ...(onFolder && {
@@ -159,14 +200,21 @@ export function browserHost(options = {}) {
             // Only data files are read, as a desktop host reads only those.
             if (!isSupportedPath(path))
                 throw new Error('Not a data file this app opens.');
+            opened.add(path);
             // The stamp before the bytes: a write between the two is a change the next look reports.
             const stamp = await files.stamp(path);
             const bytes = await files.bytes(path);
             watcher?.watch(path, stamp);
             return bytes;
         },
-        closeFile: (path) => watcher?.unwatch(path),
-        saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes), () => true),
+        closeFile(path) {
+            opened.delete(path);
+            watcher?.unwatch(path);
+        },
+        // The paths are this host's making: a tooltip says what each means to the user.
+        pathTitle: titleOfPath,
+        // A new file the page keeps, with no save picker to have named one on disk, is downloaded.
+        saveFile: (path, bytes) => writing(path, async () => (made.keeps(path) ? made.save(path, bytes) : saveFile(files, path, bytes)), () => true),
         saveFileAs: (path, bytes) => writing(path, () => saveFileAs(files, path, bytes, deps), (to) => to?.path === path),
         setEdited(value) {
             edited = value;

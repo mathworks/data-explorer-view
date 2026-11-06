@@ -53,6 +53,8 @@ export function buildShell(shell, options) {
     const docs = document.createElement('dex-shell-docs');
     const strip = document.createElement('dex-doc-tabs');
     strip.slot = 'tabs';
+    // Shown with the first file: with none, the welcome fills the center, and at Root the graph.
+    strip.hidden = true;
     // The relationship graph: Root's, while files are open, in a panel of its own under the files'.
     const graphPanel = document.createElement('section');
     graphPanel.className = 'graph-panel';

@@ -16,7 +16,7 @@
 // unit test away. State objects are never changed in place; each function hands back a new one,
 // or the same one when nothing changed, so a Lit element can hold the state as a @state field.
 /** The size a side starts at, in px, before anyone drags its sash: the prototype's sizes. */
-export const SIDE_DEFAULTS = Object.freeze({ left: 220, right: 240, bottom: 150 });
+export const SIDE_DEFAULTS = Object.freeze({ left: 200, right: 200, bottom: 150 });
 /**
  * The least size a side can be dragged to, in px: the prototype's. Below it a sidebar's names
  * and a panel's lines are cut to nothing, and the sash is all that is left of the side.

@@ -8,9 +8,9 @@
 import { connectFileMenu } from './fileMenu.js';
 import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
-    'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-    'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
-    'show-graph', ...SHELL_VIEWS.map((v) => v.command),
+    'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
+    'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
+    'palette', 'show-graph', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {

@@ -22,3 +22,8 @@ export declare function saveFileAs(files: WebFiles, path: string, bytes: Uint8Ar
     path: string;
     overwritten: boolean;
 } | null>;
+/**
+ * Hand `bytes` to the browser as a download named `name`: Save As with no save picker, and the Save
+ * of a new file the page keeps (newFile.ts).
+ */
+export declare function download(document: Document, name: string, bytes: Uint8Array): void;

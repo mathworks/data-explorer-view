@@ -1,3 +1,4 @@
+import type { AboutLine } from '../../../model/shell/about.js';
 import { type KeyValueStore } from '../../../model/shell/settings.js';
 import type { Rect } from '../../../model/shell/placement.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
@@ -38,9 +39,6 @@ export declare function connectPopovers(shell: DexAppShell, parts: {
     key: string;
     system: SystemTheme;
     appName: string;
-    about: {
-        label: string;
-        value: string;
-    }[];
+    about: AboutLine[];
     tables(): Iterable<DexTreeTable>;
 }): Popovers;

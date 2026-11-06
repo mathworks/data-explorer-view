@@ -183,6 +183,8 @@ export class DexRelationshipGraph extends LitElement {
         // A press on the background, until it is let go: a drag pans, a click clears the selection.
         this._press = null;
         this._resize = null;
+        // focus() was called before there was a graph to draw (one still being built): given once there is.
+        this._focusWhenDrawn = false;
         // An object, so its `passive: false` reaches addEventListener: a wheel that zooms must be able to
         // stop the page from scrolling.
         this._wheel = { handleEvent: (e) => this._onWheel(e), passive: false };
@@ -334,6 +336,31 @@ export class DexRelationshipGraph extends LitElement {
             this._pending = 'fit';
         else
             this._fitNow();
+    }
+    /**
+     * Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
+     * there is no graph to draw yet (an app still building it), once there is, unless the focus has
+     * gone somewhere in the page by then (anywhere but its body).
+     */
+    focus(options) {
+        const canvas = this._focusableCanvas();
+        this._focusWhenDrawn = !canvas;
+        canvas?.focus(options);
+    }
+    updated() {
+        if (!this._focusWhenDrawn)
+            return;
+        const canvas = this._focusableCanvas();
+        if (!canvas)
+            return;
+        this._focusWhenDrawn = false;
+        const at = document.activeElement;
+        if (!at || at === document.body)
+            canvas.focus();
+    }
+    // The canvas a drawn graph takes the keyboard on; none while it says there is nothing to draw.
+    _focusableCanvas() {
+        return this.renderRoot?.querySelector('.canvas[tabindex]') ?? null;
     }
     /**
      * Moves the view so the box or item `id` is at the middle of the canvas, at the scale it has; an

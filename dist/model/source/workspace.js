@@ -33,6 +33,8 @@ import { createTextStore } from '../edit/textStore.js';
 import { MatEngine } from '../edit/matEngine.js';
 import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters } from '../edit/registers.js';
+import { dragEntries } from '../edit/clipboardAction.js';
+import { newDictionaryBytes } from './newDictionary.js';
 import { docKindOf, readDocument } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
@@ -87,7 +89,47 @@ class InPageDoc {
                 this.listeners.add(listener);
                 return () => void this.listeners.delete(listener);
             },
+            // Its rows dragged out of its table, to be copied into a document the page edits: only where
+            // the workspace edits, since only then does a document take a drop.
+            ...(shared.editing ? { dragStart: (rowIds) => this.dragStart(rowIds), dragEnd: () => this.dragEnd() } : {}),
         };
+    }
+    /**
+     * Take the entries of the rows dragged out of its table into the drag register the editable
+     * documents share, as theirs do (dragEntries), for a copy: no deleter is registered for this
+     * document, and its table allows no move. A drag that cannot start says why in its table.
+     */
+    dragStart(rowIds) {
+        const registers = this.shared.registers;
+        if (this.disposed || !this.reading)
+            return;
+        dragEntries(rowIds, this.uri, {
+            session: this.shared.registry.session,
+            registers,
+            // Its tree is the file as read, which nothing changes.
+            refresh: () => { },
+            findNode: (rowId) => this.find(rowId),
+            post: (message) => this.tell({ kind: 'error', message: message.message }),
+            broadcast: () => registers.broadcastDragState(),
+        });
+    }
+    dragEnd() {
+        if (this.disposed)
+            return;
+        this.shared.registers.clearDrag();
+        this.shared.registers.broadcastDragState();
+    }
+    /** Tell every subscriber `change`, each on its own terms. */
+    tell(change) {
+        const report = listenerFailure(this.shared.notify, this.name);
+        for (const listener of [...this.listeners]) {
+            try {
+                listener(change);
+            }
+            catch (err) {
+                report(err);
+            }
+        }
     }
     onDirty() {
         return () => { };
@@ -148,22 +190,20 @@ class InPageDoc {
         }
         if (this.disposed)
             return;
-        const report = listenerFailure(this.shared.notify, this.name);
-        for (const listener of [...this.listeners]) {
-            try {
-                listener(change);
-            }
-            catch (err) {
-                // One listener's failure is its own: the others still hear the change.
-                report(err);
-            }
-        }
+        // One listener's failure is its own: the others still hear the change.
+        this.tell(change);
     }
     dispose() {
         if (this.disposed)
             return;
         this.disposed = true;
         this.reposts?.dispose();
+        // A drag of its rows still on goes with it, so the register holds no entries of a closed file.
+        const registers = this.shared.registers;
+        if (registers.getDrag()?.sourceDocUri === this.uri) {
+            registers.clearDrag();
+            registers.broadcastDragState();
+        }
         this.unload();
         this.listeners.clear();
         this.shared.closed(this);
@@ -653,6 +693,14 @@ class EditableJsonDoc {
     notSaved(_at) {
         // Nothing moved for a save until its bytes were written.
     }
+    /**
+     * No file holds the document yet (Workspace.create): no state of its text's undo stack is a file,
+     * so it is dirty until a save of it lands. Its Status column is measured from the text it was
+     * made with, as from a file it had been read from.
+     */
+    untitled() {
+        this.text.diverged();
+    }
     async keepOver(bytes) {
         if (this.disposed)
             throw new Error(`${this.name} is closed.`);
@@ -819,6 +867,7 @@ export function createWorkspace(options = {}) {
         usage: options.usage,
         usageReposts: options.usageReposts,
         registers: options.registers ?? createRegisters(),
+        editing: !!options.editing,
         notify: options.notify,
         closed: (doc) => {
             if (docs.get(doc.uri) === doc)
@@ -826,19 +875,36 @@ export function createWorkspace(options = {}) {
         },
     };
     let disposed = false;
+    // The uri a document of `name` opens under, unless another document holds it.
+    const freeUri = (name, uri) => {
+        const id = uri ?? sourceUri(`/${name}`);
+        if (docs.has(id))
+            throw new Error(`${id} is already open in this workspace.`);
+        return id;
+    };
     return {
         async open(bytes, name, uri) {
             if (disposed)
                 throw new Error('This workspace is closed.');
-            const id = uri ?? sourceUri(`/${name}`);
             const kind = docKindOf(name);
             if (!kind) {
                 throw new Error(`${name} is not a file this workspace opens: it opens data dictionaries (.sldd), models (.slx, .mdl), MAT-files (.mat) and projects.`);
             }
-            if (docs.has(id))
-                throw new Error(`${id} is already open in this workspace.`);
+            const id = freeUri(name, uri);
             const doc = (options.editing && editableDoc(shared, id, name, kind, bytes)) || new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
             docs.set(id, doc);
+            return doc;
+        },
+        async create(name, uri) {
+            if (disposed)
+                throw new Error('This workspace is closed.');
+            if (!options.editing)
+                throw new Error('A workspace that does not edit makes no new file: create it with createWorkspace({ editing: true }).');
+            if (docKindOf(name) !== 'dictionary')
+                throw new Error(`${name} is not a data dictionary (.sldd), which is what a new file is.`);
+            const doc = new EditableJsonDoc(shared, freeUri(name, uri), name, newDictionaryBytes());
+            doc.untitled();
+            docs.set(doc.uri, doc);
             return doc;
         },
         get: (uri) => docs.get(uri),

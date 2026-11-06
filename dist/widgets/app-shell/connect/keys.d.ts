@@ -22,11 +22,20 @@ export declare const SHELL_CHORDS: readonly ShellChord[];
 export declare function chordOf(command: ShellCommand): string | undefined;
 /** Whether the page runs on macOS, where Mod is Command: read at each press, as the shell reads it. */
 export declare function onMac(): boolean;
+/** How installKeys answers. */
+export interface KeyOptions {
+    /** A native menu has the File and Edit chords: only those it has no item for are answered. */
+    nativeMenu?: boolean;
+    /**
+     * Whether the shell offers `command` now (New, for a host that makes files), asked at each press:
+     * the chord of one it does not is left to the page, unspent. Default: every one.
+     */
+    offers?(command: ShellCommand): boolean;
+}
 /**
  * Answer the shell's chords on the window with `run`, until the returned function is called. Each
  * chord answered is spent (preventDefault). With `nativeMenu`, only the chords a native menu has
- * no item for: Undo and Redo among the rest are the menu's.
+ * no item for: Undo and Redo among the rest are the menu's. A chord of a command the shell does not
+ * offer now (`offers`) is not answered.
  */
-export declare function installKeys(run: (command: ShellCommand) => void, options?: {
-    nativeMenu?: boolean;
-}): () => void;
+export declare function installKeys(run: (command: ShellCommand) => void, options?: KeyOptions): () => void;

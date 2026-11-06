@@ -25,7 +25,7 @@ import { isSectionRowId } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget } from '../../model/ids/linkTarget.js';
 import { isEditable, isSourceClosed, } from '../../model/source/tableSource.js';
 import { usedByGroup } from '../../model/inspector/inspectorPages.js';
-import { wireEditing } from './editingWire.js';
+import { wireEditing, } from './editingWire.js';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
@@ -291,7 +291,7 @@ export function connectTable(table, source, options = {}) {
             }
             case 'error':
                 // A gesture just handed to the source did not happen, whatever the banner says of it.
-                editing?.failed();
+                editing?.failed(change.message);
                 return failed(change.message);
             default:
                 // The editing changes, which a table that does not edit ignores.
@@ -393,6 +393,8 @@ export function connectTable(table, source, options = {}) {
         editing = wireEditing({
             table,
             source: isEditable(source) ? source : null,
+            dragOut: !!options.dragOut,
+            dragOutSource: dragOutSourceOf(source),
             textView: options.textView,
             undoChords: !!options.undoChords,
             errorDialog: dialog,
@@ -635,6 +637,12 @@ export function connectTable(table, source, options = {}) {
             table.commitEdit();
             return editing ? editing.editsSettled() : Promise.resolve();
         },
+        dropDecision(rowId, mode) {
+            return editing && !disposed ? editing.dropDecision(rowId, mode) : null;
+        },
+        drop(rowId, mode) {
+            return editing && !disposed ? editing.drop(rowId, mode) : Promise.resolve({ dropped: false, count: 0 });
+        },
         undo() {
             editing?.history('undo');
         },
@@ -697,6 +705,17 @@ export function connectTable(table, source, options = {}) {
             pageListeners.clear();
         },
     };
+}
+/**
+ * Who takes a table's rows into the drag register as they are dragged out of it: its source, where it
+ * takes edits, or where it is read-only and has `dragStart` and `dragEnd` (a workspace's read-only
+ * document); else none.
+ */
+function dragOutSourceOf(source) {
+    if (isEditable(source))
+        return source;
+    const { dragStart, dragEnd } = source;
+    return typeof dragStart === 'function' && typeof dragEnd === 'function' ? source : null;
 }
 /** The menu a read-only table gives a selection: its names and values, to copy. */
 function readOnlyItems(context) {

@@ -14,6 +14,7 @@ import { connectTable } from '../../tree-table/connectTable.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
+import { rowIn, sectionOf } from './rows.js';
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
 export const SHOW_IN_GRAPH = { id: 'showInGraph', label: 'Show in Graph' };
 const message = (err) => (err instanceof Error ? err.message : String(err));
@@ -27,17 +28,23 @@ function pageClipboard(text) {
 export function copyText(host, text) {
     return host.copyText ? host.copyText(text) : pageClipboard(text);
 }
-/** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
-export function docTabOf(tab) {
+/**
+ * How the tab row draws `tab`: its name and its kind's icon, `title` as the tooltip (its path, as the
+ * host says it), its marks. While its selection is in a section of its file (a dictionary's Design
+ * Data, a model's Model Workspace), the section's name and icon, with the file's name as the
+ * subtitle: the section the Explorer marks for the same selection, and what the prototype's tab
+ * read for a section it showed.
+ */
+export function docTabOf(tab, title = tab.path) {
+    const rows = tab.table?.rows ?? [];
+    const rowId = tab.selection[0];
+    const section = rowId === undefined ? undefined : sectionOf(rows, rowId);
+    const row = section === undefined ? undefined : rowIn(rows, section);
     const group = fileGroupOf(tab.path);
-    return {
-        id: tab.id,
-        label: tab.name,
-        ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }),
-        title: tab.path,
-        dirty: !!tab.dirty,
-        preview: !!tab.preview,
-    };
+    const shown = row
+        ? { label: row.Name.label, subtitle: tab.name, ...(row.Name.iconId ? { icon: row.Name.iconId } : {}) }
+        : { label: tab.name, ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }) };
+    return { id: tab.id, ...shown, title, dirty: !!tab.dirty, preview: !!tab.preview };
 }
 /** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
 export function statusOf(tab) {
@@ -57,6 +64,20 @@ export function clearSelection(tab) {
     table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: [] }, bubbles: true, composed: true }));
 }
 // --- The widgets ---------------------------------------------------------------------------------
+/**
+ * The note `tab`'s panel shows while its file is read and parsed, which for a large file takes a
+ * while: "Opening plant.sldd…", as a status. Remove it once the file is shown, or failed.
+ */
+export function openingNote(tab) {
+    const note = document.createElement('dex-shell-note');
+    note.className = 'doc-opening';
+    note.setAttribute('role', 'status');
+    tab.panel.append(note);
+    // Put in the page empty, its words a task later: a live region says what changes in it once it
+    // is there, and one put in with its words already is not always said. Removed by then, nothing.
+    setTimeout(() => (note.textContent = `Opening ${tab.name}…`), 0);
+    return note;
+}
 /** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
 export function newTable(tab, storageKey, editable = false, tableStyle = 'normal') {
     const table = document.createElement('dex-tree-table');
@@ -83,6 +104,9 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         readOnlyMenu: true,
         copyText: true,
         undoChords: true,
+        // Its rows can be dragged onto the Explorer, to a file or a section of one (explorerDrop.ts): from
+        // a document that may not be edited too, to be copied.
+        dragOut: true,
         // The inspector beside it shows the file's page while no row is selected, a section's, several
         // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
         inspectorPages: true,

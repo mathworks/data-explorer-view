@@ -12,10 +12,15 @@ export interface FilePickers {
         multiple?: boolean;
         types?: FilePickerType[];
     }): Promise<FileSystemFileHandle[]>;
-    /** Ask where to save: a handle the page may write. Rejects with an AbortError when cancelled. */
+    /**
+     * Ask where to save: a handle the page may write. Rejects with an AbortError when cancelled.
+     * Chromium makes the file named, or empties the one that was there, as it resolves.
+     * `excludeAcceptAllOption`: only files of `types` may be named.
+     */
     showSaveFilePicker?(options: {
         suggestedName?: string;
         types?: FilePickerType[];
+        excludeAcceptAllOption?: boolean;
     }): Promise<FileSystemFileHandle>;
     /** Ask for a folder: its handle. Rejects with an AbortError when cancelled. */
     showDirectoryPicker?(): Promise<FileSystemDirectoryHandle>;

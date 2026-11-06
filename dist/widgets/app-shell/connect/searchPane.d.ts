@@ -18,8 +18,13 @@ export interface SearchPaneContext {
  * them.
  */
 export declare function mergeSearchRecords(open: readonly NameRecord[], folder: readonly NameRecord[]): NameRecord[];
-/** Wire `panel` to the open files and the folder; `scope(folderName)` says what it searches. */
-export declare function connectSearchPane(panel: DexSearchPanel, context: SearchPaneContext): {
+/** The Search view, wired: what it searches, said; asked again; let go of. */
+export interface SearchPane {
+    /** Say what is searched: the open files, and the folder `folderName` if one is shown. */
     scope(folderName: string | null): void;
+    /** The names searched changed (the folder's, read again): the query in the box, if any, is asked again. */
+    again(): void;
     dispose(): void;
-};
+}
+/** Wire `panel` to the open files and the folder. */
+export declare function connectSearchPane(panel: DexSearchPanel, context: SearchPaneContext): SearchPane;

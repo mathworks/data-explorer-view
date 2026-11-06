@@ -1123,12 +1123,13 @@ export class JsonView {
     }
     // A drop reads its register when the message ARRIVES, not when its turn comes: the source's
     // dragEnd follows it at once and clears the register.
+    // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
     drop(rowId, mode) {
         if (this.disposed)
             return;
         const registers = this.doc.options.registers;
         const register = registers.dragRegister(mode, () => registers.broadcastDragState());
-        void this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps()));
+        return this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps())).then(() => undefined, () => undefined);
     }
     addEntry(msg) {
         if (this.disposed)

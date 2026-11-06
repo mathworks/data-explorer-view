@@ -263,6 +263,16 @@ export interface TableSource {
      * Optional; a read-only source has nothing to add.
      */
     opened?(): void;
+    /**
+     * These rows are being dragged out of a table that may not edit the document, to be copied into
+     * another one (connectTable's `dragOut`): take their entries into the drag register, as an
+     * editable source's `dragStart` does, where nothing may take them out of this document. Optional,
+     * with `dragEnd`: a workspace's read-only documents have both, in a workspace made with `editing`;
+     * a source without them has no row dragged out of its table. An EditableTableSource always has them.
+     */
+    dragStart?(rowIds: readonly string[]): void;
+    /** The drag of rows `dragStart` took ended, dropped or not. Optional, with `dragStart`. */
+    dragEnd?(): void;
 }
 /** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */
 export interface CellEdit {
@@ -339,8 +349,14 @@ export interface EditableTableSource extends TableSource {
     dragStart(rowIds: readonly string[]): void;
     /** The drag of this table's rows ended, dropped or not. */
     dragEnd(): void;
-    /** The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries there. */
-    drop(rowId: string, mode: 'copy' | 'move'): void;
+    /**
+     * The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries
+     * there. A source whose drop finishes later (a JSON dictionary's waits its turn behind the edits
+     * queued before it) may return a promise, settled once the drop is done, refused or not, which
+     * `handle.drop()` waits for; one that has done it, or refused it, by the end of the task returns
+     * nothing.
+     */
+    drop(rowId: string, mode: 'copy' | 'move'): void | Promise<void>;
     /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
     requestEditText(rowId: string): void;
     /**

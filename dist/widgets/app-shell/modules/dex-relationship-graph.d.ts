@@ -113,6 +113,7 @@ export declare class DexRelationshipGraph extends LitElement {
     private _wasOpen;
     private _press;
     private _resize;
+    private _focusWhenDrawn;
     private readonly _wheel;
     connectedCallback(): void;
     disconnectedCallback(): void;
@@ -134,6 +135,14 @@ export declare class DexRelationshipGraph extends LitElement {
      * lays out; before the element has a size (not on the page yet, or hidden), once it has one.
      */
     fit(): void;
+    /**
+     * Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
+     * there is no graph to draw yet (an app still building it), once there is, unless the focus has
+     * gone somewhere in the page by then (anywhere but its body).
+     */
+    focus(options?: FocusOptions): void;
+    protected updated(): void;
+    private _focusableCanvas;
     /**
      * Moves the view so the box or item `id` is at the middle of the canvas, at the scale it has; an
      * item of a closed box brings its box. Changes neither the selection nor which boxes are open:

@@ -45,9 +45,11 @@ The heading, the app's name, drawn in capitals as the Settings title is; also th
 
 ### `lines`
 
-type `{ label: string; value: string }[]` · default `[]` · property only
+type `AboutLine[]` · default `[]` · property only
 
-The lines under the heading, in order: a label (Version) and its value (1.0.0).
+The lines under the heading, in order: a label (Version) and its value (1.0.0), and the heading
+of the section the line is in (`section`), if any. The lines with no section are drawn first;
+each section follows, once, where its first line is.
 
 ### `open`
 
@@ -86,6 +88,7 @@ Each falls back to the light default when the page sets none (see `data-explorer
 |---|---|---|
 | `--dex-bg-primary` | `#fff` |  |
 | `--dex-border-color` | `#d0d0d0` |  |
+| `--dex-border-color-light` | `#e0e0e0` |  |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-secondary` | `#555` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
