@@ -56,6 +56,8 @@ export interface Modules {
   idle(): Promise<void>;
   /** Say what Search covers: the open files, and the folder `folderName` if one is shown. */
   scope(folderName: string | null): void;
+  /** The folder's names were read again: Search asks its query again. */
+  namesChanged(): void;
   dispose(): void;
 }
 
@@ -157,6 +159,7 @@ export function connectModules(context: ModulesContext): Modules {
     shown: focusBox,
     idle: () => terminal.idle(),
     scope: (folderName) => search.scope(folderName),
+    namesChanged: () => search.again(),
     dispose() {
       disposed = true;
       raw.dispose();

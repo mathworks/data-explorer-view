@@ -63,16 +63,12 @@ describe('<dex-shell-folder>', () => {
     expect(title().textContent).toBe('Data');
   });
 
-  it('has its search box and results from the start, the box above the tree it is given, the results hidden', async () => {
+  it('draws its title, then the tree it is given, and no search box of its own: the Search view searches its names', async () => {
     const folder = new DexShellFolder();
-    expect(folder.searchInput).toBeInstanceOf(HTMLInputElement);
-    expect(folder.searchResults.hidden).toBe(true);
     folder.append(document.createElement('div'));
     await mount(folder);
     const parts = [...folder.shadowRoot!.children].map((el) => el.localName + (el.className ? `.${el.className}` : ''));
-    expect(parts.slice(0, 4)).toEqual(['header.title', 'input', 'ul.results', 'slot']);
-    expect(folder.searchInput.getAttribute('aria-label')).toBe("Search the folder's names");
-    expect(folder.searchInput.placeholder).toBe('Search names');
+    expect(parts).toEqual(['header.title', 'slot']);
   });
 
   it('shows its note under the tree, and none while it has none', async () => {

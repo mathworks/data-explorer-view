@@ -15,10 +15,10 @@ import {
   dirtyTabs,
   edit,
   explorer,
-  folderPart,
   open,
   previewTabs,
   rowOf,
+  searchPanel,
   serveFolderTo,
   settled,
   startPage,
@@ -194,15 +194,13 @@ describe('preview tabs', () => {
     expect(previewTabs()).toEqual([]);
   });
 
-  it('a search pick opens its file in a preview tab', async () => {
+  it("a search pick opens its file in a preview tab", async () => {
     const { dir } = folderPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'shared_gain.slx': 'shared_gain.slx' });
-    await until(() => treeLabels().includes('shadow_ws.slx'));
-    const box = folderPart().searchInput;
-    box.value = 'WsGain';
-    box.dispatchEvent(new Event('input', { bubbles: true }));
-    const results = () => [...(folderPart().shadowRoot?.querySelectorAll<HTMLElement>('.search-result') ?? [])];
-    await until(() => results().length === 1);
-    results()[0]!.click();
+    await until(() => treeLabels().includes('shadow_ws.slx') && searchPanel().scope === 'Open files and plant');
+    searchPanel().dispatchEvent(new CustomEvent('dex-search-query', { detail: { query: 'WsGain' }, bubbles: true, composed: true }));
+    await until(() => searchPanel().results.length === 1);
+    const hit = searchPanel().results[0]!;
+    searchPanel().dispatchEvent(new CustomEvent('dex-search-open', { detail: { sourceUri: hit.entry.sourceUri, revealName: hit.revealName }, bubbles: true, composed: true }));
     await until(() => previewTabs().join() === 'shadow_ws.slx');
     expect(document.querySelector<HTMLElement>('.doc-panel:not([hidden])')!.dataset.path).toBe(path.join(dir, 'shadow_ws.slx'));
   });

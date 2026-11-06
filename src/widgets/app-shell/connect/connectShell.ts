@@ -731,6 +731,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       repaintProjects(tabs.items, shown, log, uris);
       graph.stale();
     },
+    // The Search view's results on show are the folder's as it is now.
+    namesChanged: () => modules.namesChanged(),
     failed: (text) => log('error', `This folder could not be read: ${text}`),
   });
 
