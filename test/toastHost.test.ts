@@ -205,15 +205,35 @@ describe('what a screen reader hears', () => {
 
   it('reads the same message twice when it is shown twice', async () => {
     // "Saved a.sldd" after each save: the second write must be a change, or the second save is
-    // never heard. The region's old line is taken away and a new one put in.
+    // never heard. Each message is a new line of its own, whatever it says.
     const el = await makeHost();
     await show(el, { level: 'status', message: 'Saved a.sldd' });
     const first = region(el, 'status').firstElementChild;
     await show(el, { level: 'status', message: 'Saved a.sldd' });
     const lines = [...region(el, 'status').children];
-    expect(lines.length).toBe(1);
-    expect(lines[0]).not.toBe(first);
-    expect(lines[0]!.textContent).toBe('Saved a.sldd');
+    expect(lines.map((line) => line.textContent)).toEqual(['Saved a.sldd', 'Saved a.sldd']);
+    expect(lines[0]).toBe(first);
+    expect(lines[1]).not.toBe(first);
+  });
+
+  it('reads both of two toasts of one level shown in the same task', async () => {
+    // A paste refused on two counts says two warnings at once. Had the second replaced the first
+    // before the reader looked, the first would never be heard: the lines are added, and the
+    // regions are not atomic, so each addition is read as itself and not with the whole region.
+    const el = await makeHost();
+    el.show({ level: 'warning', message: 'first' });
+    el.show({ level: 'warning', message: 'second' });
+    await el.updateComplete;
+    expect([...region(el, 'alert').children].map((line) => line.textContent)).toEqual(['first', 'second']);
+    for (const role of ['status', 'alert'] as const) expect(region(el, role).getAttribute('aria-atomic')).toBe('false');
+  });
+
+  it('keeps the last three lines in each region', async () => {
+    // As many as there are toasts on screen: the region does not grow for the whole session.
+    const el = await makeHost();
+    for (const message of ['a', 'b', 'c', 'd']) el.show({ level: 'status', message });
+    await el.updateComplete;
+    expect([...region(el, 'status').children].map((line) => line.textContent)).toEqual(['b', 'c', 'd']);
   });
 
   it('reads a toast shown before the host first rendered', async () => {
@@ -304,14 +324,19 @@ describe('a toast the user is on stays while they are', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('is not timed again on reconnect while the user is still on it', async () => {
+  it('lets go of a hold when the host leaves the page, and times the toast again when it is back', async () => {
+    // A browser does not reliably send pointerleave or focusout for a node taken off the page, so
+    // a hold kept across that would never be let go, and the toast would stay for good.
     const el = await makeHost();
     await show(el, { level: 'status', message: 'a', ms: 1000 });
     toasts(el)[0]!.dispatchEvent(new PointerEvent('pointerenter'));
+    dismiss(toasts(el)[0]!).focus();
     el.remove();
     document.body.appendChild(el);
     await el.updateComplete;
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(toasts(el)).toEqual([]);
   });
 });
 

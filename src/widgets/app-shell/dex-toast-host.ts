@@ -178,6 +178,10 @@ export class DexToastHost extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     for (const key of [...this._timers.keys()]) this._stopTimer(key);
+    // A browser does not reliably send pointerleave or focusout for a node taken off the page: a
+    // hold kept across that would never be let go, and its toast would stay for good.
+    this._pointerOn.clear();
+    this._focusIn.clear();
   }
 
   private _startTimer({ key, toast }: Shown): void {
@@ -219,9 +223,12 @@ export class DexToastHost extends LitElement {
 
   // A live region is read when what it holds changes; one put on the page with its text already
   // in it, as each toast was, is not reliably read at all. So the two regions are there, empty,
-  // from the first render, and each message is written into the one for its level as a line of
-  // its own: the old line taken away and a new one put in, so the same message twice ("Saved
-  // a.sldd" after each save) is a change the second time too.
+  // from the first render, and each message is added to the one for its level as a line of its
+  // own. Added, not written over the last: two warnings in one task would otherwise leave only
+  // the second for the reader to find. A new line whatever it says, so the same message twice
+  // ("Saved a.sldd" after each save) is heard twice. And the regions are not atomic, so each line
+  // is read as itself rather than with every line before it. The last three are kept, as many as
+  // there are toasts on screen, so a region does not grow for the whole session.
   private _announce(shown: Shown): void {
     const role = shown.toast.level === 'warning' || shown.toast.level === 'error' ? 'alert' : 'status';
     const region = this.shadowRoot?.querySelector(`.live[role="${role}"]`);
@@ -237,7 +244,8 @@ export class DexToastHost extends LitElement {
     }
     const line = document.createElement('div');
     line.textContent = shown.toast.message;
-    region.replaceChildren(line);
+    region.append(line);
+    while (region.children.length > MAX_SHOWN) region.firstElementChild!.remove();
   }
 
   override render() {
@@ -247,8 +255,8 @@ export class DexToastHost extends LitElement {
     // the element above it: a focused × would move onto another toast, and the pointer resting on
     // one would leave it held under another's key.
     return html`
-      <div class="live" role="status"></div>
-      <div class="live" role="alert"></div>
+      <div class="live" role="status" aria-atomic="false"></div>
+      <div class="live" role="alert" aria-atomic="false"></div>
       ${repeat(this._shown, (shown) => shown.key, ({ key, toast }) => html`
         <div
           class="toast ${toast.level}"
