@@ -20,6 +20,8 @@ export interface ReloadTab {
   name: string;
   doc?: Doc;
   table?: DexTreeTable;
+  /** The bytes its file holds as the shell last read or wrote them: a read of the change sets them. */
+  bytes?: Uint8Array;
 }
 
 /** What the gate reads and asks. */
@@ -126,6 +128,8 @@ export class ReloadGate<T extends ReloadTab> {
     }
     // Closed while its file was read: its document is gone.
     if (!this.options.isOpen(tab)) return;
+    // The disk's file now, whatever the document does with it.
+    tab.bytes = bytes;
     // Taking the disk's file over a clean document: if it was edited (or saved, and that save written
     // over) while the file was read, it holds what the disk does not now, so it is asked about instead.
     if (!keep && !unsaved && (tab.doc.dirty || this.againUnsaved.has(tab))) {

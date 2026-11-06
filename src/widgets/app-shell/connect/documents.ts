@@ -39,6 +39,8 @@ export interface OpenTab extends ShellTab {
    * is selected in a table that is there.
    */
   ready: Promise<void>;
+  /** The bytes its file holds as the shell last read or wrote them: what the relationship graph draws. */
+  bytes?: Uint8Array;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));

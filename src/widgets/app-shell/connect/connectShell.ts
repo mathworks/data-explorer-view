@@ -356,6 +356,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         return;
       }
       tab.doc = doc;
+      tab.bytes = bytes;
       tab.stops.push(
         doc.onDirty((dirty) => {
           tab.dirty = dirty;

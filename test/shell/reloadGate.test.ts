@@ -32,6 +32,15 @@ describe('ReloadGate', () => {
     expect(doc.keepOver).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps on the tab the bytes it read, the disk's file now, kept over or reloaded", async () => {
+    for (const keep of [true, false]) {
+      const { tab } = dirtyTab();
+      const gate = new ReloadGate({ read: async () => new Uint8Array([7]), confirm: async () => !keep, isOpen: () => true });
+      await gate.changedOnDisk(tab, true);
+      expect(tab.bytes).toEqual(new Uint8Array([7]));
+    }
+  });
+
   it('asks about the tab itself, so a question can be dropped for one that closed before its turn', async () => {
     const { tab } = dirtyTab();
     const confirm = vi.fn(async () => false);

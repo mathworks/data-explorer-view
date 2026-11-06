@@ -20,6 +20,8 @@ export interface Savable {
   name: string;
   /** Its document; none before its file is read, which has nothing to save. */
   doc?: Doc;
+  /** The bytes its file holds as the shell last read or wrote them: a save onto it sets them. */
+  bytes?: Uint8Array;
 }
 
 /**
@@ -64,6 +66,7 @@ export class Saver {
         // The bytes landed, as the file's newest write when the write resolved; another program's
         // after it is a change over the document's own (view's Doc.keepOver).
         doc.saved(out.at);
+        tab.bytes = out.bytes;
         return to.overwritten ? { kind: 'saved', overwritten: true } : { kind: 'saved' };
       }
       // Cancelled, or written elsewhere: this document's file holds what it held.

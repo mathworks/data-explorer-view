@@ -37,6 +37,19 @@ describe('Saver', () => {
     expect(told).toEqual(['saved 1']);
   });
 
+  it('keeps on the tab the bytes that landed in its file, and none that did not', async () => {
+    const { doc } = fakeDoc();
+    const saved = tab(doc);
+    await new Saver({ saveFile: async () => ({ overwritten: false }), saveFileAs: vi.fn() }).save(saved);
+    expect(saved.bytes).toEqual(new Uint8Array([1]));
+    // Written elsewhere (Save As), or not at all: its file holds what it held.
+    const elsewhere = vi.fn(async () => ({ path: '/d/copy.sldd', overwritten: false }));
+    await new Saver({ saveFile: vi.fn(), saveFileAs: elsewhere }).save(saved, true);
+    const refused = vi.fn(async () => Promise.reject(new Error('read-only')));
+    await new Saver({ saveFile: refused, saveFileAs: vi.fn() }).save(saved);
+    expect(saved.bytes).toEqual(new Uint8Array([1]));
+  });
+
   it('says another program wrote over the save, and still tells the document its bytes landed', async () => {
     const { doc, told } = fakeDoc();
     const result = await new Saver({ saveFile: async () => ({ overwritten: true }), saveFileAs: vi.fn() }).save(tab(doc));
