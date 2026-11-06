@@ -192,11 +192,12 @@ export class DexCommandWindow extends LitElement {
   // a shell around it must not take Enter or an arrow for a gesture of its own while a line is
   // being typed. Every other key goes on, the shell's chords among them.
   private _onKeyDown(e: KeyboardEvent): void {
+    // While an input method composes, every key is its own: Enter picks the characters, an arrow
+    // moves among the candidates, Escape cancels them. None is the line's end or a step of history.
+    if (e.isComposing) return;
     const input = e.target as HTMLInputElement;
     const plain = !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
     if (e.key === 'Enter') {
-      // Enter that ends an input method's composition picks its characters; it is not the line's end.
-      if (e.isComposing) return;
       this._keep(e);
       this._run(input);
     } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && plain) {

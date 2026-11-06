@@ -130,6 +130,20 @@ describe('running a line', () => {
     expect(input(el).value).toBe('ls');
   });
 
+  it('leaves every key to an input method while it composes', async () => {
+    // An arrow or Escape inside a composition moves among the input method's candidates, or
+    // cancels them; the history and the prompt must not move under it.
+    const el = await commandWindow();
+    await enter(el, 'ls');
+    type(el, 'k');
+    const up = await press(el, 'ArrowUp', { isComposing: true });
+    expect(input(el).value).toBe('k');
+    expect(up.defaultPrevented).toBe(false);
+    const escape = await press(el, 'Escape', { isComposing: true });
+    expect(input(el).value).toBe('k');
+    expect(escape.defaultPrevented).toBe(false);
+  });
+
   it('keeps the keys it acts on to itself', async () => {
     // A shell around the window must not take Enter or an arrow for its own (a focused tab bar,
     // a chord), so the window stops them.
