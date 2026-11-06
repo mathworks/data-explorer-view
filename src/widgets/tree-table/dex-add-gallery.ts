@@ -15,11 +15,11 @@
 // the Explorer costs. Pinned, the popover stays and adds land immediately, so a run of
 // them is a run of single clicks.
 //
-// The same tiles also stand open on their own, as a palette in a sidebar (the app shell's
-// Gallery panel), and there the popover's parts are wrong rather than idle: a pin that
-// cannot change anything, a focus grab while the user works in the table, an Escape that
-// asks to close what has nothing to close. `pinnable` false drops all three, and nothing
-// else: the tiles, their events and their keys are the popover's.
+// The same tiles are also drawn in place, in a page or a sidebar (the app shell's Gallery
+// panel), and there the popover's parts are wrong rather than idle: a pin that cannot change
+// anything, a focus grab while the user works in the table, an Escape that asks to close what
+// has nothing to close. `inline` drops all three, and nothing else: the tiles, their events
+// and their keys are the popover's.
 
 import { LitElement, html, css } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -81,8 +81,8 @@ export interface AddPinChangedDetail {
  * the table turns it into `dex-add-entry`. Its Keep open box pins it open across adds
  * (`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab
  * stop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.
- * With `pinnable` false it is a palette that is always open instead (`<dex-gallery-panel>`
- * draws it so): no Keep open box, no focus taken, Escape left to the page.
+ * With `inline` it is drawn in place instead (`<dex-gallery-panel>` draws it so): no Keep open
+ * box, no focus taken, Escape left to the page.
  *
  * @tagname dex-add-gallery
  */
@@ -483,17 +483,16 @@ export class DexAddGallery extends LitElement {
   @property({ type: Boolean }) pinned = false;
 
   /**
-   * Whether the gallery is a popover the user opens and closes, and so can pin open: the table's
-   * `+ Add` gallery. Default true.
+   * Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather
+   * than as the table's `+ Add` popover. Default false: the popover.
    *
-   * False for a gallery that is always open, a side panel's palette (`<dex-gallery-panel>`). It
-   * then draws no header and no Keep open box, which could change nothing there; takes no focus
-   * when it first draws, since a panel is drawn beside the table the user is working in, and
-   * taking the keyboard from them is the opposite of what a popover's first focus is for; leaves
-   * Escape to the page, as there is nothing to close; and is a group rather than a dialog.
-   * Attribute `pinnable`.
+   * Inline, it is open for as long as it is shown, so it draws no header row and no Keep open
+   * box, which could change nothing; takes no focus when it first draws, since it is drawn beside
+   * the table the user is working in, and taking the keyboard from them is the opposite of what a
+   * popover's first focus is for; leaves Escape to the page, as there is nothing to close; and is
+   * a group rather than a dialog. Attribute `inline`.
    */
-  @property({ type: Boolean }) pinnable = true;
+  @property({ type: Boolean }) inline = false;
 
   /**
    * The classes a MAT-file can take a new variable of, as core lists them, or null for a
@@ -527,11 +526,11 @@ export class DexAddGallery extends LitElement {
   @state() private _activeIndex = 0;
 
   /**
-   * Focus the first tile, so the popover is usable from the keyboard on open. A palette that is
-   * always open (`pinnable` false) is drawn while the user works elsewhere, and takes nothing.
+   * Focus the first tile, so the popover is usable from the keyboard on open. A gallery drawn in
+   * place (`inline`) is drawn while the user works elsewhere, and takes nothing.
    */
   override firstUpdated(): void {
-    if (this.pinnable) this._focusTile(0);
+    if (!this.inline) this._focusTile(0);
   }
 
   /** The tiles in drawn order. Read from the DOM, because that IS the order arrows step. */
@@ -658,8 +657,8 @@ export class DexAddGallery extends LitElement {
 
   private _onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-      // A palette that is always open has nothing to close, so the key is the page's, untouched.
-      if (!this.pinnable) return;
+      // A gallery drawn in place has nothing to close, so the key is the page's, untouched.
+      if (this.inline) return;
       // Stopped so the table's own Escape — which clears the whole filter — does not also
       // fire. Dismissing a popover must not throw away the user's search.
       e.preventDefault();
@@ -696,17 +695,18 @@ export class DexAddGallery extends LitElement {
     // Signal, not nowhere. Counted here rather than looked up per tile so the number cannot
     // disagree with the DOM order it names.
     let index = 0;
-    // A palette that is always open is a group of the page's, not a dialog over it, and its header
-    // is the panel's to draw: the one thing this header holds beside the title is the pin.
+    // A gallery drawn in place is a group of the page's, not a dialog over it, and its header is
+    // the page's to draw: the one thing this header holds beside the title is the pin.
     return html`
       <div
-        role=${this.pinnable ? 'dialog' : 'group'}
+        role=${this.inline ? 'group' : 'dialog'}
         aria-label=${this.classes && !this.sections?.length ? 'Add a variable' : 'Add an entry'}
         @keydown=${this._onKeyDown}
         @focusin=${this._onFocusIn}
       >
-        ${this.pinnable
-          ? html`<div class="gallery-header">
+        ${this.inline
+          ? ''
+          : html`<div class="gallery-header">
               <span class="gallery-title">Add</span>
               <label
                 class="gallery-pin"
@@ -719,8 +719,7 @@ export class DexAddGallery extends LitElement {
                 />
                 Keep open
               </label>
-            </div>`
-          : ''}
+            </div>`}
         ${(this.classes ? matCatalog(this.classes, this.sections ?? []) : ADD_CATALOG).map(
           (category) => html`
             <div class="kind-header">

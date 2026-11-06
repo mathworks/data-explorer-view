@@ -7,9 +7,9 @@
 // (addCatalog.ts) and drawn once (dex-add-gallery.ts), so the panel and the table's `+ Add`
 // popover cannot drift apart.
 //
-// The gallery stands here as a palette, not as the popover it is in the table (its `pinnable`
-// false): no Keep open box, which could change nothing; no focus taken on its first draw, which
-// would take the keyboard from the table; Escape left to the page. What the panel adds is the
+// The gallery is drawn here in place, not as the popover it is in the table (its `inline`): no
+// Keep open box, which could change nothing; no focus taken on its first draw, which would take
+// the keyboard from the table; Escape left to the page. What the panel adds is the
 // heading that says where an add lands, a note when there is nowhere to add, and one request
 // under its own name.
 
@@ -141,12 +141,12 @@ export class DexGalleryPanel extends LitElement {
   override render() {
     // The gallery is drawn whether or not the panel is disabled, and so is the same element across
     // the change: a gallery drawn anew runs its first draw again, and the panel would then depend
-    // on `pinnable` alone to keep the focus where the user is.
+    // on `inline` alone to keep the focus where the user is.
     return html`
       <div class="header" title=${this.target || nothing}>${this.target ? `Add to ${this.target}` : 'Add'}</div>
       ${this.disabled ? html`<div class="note">Open a dictionary, a MAT-file or a model to add entries.</div>` : nothing}
       <dex-add-gallery
-        .pinnable=${false}
+        inline
         .classes=${this.classes}
         .sections=${this.sections}
         ?inert=${this.disabled}

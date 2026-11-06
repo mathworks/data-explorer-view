@@ -9,7 +9,7 @@
 //
 //   - a heading that names where an add lands ("Add to plant.sldd"), and a note in place of a
 //     gallery that has nowhere to add to;
-//   - the gallery as a palette, not a popover (`pinnable` false): no Keep open box, no focus taken
+//   - the gallery drawn in place, not as a popover (`inline`): no Keep open box, no focus taken
 //     while the user works in the table, and the panel's width;
 //   - one request out, `dex-gallery-add`, and the gallery's own `dex-add-tile` kept inside, so an
 //     app listening on the document hears each add once, under the panel's name;
@@ -78,7 +78,7 @@ describe('dex-gallery-panel: what it draws', () => {
   it("draws view's Add gallery as a palette: every tile, and no Keep open box", async () => {
     const el = await panel({ target: 'plant.sldd' });
     expect(gallery(el)).toBeInstanceOf(DexAddGallery);
-    expect(gallery(el).pinnable).toBe(false);
+    expect(gallery(el).inline).toBe(true);
     expect(gallery(el).shadowRoot!.querySelector('.gallery-pin, input[type="checkbox"]')).toBeNull();
     expect(tiles(el).map((t) => t.dataset.className)).toEqual(allTiles().map((t) => t.className));
   });
