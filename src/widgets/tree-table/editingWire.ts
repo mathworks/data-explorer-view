@@ -236,7 +236,8 @@ export function wireEditing(host: EditingHost): EditingWire {
     if (!editable) return undefined;
     const anchorRowId = host.selectedRowIds()[0] ?? null;
     const item = menuFor(anchorRowId).find((i) => i.id === actionId);
-    if (!item || item.disabled) return undefined;
+    // A separator is an item too (`_sep1`, …), never disabled, and no gesture at all.
+    if (!item || item.disabled || item.separator) return undefined;
     return () => void act(actionId, anchorRowId);
   };
   const can = (actionId: string): boolean => gestureFor(actionId) !== undefined;

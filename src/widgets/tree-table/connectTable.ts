@@ -238,8 +238,9 @@ export interface TableHandle extends InspectorFeed {
    * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
    * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
    * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
-   * source says (its clipboard, a repaint). False where the document may not be edited, for an item
-   * the app added (`menuItems`), and without `editing`.
+   * source says (its clipboard, a repaint). False where the document may not be edited, for Copy
+   * Name and Copy Value (`copyText`) and the items the app added (`menuItems`), which are not the
+   * editing menu's own, and without `editing`.
    */
   can(actionId: string): boolean;
   /**

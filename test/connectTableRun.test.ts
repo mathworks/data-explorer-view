@@ -212,13 +212,15 @@ describe('can(actionId) and run(actionId) on an editable dictionary', () => {
     }
   });
 
-  it("run none of the app's own items, nor an id the menu does not have", async () => {
+  it("run none of the app's own items, nor a separator's id, nor an id the menu does not have", async () => {
     const { source, calls } = pageSource();
     const { table, handle } = await mount(source, { editing: true, copyText: true, menuItems: () => [{ id: 'reveal', label: 'Reveal' }] });
     const actions: unknown[] = [];
     handle.on('action', (a) => void actions.push(a));
     table.selectedRowIds = [A];
-    for (const id of ['reveal', 'copyName', 'copyValue', 'nonsense']) {
+    // A separator is an item of the menu too, with an id and no disabled flag: it is no gesture.
+    expect(handle.menuFor(A).some((i) => i.id === '_sep1' && i.separator)).toBe(true);
+    for (const id of ['reveal', 'copyName', 'copyValue', '_sep1', 'nonsense']) {
       expect(handle.can(id), id).toBe(false);
       expect(handle.run(id), id).toBe(false);
     }
