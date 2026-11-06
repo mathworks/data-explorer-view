@@ -36,9 +36,13 @@ export interface KeyPress {
   key: string;
   /** Where the key is on the keyboard, named for a US layout ('KeyS', 'Backquote'). */
   code?: string;
+  /** Command on macOS; the Windows key elsewhere, which no chord here names. */
   metaKey: boolean;
+  /** Ctrl: Mod off macOS, and a literal Ctrl on every platform. */
   ctrlKey: boolean;
+  /** Shift. */
   shiftKey: boolean;
+  /** Alt, which macOS calls Option. */
   altKey: boolean;
 }
 
