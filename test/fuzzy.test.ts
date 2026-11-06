@@ -82,8 +82,9 @@ describe('fuzzyMatch', () => {
 
   it('answers at once for a long query that is a subsequence of a long label and no word match', () => {
     // Every 'a' starts a word and the 'b' at the end follows an 'x', so the letters are all there
-    // in order but no word match exists: the word search has to rule out every way of placing
-    // the a's, and a search that went back over them took seconds here.
+    // in order but no word match exists, and the word match has to rule out every way of placing
+    // the a's. Its two tables of letters by text do that in one pass from the last letter back;
+    // the search that went back over the places before them took seconds here.
     const started = Date.now();
     expect(fuzzyMatch(`${'a'.repeat(199)}b`, `${'a '.repeat(1000)}xb`)?.tier).toBe('subsequence');
     expect(Date.now() - started).toBeLessThan(200);
@@ -98,8 +99,9 @@ describe('fuzzyMatch', () => {
   });
 
   it('answers at once for a query it cannot place among many word starts', () => {
-    // The word search backtracks. Here every 'a' starts a word, so a search that tried each way
-    // of placing sixty of them among a hundred before giving up on the 'b' would never finish.
+    // Every 'a' starts a word, so a word match that tried each way of placing sixty of them among
+    // a hundred before giving up on the 'b' would never finish. The text holds no 'b', so the
+    // plain subsequence test that runs first answers before the word match is tried at all.
     const started = Date.now();
     expect(fuzzyMatch(`${'a'.repeat(60)}b`, 'a '.repeat(100))).toBeNull();
     expect(Date.now() - started).toBeLessThan(500);
