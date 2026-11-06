@@ -521,6 +521,15 @@ describe('set, and <name> = <value>', () => {
     expect(t.edits.map((e) => e.newValue)).toEqual(['Off', 'On']);
   });
 
+  it('holds a cell to its choices only where its editor is a select, as the table does', async () => {
+    // The table lists `options` in a <select> alone; a text editor that carries them takes any text.
+    const t = fake({
+      rows: [row('u/Free', null, 'Free', { Value: { text: 'a', editable: true, options: ['a', 'b'] }, Class: 'char' })],
+    });
+    expect(await texts("Free = 'c'", t)).toEqual(["Free = 'c'"]);
+    expect(t.edits.map((e) => e.newValue)).toEqual(["'c'"]);
+  });
+
   it('tells a refused edit by the value the row kept', async () => {
     // The document says why in its own dialog; the window says what is left.
     const t = fake({ refuse: () => true });

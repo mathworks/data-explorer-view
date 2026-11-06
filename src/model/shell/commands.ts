@@ -198,7 +198,7 @@ const HELP: readonly OutputLine[] = [
   out('  <name>.<Column> = <value>      set its Name, Description, DataType or another column'),
   out('  A name finds an entry before a row inside one; Bus.Element finds a row inside Bus,'),
   out('  and Mat(1,1) or variables(1).Name an element where the table has its row.'),
-  out('  A line ending in ; shows nothing; % starts a comment.'),
+  out('  A line ending in ; shows nothing; % starts a comment. One statement to a line.'),
   info("JavaScript is not run here: the page's security policy forbids evaluating typed code."),
 ];
 
@@ -639,14 +639,15 @@ function nameArg(args: string): string {
  * What a cell's editor would open on, or null where the table offers none: the same rules as the
  * tree table's _cellEditTarget, so the window edits exactly the cells a double-click would (a
  * test holds the two together over real views; exported for it). A
- * Name by its own flag; a Value by its cell's (with the choices a select offers) or the row's
- * `_valueEditable`; a Description wherever the object has one it can keep; any other column where
- * its cell says it is editable.
+ * Name by its own flag; a Value by its cell's or the row's `_valueEditable`; a Description wherever
+ * the object has one it can keep; any other column where its cell says it is editable. `options`
+ * only where the cell's editor is a select, the one editor the table lists them in: a text editor
+ * that carries them takes any text.
  */
 export function cellEditor(row: TreeTableRow, column: string): { text: string; options?: string[] } | null {
   const cell = row[column];
   const optionsOf = (c: Record<string, unknown>) =>
-    Array.isArray(c.options) ? { options: c.options.filter((o): o is string => typeof o === 'string') } : {};
+    c.editor === 'select' && Array.isArray(c.options) ? { options: c.options.filter((o): o is string => typeof o === 'string') } : {};
   switch (column) {
     case 'Name':
       return row.Name?.editable ? { text: labelOf(row) } : null;
