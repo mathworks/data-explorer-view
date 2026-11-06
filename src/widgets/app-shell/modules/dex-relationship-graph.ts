@@ -222,10 +222,14 @@ export class DexRelationshipGraph extends LitElement {
   // the background: over the selection when it was opened after the selection was made
   // (_openedNewer), else while nothing is selected.
   @state() private _opened: string | null = null;
-  @state() private _openedNewer = false;
-  // Every box the user opened, oldest first, while it stays open and in the graph: closing the last
-  // gives the lighting back to the one before. Emptied by Escape and a click on the background.
-  private _openedStack: string[] = [];
+  // Every box the user opened, oldest first, while it stays open and in the graph, each with when
+  // it was opened: closing the last gives the lighting back to the one before, over the selection
+  // only if that one too was opened after the selection was made. Emptied by Escape and a click on
+  // the background. One count stamps the openings and the changes of the selection, so which is
+  // newer is exact whatever was closed between them.
+  private _openedStack: { id: string; at: number }[] = [];
+  private _stamp = 0;
+  private _selectedAt = 0;
   // The item under the pointer, whose connections are lit while it is there, over any selection.
   // Each enter and leave draws the world again (24 ms and 13 ms on a 230-box graph, every box
   // open); a requestAnimationFrame throttle of _hoverItem is the next step if that grows.
@@ -296,7 +300,7 @@ export class DexRelationshipGraph extends LitElement {
     // the user's: it is not taken as opened. A change of the selection on its own is newer than the
     // box opened before it, and lights over it.
     const selection = changed.has('selected');
-    if (selection) this._openedNewer = false;
+    if (selection) this._selectedAt = ++this._stamp;
     if (changed.has('graph') || changed.has('expanded')) this._noteOpened(watch && !selection);
     // A size known before the draw (the canvas is drawn already): the fit is done in this update.
     if (this._pending && this._size().width > 0) this._doPending();
@@ -310,10 +314,12 @@ export class DexRelationshipGraph extends LitElement {
     const open = new Set([...this._expanded()].filter((id) => this._boxes.has(id)));
     const opened = watch ? [...open].filter((id) => !this._wasOpen.has(id)) : [];
     this._wasOpen = open;
-    this._openedStack = [...this._openedStack.filter((id) => open.has(id) && !opened.includes(id)), ...opened];
-    this._opened = this._openedStack[this._openedStack.length - 1] ?? null;
+    this._openedStack = [
+      ...this._openedStack.filter((o) => open.has(o.id) && !opened.includes(o.id)),
+      ...opened.map((id) => ({ id, at: ++this._stamp })),
+    ];
+    this._opened = this._openedStack[this._openedStack.length - 1]?.id ?? null;
     if (opened.length > 0) {
-      this._openedNewer = true;
       // Over a fit still waiting for a size, which would show the graph as it was before.
       if (this._pending === null || this._pending === 'fit') this._pending = { zoom: this._opened!, opened: true };
     }
@@ -323,7 +329,12 @@ export class DexRelationshipGraph extends LitElement {
   private _letGo(): void {
     this._openedStack = [];
     this._opened = null;
-    this._openedNewer = false;
+  }
+
+  // Whether the box opened last was opened after the selection was last changed: then it lights.
+  private get _openedNewer(): boolean {
+    const last = this._openedStack[this._openedStack.length - 1];
+    return last !== undefined && last.at > this._selectedAt;
   }
 
   private _relayout(): void {

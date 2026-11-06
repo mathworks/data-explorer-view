@@ -771,6 +771,29 @@ describe('a box opened', () => {
     expect(dimmed(el)).toEqual([]);
   });
 
+  it('lights the box opened before only over a selection older than it, when the last one is closed', async () => {
+    // Open CaseBp.mat, select ExtraDict.sldd, open chained.sldd, close it: CaseBp.mat was opened
+    // before the selection was made, so the selection lights, and is what is said.
+    const el = await graph();
+    const status = () => sr(el).querySelector('[role="status"]')!.textContent!.trim();
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    boxEl(el, idOf('ExtraDict.sldd')).click();
+    await el.updateComplete;
+    el.expanded = [idOf('CaseBp.mat'), idOf('chained.sldd')];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['ExtraDict.sldd', 'CaseBp.mat']);
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    // What ExtraDict.sldd reaches: the model that links it.
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'CaseBp.mat']);
+    expect(status()).toContain('Selected ExtraDict.sldd');
+    // The selection let go by the app: the box still open, opened by the user, lights again.
+    el.selected = null;
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
+  });
+
   it('lets a box go that leaves the graph while it is lit, and lights the one opened before', async () => {
     const el = await graph();
     el.expanded = [idOf('chained.sldd')];
