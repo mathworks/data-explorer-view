@@ -5,8 +5,9 @@
 // theme they say applied to the page at once (the prototype applied it only when Settings was
 // opened, so a dark choice came back light), Auto following the system's theme, the gear and the
 // (i) toggling their popovers, a change kept and applied, and the layout kept under the shell's
-// own key. The icon style reaches the toolbar, the location bar and the shell's bars, and the
-// table style every table the shell makes, the ones it makes later too. And the popovers make way
+// own key. The icon style reaches the toolbar, the location bar and the shell's bars, the table
+// style every table the shell makes, the ones it makes later too, and the graph's layout Root's
+// graph, from the start. And the popovers make way
 // for a dialog: one Escape must not close two layers.
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ShellSettings, type Theme } from '../../src/model/shell/settings.js';
@@ -18,6 +19,8 @@ import {
   dirtyTabs,
   edit,
   errorDialog,
+  graph,
+  graphShown,
   locationBar,
   open,
   settingsPanel,
@@ -53,8 +56,9 @@ describe('the settings', () => {
     localStorage.setItem('dex-shell:settings', JSON.stringify({ theme: 'dark', toolbar: 'compact' }));
     startPage();
     expect(theme()).toBe('dark');
-    // A record kept before the icon and table styles were settings: theirs are the defaults.
-    expect(settingsPanel().settings).toEqual({ theme: 'dark', toolbar: 'compact', iconStyle: 'minimal', tableStyle: 'grid' });
+    // A record kept before the icon and table styles and the graph's layout were settings: theirs
+    // are the defaults.
+    expect(settingsPanel().settings).toEqual({ theme: 'dark', toolbar: 'compact', iconStyle: 'minimal', tableStyle: 'grid', graphLayout: 'tree' });
   });
 
   it('under the storage key the app gives', () => {
@@ -166,6 +170,32 @@ describe('the table style', () => {
     const page = startPage({ 'params.sldd': 'params.sldd' });
     await open(page, 'params.sldd');
     expect(styles('params.sldd')).toEqual(['light']);
+  });
+});
+
+describe("the graph's layout", () => {
+  // Tree, the default, is the graph's own top-down trees; Indented, its file trees, which draw a
+  // large set narrower. Root's graph follows the setting from the start, before Root is first shown.
+  it('is Tree at first, and Indented draws Root\'s graph as file trees, kept for the next start', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    expect(settingsPanel().settings.graphLayout).toBe('tree');
+    expect(graph().layout).toBe('tree');
+    choose({ ...DEFAULT_SETTINGS, graphLayout: 'indented' });
+    expect(graph().layout).toBe('indented');
+    expect(JSON.parse(localStorage.getItem('dex-shell:settings')!).graphLayout).toBe('indented');
+    // Shown at Root with a file open: drawn as the setting says.
+    await open(page, 'params.sldd');
+    page.command('show-graph');
+    await until(() => graphShown());
+    expect(graph().layout).toBe('indented');
+    choose({ ...DEFAULT_SETTINGS });
+    expect(graph().layout).toBe('tree');
+  });
+
+  it('kept as Indented, is how the graph of the next start is drawn', () => {
+    localStorage.setItem('dex-shell:settings', JSON.stringify({ ...DEFAULT_SETTINGS, graphLayout: 'indented' }));
+    startPage();
+    expect(graph().layout).toBe('indented');
   });
 });
 

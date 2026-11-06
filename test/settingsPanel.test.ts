@@ -2,8 +2,8 @@
 // @vitest-environment happy-dom
 //
 // The shell's Settings popover, opened from the gear at the foot of an activity bar: a segmented
-// control for each setting, the theme, the toolbar's density, the icons' style and the tables'
-// rules, in that order. It only shows what it is given and asks for a change; the app applies the
+// control for each setting, the theme, the toolbar's density, the icons' style, the tables' rules
+// and the graph's layout, in that order. It only shows what it is given and asks for a change; the app applies the
 // theme, keeps the settings, and sets them back. So what is pinned here is that contract: the
 // checked segments are exactly `settings`, a click or an arrow key sends the whole new record and
 // changes nothing by itself, and the popover stays open while a person tries the themes one after
@@ -173,19 +173,20 @@ describe('where it opens', () => {
 });
 
 describe('what it shows', () => {
-  it('a dialog named Settings, with a Theme, a Toolbar, an Icons and a Table radio group, in that order', async () => {
+  it('a dialog named Settings, with a Theme, a Toolbar, an Icons, a Table and a Graph radio group, in that order', async () => {
     const el = await open();
     const dialog = el.shadowRoot!.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Settings');
     expect(dialog.querySelector('.title')!.textContent!.trim()).toBe('Settings');
-    expect([...dialog.querySelectorAll('[role="radiogroup"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Theme', 'Toolbar', 'Icons', 'Table']);
+    expect([...dialog.querySelectorAll('[role="radiogroup"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Theme', 'Toolbar', 'Icons', 'Table', 'Graph']);
     // Auto first: the default, and what most people keep.
     expect(radios(el, 'Theme').map((r) => r.textContent!.trim())).toEqual(['Auto', 'Light', 'Dark', 'Hi-Con']);
     expect(radios(el, 'Toolbar').map((r) => r.textContent!.trim())).toEqual(['Normal', 'Compact']);
     expect(radios(el, 'Icons').map((r) => r.textContent!.trim())).toEqual(['Minimal', 'Colorful']);
     expect(radios(el, 'Table').map((r) => r.textContent!.trim())).toEqual(['Grid', 'Rows']);
+    expect(radios(el, 'Graph').map((r) => r.textContent!.trim())).toEqual(['Tree', 'Indented']);
     // Each row's label is what names its group.
-    expect([...dialog.querySelectorAll('.label')].map((l) => l.textContent!.trim())).toEqual(['Theme', 'Toolbar', 'Icons', 'Table']);
+    expect([...dialog.querySelectorAll('.label')].map((l) => l.textContent!.trim())).toEqual(['Theme', 'Toolbar', 'Icons', 'Table', 'Graph']);
   });
 
   it('says in a tooltip what each choice does, the compact toolbar keeping its labels', async () => {
@@ -197,6 +198,7 @@ describe('what it shows', () => {
     expect(titles('Toolbar').join(' ')).not.toMatch(/alone/i);
     expect(titles('Icons')).toEqual(["The toolbar's and the bars' icons in one colour", 'The icons in their own colours']);
     expect(titles('Table')).toEqual(['Lines round every cell', 'A faint line between rows alone']);
+    expect(titles('Graph')).toEqual(["Root's graph as top-down trees", "Root's graph as file trees, one box a row"]);
     expect(radio(el, 'Theme', 'Auto').title).toBe("The system's theme");
     expect(radio(el, 'Theme', 'Hi-Con').title).toBe('High contrast');
   });
@@ -207,26 +209,29 @@ describe('what it shows', () => {
     expect(checked(el, 'Toolbar')).toEqual(['Normal']);
     expect(checked(el, 'Icons')).toEqual(['Minimal']);
     expect(checked(el, 'Table')).toEqual(['Grid']);
+    expect(checked(el, 'Graph')).toEqual(['Tree']);
     expect(radios(el, 'Theme').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false']);
   });
 
   it('follows `settings` when the app sets it', async () => {
     const el = await open();
-    el.settings = { theme: 'high-contrast', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' };
+    el.settings = { theme: 'high-contrast', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows', graphLayout: 'indented' };
     await el.updateComplete;
     expect(checked(el, 'Theme')).toEqual(['Hi-Con']);
     expect(checked(el, 'Toolbar')).toEqual(['Compact']);
     expect(checked(el, 'Icons')).toEqual(['Colorful']);
     expect(checked(el, 'Table')).toEqual(['Rows']);
+    expect(checked(el, 'Graph')).toEqual(['Indented']);
   });
 
   it('puts only the checked segment of each group in the Tab order', async () => {
     // A radio group is one Tab stop; the arrows move inside it.
-    const el = await open({ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'grid' });
+    const el = await open({ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'grid', graphLayout: 'indented' });
     expect(radios(el, 'Theme').map((r) => r.tabIndex)).toEqual([-1, -1, 0, -1]);
     expect(radios(el, 'Toolbar').map((r) => r.tabIndex)).toEqual([-1, 0]);
     expect(radios(el, 'Icons').map((r) => r.tabIndex)).toEqual([-1, 0]);
     expect(radios(el, 'Table').map((r) => r.tabIndex)).toEqual([0, -1]);
+    expect(radios(el, 'Graph').map((r) => r.tabIndex)).toEqual([-1, 0]);
   });
 
   it('is open, and says so in an attribute, from show() to close()', async () => {
@@ -250,11 +255,11 @@ describe('what it shows', () => {
 
 describe('asking for a change', () => {
   it('a click on Dark asks for the same settings with the dark theme, and stays open', async () => {
-    const el = await open({ theme: 'light', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' });
+    const el = await open({ theme: 'light', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows', graphLayout: 'indented' });
     const sent = requests();
     radio(el, 'Theme', 'Dark').click();
     await el.updateComplete;
-    expect(sent).toEqual([{ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' }]);
+    expect(sent).toEqual([{ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows', graphLayout: 'indented' }]);
     expect(el.open).toBe(true);
   });
 
@@ -273,15 +278,17 @@ describe('asking for a change', () => {
     expect(sent).toEqual([{ ...DEFAULT_SETTINGS, toolbar: 'compact' }]);
   });
 
-  it('a click on Colorful asks for the icons in their colours, and one on Rows for the light rules', async () => {
+  it('a click on Colorful asks for the icons in their colours, one on Rows for the light rules, one on Indented for the file trees', async () => {
     const el = await open();
     const sent = requests();
     radio(el, 'Icons', 'Colorful').click();
     radio(el, 'Table', 'Rows').click();
+    radio(el, 'Graph', 'Indented').click();
     // Each from the settings shown, which the app has not changed yet: one change each.
     expect(sent).toEqual([
       { ...DEFAULT_SETTINGS, iconStyle: 'colorful' },
       { ...DEFAULT_SETTINGS, tableStyle: 'rows' },
+      { ...DEFAULT_SETTINGS, graphLayout: 'indented' },
     ]);
   });
 
@@ -293,6 +300,7 @@ describe('asking for a change', () => {
     radio(el, 'Toolbar', 'Normal').click();
     radio(el, 'Icons', 'Minimal').click();
     radio(el, 'Table', 'Grid').click();
+    radio(el, 'Graph', 'Tree').click();
     expect(sent).toEqual([]);
   });
 
@@ -344,7 +352,7 @@ describe('the keyboard', () => {
     expect(sent).toEqual([{ ...DEFAULT_SETTINGS, toolbar: 'compact' }]);
   });
 
-  it('the Icons and Table arrows change their own setting, wrapping as two segments do', async () => {
+  it('the Icons, Table and Graph arrows change their own setting, wrapping as two segments do', async () => {
     const el = await open();
     const sent = requests();
     radio(el, 'Icons', 'Minimal').focus();
@@ -353,9 +361,13 @@ describe('the keyboard', () => {
     radio(el, 'Table', 'Grid').focus();
     key(radio(el, 'Table', 'Grid'), 'ArrowDown');
     expect(focused(el)).toBe('Rows');
+    radio(el, 'Graph', 'Tree').focus();
+    key(radio(el, 'Graph', 'Tree'), 'ArrowRight');
+    expect(focused(el)).toBe('Indented');
     expect(sent).toEqual([
       { ...DEFAULT_SETTINGS, iconStyle: 'colorful' },
       { ...DEFAULT_SETTINGS, tableStyle: 'rows' },
+      { ...DEFAULT_SETTINGS, graphLayout: 'indented' },
     ]);
   });
 

@@ -185,6 +185,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     appName,
     about: options.about ?? [],
     tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
+    layoutGraph: (layout) => graph.setLayout(layout),
   });
   stops.push(() => popovers.dispose());
 
@@ -686,6 +687,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     selected: later,
   });
   stops.push(() => graph.dispose());
+  // Drawn in the layout Settings names from the start; a change of it is told through layoutGraph.
+  graph.setLayout(popovers.graphLayout());
 
   // --- The parts' requests -----------------------------------------------------------------------
 
