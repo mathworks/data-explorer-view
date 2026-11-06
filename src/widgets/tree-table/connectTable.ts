@@ -259,9 +259,10 @@ export interface TableHandleEventMap {
   painted: TableView;
   /**
    * The source's answer to open() was an error, which the table's error banner says (the detail
-   * is its message): no `painted` follows it. For an app that waits on a paint (the app shell's
-   * openAt, to select the entry a link names) to stop waiting. Not for a source closed while it
-   * was asked, which has nothing to show and no banner to say it in.
+   * is its message): no `painted` answers that open(), though a later `replaceAll` may still paint.
+   * For an app that waits on a paint (the app shell's openAt, to select the entry a link names) to
+   * stop waiting. Not for a source closed while it was asked, which has nothing to show and no
+   * banner to say it in.
    */
   failed: string;
   /**

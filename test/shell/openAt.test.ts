@@ -16,7 +16,7 @@
 // it says.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { portFromMessagePort } from '../../src/model/source/ports.js';
 import { serveFolder, type FolderReads } from '../../src/serve/index.js';
 import {
@@ -57,6 +57,9 @@ vi.mock('../../src/model/source/workspace.js', async (importOriginal) => {
     },
   };
 });
+
+// A test that fails before its open leaves no gate for the next one's document.
+afterEach(() => void (late.fail = null));
 
 const FILES = { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'ParamMat.mat': 'ParamMat.mat' };
 

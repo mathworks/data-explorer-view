@@ -98,3 +98,19 @@ export function rowOfEntry(rows: readonly TreeTableRow[], entry: string, section
   }
   return rows.find((r) => named(r) && isEntryRow(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === entry && !isSectionRowId(r.ID));
 }
+
+/**
+ * The entry a link to the row `rowId` names (Copy Link to Entry), so that openAt (rowOfEntry)
+ * selects that row again. A block in a subsystem goes by its key, `{ entry: '8' }`: core lists a
+ * model's blocks flat under its section, so the name it shows may be another block's too (a Gain in
+ * the root system, one in a subsystem), and a block nested under its subsystem's row would be named
+ * by the subsystem. That holds where the key selects the same row (no row is labelled with it).
+ * Any other row goes by entryOf: its entry's name, and its section's label where it has one.
+ */
+export function linkedEntryOf(rows: readonly TreeTableRow[], rowId: string): { entry: string; section?: string } | undefined {
+  const row = rowIn(rows, rowId);
+  const key = row?._blockKey;
+  const inSubsystem = !!row && (!!row._systemPath || !isEntryRow(row));
+  if (inSubsystem && typeof key === 'string' && key !== '' && rowOfEntry(rows, key)?.ID === rowId) return { entry: key };
+  return entryOf(rows, rowId);
+}

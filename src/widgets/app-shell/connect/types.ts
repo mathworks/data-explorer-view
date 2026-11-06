@@ -144,6 +144,13 @@ export interface ShellHost {
    * Absent: the path itself.
    */
   pathTitle?(path: string): string;
+  /**
+   * A link to the entry `target` names (the desktop app's `data-explorer://open?…`), for Copy Link
+   * to Entry on a document's row menu: the shell puts it on the clipboard (copyText) and says "Link
+   * copied". Read at each menu. '' copies nothing. Absent: no such item (a browser page and the
+   * VS Code extension show none).
+   */
+  entryLink?(target: ShellEntryTarget): string;
 }
 
 /** How connectShell builds the app. */
@@ -193,6 +200,13 @@ export interface OpenAtTarget {
   /** The entry to select: its Name as the table shows it (`Kp`), or a block's key. Absent or '': none; the file opens as openPaths opens it. */
   entry?: string;
   /** The label of the section the entry is in, as its row in the table reads (`Design Data`, `Model Workspace`). Absent or '': any. */
+  section?: string;
+}
+
+/** An entry of a file, as a link names it: the file's path, the entry's name, and its section's label where it has one. */
+export interface ShellEntryTarget {
+  path: string;
+  entry: string;
   section?: string;
 }
 

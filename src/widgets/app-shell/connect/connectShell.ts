@@ -37,12 +37,14 @@ import type { LogLevel } from '../modules/dex-log-panel.js';
 import {
   clearSelection,
   connectDocument,
+  copyText,
   docTabOf,
   newTable,
   openingNote,
   repaintProjects,
   showProject,
   statusOf,
+  COPY_ENTRY_LINK,
   SHOW_IN_GRAPH,
   type OpenTab,
 } from './documents.js';
@@ -61,7 +63,7 @@ import { connectModules } from './modules.js';
 import { PaneRows, keepSplit, keptSplit, slotPanels } from './panes.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
-import { rowIn, rowOfEntry, sectionOf } from './rows.js';
+import { linkedEntryOf, rowIn, rowOfEntry, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions, shellPrompts } from './questions.js';
@@ -593,9 +595,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           const note = ranNote(run);
           if (note) say('info', note, 2000);
         }),
-        // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box)
-        // brought forward, and the keyboard kept as Show Graph's is (showRootFrom).
+        // Copy Link to Entry: the host's link to the entry the row is in, on the clipboard. Show in
+        // Graph: Root, what the row stands for (its item, the file it names, the file's box) brought
+        // forward, and the keyboard kept as Show Graph's is (showRootFrom).
         handle.on('action', ({ actionId, rowId }) => {
+          if (actionId === COPY_ENTRY_LINK.id) return void copyEntryLink(tab, rowId);
           if (actionId !== SHOW_IN_GRAPH.id) return;
           showRootFrom(tab.panel, showRoot, rootTakesTheKeyboard);
           graph.showRow(uri, tab.table?.rows ?? [], rowId);
@@ -659,8 +663,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The rows of `tab`'s table once its first whole paint is in: at once for a table painted
   // already, else at its first `painted`. Null for a tab with no table connected (a project's page,
   // a file that could not be read, whose banner says why), for a table whose source could not open
-  // its file (`failed`: no paint follows, and the banner says why), and for a tab closed, before or
-  // while it waits: its close runs its stops, this one among them.
+  // its file (`failed`: no paint answers that open, and the banner says why), and for a tab closed,
+  // before or while it waits: its close runs its stops, this one among them.
   function paintedRows(tab: OpenTab): Promise<readonly TreeTableRow[] | null> {
     const handle = tab.handle;
     if (!isOpen(tab) || !handle) return Promise.resolve(null);
@@ -682,6 +686,23 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       const stop = (): void => done(null);
       tab.stops.push(stop);
     });
+  }
+
+  // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
+  // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
+  // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
+  // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
+  async function copyEntryLink(tab: OpenTab, rowId: string | null): Promise<void> {
+    const at = rowId === null ? undefined : linkedEntryOf(tab.table?.rows ?? [], rowId);
+    if (!at) return;
+    try {
+      const link = host.entryLink?.({ path: tab.path, entry: at.entry, ...(at.section ? { section: at.section } : {}) });
+      if (typeof link !== 'string' || link === '') return;
+      await copyText(host, link);
+      say('info', 'Link copied', 2000);
+    } catch (err) {
+      say('error', `Could not copy the link: ${message(err)}`);
+    }
   }
 
   // A link into another file: open it (or go to its tab) and select the row it names. `uri` is
