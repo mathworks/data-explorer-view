@@ -75,10 +75,11 @@ function eventsOf(file: string): ModuleEvents {
 
 const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((file) => [file, eventsOf(file)] as const);
 
-// connectShell's internal parts (the documents' area, the folder) are drawn by no page of their
-// own, and one of them sends a part's event for the part: the welcome's Open File… asks what the
-// toolbar's Open asks, with `dex-toolbar-action`. Such an event is declared once, by the part, so
-// a module there may dispatch an event another module declares, with that module's detail.
+// connectShell and its internal parts (the documents' area, the folder) send a part's event for the
+// part: the welcome's Open File… asks what the toolbar's Open asks, with `dex-toolbar-action`, and
+// a table's selection is cleared with the table's own `dex-row-selected` (connect/documents.ts). Such an event is declared
+// once, by the part, so a module there may dispatch an event another module declares, with that
+// module's detail.
 const RESENDS = 'src/widgets/app-shell/connect/';
 const resent = (file: string, m: ModuleEvents): string[] =>
   file.startsWith(RESENDS) ? [...m.dispatched.keys()].filter((name) => !m.declared.has(name)) : [];
@@ -111,8 +112,12 @@ describe('every dispatched event is declared, in its own module, with its detail
   it("lets connectShell's internal parts send a part's event only as the part declares it", () => {
     const declared = new Map(MODULES.flatMap(([, m]) => [...m.declared]));
     const sent = MODULES.flatMap(([file, m]) => resent(file, m).flatMap((name) => m.dispatched.get(name)!.map((t) => [file, name, t] as const)));
-    // The welcome's buttons, which share one dispatch: a check that found none would pass for nothing.
-    expect(sent.map(([file, name]) => `${file} ${name}`)).toEqual(['src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action']);
+    // The welcome's buttons, which share one dispatch, and a table's selection cleared as a click
+    // on no row clears it: a check that found none would pass for nothing.
+    expect(sent.map(([file, name]) => `${file} ${name}`).sort()).toEqual([
+      'src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action',
+      'src/widgets/app-shell/connect/documents.ts dex-row-selected',
+    ]);
     for (const [, name, t] of sent) expect(declared.get(name), name).toBe(`CustomEvent<${t}>`);
   });
 

@@ -26,11 +26,13 @@ import { highContrastStyles } from '../../shared/high-contrast.styles.js';
  */
 export class DexShellFolder extends LitElement {
   static override styles = [hiddenStyles, buttonFocusRingStyles, highContrastStyles, css`
+    /* Under the open files, and the rest of the side below them; never less than 40% of it, so a
+       long list of open files does not squeeze the folder out (the side scrolls instead). */
     :host {
       display: flex;
       flex-direction: column;
       flex: 1 1 0;
-      min-height: 0;
+      min-height: 40%;
       border-top: 1px solid var(--dex-border-color-light, #e0e0e0);
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: var(--dex-font-size, 13px);

@@ -7,12 +7,14 @@
 // a native menu, which owns the File and Edit chords and fires them itself, only those it cannot
 // have are answered here. Each chord answered is spent (preventDefault), so the browser does not
 // also print, or open its own Open dialog.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
+import { at, dirtyTabs, docTabs, edit, open, settingsPanel, startPage, tabIdOf, tabNames, tableOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const stop of stops.splice(0)) stop();
   document.body.replaceChildren();
   Reflect.deleteProperty(navigator, 'platform');
@@ -141,5 +143,53 @@ describe('the shell answers its chords', () => {
     stop();
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
     expect(ran).toEqual([]);
+  });
+});
+
+describe('the chords, connected', () => {
+  const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
+  const ctrl = (key: string, more: KeyboardEventInit = {}) => press({ key, ctrlKey: true, ...more });
+
+  it('save, close, cycle the tabs, focus the filter and open files, as the toolbar and a menu would', async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    await edit('ParamMat.mat', 'ParamMat', '[1 2 3; 4 5 7]');
+    await until(() => dirtyTabs().length === 1);
+    expect(ctrl('s')).toBe(true);
+    await until(() => dirtyTabs().length === 0);
+    ctrl('Tab');
+    await until(() => docTabs().active === tabIdOf('params.sldd'));
+    const focus = vi.spyOn(tableOf('params.sldd')!, 'focusFilter');
+    ctrl('f');
+    await until(() => focus.mock.calls.length === 1);
+    ctrl('w');
+    await until(() => tabNames().join() === 'ParamMat.mat');
+    page.main.picks.push([at('params.sldd')]);
+    ctrl('o');
+    await until(() => tabNames().join() === 'ParamMat.mat,params.sldd');
+  });
+
+  it("Settings opens and closes once a press, though its chord is the shell's action's too", async () => {
+    onPlatform('Win32');
+    const page = startPage();
+    await until(() => !!page.shell.shadowRoot?.querySelector('button[data-action="settings"]'));
+    ctrl(',');
+    expect(settingsPanel().open).toBe(true);
+    ctrl(',');
+    expect(settingsPanel().open).toBe(false);
+  });
+
+  it('with a native menu, leaves Save to the menu, which sends it through the handle', async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES, { nativeMenu: true });
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    expect(ctrl('s')).toBe(false);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dirtyTabs()).toEqual(['params.sldd']);
+    page.command('save');
+    await until(() => dirtyTabs().length === 0);
   });
 });
