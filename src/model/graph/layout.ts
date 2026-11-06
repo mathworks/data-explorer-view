@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // Where the relationship graph is drawn: a rectangle for each box and each item it shows, and an
-// orthogonal route for each edge whose ends show. A port of the prototype's BipartiteLayout, which the
-// look of the graph (graph-expanded.png, legend-expanded.png) comes from.
+// orthogonal route for each edge whose ends show. A port of the prototype's two-column layout, which
+// the look of the graph comes from.
 //
 // TWO COLUMNS. The models on the left, as trees of their model references: what a model
 // references in the row under it, side by side, the model centred over them. The dictionaries on
@@ -13,21 +13,21 @@
 // one line; a block reading its own model's workspace (ws-usage) is routed inside the model's box,
 // on the right of its items.
 //
-// WHAT CHANGED FROM ts, and why each is a change rather than a port:
+// WHAT CHANGED FROM THE PROTOTYPE, and why each is a change rather than a port:
 //
-//   - A row is as tall as the tallest box in it. ts put every row a closed box's height below the
-//     last, so a model opened onto its blocks covered the models it references (graph-expanded.png
-//     shows them under it). No box covers another here, which the tests check over generated graphs.
+//   - A row is as tall as the tallest box in it. The prototype put every row a closed box's height
+//     below the last, so a model opened onto its blocks covered the models it references. No box
+//     covers another here, which the tests check over generated graphs.
 //   - A box is as wide as its label and ALL its items need, open or closed, so opening a box never
-//     moves the boxes beside it sideways. ts sized a box by what it showed.
+//     moves the boxes beside it sideways. The prototype sized a box by what it showed.
 //   - An item is as wide as its box allows, not as its name: the items line up, and the lane a
 //     workspace edge takes on their right is inside the box whatever the names.
 //   - A route is a list of corner points rather than SVG path text, so a widget draws it as it
-//     likes (the graph widget rounds the corners, as ts's quadratic curves did) and a test can check
+//     likes (the graph widget rounds the corners, as the prototype's curves did) and a test can check
 //     that it is orthogonal and that it starts and ends on the boxes it joins.
 //   - A cycle or a file two files reference is drawn once, under the first referrer to reach it, as
-//     ts did; an edge back up the tree or across one row is routed out of the rows rather than
-//     through the boxes, which ts's did not try to do.
+//     the prototype did; an edge back up the tree or across one row is routed out of the rows rather
+//     than through the boxes, which the prototype's did not try to do.
 //
 // Widths are estimated from the number of characters, not measured: the model has no DOM to
 // measure text with, and the widget draws names with an ellipsis where an estimate was short.
@@ -142,10 +142,10 @@ function boxHeight(items: readonly GraphItem[]): number {
 }
 
 /**
- * The items that show, as ts showed them: all of an open box's, and of any other box those a usage
- * edge joins to an item of an open box. So a model opened onto its blocks shows, in each data file
- * they read, the variables they read and no others (graph-expanded.png: VehicleParams.sldd shows
- * IdleSpeed and MaxSpeed), and a dictionary opened shows, in each model, the blocks that read it.
+ * The items that show, as the prototype showed them: all of an open box's, and of any other box those
+ * a usage edge joins to an item of an open box. So a model opened onto its blocks shows, in each data
+ * file they read, the variables they read and no others, and a dictionary opened shows, in each
+ * model, the blocks that read it.
  * Every item showing, as every box once did, is the picture that struck usage edges through other
  * boxes' items; a closed graph is files and their links alone.
  */
@@ -169,8 +169,8 @@ function shownItems(graph: RelationshipGraph, expanded: ReadonlySet<string>): Se
 
 /**
  * Where each node of one column's tree goes: its slot (in box widths, fractional for a node centred
- * over its children) and its depth (its row). ts's tree layout, kept as it was: the roots are the
- * nodes nothing references, in order (the first node when every node is referenced, in a cycle);
+ * over its children) and its depth (its row). The prototype's tree layout, kept as it was: the
+ * roots are the nodes nothing references, in order (the first node when every node is referenced, in a cycle);
  * a depth-first walk gives each leaf the next slot and each other node the middle of its children's;
  * a node is placed once, under the first node to reach it, and a node no root reaches starts a
  * tree of its own.
@@ -395,7 +395,7 @@ interface RouteContext {
 }
 
 /**
- * The routes, in the order given. Each kind as ts routed it:
+ * The routes, in the order given. Each kind as the prototype routed it:
  *
  *   - a reference (model-ref, sldd-ref) leaves the bottom middle of the referrer and reaches the top
  *     middle of what it references, turning in the gap over the target's row; one back up the tree
@@ -443,7 +443,8 @@ function routeEdges(edges: readonly GraphEdge[], at: RouteContext): EdgeLayout[]
   };
   const fromPorts = ports('from');
   const toPorts = ports('to');
-  // ts's stagger of the links whose boxes start on one row, so their level runs do not coincide.
+  // The prototype's stagger of the links whose boxes start on one row, so their level runs do not
+  // coincide.
   const rowOf = (side: 'from' | 'to') => (id: string) => String(Math.round(rect(byId.get(id)![side]).y));
   const fromRow = staggerBy(links.map((e) => e.id), rowOf('from'), () => 4);
   const toRow = staggerBy(links.map((e) => e.id), rowOf('to'), () => 4);

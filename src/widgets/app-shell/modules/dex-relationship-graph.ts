@@ -58,7 +58,7 @@ export interface GraphExpandDetail {
   expanded: boolean;
 }
 
-// The view's bounds, and how far each step moves it: ts's numbers.
+// The view's bounds, and how far each step moves it: the prototype's numbers.
 const MIN_SCALE = 0.3;
 // The least a fit shrinks to: below it a box's 11px label is under 7px and no longer reads. A graph
 // bigger than the canvas at this scale shows its top left, and the user pans to the rest.
@@ -66,7 +66,7 @@ const FIT_MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
 const BUTTON_STEP = 0.2;
 // The wheel zooms by a factor of how far it scrolled, e^(-rate * pixels): a wheel's notch of about
-// 100 pixels is ts's step, and a trackpad's stream of small deltas zooms as smoothly. A wheel that
+// 100 pixels is the prototype's step, and a trackpad's stream of small deltas zooms as smoothly. A wheel that
 // counts in lines is taken at 16 pixels a line.
 const WHEEL_RATE = 0.0015;
 const LINE_PIXELS = 16;
@@ -103,7 +103,7 @@ interface Reach {
   edges: Set<string>;
 }
 
-/** A route as SVG path data, its turns rounded as ts's quadratic curves rounded them. */
+/** A route as SVG path data, its turns rounded as the prototype's curves rounded them. */
 function pathOf(points: readonly GraphPoint[]): string {
   const n = (v: number): string => String(Math.round(v * 100) / 100);
   let d = `M${n(points[0]!.x)},${n(points[0]!.y)}`;

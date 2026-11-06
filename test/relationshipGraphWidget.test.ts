@@ -2,9 +2,8 @@
 // @vitest-environment happy-dom
 //
 // <dex-relationship-graph>: the app shell's graph of how the open models, dictionaries and
-// MAT-files connect, as the prototype's relationship graph draws it (graph-expanded.png,
-// legend-expanded.png). What it draws comes from the model (relationshipGraph.ts builds the graph,
-// layout.ts places it), so what is pinned here is the widget's half: that it draws what the layout
+// MAT-files connect, as the prototype's relationship graph draws it. What it draws comes from the
+// model (relationshipGraph.ts builds the graph, layout.ts places it), so what is pinned here is the widget's half: that it draws what the layout
 // placed, that a click highlights what the clicked thing reaches and says so, that a double-click
 // and Enter ask to open, that a box's toggle asks to show or hide its items and changes nothing
 // itself, and that zoom, pan, fit and reveal move the view. Over the caserefs fixture's real graph:
@@ -127,15 +126,15 @@ describe('what it draws', () => {
     expect(boxEl(el, idOf('chained.sldd')).querySelector('dex-icon')!.iconId).toBe('simulink_database');
   });
 
-  it('opens no box at first, as ts, and then the boxes `expanded` names, with what they reach in the others', async () => {
-    // Closed, a graph is its files and the links between them (relationship-graph-root.png).
+  it('opens no box at first, as the prototype, and then the boxes `expanded` names, with what they reach in the others', async () => {
+    // Closed, a graph is its files and the links between them.
     const el = await graph();
     expect(el.expanded).toEqual([]);
     expect(sr(el).querySelectorAll('.item')).toHaveLength(0);
     expect(sr(el).querySelectorAll('.box.open')).toHaveLength(0);
     const shown = () => [...sr(el).querySelectorAll<HTMLElement>('.item')].map((i) => i.dataset.id);
     // The model open: its blocks, and in each data file only the variable they read, the data
-    // files staying closed (graph-expanded.png).
+    // files staying closed.
     el.expanded = [idOf('caseRefs.slx')];
     await el.updateComplete;
     expect(shown()).toHaveLength(8);
@@ -680,7 +679,7 @@ describe('the legend', () => {
 
 describe('contrast, in every theme', () => {
   // WCAG 2's contrast ratio. A line or a box's border is a graphical object, 3:1 against what it
-  // is drawn on; a label is text, 4.5:1. The light set's first values (ts's muted palette) were
+  // is drawn on; a label is text, 4.5:1. The light set's first values (the prototype's muted palette) were
   // 1.9 to 2.9 against the canvas, and the dark set's ghost label was 3.9 on a dark box.
   const channel = (v: number): number => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
   const luminance = (hex: string): number => {

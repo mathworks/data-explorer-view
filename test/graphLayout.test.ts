@@ -1,13 +1,13 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // Where the relationship graph's boxes, items and edges are drawn (src/model/graph/layout.ts), a
-// port of the prototype's BipartiteLayout: models on the left as a tree of their references,
+// port of the prototype's two-column layout: models on the left as a tree of their references,
 // dictionaries on the right as a tree of theirs, MAT-files under them, and orthogonal edges through
 // the gap between the two.
 //
 // What is pinned is what a reader relies on, as invariants rather than pixels: no box over another
-// (ts placed rows by a collapsed box's height, so an open box covered the row under it, which
-// graph-expanded.png shows), every item inside its box and clear of the others, every edge starting
+// (the prototype placed rows by a collapsed box's height, so an open box covered the row under it),
+// every item inside its box and clear of the others, every edge starting
 // on the thing it leaves and ending on the thing it reaches, every segment horizontal or vertical,
 // and the same graph laid out the same way twice. They are checked over the fixtures' graphs and
 // over generated ones big enough to have every shape: reference trees with shared children and
@@ -47,7 +47,7 @@ const onBoundary = (p: { x: number; y: number }, r: GraphRect): boolean =>
   ((Math.abs(p.y - r.y) < EPS || Math.abs(p.y - bottom(r)) < EPS) && between(p.x, r.x, right(r)));
 
 /**
- * The items each box shows, as ts showed them: every item of an open box; of any other box, those a
+ * The items each box shows, as the prototype showed them: every item of an open box; of any other box, those a
  * usage edge joins to an item of an open box (a dictionary shows the variables an open model's
  * blocks read, and a model the blocks that read an open dictionary's variables).
  */
@@ -147,8 +147,7 @@ describe('the fixtures', () => {
     expect(kinds(open).filter((k) => k === 'param-usage')).toHaveLength(4);
     expect(kinds(closed).filter((k) => k === 'param-usage')).toHaveLength(0);
     // The model open and the data files closed: its blocks show, and in each data file the
-    // variables they read (graph-expanded.png's VehicleParams.sldd shows only IdleSpeed and
-    // MaxSpeed), so every usage edge out of the model is drawn.
+    // variables they read and no others, so every usage edge out of the model is drawn.
     const one = layoutGraph(g, new Set([model]));
     expect(one.boxes.map((b) => b.items.length)).toEqual([4, 1, 1, 1, 1]);
     expect(kinds(one).filter((k) => k === 'param-usage')).toHaveLength(4);
@@ -278,7 +277,7 @@ describe('the reference trees', () => {
     expect(r.get('B')!.y).toBeGreaterThan(bottom(r.get('A')!));
     expect(r.get('D')!.y).toBeGreaterThan(bottom(r.get('B')!));
     expect(right(r.get('B')!)).toBeLessThan(r.get('C')!.x);
-    // Centred over its children, as ts did.
+    // Centred over its children, as the prototype did.
     const mid = (b: GraphRect) => b.x + b.width / 2;
     expect(mid(r.get('A')!)).toBeCloseTo((mid(r.get('B')!) + mid(r.get('C')!)) / 2, 6);
   });
@@ -297,7 +296,7 @@ describe('the reference trees', () => {
   });
 
   it('gives an open box the row it needs, so the row under it starts below it', () => {
-    // ts placed rows at a closed box's height, and an open box covered the row under it.
+    // The prototype placed rows at a closed box's height, and an open box covered the row under it.
     const g = tree('model', [['A', 'B']], ['A', 'B']);
     g.boxes[0]!.items = Array.from({ length: 6 }, (_, i) => ({ id: `A${i}`, boxId: 'A', name: `b${i}`, revealName: `${i}`, iconId: 'block', group: 'data' as const }));
     const r = new Map(layoutGraph(g, new Set(['A'])).boxes.map((b) => [b.id, b]));
@@ -377,7 +376,7 @@ describe('generated graphs', () => {
   });
 
   it('meets cycles, shared children and ghosts among them', () => {
-    // So the invariants above are known to have been checked over the shapes that broke ts.
+    // So the invariants above are known to have been checked over the shapes that broke the prototype.
     const shapes = { cycle: 0, shared: 0, ghost: 0, workspace: 0 };
     for (const seed of seeds) {
       const g = generated(seed);
