@@ -69,15 +69,15 @@ interface FileGroup {
 }
 
 /**
- * Where a result is inside its file: its description, less the file's name, which the file's
- * heading already says. So a block reads its path through the model and anything else reads
- * nothing more. A description that does not end on the file's name (an app's own) is kept whole.
+ * Where a result is inside its file, beyond the file's name its heading already says: a block's
+ * path through the model, when it adds something to the name (searchItem's rule for the
+ * description), and nothing for any other entry. Read from the record, not cut out of the
+ * description, whose words are the app's to choose and whose separator a file's name may hold;
+ * the description stays whole in the row's tooltip.
  */
 function whereInFile(item: SearchItem): string {
-  const file = item.entry.sourceLabel;
-  if (item.description === file) return '';
-  const suffix = ` · ${file}`;
-  return item.description.endsWith(suffix) ? item.description.slice(0, -suffix.length) : item.description;
+  const path = item.entry.blockPath ?? '';
+  return path && path !== item.entry.name ? path : '';
 }
 
 /**
@@ -89,10 +89,11 @@ function whereInFile(item: SearchItem): string {
  *
  * The focus stays in the box: Down and Up move the active result through the rows as drawn,
  * stopping at the ends, and the results are a listbox the box names its active row of. Each new
- * `results` makes the first row the active one. Escape empties the box and asks for the empty
- * query at once; on an empty box it is the page's. A count says how many results there are, and
- * when the list stopped at its cap (MAX_SEARCH_RESULTS); "No matches" when a query has none, and
- * "Searching…" while `searching`.
+ * `results` makes the first row the active one, scrolled into view. Enter opens nothing while
+ * `searching`, nor before the pause (it asks at once instead). Escape empties the box and asks
+ * for the empty query at once; on an empty box it is the page's. A count says how many results
+ * there are, and when the list stopped at its cap (MAX_SEARCH_RESULTS); "No matches" when a query
+ * has none, and "Searching…" while `searching`.
  *
  * @tagname dex-search-panel
  */
@@ -314,7 +315,9 @@ export class DexSearchPanel extends LitElement {
     if (changed.has('results')) {
       this._group();
       // The best match first, as a combobox's list opens: Enter straight after typing takes it.
+      // And in view: the list may still be scrolled to where the arrows took the last results.
       this._active = this._rows.length > 0 ? 0 : -1;
+      this._reveal = this._active === 0;
     }
   }
 
@@ -417,6 +420,12 @@ export class DexSearchPanel extends LitElement {
           this._ask(this.query);
           return;
         }
+        // The app is still working out this query's results: the rows drawn are the last ones,
+        // for the same reason. The key is kept, so it does nothing else either.
+        if (this.searching) {
+          e.preventDefault();
+          return;
+        }
         if (shown === 0 || this._active < 0) return;
         e.preventDefault();
         this._open(this._active);
@@ -464,7 +473,6 @@ export class DexSearchPanel extends LitElement {
         id=${optionId(index)}
         aria-selected=${index === this._active ? 'true' : 'false'}
         title=${item.description}
-        @mousedown=${(e: MouseEvent) => e.preventDefault()}
         @click=${() => this._open(index)}
       >
         <dex-icon .iconId=${item.iconId} size="16"></dex-icon>
@@ -475,8 +483,9 @@ export class DexSearchPanel extends LitElement {
   }
 
   override render() {
-    // A press on a row keeps the focus in the box (mousedown, above), so the arrows go on from
-    // the row clicked; the rows are not focusable themselves.
+    // A press anywhere in the list keeps the focus in the box (its mousedown), on a row, a file's
+    // heading or the space under the last row, so the arrows go on from the row clicked; nothing
+    // in the list is focusable, the list included (Chromium makes a scrolling box a Tab stop).
     const groups = this._searchingFor() ? this._groups : [];
     const active = groups.length > 0 && this._active >= 0 ? optionId(this._active) : undefined;
     return html`
@@ -500,7 +509,15 @@ export class DexSearchPanel extends LitElement {
         ${this.scope ? html`<div class="scope">${this.scope}</div>` : nothing}
       </div>
       <div class="status" role="status">${this._status()}</div>
-      <div class="results" id=${LIST_ID} role="listbox" aria-label="Search results" aria-busy=${this.searching ? 'true' : 'false'}>
+      <div
+        class="results"
+        id=${LIST_ID}
+        role="listbox"
+        aria-label="Search results"
+        aria-busy=${this.searching ? 'true' : 'false'}
+        tabindex="-1"
+        @mousedown=${(e: MouseEvent) => e.preventDefault()}
+      >
         ${groups.map(
           (group) => html`
             <div role="group" aria-label=${group.label}>

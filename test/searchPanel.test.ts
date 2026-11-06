@@ -230,6 +230,22 @@ describe('dex-search-panel: the results', () => {
     expect(groups(el).map((g) => g.querySelector<HTMLElement>('.file')!.title)).toEqual(['file:///a/params.sldd', 'file:///b/params.sldd']);
   });
 
+  // From the record's path, not from the description's words: an app may describe an item its own
+  // way, and a file's name may hold the separator the description joins with.
+  it("reads a block's place in its file from its path, whatever its description says", async () => {
+    const gain = searchItem(block('Gain', '7', 'Controller/Gain'));
+    const el = await panel({
+      query: 'g',
+      results: [
+        { ...gain, description: 'in the controller' },
+        searchItem({ ...dict('Gauge'), sourceLabel: 'a · b.sldd' }),
+        { ...searchItem(dict('Grid')), description: 'Design Data · params.sldd' },
+      ],
+    });
+    expect(options(el).map(rowText)).toEqual(['Gain | Controller/Gain', 'Gauge', 'Grid']);
+    expect(options(el)[0]!.title).toBe('in the controller');
+  });
+
   it("draws each row's icon, and its whole description as its tooltip", async () => {
     const el = await panel({ query: 'k', results: RESULTS });
     const icons = options(el).map((row) => (row.querySelector('dex-icon') as unknown as { iconId: string }).iconId);
@@ -348,21 +364,48 @@ describe('dex-search-panel: picking a result', () => {
     expect(input(el).getAttribute('aria-activedescendant')).toBe(options(el)[5]!.id);
   });
 
-  it('keeps the focus in the box when a row is pressed', async () => {
+  // Anywhere in the list, not only on a row: a press on a file's heading or on the space under the
+  // last row would otherwise take the focus out of the box, and the arrows with it.
+  it('keeps the focus in the box when the list is pressed, on a row, a heading or empty space', async () => {
     const el = await panel({ query: 'k', results: RESULTS });
-    const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
-    options(el)[1]!.dispatchEvent(down);
-    expect(down.defaultPrevented).toBe(true);
+    const list = el.shadowRoot!.querySelector<HTMLElement>('[role="listbox"]')!;
+    for (const target of [options(el)[1]!, groups(el)[0]!.querySelector<HTMLElement>('.file')!, list]) {
+      const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(down);
+      expect(down.defaultPrevented, target.className || target.getAttribute('role')!).toBe(true);
+    }
   });
 
-  it('starts again from the first result when the results change', async () => {
+  // Chromium makes a scrolling box a Tab stop of its own; the list's keyboard is the box's.
+  it('is no Tab stop of its own', async () => {
+    const el = await panel({ query: 'k', results: RESULTS });
+    expect(el.shadowRoot!.querySelector('[role="listbox"]')!.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('starts again from the first result when the results change, scrolled into view', async () => {
     const el = await panel({ query: 'k', results: RESULTS });
     key(el, 'ArrowDown');
     key(el, 'ArrowDown');
+    await el.updateComplete;
+    const scrolled = vi.spyOn(HTMLElement.prototype, 'scrollIntoView');
+    onTestFinished(() => scrolled.mockRestore());
     el.results = RESULTS.slice(3);
     await el.updateComplete;
     expect(active(el)).toBe('Kp');
     expect(options(el)[0]!.getAttribute('aria-selected')).toBe('true');
+    // The list was scrolled down to the third row; the first is where it has to be seen again.
+    expect(scrolled.mock.contexts).toEqual([options(el)[0]]);
+  });
+
+  it('opens nothing on Enter while the app is still searching, and keeps the key', async () => {
+    const el = await panel({ query: 'k', results: RESULTS, searching: true });
+    const opened = heard(el, 'dex-search-open');
+    expect(key(el, 'Enter').defaultPrevented).toBe(true);
+    expect(opened).toEqual([]);
+    el.searching = false;
+    await el.updateComplete;
+    key(el, 'Enter');
+    expect(opened).toEqual([{ sourceUri: 'file:///w/ctrl.slx', revealName: '7' }]);
   });
 
   it('opens nothing on Enter with no results, and lets the arrows be', async () => {

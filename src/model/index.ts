@@ -131,13 +131,15 @@ export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
 
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
-// blocks), read once over core's source cache, and what a search over them shows.
+// blocks), read once over core's source cache, an open document's, read off its table's rows, and
+// what a search over them shows.
 export { NameIndex } from './search/nameIndex.js';
 export type { NameIndexOptions } from './search/nameIndex.js';
 export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
 export type { EntryKind, NameRecord } from './search/nameExtract.js';
 export { namesOfFile } from './search/nameScan.js';
 export type { NameReader } from './search/nameScan.js';
+export { namesOfRows } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';
