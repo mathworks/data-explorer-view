@@ -13,11 +13,12 @@
 // a bare Event that keeps no dataTransfer), as in treeTableDragDrop.test.ts.
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
+  DexDocTabs,
   defineDocTabs,
-  type DexDocTabs,
   type DocTab,
   type DocTabsEventMap,
 } from '../src/widgets/app-shell/dex-doc-tabs.js';
+import { highContrastStyles } from '../src/widgets/shared/high-contrast.styles.js';
 
 beforeAll(() => defineDocTabs());
 afterEach(() => document.body.replaceChildren());
@@ -102,6 +103,23 @@ function drag(target: HTMLElement, type: string, dt: ReturnType<typeof transfer>
   return ev;
 }
 
+// WCAG's contrast ratio of two colours written #rgb, #rrggbb or rgb(r, g, b).
+function contrast(a: string, b: string): number {
+  const luminance = (colour: string): number => {
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour)?.[1];
+    const parts = hex
+      ? (hex.length === 3 ? [...hex].map((h) => h + h) : hex.match(/../g)!).map((h) => parseInt(h, 16))
+      : colour.match(/\d+/g)!.slice(0, 3).map(Number);
+    const [r, g, bl] = parts.map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
 describe('the tabs', () => {
   it('draws one tab per item, in order, with its label and its 14px icon, in a tablist', async () => {
     const el = await mount();
@@ -162,6 +180,43 @@ describe('the tabs', () => {
     const clean = tabOf(el, 'a');
     expect(clean.querySelector('.close .dot')).toBeNull();
     expect(clean.getAttribute('aria-label')).toBe('a.sldd');
+  });
+
+  it('brings the × back over the dot for the pointer and the keyboard, and not for the focus a click leaves', () => {
+    // A click focuses the tab: under :focus the dot stayed hidden after the pointer had gone, and an
+    // unsaved tab looked saved. happy-dom matches neither :hover nor :focus in a shadow root, so the
+    // selectors are what is pinned.
+    const css = [DexDocTabs.styles]
+      .flat(Infinity)
+      .map((sheet) => (sheet as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, ''))
+      .join('\n');
+    const dirty = css.match(/[^{}]*\.dirty[^{}]*\{[^}]*\}/g)!.join('\n');
+    expect(dirty).toContain('.dirty:hover .dot');
+    expect(dirty).toContain('.dirty:focus-visible .dot');
+    expect(dirty).toContain('.dirty:focus-visible .x');
+    expect(dirty).not.toMatch(/:focus(?!-visible)/);
+  });
+
+  it('draws the × in a grey that clears 3:1 on the bar and on a hovered tab, as a control must', async () => {
+    // It was the disabled grey (#999), at 2.6:1 on the bar: a control that looked unavailable.
+    const el = await mount();
+    const ink = getComputedStyle(closeOf(el, 'a')).color;
+    const bar = getComputedStyle(el.shadowRoot!.querySelector('.bar')!).backgroundColor;
+    expect(contrast(ink, bar)).toBeGreaterThanOrEqual(3);
+    expect(contrast(ink, '#e8e8e8')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('marks the active tab in forced colours too, correcting the shared high-contrast sheet after it', () => {
+    // That sheet borders every [tabindex] in ButtonText, which takes the active tab's accent line
+    // away, and puts its focus outline outside, where the scrolling strip clips it. happy-dom applies
+    // no media query, so the rules themselves are what is pinned.
+    const sheets = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' '));
+    const shared = sheets.indexOf(highContrastStyles.cssText.replace(/\s+/g, ' '));
+    const own = sheets.findIndex((css) => css.includes('@media (forced-colors: active)') && css.includes('.tab.active'));
+    expect(shared).toBeGreaterThanOrEqual(0);
+    expect(own).toBeGreaterThan(shared);
+    expect(sheets[own]).toContain('.tab.active { border-bottom: 2px solid Highlight !important; }');
+    expect(sheets[own]).toContain("[role='tab']:focus-visible, [role='menuitem']:focus-visible { outline-offset: -2px !important; }");
   });
 
   it('says "preview" to a screen reader, which cannot see the italic', async () => {
@@ -244,7 +299,8 @@ describe('the keyboard', () => {
     expect(el.active).toBe('a');
   });
 
-  it('asks for the focused tab on Enter and on Space, and to close it on Delete', async () => {
+  it('asks for the focused tab on Enter and on Space, and to close it on Delete or Backspace', async () => {
+    // Backspace is the key a Mac laptop marks delete; it has no Delete key without fn.
     const el = await mount();
     const { select, close } = listen();
     tabOf(el, 'b').focus();
@@ -252,10 +308,16 @@ describe('the keyboard', () => {
     const space = key(tabOf(el, 'b'), ' ');
     expect(space.defaultPrevented).toBe(true);
     key(tabOf(el, 'b'), 'Delete');
+    expect(key(tabOf(el, 'b'), 'Backspace').defaultPrevented).toBe(true);
     expect(select).toEqual([{ id: 'b' }, { id: 'b' }]);
-    expect(close).toEqual([{ id: 'b' }]);
+    expect(close).toEqual([{ id: 'b' }, { id: 'b' }]);
     const other = key(tabOf(el, 'b'), 'x');
     expect(other.defaultPrevented).toBe(false);
+  });
+
+  it('tells a screen reader that Delete closes a tab, since its × cannot be reached', async () => {
+    const el = await mount();
+    expect(tabEls(el).map((t) => t.getAttribute('aria-keyshortcuts'))).toEqual(['Delete', 'Delete', 'Delete']);
   });
 
   it('gives the focus to the tab now in its place once the app closes the focused tab', async () => {
@@ -478,18 +540,22 @@ describe('drag to reorder', () => {
     // swallow it.
     const el = await mount();
     const { move } = listen();
-    for (const dt of [transfer({ Files: '' }), transfer({ 'application/x-dex-tab': 'a', Files: '' })]) {
-      const over = drag(tabOf(el, 'c'), 'dragover', dt);
-      expect(over.defaultPrevented).toBe(false);
-      const drop = drag(tabOf(el, 'c'), 'drop', dt);
-      expect(drop.defaultPrevented).toBe(false);
-    }
+    const fromDesktop = transfer({ Files: '' });
+    expect(drag(tabOf(el, 'c'), 'dragover', fromDesktop).defaultPrevented).toBe(false);
+    expect(drag(tabOf(el, 'c'), 'drop', fromDesktop).defaultPrevented).toBe(false);
+    // The row's own tab drag, should it come to carry files as well.
+    const both = transfer({ Files: '' });
+    drag(tabOf(el, 'a'), 'dragstart', both);
+    expect(both.types).toEqual(['Files', 'application/x-dex-tab']);
+    expect(drag(tabOf(el, 'c'), 'dragover', both).defaultPrevented).toBe(false);
+    expect(drag(tabOf(el, 'c'), 'drop', both).defaultPrevented).toBe(false);
+    drag(tabOf(el, 'a'), 'dragend', both);
     await el.updateComplete;
     expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(false);
     expect(move).toEqual([]);
   });
 
-  it('ignores a drag carrying no tab, a drop of a tab on itself, and a tab this row does not hold', async () => {
+  it('ignores a drag carrying no tab, and a drop of a tab on itself', async () => {
     const el = await mount();
     const { move } = listen();
     const text = transfer({ 'text/plain': 'a' });
@@ -497,8 +563,21 @@ describe('drag to reorder', () => {
     drag(tabOf(el, 'c'), 'drop', text);
     const self = transfer();
     drag(tabOf(el, 'b'), 'dragstart', self);
+    expect(drag(tabOf(el, 'b'), 'dragover', self).defaultPrevented).toBe(false);
     drag(tabOf(el, 'b'), 'drop', self);
-    drag(tabOf(el, 'c'), 'drop', transfer({ 'application/x-dex-tab': 'elsewhere' }));
+    drag(tabOf(el, 'b'), 'dragend', self);
+    expect(move).toEqual([]);
+  });
+
+  it("ignores a tab dragged from another row or window, even one naming a tab this row holds", async () => {
+    // Its id is the other row's: moving a tab of this row by it would move the wrong document.
+    const el = await mount();
+    const { move } = listen();
+    for (const id of ['a', 'elsewhere']) {
+      const other = transfer({ 'application/x-dex-tab': id });
+      expect(drag(tabOf(el, 'c'), 'dragover', other).defaultPrevented).toBe(false);
+      expect(drag(tabOf(el, 'c'), 'drop', other).defaultPrevented).toBe(false);
+    }
     expect(move).toEqual([]);
   });
 
@@ -511,6 +590,71 @@ describe('drag to reorder', () => {
     drag(tabOf(el, 'c'), 'dragleave', dt);
     await el.updateComplete;
     expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(false);
+  });
+});
+
+describe('taken out of the page', () => {
+  it('closes its menu and takes its listener off the document', async () => {
+    // The menu listens on the whole document while it is open; a row removed with it open would
+    // leave that listener holding the row for as long as the page lives.
+    const el = await mount();
+    await crowd(el);
+    const added = vi.spyOn(document, 'addEventListener');
+    const removed = vi.spyOn(document, 'removeEventListener');
+    try {
+      overflowButton(el)!.click();
+      await el.updateComplete;
+      const listener = added.mock.calls.find(([type, , capture]) => type === 'mousedown' && capture === true)?.[1];
+      expect(listener).toBeDefined();
+      el.remove();
+      expect(removed).toHaveBeenCalledWith('mousedown', listener, true);
+      document.body.append(el);
+      await el.updateComplete;
+      expect(menuItems(el)).toEqual([]);
+    } finally {
+      added.mockRestore();
+      removed.mockRestore();
+    }
+  });
+
+  it('stops watching its width, and watches it again once back', async () => {
+    const observers: { target: Element[]; disconnected: boolean; measure: () => void }[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private record: (typeof observers)[number];
+        constructor(callback: () => void) {
+          this.record = { target: [], disconnected: false, measure: callback };
+          observers.push(this.record);
+        }
+        observe(target: Element): void {
+          this.record.target.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {
+          this.record.disconnected = true;
+        }
+      },
+    );
+    try {
+      const el = await mount();
+      const bar = el.shadowRoot!.querySelector('.bar')!;
+      // The bar's width is the room the row has. The strip's changes as the … button comes and goes.
+      expect(observers.map((o) => o.target)).toEqual([[bar]]);
+      // A resize measures the row again.
+      Object.defineProperty(strip(el), 'scrollWidth', { configurable: true, value: 600 });
+      Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 200 });
+      observers[0]!.measure();
+      await el.updateComplete;
+      expect(overflowButton(el)).not.toBeNull();
+      el.remove();
+      expect(observers[0]!.disconnected).toBe(true);
+      document.body.append(el);
+      expect(observers.map((o) => o.target)).toEqual([[bar], [bar]]);
+      expect(observers[1]!.disconnected).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

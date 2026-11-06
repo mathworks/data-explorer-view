@@ -19,7 +19,7 @@ export interface DocTab {
   icon?: string;
   /** The tooltip: the file's whole path, say. The label when there is none. */
   title?: string;
-  /** Unsaved changes: ● in place of × until the pointer or the focus is on the tab. */
+  /** Unsaved changes: ● in place of × until the pointer or the keyboard is on the tab. */
   dirty?: boolean;
   /** A preview tab, which the next document opened replaces: its label is italic. */
   preview?: boolean;
@@ -40,7 +40,10 @@ export interface TabPinDetail {
   id: string;
 }
 
-/** What `dex-tab-move` carries: the tab dragged, and the index in `tabs` it should take. */
+/**
+ * What `dex-tab-move` carries: the tab dragged, and its index once moved, which is the index of the
+ * tab it was dropped on. Remove it from `tabs`, then insert it at `index`.
+ */
 export interface TabMoveDetail {
   id: string;
   index: number;
@@ -53,12 +56,12 @@ const TAB_TYPE = 'application/x-dex-tab';
 /**
  * The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`
  * marking the one shown. It draws them and asks for everything else: a click (or Enter or Space)
- * sends `dex-tab-select`, × (or a middle click, or Delete) `dex-tab-close`, a double-click
+ * sends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click
  * `dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what
  * order, and which is active stay the app's: nothing here changes `tabs` or `active`.
  *
  * A preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the
- * focus comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),
+ * keyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),
  * keeps the active tab in view, and offers a … button listing every tab. The arrow keys move the
  * focus along the tabs, and Home and End to either end.
  *
@@ -157,7 +160,9 @@ export class DexDocTabs extends LitElement {
       background: none;
       font-size: 14px;
       line-height: 1;
-      color: var(--dex-color-text-disabled, #999);
+      /* Muted, not the disabled grey: a control the user can press clears 3:1 on the bar and on a
+         hovered tab. */
+      color: var(--dex-color-text-muted, #666);
       cursor: pointer;
     }
 
@@ -173,18 +178,19 @@ export class DexDocTabs extends LitElement {
       color: var(--dex-color-modified, #b45309);
     }
 
-    /* An unsaved tab shows its dot until the pointer or the focus is on it, and then the × that
-       will close it. */
+    /* An unsaved tab shows its dot until the pointer or the keyboard is on it, and then the × that
+       will close it. :focus-visible, not :focus: a click focuses the tab too, and would leave the
+       dot hidden after the pointer has gone; hover already covers the pointer. */
     .dirty .x,
     .dirty:hover .dot,
-    .dirty:focus .dot,
-    .dirty .close:focus .dot {
+    .dirty:focus-visible .dot,
+    .dirty .close:focus-visible .dot {
       display: none;
     }
 
     .dirty:hover .x,
-    .dirty:focus .x,
-    .dirty .close:focus .x {
+    .dirty:focus-visible .x,
+    .dirty .close:focus-visible .x {
       display: inline;
     }
 
@@ -269,7 +275,27 @@ export class DexDocTabs extends LitElement {
       font-weight: 600;
       color: var(--dex-color-accent, #0078d4);
     }
-  `, highContrastStyles];
+
+    /* The accent is 4.5:1 on the menu's white, and less on the hover grey: the darker accent there. */
+    .item[aria-current='true']:hover {
+      color: var(--dex-color-accent-hover, #005a9e);
+    }
+  `, highContrastStyles, css`
+    /* After the shared high-contrast sheet, to correct two of its rules here. Its outward focus
+       outline would be clipped by the strip, which scrolls, so it goes inside; and its border on
+       every [tabindex] would take the active tab's mark away, so the mark is drawn again in the
+       system's Highlight. */
+    @media (forced-colors: active) {
+      [role='tab']:focus-visible,
+      [role='menuitem']:focus-visible {
+        outline-offset: -2px !important;
+      }
+
+      .tab.active {
+        border-bottom: 2px solid Highlight !important;
+      }
+    }
+  `];
 
   /** The tabs, in order: plain data, which the app replaces as files open, close and move. Default none. */
   @property({ attribute: false }) tabs: DocTab[] = [];
@@ -386,11 +412,14 @@ export class DexDocTabs extends LitElement {
     if (!crowded && this._menuOpen) this._closeMenu(false);
   }
 
+  // The bar, not the strip: the strip narrows as the … button comes and widens as it goes, and
+  // watching it would measure again on every change the measuring itself makes. The bar's width is
+  // the room the row has; a change of the tabs inside it is measured as they are drawn.
   private _observe(): void {
-    const strip = this._strip();
-    if (!strip || typeof ResizeObserver === 'undefined') return;
+    const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
+    if (!bar || typeof ResizeObserver === 'undefined') return;
     this._resize ??= new ResizeObserver(() => this._measure());
-    this._resize.observe(strip);
+    this._resize.observe(bar);
   }
 
   private _onTabKeydown(e: KeyboardEvent, tab: DocTab): void {
@@ -421,7 +450,9 @@ export class DexDocTabs extends LitElement {
       case ' ':
         this._select(tab.id);
         break;
+      // Backspace too: it is the key a Mac laptop marks delete.
       case 'Delete':
+      case 'Backspace':
         this._close(tab.id);
         break;
       default:
@@ -481,9 +512,10 @@ export class DexDocTabs extends LitElement {
   }
 
   // The dragover is where a drop is accepted: prevented, it says "drop here". Only the types can be
-  // read while the drag is on its way (the data comes with the drop), so the type decides.
+  // read while the drag is on its way (the data comes with the drop), so the type decides, and only
+  // for a drag that started in this row: a tab of another row or window is not this row's to move.
   private _onDragOver(e: DragEvent, tab: DocTab): void {
-    if (!this._isTabDrag(e) || tab.id === this._dragging) return;
+    if (this._dragging === null || !this._isTabDrag(e) || tab.id === this._dragging) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
     this._over = tab.id;
@@ -496,16 +528,16 @@ export class DexDocTabs extends LitElement {
     if (this._over === tab.id) this._over = null;
   }
 
-  // The dragged tab is to take the place of the tab it is dropped on: its index in `tabs`. A tab
-  // this row does not hold (dragged from another window), or dropped on itself, moves nothing.
+  // The dragged tab is to take the place of the tab it is dropped on: its index in `tabs`. Only the
+  // drag this row started: a tab of another row or window, or one dropped on itself, moves nothing.
   private _onDrop(e: DragEvent, tab: DocTab): void {
-    if (!this._isTabDrag(e)) return;
+    if (this._dragging === null || !this._isTabDrag(e)) return;
     e.preventDefault();
     const id = e.dataTransfer!.getData(TAB_TYPE);
     const tabs = this._list();
     const index = tabs.findIndex((t) => t.id === tab.id);
     this._over = null;
-    if (id === tab.id || !tabs.some((t) => t.id === id)) return;
+    if (id !== this._dragging || id === tab.id || !tabs.some((t) => t.id === id)) return;
     this._move(id, index);
   }
 
@@ -631,6 +663,7 @@ export class DexDocTabs extends LitElement {
         aria-label=${this._name(tab)}
         title=${tab.title || tab.label}
         tabindex=${tabbable ? '0' : '-1'}
+        aria-keyshortcuts="Delete"
         draggable="true"
         @click=${() => this._select(tab.id)}
         @dblclick=${() => this._pin(tab.id)}
@@ -734,14 +767,14 @@ export function defineDocTabs(tag = 'dex-doc-tabs'): void {
 export interface DocTabsEventMap {
   /** Show this tab: a click on it, Enter or Space on it, or its item in the … menu. Sent for the active tab too. */
   'dex-tab-select': CustomEvent<TabSelectDetail>;
-  /** Close this tab: its ×, a middle click on it, or Delete on it. */
+  /** Close this tab: its ×, a middle click on it, or Delete (or Backspace) on it. */
   'dex-tab-close': CustomEvent<TabCloseDetail>;
   /**
    * Keep this tab, no longer a preview: a double-click on it, whether it is a preview or not. Its
    * two clicks have each sent `dex-tab-select` first.
    */
   'dex-tab-pin': CustomEvent<TabPinDetail>;
-  /** Move this tab to `index` in `tabs`: it was dragged onto the tab now there. */
+  /** Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`. */
   'dex-tab-move': CustomEvent<TabMoveDetail>;
 }
 
