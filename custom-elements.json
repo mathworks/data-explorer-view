@@ -3410,7 +3410,7 @@
                   "text": "void"
                 }
               },
-              "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
+              "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size and\nno less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
             },
             {
               "kind": "method",

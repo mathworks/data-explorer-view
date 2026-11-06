@@ -80,7 +80,8 @@ changes it.
 
 ### `fit(): void`
 
-Scales and moves the view so the whole graph shows, centred, at no more than its own size.
+Scales and moves the view so the whole graph shows, centred, at no more than its own size and
+no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
 Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
 lays out; before the element has a size (not on the page yet, or hidden), once it has one.
 

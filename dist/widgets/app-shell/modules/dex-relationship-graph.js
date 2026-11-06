@@ -17,12 +17,15 @@ import { styleProps } from '../../shared/styleProps.js';
 import { relationshipGraphStyles } from './relationship-graph.styles.js';
 import { BOX_ICONS, } from '../../../model/graph/graphTypes.js';
 import { layoutGraph, } from '../../../model/graph/layout.js';
-// The view's bounds, and how far each step moves it: ts's numbers.
+// The view's bounds, and how far each step moves it: the prototype's numbers.
 const MIN_SCALE = 0.3;
+// The least a fit shrinks to: below it a box's 11px label is under 7px and no longer reads. A graph
+// bigger than the canvas at this scale shows its top left, and the user pans to the rest.
+const FIT_MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
 const BUTTON_STEP = 0.2;
 // The wheel zooms by a factor of how far it scrolled, e^(-rate * pixels): a wheel's notch of about
-// 100 pixels is ts's step, and a trackpad's stream of small deltas zooms as smoothly. A wheel that
+// 100 pixels is the prototype's step, and a trackpad's stream of small deltas zooms as smoothly. A wheel that
 // counts in lines is taken at 16 pixels a line.
 const WHEEL_RATE = 0.0015;
 const LINE_PIXELS = 16;
@@ -43,7 +46,7 @@ const EDGE_LABELS = {
 const BOX_LABELS = { model: 'Model', sldd: 'Dictionary', mat: 'MAT-File' };
 // The edges that join two items, whose ends are inside boxes.
 const USAGE = new Set(['param-usage', 'ws-usage']);
-/** A route as SVG path data, its turns rounded as ts's quadratic curves rounded them. */
+/** A route as SVG path data, its turns rounded as the prototype's curves rounded them. */
 function pathOf(points) {
     const n = (v) => String(Math.round(v * 100) / 100);
     let d = `M${n(points[0].x)},${n(points[0].y)}`;
@@ -216,7 +219,8 @@ export class DexRelationshipGraph extends LitElement {
             this._revealNow(pending.reveal);
     }
     /**
-     * Scales and moves the view so the whole graph shows, centred, at no more than its own size.
+     * Scales and moves the view so the whole graph shows, centred, at no more than its own size and
+     * no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
      * Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
      * lays out; before the element has a size (not on the page yet, or hidden), once it has one.
      */
@@ -250,8 +254,10 @@ export class DexRelationshipGraph extends LitElement {
         }
         // Done, so what was waiting for a size (the first fit of this graph) is not done over it.
         this._pending = null;
-        const scale = Math.min(width / layout.width, height / layout.height, 1) * 0.9;
-        this._view = { x: (width - layout.width * scale) / 2, y: (height - layout.height * scale) / 2, scale };
+        const scale = Math.max(FIT_MIN_SCALE, Math.min(width / layout.width, height / layout.height, 1) * 0.9);
+        // Centred along each side the graph fits, and from its start along a side it does not.
+        const along = (room, size) => Math.max(0, (room - size * scale) / 2);
+        this._view = { x: along(width, layout.width), y: along(height, layout.height), scale };
     }
     _revealNow(id) {
         const rect = this._rects.get(id) ?? this._rects.get(this._items.get(id)?.boxId ?? '');

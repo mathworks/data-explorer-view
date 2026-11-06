@@ -47,7 +47,7 @@ export interface GraphBox {
     /** Referenced by a file given and not given itself: drawn dashed, with no items. */
     ghost: boolean;
     /**
-     * A ghost's reference as the first file to name it wrote it (`VehicleParams.sldd`): what an app
+     * A ghost's reference as the first file to name it wrote it (`params.sldd`): what an app
      * resolves, as it resolves a link to a file, to find the file and open it. Absent on a file given.
      */
     ref?: string;

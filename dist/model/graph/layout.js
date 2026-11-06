@@ -18,6 +18,11 @@ const MAX_BOX_WIDTH = 240;
 const ROW_GAP = 44;
 const SIBLING_GAP = 30;
 const COLUMN_GAP = 300;
+// How many slots of trees side by side before the next tree starts a row of its own under them:
+// the models' column, and the data files'. Ten files referencing nothing were ten roots in one
+// row, and a fit to the window made every box unreadable.
+const MODEL_COLUMNS = 3;
+const DATA_COLUMNS = 2;
 // Around the whole picture.
 const PADDING = 40;
 // The estimate of a label's width: 11px text, and the icon, the margins and the collapse button.
@@ -51,10 +56,10 @@ function boxHeight(items) {
     return OPEN_HEADER + (n - 1) * ITEM_PITCH + ITEM_HEIGHT + (dividerAt(items) > 0 ? DIVIDER_GAP : 0) + ITEM_INSET;
 }
 /**
- * The items that show, as ts showed them: all of an open box's, and of any other box those a usage
- * edge joins to an item of an open box. So a model opened onto its blocks shows, in each data file
- * they read, the variables they read and no others (graph-expanded.png: VehicleParams.sldd shows
- * IdleSpeed and MaxSpeed), and a dictionary opened shows, in each model, the blocks that read it.
+ * The items that show, as the prototype showed them: all of an open box's, and of any other box those
+ * a usage edge joins to an item of an open box. So a model opened onto its blocks shows, in each data
+ * file they read, the variables they read and no others, and a dictionary opened shows, in each
+ * model, the blocks that read it.
  * Every item showing, as every box once did, is the picture that struck usage edges through other
  * boxes' items; a closed graph is files and their links alone.
  */
@@ -81,8 +86,8 @@ function shownItems(graph, expanded) {
 }
 /**
  * Where each node of one column's tree goes: its slot (in box widths, fractional for a node centred
- * over its children) and its depth (its row). ts's tree layout, kept as it was: the roots are the
- * nodes nothing references, in order (the first node when every node is referenced, in a cycle);
+ * over its children) and its depth (its row). The prototype's tree layout, kept as it was: the
+ * roots are the nodes nothing references, in order (the first node when every node is referenced, in a cycle);
  * a depth-first walk gives each leaf the next slot and each other node the middle of its children's;
  * a node is placed once, under the first node to reach it, and a node no root reaches starts a
  * tree of its own.
@@ -104,6 +109,7 @@ function treeSlots(ids, edges) {
     if (roots.length === 0 && ids.length > 0)
         roots.push(ids[0]);
     const placed = new Map();
+    const trees = [];
     const visited = new Set();
     let nextLeaf = 0;
     const place = (id, depth) => {
@@ -115,41 +121,70 @@ function treeSlots(ids, edges) {
             if (!visited.has(kid))
                 slots.push(place(kid, depth + 1));
         const slot = slots.length === 0 ? nextLeaf++ : (Math.min(...slots) + Math.max(...slots)) / 2;
-        placed.set(id, { slot, depth });
+        placed.set(id, { slot, depth, tree: trees.length });
         return slot;
+    };
+    // Each walk from a root is one tree, and takes the run of slots from where the last one ended.
+    const tree = (root) => {
+        const first = nextLeaf;
+        place(root, 0);
+        trees.push({ first, slots: nextLeaf - first });
     };
     for (const root of roots)
         if (!visited.has(root))
-            place(root, 0);
+            tree(root);
     for (const id of ids)
         if (!visited.has(id))
-            place(id, 0);
-    return placed;
+            tree(id);
+    return { placed, trees };
 }
 /**
- * Lay one column's tree out from `x0`: each row as tall as its tallest box, each box centred in a
- * slot as wide as the column's widest box. Answers the bottom of the lowest row, or `y0` for none.
+ * Lay one column's trees out from `x0`, `y0`: each tree's rows as tall as their tallest box, each box
+ * centred in a slot as wide as the column's widest box, and the trees side by side in the order
+ * given until the next would take the row past `columns` slots, when it starts a row of its own
+ * under them (a tree wider than that alone keeps its whole width: what wraps is trees, never the
+ * boxes of one). Answers the bottom of the lowest box, or `y0` for none.
+ *
+ * A row of trees is as tall as its tallest tree, and the trees in it share no slot, so no box of
+ * one row of trees reaches another and no two trees of a row overlap.
  */
-function placeTree(nodes, edges, x0, slotWidth, y0) {
-    const slots = treeSlots(nodes.map((n) => n.box.id), edges);
-    const rows = [];
+function placeColumn(nodes, edges, x0, slotWidth, y0, columns) {
+    if (nodes.length === 0)
+        return y0;
+    const { placed, trees } = treeSlots(nodes.map((n) => n.box.id), edges);
+    // Each tree's own rows, by depth.
+    const rows = trees.map(() => []);
     for (const n of nodes) {
-        const { depth } = slots.get(n.box.id);
-        rows[depth] = Math.max(rows[depth] ?? 0, n.height);
+        const { depth, tree } = placed.get(n.box.id);
+        rows[tree][depth] = Math.max(rows[tree][depth] ?? 0, n.height);
     }
-    const rowTop = [];
-    let y = y0;
-    for (let d = 0; d < rows.length; d++) {
-        rowTop[d] = y;
-        y += rows[d] + ROW_GAP;
-    }
+    const heightOf = (t) => rows[t].reduce((h, r) => h + r + ROW_GAP, -ROW_GAP);
+    // The trees into rows of trees: where each starts, in slots across and in pixels down.
+    const at = trees.map(() => ({ slot: 0, top: 0 }));
+    let used = 0;
+    let top = y0;
+    let tallest = 0;
+    trees.forEach((t, i) => {
+        if (used > 0 && used + t.slots > columns) {
+            top += tallest + ROW_GAP;
+            used = 0;
+            tallest = 0;
+        }
+        at[i] = { slot: used, top };
+        used += t.slots;
+        tallest = Math.max(tallest, heightOf(i));
+    });
+    let lowest = y0;
     for (const n of nodes) {
-        const { slot, depth } = slots.get(n.box.id);
-        n.x = x0 + slot * (slotWidth + SIBLING_GAP) + (slotWidth - n.width) / 2;
-        n.y = rowTop[depth];
-        n.rowBottom = rowTop[depth] + rows[depth];
+        const { slot, depth, tree } = placed.get(n.box.id);
+        const t = trees[tree];
+        const rowTop = at[tree].top + rows[tree].slice(0, depth).reduce((h, r) => h + r + ROW_GAP, 0);
+        n.x = x0 + (at[tree].slot + slot - t.first) * (slotWidth + SIBLING_GAP) + (slotWidth - n.width) / 2;
+        n.y = rowTop;
+        n.rowBottom = rowTop + rows[tree][depth];
+        lowest = Math.max(lowest, n.y + n.height);
     }
-    return rows.length > 0 ? y - ROW_GAP : y0;
+    return lowest;
 }
 /** The offsets that spread `n` things `spacing` apart around 0, in order. */
 function spread(n, spacing) {
@@ -194,18 +229,13 @@ export function layoutGraph(graph, expanded) {
     const widest = (ns) => ns.reduce((w, n) => Math.max(w, n.width), MIN_BOX_WIDTH);
     // The left column, then the right one beside it (at the left edge when there are no models).
     const kindOf = (kind) => graph.edges.filter((e) => e.kind === kind);
-    placeTree(models, kindOf('model-ref'), PADDING, widest(models), PADDING);
+    placeColumn(models, kindOf('model-ref'), PADDING, widest(models), PADDING, MODEL_COLUMNS);
     const leftRight = models.reduce((r, n) => Math.max(r, n.x + n.width), 0);
     const rightX = models.length > 0 ? leftRight + COLUMN_GAP : PADDING;
     const rightSlot = widest([...sldds, ...mats]);
-    let matY = placeTree(sldds, kindOf('sldd-ref'), rightX, rightSlot, PADDING);
-    matY = sldds.length > 0 ? matY + ROW_GAP : PADDING;
-    for (const n of mats) {
-        n.x = rightX + (rightSlot - n.width) / 2;
-        n.y = matY;
-        n.rowBottom = matY + n.height;
-        matY += n.height + ROW_GAP;
-    }
+    const slddBottom = placeColumn(sldds, kindOf('sldd-ref'), rightX, rightSlot, PADDING, DATA_COLUMNS);
+    // The MAT-files under the dictionaries, each a tree of one, wrapped as they are.
+    placeColumn(mats, [], rightX, rightSlot, sldds.length > 0 ? slddBottom + ROW_GAP : PADDING, DATA_COLUMNS);
     // The boxes and their items, and every drawn thing's rectangle by id, for the routes.
     const rects = new Map();
     const rowBottom = new Map();
@@ -256,7 +286,7 @@ export function layoutGraph(graph, expanded) {
     return { boxes, edges, width: width + PADDING, height: height + PADDING };
 }
 /**
- * The routes, in the order given. Each kind as ts routed it:
+ * The routes, in the order given. Each kind as the prototype routed it:
  *
  *   - a reference (model-ref, sldd-ref) leaves the bottom middle of the referrer and reaches the top
  *     middle of what it references, turning in the gap over the target's row; one back up the tree
@@ -300,7 +330,8 @@ function routeEdges(edges, at) {
     };
     const fromPorts = ports('from');
     const toPorts = ports('to');
-    // ts's stagger of the links whose boxes start on one row, so their level runs do not coincide.
+    // The prototype's stagger of the links whose boxes start on one row, so their level runs do not
+    // coincide.
     const rowOf = (side) => (id) => String(Math.round(rect(byId.get(id)[side]).y));
     const fromRow = staggerBy(links.map((e) => e.id), rowOf('from'), () => 4);
     const toRow = staggerBy(links.map((e) => e.id), rowOf('to'), () => 4);

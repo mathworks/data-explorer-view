@@ -12,14 +12,14 @@
 //     that name), so the graph and the tree cannot disagree about where a reference leads;
 //   - which block reads which variable is core's usage index, which knows MATLAB's resolution
 //     order (a mask, then the model workspace, then the dictionaries a reference chain away, then
-//     the MAT-files, first hit wins). ts matched names against whatever its providers held, so a
+//     the MAT-files, first hit wins). The prototype matched names against whatever its providers held, so a
 //     workspace variable and the dictionary entry it shadows were both drawn as read.
 //
 // Each file is read ONCE for both: a model's one parse gives its structure (`structureFromParsed`)
 // and its usage summary (`summarizeParsedModel`), a dictionary's one scan its references and its
 // names, as core's cheap tier does for a folder.
 //
-// The graph is EVERYTHING AT ONCE, where ts built a level and expanded a node at a time: an app
+// The graph is EVERYTHING AT ONCE, where the prototype built a level and expanded a node at a time: an app
 // has the files, so there is nothing to wait for, and the widget shows or hides a box's items
 // (`expanded`) without asking for another graph.
 //
