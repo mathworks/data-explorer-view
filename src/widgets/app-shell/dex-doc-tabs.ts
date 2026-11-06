@@ -47,23 +47,35 @@ export interface TabPinDetail {
 
 /**
  * What `dex-tab-move` carries: the tab dragged, and its index once moved, which is the index of the
- * tab it was dropped on. Remove it from `tabs`, then insert it at `index`.
+ * tab it was dropped on. Remove it from `tabs`, then insert it at `index`. A tab dragged from
+ * another row of the same `group` is not in `tabs`: insert it at `index`.
  */
 export interface TabMoveDetail {
   id: string;
   index: number;
 }
 
-// The type a tab's drag carries its id under. One of the app's own, so a drag of anything else (a
-// file from the desktop, text from another page) never reads as a tab.
-const TAB_TYPE = 'application/x-dex-tab';
+/**
+ * The type a tab's drag carries its id under. One of the app's own, so a drag of anything else (a
+ * file from the desktop, text from another page) never reads as a tab. Exported for the part of an
+ * app that takes a tab dropped elsewhere (the documents' area of the shell, to split it).
+ */
+export const TAB_DRAG_TYPE = 'application/x-dex-tab';
+
+// The tab dragged now out of a row of this page, and its row: a row of the same group takes it.
+// Module-wide, as a drag is page-wide; another window's drag never sets it, so a row never takes a
+// tab of another window, whose id would name a tab of its own.
+let dragged: { row: DexDocTabs; id: string } | null = null;
 
 /**
  * The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`
  * marking the one shown. It draws them and asks for everything else: a click (or Enter or Space)
  * sends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click
  * `dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what
- * order, and which is active stay the app's: nothing here changes `tabs` or `active`.
+ * order, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab
+ * dropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)
+ * take each other's tabs: one dropped on a tab of the other lands before or after it, by the half
+ * of the tab the pointer is over, and the row it lands in sends `dex-tab-move`.
  *
  * A tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the
  * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
@@ -71,7 +83,8 @@ const TAB_TYPE = 'application/x-dex-tab';
  * scrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it
  * then offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly
  * out past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the
- * focus along the tabs, and Home and End to either end.
+ * focus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the
+ * user is not in) marks its active tab in a muted grey rather than the accent.
  *
  * @tagname dex-doc-tabs
  */
@@ -138,6 +151,13 @@ export class DexDocTabs extends LitElement {
     .tab.active {
       background: var(--dex-bg-primary, #fff);
       border-bottom-color: var(--dex-color-accent, #0078d4);
+    }
+
+    /* The row of the pane the user is not in: its active tab is the one that pane shows, and the
+       accent is kept for the focused pane's, which the toolbar acts on. The muted ink, not the
+       disabled grey: the mark still clears 3:1 on the tab and on the bar in every theme. */
+    :host([unfocused]) .tab.active {
+      border-bottom-color: var(--dex-color-text-muted, #666);
     }
 
     .tab.dragging {
@@ -336,6 +356,10 @@ export class DexDocTabs extends LitElement {
       .tab.active {
         border-bottom: 2px solid Highlight !important;
       }
+
+      :host([unfocused]) .tab.active {
+        border-bottom-color: GrayText !important;
+      }
     }
   `];
 
@@ -343,13 +367,25 @@ export class DexDocTabs extends LitElement {
   @property({ attribute: false }) tabs: DocTab[] = [];
   /** The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`. */
   @property({ reflect: true }) active = '';
+  /**
+   * Rows of one page with the same group take each other's tabs (an app's two panes, side by
+   * side): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id
+   * not in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.
+   */
+  @property({ reflect: true }) group = '';
+  /**
+   * The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the
+   * accent kept for the focused pane's row. Default false. Attribute `unfocused`.
+   */
+  @property({ type: Boolean, reflect: true }) unfocused = false;
 
   // The tab the keyboard is on while the focus is in the row; null once it leaves, so the next Tab
   // in lands on the active tab.
   @state() private _focusId: string | null = null;
-  // The tab being dragged out of this row, and the tab a drag of one is over.
+  // The tab being dragged out of this row, and where a drag of one would land: on which side of
+  // which tab (the last tab's far side for the row's empty end).
   @state() private _dragging: string | null = null;
-  @state() private _over: string | null = null;
+  @state() private _over: { id: string; side: 'before' | 'after' } | null = null;
   @state() private _menuOpen = false;
   @state() private _menuFocus = 0;
 
@@ -368,6 +404,7 @@ export class DexDocTabs extends LitElement {
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    if (dragged?.row === this) dragged = null;
     this._resize?.disconnect();
     this._resize = null;
     this._closeMenu(false);
@@ -375,6 +412,15 @@ export class DexDocTabs extends LitElement {
 
   protected override firstUpdated(): void {
     this._observe();
+  }
+
+  /**
+   * Puts the keyboard on the active tab, once it is drawn: an app's chord that takes the user to
+   * this row's pane. Nothing for a row with no active tab.
+   */
+  focusActive(): void {
+    this._focusTo = this.active;
+    this.requestUpdate();
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
@@ -588,57 +634,124 @@ export class DexDocTabs extends LitElement {
   // is the app's to open, so it is left alone (the dragover not prevented), even with a tab beside it.
   private _isTabDrag(e: DragEvent): boolean {
     const types = Array.from(e.dataTransfer?.types ?? []);
-    return types.includes(TAB_TYPE) && !types.includes('Files');
+    return types.includes(TAB_DRAG_TYPE) && !types.includes('Files');
+  }
+
+  // The tab dragged now, if this row takes it: one it started itself, or one a row of its group
+  // started. Only the types can be read while the drag is on its way (the data comes with the
+  // drop), so the type decides, and the drag this page started says whose tab it is.
+  private _taken(e: DragEvent): { id: string; own: boolean } | null {
+    const drag = dragged;
+    if (!drag || !this._isTabDrag(e)) return null;
+    const own = drag.row === this;
+    if (!own && (this.group === '' || drag.row.group !== this.group)) return null;
+    return { id: drag.id, own };
   }
 
   private _onDragStart(e: DragEvent, tab: DocTab): void {
     if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData(TAB_TYPE, tab.id);
+    e.dataTransfer.setData(TAB_DRAG_TYPE, tab.id);
     this._dragging = tab.id;
+    dragged = { row: this, id: tab.id };
   }
 
-  // The dragover is where a drop is accepted: prevented, it says "drop here". Only the types can be
-  // read while the drag is on its way (the data comes with the drop), so the type decides, and only
-  // for a drag that started in this row: a tab of another row or window is not this row's to move.
+  // Where the drag lands over `tab`: its own tab takes the place of the tab it is over, on that
+  // tab's far side when it comes from the left (pushing it left) and its near side from the right;
+  // another row's lands on the side of the half the pointer is over. Null: nowhere (itself).
+  private _landing(e: DragEvent, tab: DocTab, taken: { id: string; own: boolean }): 'before' | 'after' | null {
+    if (tab.id === taken.id) return null;
+    if (taken.own) {
+      const tabs = this._list();
+      return tabs.findIndex((t) => t.id === taken.id) < tabs.findIndex((t) => t.id === tab.id) ? 'after' : 'before';
+    }
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    return e.clientX < box.left + box.width / 2 ? 'before' : 'after';
+  }
+
+  // The dragover is where a drop is accepted: prevented, it says "drop here".
   private _onDragOver(e: DragEvent, tab: DocTab): void {
-    if (this._dragging === null || !this._isTabDrag(e) || tab.id === this._dragging) return;
+    const taken = this._taken(e);
+    const side = taken && this._landing(e, tab, taken);
+    if (!side) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
-    this._over = tab.id;
+    if (this._over?.id !== tab.id || this._over.side !== side) this._over = { id: tab.id, side };
   }
 
   private _onDragLeave(e: DragEvent, tab: DocTab): void {
     // Onto the tab's own label or ×: still over it.
     const to = e.relatedTarget;
     if (to instanceof Node && (e.currentTarget as HTMLElement).contains(to)) return;
-    if (this._over === tab.id) this._over = null;
+    if (this._over?.id === tab.id) this._over = null;
   }
 
-  // The dragged tab is to take the place of the tab it is dropped on: its index in `tabs`. Only the
-  // drag this row started: a tab of another row or window, or one dropped on itself, moves nothing.
+  // The dragged tab's index in `tabs` once moved: the place of the tab it is dropped on, for its
+  // own; before or after that tab, for another row's. Only a drag this row takes, and only the tab
+  // that drag carries: a drop of a tab on itself, or naming another, moves nothing.
   private _onDrop(e: DragEvent, tab: DocTab): void {
-    if (this._dragging === null || !this._isTabDrag(e)) return;
+    const taken = this._taken(e);
+    if (!taken) return;
     e.preventDefault();
-    const id = e.dataTransfer!.getData(TAB_TYPE);
+    const side = this._landing(e, tab, taken);
+    this._over = null;
     const tabs = this._list();
     const index = tabs.findIndex((t) => t.id === tab.id);
-    this._over = null;
-    if (id !== this._dragging || id === tab.id || !tabs.some((t) => t.id === id)) return;
-    this._move(id, index);
+    if (!side || e.dataTransfer!.getData(TAB_DRAG_TYPE) !== taken.id) return;
+    if (taken.own) {
+      if (tabs.some((t) => t.id === taken.id)) this._move(taken.id, index);
+    } else {
+      this._move(taken.id, side === 'after' ? index + 1 : index);
+    }
   }
 
+  // Over the strip itself, past the last tab (a dragover on a tab is the tab's, which bubbles
+  // here too): the dragged tab goes to the row's end. Its own last tab is there already.
+  private _endOf(e: DragEvent): { id: string; own: boolean; last: DocTab } | null {
+    if (e.target !== e.currentTarget) return null;
+    const taken = this._taken(e);
+    const last = this._list().at(-1);
+    if (!taken || !last || last.id === taken.id) return null;
+    return { ...taken, last };
+  }
+
+  private _onEndDragOver(e: DragEvent): void {
+    const end = this._endOf(e);
+    if (!end) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    if (this._over?.id !== end.last.id || this._over.side !== 'after') this._over = { id: end.last.id, side: 'after' };
+  }
+
+  private _onEndDragLeave(e: DragEvent): void {
+    // Onto a tab of the row: that tab's dragover marks where the drag lands now.
+    const to = e.relatedTarget;
+    if (to instanceof Node && (e.currentTarget as HTMLElement).contains(to)) return;
+    this._over = null;
+  }
+
+  private _onEndDrop(e: DragEvent): void {
+    const end = this._endOf(e);
+    if (!end) return;
+    e.preventDefault();
+    this._over = null;
+    if (e.dataTransfer!.getData(TAB_DRAG_TYPE) !== end.id) return;
+    const tabs = this._list();
+    if (!end.own) this._move(end.id, tabs.length);
+    else if (tabs.some((t) => t.id === end.id)) this._move(end.id, tabs.length - 1);
+  }
+
+  // However the drag ends: dropped here or elsewhere, or let go. A tab dropped in another row has
+  // gone from this one by now, and its element with it, which still hears the end of its drag.
   private _onDragEnd(): void {
+    if (dragged?.row === this) dragged = null;
     this._dragging = null;
     this._over = null;
   }
 
-  // Which side of the tab under the pointer the dragged one lands on: its far side when it comes
-  // from the left (it takes that tab's place, pushing it left), its near side from the right.
-  private _dropClass(tab: DocTab, index: number): string {
-    if (this._over !== tab.id) return '';
-    const from = this._list().findIndex((t) => t.id === this._dragging);
-    return from >= 0 && from < index ? 'drop-after' : 'drop-before';
+  // The mark of where the dragged tab lands, on the tab beside the place.
+  private _dropClass(tab: DocTab): string {
+    return this._over?.id === tab.id ? `drop-${this._over.side}` : '';
   }
 
   // ---- The overflow menu ----
@@ -738,7 +851,7 @@ export class DexDocTabs extends LitElement {
     return tab.subtitle ? html`<span class="subtitle">${tab.subtitle}</span>` : nothing;
   }
 
-  private _tab(tab: DocTab, index: number, tabbable: boolean) {
+  private _tab(tab: DocTab, tabbable: boolean) {
     const active = tab.id === this.active;
     const classes = [
       'tab',
@@ -746,7 +859,7 @@ export class DexDocTabs extends LitElement {
       tab.preview ? 'preview' : '',
       tab.dirty ? 'dirty' : '',
       tab.id === this._dragging ? 'dragging' : '',
-      this._dropClass(tab, index),
+      this._dropClass(tab),
     ].filter((c) => c !== '');
     // The × is for the pointer only (tabindex -1): the keyboard closes a tab with Delete, and a
     // stop on every × would double the Tab presses through the row.
@@ -825,11 +938,20 @@ export class DexDocTabs extends LitElement {
     // hides it as the room says, with no draw of its own.
     return html`
       <div class="bar">
-        <div role="tablist" aria-label="Open documents" @wheel=${this._onWheel} @scroll=${this._markClipped} @focusout=${this._onFocusOut}>
+        <div
+          role="tablist"
+          aria-label="Open documents"
+          @wheel=${this._onWheel}
+          @scroll=${this._markClipped}
+          @focusout=${this._onFocusOut}
+          @dragover=${this._onEndDragOver}
+          @dragleave=${this._onEndDragLeave}
+          @drop=${this._onEndDrop}
+        >
           ${repeat(
             tabs,
             (tab) => tab.id,
-            (tab, i) => this._tab(tab, i, tab.id === tabbable),
+            (tab) => this._tab(tab, tab.id === tabbable),
           )}
         </div>
         <button
@@ -871,7 +993,10 @@ export interface DocTabsEventMap {
    * two clicks have each sent `dex-tab-select` first.
    */
   'dex-tab-pin': CustomEvent<TabPinDetail>;
-  /** Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`. */
+  /**
+   * Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from
+   * `tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert.
+   */
   'dex-tab-move': CustomEvent<TabMoveDetail>;
 }
 

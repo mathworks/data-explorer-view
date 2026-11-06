@@ -760,6 +760,179 @@ describe('drag to reorder', () => {
   });
 });
 
+describe("drop on the row's empty end", () => {
+  it('moves its own tab to the end of the row, and asks nothing for the last tab', async () => {
+    const el = await mount();
+    const { move } = listen();
+    const dt = transfer();
+    drag(tabOf(el, 'a'), 'dragstart', dt);
+    // Over the strip itself, past the last tab: the mark is after the last tab.
+    expect(drag(strip(el), 'dragover', dt).defaultPrevented).toBe(true);
+    await el.updateComplete;
+    expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(true);
+    expect(drag(strip(el), 'drop', dt).defaultPrevented).toBe(true);
+    drag(tabOf(el, 'a'), 'dragend', dt);
+    expect(move).toEqual([{ id: 'a', index: 2 }]);
+    // The last tab is at the end already.
+    const last = transfer();
+    drag(tabOf(el, 'c'), 'dragstart', last);
+    expect(drag(strip(el), 'dragover', last).defaultPrevented).toBe(false);
+    drag(tabOf(el, 'c'), 'dragend', last);
+    expect(move).toHaveLength(1);
+  });
+
+  it('leaves a dragover on a tab to the tab, and takes its mark off as the drag leaves the row', async () => {
+    const el = await mount();
+    const dt = transfer();
+    drag(tabOf(el, 'a'), 'dragstart', dt);
+    drag(tabOf(el, 'b'), 'dragover', dt);
+    await el.updateComplete;
+    expect(tabOf(el, 'b').classList.contains('drop-after')).toBe(true);
+    expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(false);
+    drag(strip(el), 'dragover', dt);
+    drag(strip(el), 'dragleave', dt);
+    await el.updateComplete;
+    expect(tabEls(el).some((t) => t.className.includes('drop-'))).toBe(false);
+    drag(tabOf(el, 'a'), 'dragend', dt);
+  });
+});
+
+describe('rows of one group', () => {
+  // Two panes side by side, each with its row: a tab dragged from one row onto the other moves to
+  // the other pane. The rows say so by their group; a row of no group, or another, takes only its
+  // own tabs, as before.
+  const D: DocTab = { id: 'd', label: 'd.sldd' };
+  const E: DocTab = { id: 'e', label: 'e.mat' };
+
+  async function rows(left = 'docs', right = 'docs'): Promise<[DexDocTabs, DexDocTabs]> {
+    const one = await mount([A, B, C], 'a');
+    const two = await mount([D, E], 'd');
+    one.group = left;
+    two.group = right;
+    await Promise.all([one.updateComplete, two.updateComplete]);
+    return [one, two];
+  }
+
+  /** `el`'s tab `id` laid out from x 100 to 180. */
+  function placed(el: DexDocTabs, id: string): HTMLElement {
+    const tab = tabOf(el, id);
+    tab.getBoundingClientRect = () => ({ left: 100, right: 180, width: 80, top: 0, bottom: 28, height: 28, x: 100, y: 0, toJSON: () => ({}) });
+    return tab;
+  }
+
+  function dragAt(target: HTMLElement, type: string, dt: ReturnType<typeof transfer>, clientX: number): Event {
+    const ev = new Event(type, { bubbles: true, composed: true, cancelable: true });
+    Object.assign(ev, { dataTransfer: dt, clientX, clientY: 10, relatedTarget: null });
+    target.dispatchEvent(ev);
+    return ev;
+  }
+
+  it('reflects its group', async () => {
+    const [one] = await rows();
+    expect(one.getAttribute('group')).toBe('docs');
+  });
+
+  it("asks the row a tab is dropped on to take it: before or after the tab under the pointer, by its half, or at the row's end", async () => {
+    const [one, two] = await rows();
+    const moves: [string, unknown][] = [];
+    for (const [name, el] of [['one', one], ['two', two]] as const) el.addEventListener('dex-tab-move', (e) => moves.push([name, e.detail]));
+    const before = transfer();
+    drag(tabOf(one, 'b'), 'dragstart', before);
+    expect(dragAt(placed(two, 'e'), 'dragover', before, 120).defaultPrevented).toBe(true);
+    await two.updateComplete;
+    expect(tabOf(two, 'e').classList.contains('drop-before')).toBe(true);
+    dragAt(tabOf(two, 'e'), 'drop', before, 120);
+    drag(tabOf(one, 'b'), 'dragend', before);
+    const after = transfer();
+    drag(tabOf(one, 'b'), 'dragstart', after);
+    dragAt(placed(two, 'd'), 'dragover', after, 170);
+    await two.updateComplete;
+    expect(tabOf(two, 'd').classList.contains('drop-after')).toBe(true);
+    dragAt(tabOf(two, 'd'), 'drop', after, 170);
+    drag(tabOf(one, 'b'), 'dragend', after);
+    const end = transfer();
+    drag(tabOf(one, 'c'), 'dragstart', end);
+    expect(drag(strip(two), 'dragover', end).defaultPrevented).toBe(true);
+    drag(strip(two), 'drop', end);
+    drag(tabOf(one, 'c'), 'dragend', end);
+    // Each an index into the row it was dropped on, which does not hold the tab.
+    expect(moves).toEqual([
+      ['two', { id: 'b', index: 1 }],
+      ['two', { id: 'b', index: 1 }],
+      ['two', { id: 'c', index: 2 }],
+    ]);
+    // The rows draw what they are given: neither moved anything itself.
+    expect(labels(one)).toEqual(['a.sldd', 'b.mat', 'c.slx']);
+    expect(labels(two)).toEqual(['d.sldd', 'e.mat']);
+  });
+
+  it('takes no tab from a row of another group, or of none', async () => {
+    for (const [left, right] of [['docs', 'other'], ['', ''], ['docs', '']]) {
+      const [one, two] = await rows(left, right);
+      const moves: unknown[] = [];
+      two.addEventListener('dex-tab-move', (e) => moves.push(e.detail));
+      const dt = transfer();
+      drag(tabOf(one, 'a'), 'dragstart', dt);
+      expect(drag(tabOf(two, 'd'), 'dragover', dt).defaultPrevented, `${left}/${right}`).toBe(false);
+      expect(drag(strip(two), 'dragover', dt).defaultPrevented).toBe(false);
+      drag(tabOf(two, 'd'), 'drop', dt);
+      drag(tabOf(one, 'a'), 'dragend', dt);
+      expect(moves).toEqual([]);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("takes nothing once the drag is over, nor a drop naming another tab than the one dragged", async () => {
+    const [one, two] = await rows();
+    const moves: unknown[] = [];
+    two.addEventListener('dex-tab-move', (e) => moves.push(e.detail));
+    const dt = transfer();
+    drag(tabOf(one, 'a'), 'dragstart', dt);
+    drag(tabOf(one, 'a'), 'dragend', dt);
+    expect(drag(tabOf(two, 'd'), 'dragover', dt).defaultPrevented).toBe(false);
+    const forged = transfer();
+    drag(tabOf(one, 'a'), 'dragstart', forged);
+    forged.setData('application/x-dex-tab', 'b');
+    drag(tabOf(two, 'd'), 'dragover', forged);
+    drag(tabOf(two, 'd'), 'drop', forged);
+    drag(tabOf(one, 'a'), 'dragend', forged);
+    expect(moves).toEqual([]);
+  });
+});
+
+describe('a row not focused', () => {
+  it("draws its active tab's mark in the muted ink, which still clears 3:1, and in the accent again once focused", async () => {
+    // Two panes: the row of the one the user is not in. Its active tab is the one that pane shows,
+    // but the toolbar acts on the other pane's: the accent marks that one alone.
+    // happy-dom matches no :host() selector in getComputedStyle, so the rule itself is what is pinned.
+    const el = await mount();
+    el.unfocused = true;
+    await el.updateComplete;
+    expect(el.hasAttribute('unfocused')).toBe(true);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(/:host\(\[unfocused\]\) \.tab\.active \{[^}]*border-bottom-color: var\((--dex-[\w-]+), #666\)/.exec(css)?.[1]).toBe('--dex-color-text-muted');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      for (const surface of ['--dex-bg-tabbar', '--dex-bg-primary']) {
+        expect(contrast(tokens.get('--dex-color-text-muted')!, tokens.get(surface)!), `${set} ${surface}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+    el.unfocused = false;
+    await el.updateComplete;
+    expect(el.hasAttribute('unfocused')).toBe(false);
+  });
+});
+
+describe('focusActive', () => {
+  it('puts the keyboard on the active tab, once it is drawn', async () => {
+    const el = await mount([A, B], 'a');
+    el.active = 'b';
+    el.focusActive();
+    await el.updateComplete;
+    expect(focused(el)).toBe(tabOf(el, 'b'));
+    expect(tabOf(el, 'b').tabIndex).toBe(0);
+  });
+});
+
 describe('taken out of the page', () => {
   it('closes its menu and takes its listener off the document', async () => {
     // The menu listens on the whole document while it is open; a row removed with it open would
