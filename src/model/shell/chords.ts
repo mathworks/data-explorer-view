@@ -30,9 +30,11 @@ export interface Chord {
   ctrl: boolean;
 }
 
-/** The fields of a KeyboardEvent a chord reads. */
-interface KeyPress {
+/** The fields of a KeyboardEvent a chord reads: a KeyboardEvent is one. */
+export interface KeyPress {
+  /** The character or named key typed. Chrome's autofill sends a keydown without one. */
   key: string;
+  /** Where the key is on the keyboard, named for a US layout ('KeyS', 'Backquote'). */
   code?: string;
   metaKey: boolean;
   ctrlKey: boolean;
@@ -55,10 +57,17 @@ const MODIFIERS = new Map<string, 'mod' | 'shift' | 'alt' | 'ctrl'>([
  * Keys a chord also matches by their place on the keyboard (`KeyboardEvent.code`). The key under
  * Escape types ` on a US layout, but ^ or ² or a dead key on others, and ~ with Shift; Mod+` (the
  * bottom panel, VS Code's terminal chord) means that key wherever it is, as VS Code takes it.
- * Letters are not here: a letter chord means the letter, which a layout such as AZERTY puts
- * somewhere else, and matching its place would fire Mod+A on the key marked Q.
+ *
+ * Letters and digits are matched by place another way (see `keyMatches`): only when the press
+ * types no Latin letter or digit at all. macOS's Option makes Option+S type ß and Option+E a dead
+ * key, and a Cyrillic layout types ы on the key marked S; with no letter to go by, the place is all
+ * there is, and it is what a person with that keyboard means. A press that types another Latin
+ * letter means that letter: AZERTY types a on the key a US layout marks Q, and that is Mod+A.
  */
 const BY_CODE = new Map<string, string>([['`', 'Backquote']]);
+
+/** One Latin letter or digit: what a chord's key or a press's key is to be matched by place. */
+const LATIN_OR_DIGIT = /^[A-Za-z0-9]$/;
 
 /** Named keys a label writes otherwise than `KeyboardEvent.key` does: macOS's glyphs, and words elsewhere. */
 const KEY_LABELS = new Map<string, { mac: string; other: string }>([
@@ -71,9 +80,12 @@ const KEY_LABELS = new Map<string, { mac: string; other: string }>([
 /**
  * A chord from its text: modifiers and then the key, joined by '+' ('Mod+Shift+E'). Modifier names
  * are Mod, Shift, Alt and Ctrl, in any case and order; the key is a `KeyboardEvent.key` name
- * ('E', '`', 'ArrowLeft', 'Tab', and '+' itself as 'Mod++'). Throws on an unknown modifier or no
- * key: chords are written in code, and a typo should fail where it is written, not silently never
- * match.
+ * ('E', '`', 'ArrowLeft', 'Tab'; a final '+' is the key itself). A character typed with Shift is
+ * written with Shift ('Mod+Shift+?'), since the press holds Shift too and the modifiers must be
+ * exactly the chord's; which characters those are depends on the layout (? and + need Shift on a
+ * US keyboard, and + does not on a German one), so such chords suit one layout best. Throws on an
+ * unknown modifier or no key: chords are written in code, and a typo should fail where it is
+ * written, not silently never match.
  */
 export function parseChord(text: string): Chord {
   // The key is everything after the last '+' that is not the text's own last character, so in
@@ -93,14 +105,11 @@ export function parseChord(text: string): Chord {
 
 /**
  * Whether the key press `e` is `chord`, on macOS when `mac`. The modifiers held must be exactly the
- * chord's. A letter matches in either case, since Shift (or Caps Lock) changes `e.key`'s; a key in
- * BY_CODE matches by its place too.
+ * chord's. A letter matches in either case, since Shift (or Caps Lock) changes `e.key`'s; a letter
+ * or digit also matches by its place when the press types no Latin letter or digit, and a key in
+ * BY_CODE by its place always. A press with no key matches nothing.
  */
-export function matchesChord(
-  chord: Chord,
-  e: { key: string; code?: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean },
-  mac: boolean,
-): boolean {
+export function matchesChord(chord: Chord, e: KeyPress, mac: boolean): boolean {
   const meta = mac && chord.mod;
   const ctrl = chord.ctrl || (!mac && chord.mod);
   if (e.metaKey !== meta || e.ctrlKey !== ctrl || e.shiftKey !== chord.shift || e.altKey !== chord.alt) return false;
@@ -109,7 +118,12 @@ export function matchesChord(
 
 /** Whether `e` is the chord's key, ignoring the modifiers. */
 function keyMatches(key: string, e: KeyPress): boolean {
+  // The type says a string, but a keydown Chrome sends when it fills a field in has none.
+  if (typeof e.key !== 'string') return false;
   if (e.key.toLowerCase() === key.toLowerCase()) return true;
+  if (LATIN_OR_DIGIT.test(key) && !LATIN_OR_DIGIT.test(e.key)) {
+    return e.code === (/[0-9]/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`);
+  }
   const code = BY_CODE.get(key);
   return code !== undefined && e.code === code;
 }

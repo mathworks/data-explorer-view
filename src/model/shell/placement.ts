@@ -20,7 +20,9 @@ export interface Rect {
   x: number;
   /** The top edge. */
   y: number;
+  /** How wide it is, to the right of `x`. */
   width: number;
+  /** How tall it is, down from `y`. */
   height: number;
 }
 

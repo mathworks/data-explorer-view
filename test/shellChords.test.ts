@@ -7,9 +7,12 @@
 // What it protects: Mod meaning Command on macOS and Ctrl elsewhere, with a literal Ctrl ('Ctrl+Tab')
 // meaning Ctrl everywhere; a chord that does not fire when more keys are held than it names (⇧⌘E is
 // not ⌘E, and Ctrl+Alt+E on Windows is AltGr+E, a character); a letter that matches whatever case
-// Shift gives it; and Mod+` reaching the key under Escape on a layout where it types something else.
+// Shift gives it, and by its place when the press types no Latin letter (macOS's Option, a Cyrillic
+// layout) but not when it types another one (AZERTY); Mod+` reaching the key under Escape on a
+// layout where it types something else; and a keydown with no key at all (Chrome's autofill sends
+// one) that matches nothing rather than throwing.
 import { describe, expect, it } from 'vitest';
-import { chordLabel, matchesChord, parseChord } from '../src/model/shell/chords.js';
+import { chordLabel, matchesChord, parseChord, type KeyPress } from '../src/model/shell/chords.js';
 
 /** A key press: `key` and the modifiers held (all up unless named). */
 function press(key: string, held: { meta?: boolean; ctrl?: boolean; shift?: boolean; alt?: boolean } = {}, code?: string) {
@@ -75,6 +78,38 @@ describe('matchesChord', () => {
     expect(matchesChord(panel, press('^', { ctrl: true }, 'Backquote'), false)).toBe(true);
     expect(matchesChord(panel, press('Dead', { meta: true }, 'Backquote'), true)).toBe(true);
     expect(matchesChord(panel, press('1', { ctrl: true }, 'Digit1'), false)).toBe(false);
+  });
+
+  it('matches a letter or digit by its place when the press types no Latin letter or digit', () => {
+    // macOS's Option turns the letter into another character, or into a dead key.
+    expect(matchesChord(parseChord('Mod+Alt+S'), press('ß', { meta: true, alt: true }, 'KeyS'), true)).toBe(true);
+    expect(matchesChord(parseChord('Alt+E'), press('Dead', { alt: true }, 'KeyE'), true)).toBe(true);
+    // A Cyrillic layout types ы on the key marked S.
+    expect(matchesChord(parseChord('Mod+S'), press('ы', { ctrl: true }, 'KeyS'), false)).toBe(true);
+    expect(matchesChord(parseChord('Mod+S'), press('ы', { ctrl: true }, 'KeyD'), false)).toBe(false);
+    // A digit typed with Shift (US) or a layout that types & on it unshifted (AZERTY).
+    expect(matchesChord(parseChord('Mod+Shift+1'), press('!', { ctrl: true, shift: true }, 'Digit1'), false)).toBe(true);
+    expect(matchesChord(parseChord('Mod+1'), press('&', { ctrl: true }, 'Digit1'), false)).toBe(true);
+  });
+
+  it('does not match a letter by its place when the press types another Latin letter', () => {
+    // AZERTY types a on the key a US layout marks Q: that press is Mod+A, not Mod+Q.
+    expect(matchesChord(parseChord('Mod+Q'), press('a', { ctrl: true }, 'KeyQ'), false)).toBe(false);
+    expect(matchesChord(parseChord('Mod+A'), press('a', { ctrl: true }, 'KeyQ'), false)).toBe(true);
+    expect(matchesChord(parseChord('Mod+1'), press('2', { ctrl: true }, 'Digit1'), false)).toBe(false);
+  });
+
+  it('matches nothing, without throwing, for a keydown with no key', () => {
+    // Chrome sends a keydown with no key when it fills a field in.
+    const keyless = { code: 'KeyE', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false } as unknown as KeyPress;
+    expect(() => matchesChord(parseChord('E'), keyless, false)).not.toThrow();
+    expect(matchesChord(parseChord('E'), keyless, false)).toBe(false);
+  });
+
+  it('matches a character typed with Shift when the chord names Shift', () => {
+    const help = parseChord('Mod+Shift+?');
+    expect(matchesChord(help, press('?', { meta: true, shift: true }, 'Slash'), true)).toBe(true);
+    expect(matchesChord(help, press('?', { meta: true }, 'Slash'), true)).toBe(false);
   });
 
   it('matches a literal Ctrl as Ctrl on both platforms, and Alt+Arrow keys', () => {
