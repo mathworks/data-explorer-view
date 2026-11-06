@@ -75,9 +75,18 @@ function eventsOf(file: string): ModuleEvents {
 
 const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((file) => [file, eventsOf(file)] as const);
 
+// connectShell's internal parts (the documents' area, the folder) are drawn by no page of their
+// own, and one of them sends a part's event for the part: the welcome's Open File… asks what the
+// toolbar's Open asks, with `dex-toolbar-action`. Such an event is declared once, by the part, so
+// a module there may dispatch an event another module declares, with that module's detail.
+const RESENDS = 'src/widgets/app-shell/connect/';
+const resent = (file: string, m: ModuleEvents): string[] =>
+  file.startsWith(RESENDS) ? [...m.dispatched.keys()].filter((name) => !m.declared.has(name)) : [];
+const own = (file: string, m: ModuleEvents): string[] => [...m.dispatched.keys()].filter((name) => !resent(file, m).includes(name));
+
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 36 events from 24 widgets: a parse that found none would pass everything below.
+    // 36 events from 27 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
     expect(new Set(names).size).toBe(36);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
@@ -87,8 +96,8 @@ describe('every dispatched event is declared, in its own module, with its detail
     expect(MODULES.flatMap(([, m]) => m.untyped)).toEqual([]);
   });
 
-  it.each(MODULES.filter(([, m]) => m.dispatched.size || m.declared.size))('%s declares what it dispatches, no more', (_file, m) => {
-    expect([...m.declared.keys()].sort()).toEqual([...m.dispatched.keys()].sort());
+  it.each(MODULES.filter(([file, m]) => own(file, m).length || m.declared.size))('%s declares what it dispatches, no more', (file, m) => {
+    expect([...m.declared.keys()].sort()).toEqual(own(file, m).sort());
     // On the document and the window as on an element: the same map, extended by all three.
     const html = m.extended.get('HTMLElementEventMap');
     expect(html?.length).toBe(1);
@@ -97,6 +106,14 @@ describe('every dispatched event is declared, in its own module, with its detail
     for (const [name, typeArgs] of m.dispatched) {
       for (const t of typeArgs) expect(m.declared.get(name), name).toBe(`CustomEvent<${t}>`);
     }
+  });
+
+  it("lets connectShell's internal parts send a part's event only as the part declares it", () => {
+    const declared = new Map(MODULES.flatMap(([, m]) => [...m.declared]));
+    const sent = MODULES.flatMap(([file, m]) => resent(file, m).flatMap((name) => m.dispatched.get(name)!.map((t) => [file, name, t] as const)));
+    // The welcome's buttons, which share one dispatch: a check that found none would pass for nothing.
+    expect(sent.map(([file, name]) => `${file} ${name}`)).toEqual(['src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action']);
+    for (const [, name, t] of sent) expect(declared.get(name), name).toBe(`CustomEvent<${t}>`);
   });
 
   it('gives each event name to one module only', () => {
