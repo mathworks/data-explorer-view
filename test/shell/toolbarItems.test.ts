@@ -36,9 +36,17 @@ describe('toolbarItems', () => {
     ]);
   });
 
-  it('draws every icon from a file the package ships', () => {
+  it('draws every icon from a file the package ships, in every state', () => {
     const shipped = new Set(readdirSync(join(process.cwd(), 'icons')).map((f) => f.replace(/\.svg$/, '')));
-    expect(toolbarItems(NOTHING).filter((i) => !shipped.has(i.icon!)).map((i) => i.icon)).toEqual([]);
+    const dirty = { ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true };
+    for (const state of [NOTHING, dirty]) expect(toolbarItems(state).filter((i) => !shipped.has(i.icon!)).map((i) => i.icon)).toEqual([]);
+  });
+
+  it("draws Save as unsaved while the active document holds unsaved edits, as the prototype's did", () => {
+    const icon = (state: ToolbarState) => toolbarItems(state).find((i) => i.id === 'save')!.icon;
+    expect(icon(NOTHING)).toBe('saved');
+    expect(icon({ ...NOTHING, active: { editable: true, dirty: false }, anyDirty: true })).toBe('saved');
+    expect(icon({ ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true })).toBe('unsaved');
   });
 
   it('offers Folder only to a host that can show one', () => {

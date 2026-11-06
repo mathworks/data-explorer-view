@@ -83,7 +83,8 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   return [
     item('open-file', 'Open', 'openFolder', 'open', false),
     ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
-    item('save', 'Save', 'saved', 'save', !(active?.editable && active.dirty)),
+    // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
+    item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty)),
     item('save-as', 'Save As', 'saveAs', 'save', !active?.editable),
     item('save-all', 'Save All', 'save_all', 'save', !state.anyDirty),
     item('close-tab', 'Close', 'close', 'close', active === null),
