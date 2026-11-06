@@ -1,10 +1,14 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// Whether an element takes typing: the one rule for whose a key is. A chord pressed in a field that
-// takes text (the table's search box, a cell editor, a column filter, the folder's search) is the
-// field's, Cmd/Ctrl+Z its own typing to undo; pressed anywhere else, it is a gesture the table or the
-// app shell answers. The table's chords (isTypingInField, editingWire.ts) and the shell's (its key
-// listener and its Undo command, connect/) both ask this, so the two never disagree about a field.
+// Whether an element takes typing, for the app shell's chords and its Undo command (connect/): a
+// chord pressed in a field that takes text (the folder's search, a table's search box or cell
+// editor) is the field's, Cmd/Ctrl+Z its own typing to undo; pressed on anything else, a checkbox
+// included, it is the shell's.
+//
+// The table keeps a wider rule of its own (isTypingInField, editingWire.ts): every input of its
+// shadow root is its field, a checkbox too, since a Delete or a Cmd/Ctrl+C on the column menu's
+// checkboxes or the Add gallery's Keep open is a key on that control and never a gesture on the
+// rows. The shell leaves a table's keys to the table either way.
 //
 // By tag name and input type rather than by class: an element of another document (an iframe's)
 // is no instance of this window's HTMLInputElement, and is a field all the same.

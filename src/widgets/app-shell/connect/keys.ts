@@ -15,7 +15,8 @@
 // itself (a table's Cmd/Ctrl+Z and Cmd/Ctrl+F, the shell's own view chords) prevents its default,
 // and a press already spent is left alone. A press typed into a field (the search box, a cell
 // editor, a column filter, read off the composed path as the table reads it) is the field's,
-// but for Save and Open, which an editor answers wherever the caret is.
+// but for Save and Open, which an editor answers wherever the caret is. A field is one that takes
+// text (shared/textField.ts): a chord on a checkbox outside a table is the shell's.
 //
 // Undo and Redo are the native Edit menu's in Electron, and a browser page has none: here they
 // undo the active document from wherever the focus is but two places. In a field they are left
@@ -27,7 +28,7 @@
 import { matchesChord, parseChord, type Chord } from '../../../model/shell/chords.js';
 import { isMacPlatform } from '../../shared/dragMode.js';
 import { DexTreeTable } from '../../tree-table/dex-tree-table.js';
-import { isTypingInField } from '../../tree-table/editingWire.js';
+import { isTextField } from '../../shared/textField.js';
 import type { ShellCommand } from './types.js';
 
 /** One chord of the shell's. */
@@ -93,7 +94,7 @@ export function installKeys(run: (command: ShellCommand) => void, options: { nat
     const mac = onMac();
     const hit = chords.find(({ chord, spec }) => !(mac && spec.offMac) && matchesChord(chord, e, mac));
     if (!hit) return;
-    if (!hit.spec.inField && isTypingInField(e)) return;
+    if (!hit.spec.inField && isTextField(e.composedPath()[0] as Element | undefined)) return;
     if (hit.spec.tablesOwn && e.composedPath().some((el) => el instanceof DexTreeTable)) return;
     // Spent even when held, so a held Mod+S does not reach the browser's Save Page on its repeats.
     e.preventDefault();

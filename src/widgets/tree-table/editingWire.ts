@@ -27,7 +27,6 @@ import {
   type ClipboardState,
   type MenuRow,
 } from './menuItems.js';
-import { isTextField } from '../shared/textField.js';
 
 /**
  * A plain-text view of the table's document that a row can be shown in (the VS Code extension's
@@ -110,11 +109,12 @@ function wellFormedRules(rules: unknown): SectionRule[] {
 //
 // The rule lives here once because both capture guards below need it and they must not
 // disagree: a key that a field owns is not the table's to claim. Exported for an app's own chords,
-// so that they leave the same keys to the same fields; what counts as a field (not a checkbox, but
-// a select) is shared/textField.ts's, which the app shell asks too.
+// so that they leave the same keys to the same fields.
 /** Whether `ev` is typing in a field of the table's (its search box, a column filter, a cell editor) rather than a gesture on the grid. */
 export function isTypingInField(ev: KeyboardEvent): boolean {
-  return isTextField((ev.composedPath?.()[0] as Element | undefined) ?? (ev.target as Element | null));
+  const active = (ev.composedPath?.()[0] as HTMLElement) ?? (ev.target as HTMLElement);
+  const tag = active?.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!active?.isContentEditable;
 }
 
 // The Undo and Redo chords, which the table answers only where its options ask (undoChords): Cmd/Ctrl+Z

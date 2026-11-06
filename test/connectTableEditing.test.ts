@@ -480,6 +480,25 @@ describe('the keyboard cannot disagree with the menu', () => {
     expect(calls).toEqual([['copy', [E]]]);
   });
 
+  it("leaves a key pressed in a control of the table's own to it: Delete and Cmd/Ctrl+C on a column-menu checkbox", async () => {
+    // Any input of the table's is its field, a checkbox included: Delete or Cmd/Ctrl+C on the
+    // column menu's checkboxes (or the Add gallery's Keep open) is a key on that control, and acting
+    // on the selected rows would delete or copy what the user never pointed at.
+    const { table, calls } = await editingTable();
+    table.selectedRowIds = [E];
+    (table.shadowRoot.querySelector('.columns-button') as HTMLElement).click();
+    await table.updateComplete;
+    const box = table.shadowRoot.querySelector('.column-menu input[type="checkbox"]') as HTMLInputElement;
+    expect(box).toBeTruthy();
+    for (const action of ['delete', 'copy'] as Chord[]) {
+      const e = new KeyboardEvent('keydown', { ...CHORDS[action], bubbles: true, cancelable: true, composed: true });
+      box.dispatchEvent(e);
+      expect(e.defaultPrevented, action).toBe(false);
+    }
+    expect(calls).toEqual([]);
+    expect(table.rows.map((r: { ID: string }) => r.ID)).toContain(E);
+  });
+
   it("re-derives no capability of its own: Copy and Cut read the entry's flags, Delete the row's", async () => {
     // A struct's field is copied and cut as its entry is (Cut is a copy and a deferred delete of the
     // entry), and deleted as the field is: a chord reading the selected row's own flags would refuse

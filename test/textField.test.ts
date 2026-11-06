@@ -1,10 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
 // @vitest-environment happy-dom
 //
-// What takes typing (src/widgets/shared/textField.ts): the one rule the table's chords and the app
-// shell's keep to, so that a key a field owns is the field's wherever it is pressed. A text input,
-// a textarea, a select (its letters pick an option) and an editable element take typing; a
-// checkbox, a radio and the other inputs that take no text are gestures, as a button is.
+// What takes typing (src/widgets/shared/textField.ts), as the app shell's chords and its Undo
+// command read it: a key a field owns is the field's. A text input, a textarea, a select (its
+// letters pick an option) and an editable element take typing; a checkbox, a radio and the other
+// inputs that take no text are gestures, as a button is. (The table's own rule, isTypingInField,
+// is wider: connectTableUndoChords.test.ts.)
 import { describe, expect, it } from 'vitest';
 import { focusIsInTextField, isTextField } from '../src/widgets/shared/textField.js';
 
