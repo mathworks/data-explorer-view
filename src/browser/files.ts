@@ -14,8 +14,8 @@ import { dirName, type BrowserDir } from './walk.js';
 
 /**
  * What reads a file: a handle, which reads the file as it is now; a File, a reference to the file
- * whose lastModified and size are as they were when it was picked, and which the browser refuses
- * to read once another program has written the file; or bytes the page holds.
+ * whose lastModified and size are as they were when it was picked, and which the browser may
+ * refuse to read once another program has written the file (Chromium does); or bytes the page holds.
  */
 export type BrowserSource =
   | { kind: 'handle'; handle: FileSystemFileHandle }
