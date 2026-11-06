@@ -70,9 +70,11 @@ export const SHELL_CHORDS: readonly ShellChord[] = [
   { chord: 'Alt+ArrowUp', command: 'up', withNativeMenu: true, repeats: true },
   { chord: 'Mod+,', command: 'settings', withNativeMenu: true },
   { chord: 'Mod+Shift+P', command: 'palette', withNativeMenu: true },
+  // Firefox keeps Ctrl+Shift+P for a private window, so the palette answers F1 too, as VS Code's does.
+  { chord: 'F1', command: 'palette', withNativeMenu: true },
 ];
 
-/** The chord of `command`, as written in SHELL_CHORDS, or none. */
+/** The chord of `command`, as written in SHELL_CHORDS (its first, for one with two), or none. */
 export function chordOf(command: ShellCommand): string | undefined {
   return SHELL_CHORDS.find((c) => c.command === command)?.chord;
 }

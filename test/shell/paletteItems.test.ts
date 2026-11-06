@@ -51,7 +51,7 @@ describe('paletteCommands', () => {
   it("names each command's chord for the platform, the views' and Settings' included", () => {
     const shortcut = (mac: boolean) => Object.fromEntries(paletteCommands({ ...NOTHING, mac }).map((c) => [c.id, c.shortcut]));
     expect(shortcut(false)).toMatchObject({ 'open-file': 'Ctrl+O', 'show-search': 'Ctrl+Shift+F', 'show-terminal': 'Ctrl+`', settings: 'Ctrl+,', about: undefined });
-    expect(shortcut(true)).toMatchObject({ save: '⌘S', 'show-log': '⇧⌘D', settings: '⌘,' });
+    expect(shortcut(true)).toMatchObject({ save: '⌘S', 'show-log': '⇧⌘D', 'show-raw': '⇧⌘U', 'show-terminal': '⌃`', settings: '⌘,' });
   });
 
   it('offers no Folder to a host without one', () => {

@@ -71,11 +71,32 @@ describe('connectShell', () => {
       ['gallery', 'Gallery', 'gridUI', 'Mod+Shift+L'],
       ['search', 'Search', 'find', 'Mod+Shift+F'],
       ['properties', 'Properties', 'propertyInspectorSB', 'Mod+Shift+I'],
-      ['raw', 'Raw', 'code', 'Mod+Shift+W'],
-      ['terminal', 'Terminal', 'openTerminal', 'Mod+`'],
+      ['raw', 'Raw', 'code', 'Mod+Shift+U'],
+      ['terminal', 'Terminal', 'openTerminal', 'Ctrl+`'],
       ['log', 'Log', 'documentList', 'Mod+Shift+D'],
     ]);
     expect(views.filter(([, , icon]) => !shipped.has(icon!)).map(([, , icon]) => icon)).toEqual([]);
+  });
+
+  it("answers the chords a browser lets a page have: Raw's Cmd+Shift+U, the Terminal's literal Ctrl+` on macOS", async () => {
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+    try {
+      const page = startPage();
+      await settled();
+      const shown = (side: 'right' | 'bottom') => (page.shell.layout[side].open ? page.shell.layout[side].view : null);
+      const press = (init: KeyboardEventInit) => document.body.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+      // Cmd+` switches a Mac's windows, and Cmd+Shift+W closes a Chromium window: neither is the shell's.
+      press({ key: '`', code: 'Backquote', metaKey: true });
+      press({ key: 'W', metaKey: true, shiftKey: true });
+      await settled();
+      expect([shown('right'), shown('bottom')]).toEqual(['properties', 'terminal']);
+      press({ key: 'U', metaKey: true, shiftKey: true });
+      press({ key: '`', code: 'Backquote', ctrlKey: true });
+      await settled();
+      expect([shown('right'), shown('bottom')]).toEqual(['raw', null]);
+    } finally {
+      Reflect.deleteProperty(navigator, 'platform');
+    }
   });
 
   it('puts the shared overlays in the body once, and dispose() takes them, the parts and the documents away', async () => {

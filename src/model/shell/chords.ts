@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The app shell's keyboard chords: each written once as text ('Mod+Shift+E', 'Mod+`',
+// The app shell's keyboard chords: each written once as text ('Mod+Shift+E', 'Ctrl+`',
 // 'Alt+ArrowLeft', 'Ctrl+Tab'), then matched against a key press and labelled for a tooltip from
 // that one text, so the shortcut a button names is the shortcut that works, on either platform.
 //
@@ -59,8 +59,8 @@ const MODIFIERS = new Map<string, 'mod' | 'shift' | 'alt' | 'ctrl'>([
 
 /**
  * Keys a chord also matches by their place on the keyboard (`KeyboardEvent.code`). The key under
- * Escape types ` on a US layout, but ^ or ² or a dead key on others, and ~ with Shift; Mod+` (the
- * bottom panel, VS Code's terminal chord) means that key wherever it is, as VS Code takes it.
+ * Escape types ` on a US layout, but ^ or ² or a dead key on others, and ~ with Shift; Ctrl+` (the
+ * Terminal, VS Code's terminal chord) means that key wherever it is, as VS Code takes it.
  *
  * Letters and digits are matched by place another way (see `keyMatches`): only when the press
  * types no Latin letter or digit at all. macOS's Option makes Option+S type ß and Option+E a dead

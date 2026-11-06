@@ -135,8 +135,20 @@ describe('the shell answers its chords', () => {
     press({ key: 's', ctrlKey: true, altKey: true });
     press({ key: ',', ctrlKey: true });
     press({ key: 'P', ctrlKey: true, shiftKey: true });
-    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette']);
-    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette']);
+    press({ key: 'F1' });
+    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette']);
+    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette', 'palette']);
+  });
+
+  it("opens the palette on F1 as on Mod+Shift+P, which Firefox keeps for its private window", () => {
+    for (const platform of ['Win32', 'MacIntel']) {
+      onPlatform(platform);
+      const ran = listen();
+      expect(press({ key: 'F1' })).toBe(true);
+      press({ key: 'P', shiftKey: true, ...(platform === 'Win32' ? { ctrlKey: true } : { metaKey: true }) });
+      expect(ran).toEqual(['palette', 'palette']);
+      for (const stop of stops.splice(0)) stop();
+    }
   });
 
   it('stops answering once taken away', () => {

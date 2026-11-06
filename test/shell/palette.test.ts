@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 // @vitest-environment happy-dom
 //
-// The command palette, connected: Mod+Shift+P (or the `palette` command) opens it with the shell's
-// commands, enabled as the toolbar is at that moment, after closing the popovers (one Escape must
-// not close two layers); a command run in it is carried out as its button or chord would be. And
+// The command palette, connected: Mod+Shift+P or F1 (or the `palette` command) opens it with the
+// shell's commands, enabled as the toolbar is at that moment, after closing the popovers (one
+// Escape must not close two layers); a command run in it is carried out as its button or chord
+// would be. And
 // the commands that show each view, which the palette lists: the view comes forward, and a view
 // with a box (Search, the Terminal) takes the keyboard.
 import { afterEach, describe, expect, it } from 'vitest';
