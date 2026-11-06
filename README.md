@@ -474,9 +474,8 @@ and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` sto
 
 ## Build an app on the shell
 
-`data-explorer-view/app-shell` is the window of a whole app, laid out as
-the prototype laid out its own. A toolbar and a location bar run across the
-top. Each side has an activity bar and a sidebar: the Explorer (the open files,
+`data-explorer-view/app-shell` is the window of a whole app. A toolbar and a
+location bar run across the top. Each side has an activity bar and a sidebar: the Explorer (the open files,
 and a folder's hierarchy under them), the Gallery (the Add gallery's tiles) and
 Search on the left, the Properties and the Raw pane on the right. The open
 files are tabs in the middle, and Root shows the relationship graph of them

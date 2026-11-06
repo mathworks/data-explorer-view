@@ -4,7 +4,7 @@
 // them; the shell keeps them in a key-value store (an app passes its localStorage) and reads them
 // back when it starts.
 //
-// the prototype kept each setting under a key of its own (dex-theme, dex-toolbar-layout) and
+// The prototype kept each setting under a key of its own (dex-theme, dex-toolbar-layout) and
 // took whatever string was there. Here they are one JSON record under a key the app chooses, so two
 // apps on one origin do not share their settings, and each field is checked as it is read: a store
 // an older version or a hand edit wrote can hold a value this version does not know, and one bad

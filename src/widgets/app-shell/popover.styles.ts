@@ -4,8 +4,7 @@ import { css } from 'lit';
 
 /**
  * The look the shell's popovers share (`<dex-settings-panel>`, `<dex-about-panel>`): a small card
- * floating beside the activity-bar button that opened it, as the prototype drew its Settings
- * and About popovers.
+ * floating beside the activity-bar button that opened it.
  *
  * The host is the fixed box show() places, in viewport px; it is shrink-wrapped round the card, so
  * what show() measures is the card's size. Nothing shows until show(): the host is `display: none`

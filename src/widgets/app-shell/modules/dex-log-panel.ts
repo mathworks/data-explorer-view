@@ -165,7 +165,7 @@ export class DexLogPanel extends LitElement {
       border-radius: 4px;
     }
 
-    /* the prototype's log: mono, small, a line each, tight. The lines can be selected and
+    /* The prototype's log: mono, small, a line each, tight. The lines can be selected and
        copied, a message to quote in a bug report. */
     .lines {
       flex: 1 1 auto;

@@ -20,7 +20,7 @@ import { DexIcon } from '../src/widgets/shared/dex-icon.js';
 beforeAll(() => defineToolbar());
 afterEach(() => document.body.replaceChildren());
 
-// the prototype's row: Open, Folder | Save, Save As, Save All | Close on the left, and
+// The prototype's row: Open, Folder | Save, Save As, Save All | Close on the left, and
 // Undo, Redo | Add Child | Cut, Copy, Paste | Delete on the right.
 const TS_ROW: ToolbarItem[] = [
   { id: 'open', label: 'Open', icon: 'openFolder', group: 'open', shortcut: '⌘O' },

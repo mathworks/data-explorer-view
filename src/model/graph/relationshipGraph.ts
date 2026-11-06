@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // The relationship graph an app draws over the files it has open: a box per model, dictionary and
 // MAT-file, the blocks and variables inside them, and the edges between them. Ported from
-// the prototype's RelationshipGraphBuilder, which drew the same picture off its own session.
+// The prototype's RelationshipGraphBuilder, which drew the same picture off its own session.
 //
 // NOTHING HERE DECIDES A RELATIONSHIP. Each one is somebody else's answer, shaped:
 //

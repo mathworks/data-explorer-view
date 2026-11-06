@@ -4,7 +4,7 @@
 // the tokens of a JSON or an XML text, which it colours.
 //
 // A row's raw form is what core holds for it, unrendered: the record it would write, as JSON or as
-// XML, or the bytes a value was read from, as a dump. the prototype's rules for a node are
+// XML, or the bytes a value was read from, as a dump. The prototype's rules for a node are
 // rawOfNode's (its RawViewerProjector): the bytes where the node keeps them, otherwise the record
 // its serialize() gives, as JSON. What each kind of document answers for its rows, a dictionary's
 // entry as the file would hold it among them, is rawOfRow.ts.

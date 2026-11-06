@@ -118,10 +118,9 @@ function pathOf(points: readonly GraphPoint[]): string {
 }
 
 /**
- * How the open models, dictionaries and MAT-files connect, as the prototype's relationship graph
- * draws it: the models on the left as a tree of their references, the data files on the right,
+ * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,
  * each a box of its kind's colour, a file referenced and not open dashed, and the edges between
- * them. Every box starts closed, as ts's did. An open box lists the blocks and variables that take
+ * them. Every box starts closed. An open box lists the blocks and variables that take
  * part, a model's workspace variables under a divider, and every other box the items of its own
  * those reach (a model open shows, in a dictionary, the variables its blocks read), with an edge
  * from each block to each variable it reads, labelled with the block parameter. The edges run under
@@ -161,7 +160,7 @@ export class DexRelationshipGraph extends LitElement {
   /**
    * The ids of the boxes that are open. An open box shows all its items, and each other box the
    * items of its own an open box's edges reach: a model open shows its blocks and, in each data file
-   * they read, only the variables they read, as ts did. None, the default, as ts started: the files
+   * they read, only the variables they read. None, the default, the graph starts with: the files
    * and the links between them. The app sets it, in answer to `dex-graph-expand`; the element never
    * changes it.
    */

@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { fuzzyMatch, rankCommands, type RankItem } from '../src/model/shell/fuzzy.js';
 
-// the prototype's palette, which these commands are taken from.
+// The prototype's palette, which these commands are taken from.
 const COMMANDS: RankItem[] = [
   { id: 'new', label: 'New', category: 'File' },
   { id: 'save', label: 'Save', category: 'File' },

@@ -9,7 +9,7 @@
 //                the letter before it                        "tr"   → Toggle Raw View
 //   subsequence  the letters are in the label, in order      "ste"  → Paste
 //
-// the prototype's palette kept every subsequence match in the order the commands were written,
+// The prototype's palette kept every subsequence match in the order the commands were written,
 // so "s" put Close above Settings. Within one strength the commands run lately come first, then
 // the one whose match starts earlier, then the order the app gave: a command used a moment ago
 // is the likelier of two equal matches, but a loose match of it never climbs over a label that

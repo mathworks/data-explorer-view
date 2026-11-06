@@ -79,7 +79,7 @@ interface Drag {
 }
 
 /**
- * The frame of an app, after the prototype's: a toolbar and a location bar across the top, a
+ * The frame of an app: a toolbar and a location bar across the top, a
  * sidebar on each side with an activity bar beyond it, the documents in the center with a bottom
  * panel under them, and a status bar at the foot of the center. The page fills it: its toolbar,
  * location bar and status text as children in the `toolbar`, `location` and `status` slots, its

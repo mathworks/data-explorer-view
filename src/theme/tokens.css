@@ -122,7 +122,7 @@
   --dex-shell-resizer-hover: #0078d4;
   /* The relationship graph (dex-relationship-graph): each kind of box's surface, border and
      selected border, each kind of edge (the legend's swatches too), the items inside a box (a
-     model's workspace variables in a tint of the workspace edge), and a ghost's label. ts's hues,
+     model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues
      darkened until every line and border is 3:1 against the canvas. */
   --dex-graph-model-bg: #e8f0f7;
   --dex-graph-model-border: #6c8899;

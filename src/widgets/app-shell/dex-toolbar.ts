@@ -34,8 +34,8 @@ export interface ToolbarItem {
    */
   group?: string;
   /**
-   * The side of the row: `end` items go to the right, after a spacer (Undo … Delete in
-   * the prototype). Default `start`.
+   * The side of the row: `end` items go to the right, after a spacer (the shell's Undo …
+   * Delete). Default `start`.
    */
   align?: 'start' | 'end';
 }
@@ -77,7 +77,7 @@ export class DexToolbar extends LitElement {
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
     }
 
-    /* the prototype's row: 46px buttons in a 48px band. */
+    /* The prototype's row: 46px buttons in a 48px band. */
     .bar {
       display: flex;
       align-items: center;

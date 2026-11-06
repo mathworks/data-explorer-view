@@ -1,7 +1,6 @@
 # `<dex-app-shell>`
 
-The frame of an app, laid out as the prototype laid out its window: a toolbar and a location
-bar across the top, a sidebar on each side with an activity bar beyond it, the documents in the
+The frame of an app: a toolbar and a location bar across the top, a sidebar on each side with an activity bar beyond it, the documents in the
 middle with a bottom panel under them, and a status bar along their foot. It draws the frame and
 none of what is in it. The page fills it: its toolbar, location bar and status text as children
 in the `toolbar`, `location` and `status` slots, its documents as plain children, and its sides

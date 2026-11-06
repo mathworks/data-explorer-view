@@ -3,7 +3,7 @@
 // Where a popover goes beside the button that opened it, kept inside the viewport: the shell's
 // Settings popover, opened from the foot of an activity bar.
 //
-// the prototype put its Settings popover to the right of the button, with their bottoms in
+// The prototype put its Settings popover to the right of the button, with their bottoms in
 // line, by CSS alone (dex-settings-panel.ts, `left: 52px; bottom: 4px`). That holds only for a
 // button at the bottom of the left bar; this package's shell lets an app put the button on either
 // bar, and a window can be smaller than the popover. So the place is computed: to the right first,

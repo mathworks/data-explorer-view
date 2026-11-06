@@ -1,7 +1,6 @@
 # `<dex-relationship-graph>`
 
-How the open models, dictionaries and MAT-files connect, as the prototype's relationship graph
-drew it: the models on the left as a tree of their references, the data files on the right, each
+How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right, each
 a box in its kind's colour, a file referenced and not open as a dashed box, and the edges between
 them. Every box starts closed. An open box lists the blocks and variables that take part (a
 model's workspace variables under a divider), each other box shows those of its items the open

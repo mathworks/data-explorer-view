@@ -6,7 +6,7 @@
 // `<dex-shell-view>` from each, and the palette lists each, so a view's button, chord and command
 // cannot drift apart.
 //
-// the prototype's layout: the Explorer, the Gallery and Search on the left, the Properties and
+// The prototype's layout: the Explorer, the Gallery and Search on the left, the Properties and
 // Raw on the right, the Terminal and the Log in the bottom panel; each first one shown at first.
 //
 // Its chords, but for two a browser will not give up: Raw is Mod+Shift+U, as Mod+Shift+W closes the
