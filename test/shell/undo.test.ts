@@ -78,6 +78,21 @@ describe('Undo and Redo', () => {
     expect(dirtyTabs()).toEqual(['params.sldd']);
   });
 
+  it('on a checkbox, which takes no typing, they are the document\'s', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    const exec = vi.fn(() => true);
+    document.execCommand = exec;
+    const box = Object.assign(document.createElement('input'), { type: 'checkbox' });
+    document.body.append(box);
+    box.focus();
+    page.command('undo');
+    await until(() => dirtyTabs().length === 0);
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('a model kept for viewing only, and a .mdl, have nothing to undo', async () => {
     const page = startPage({ 'shared_gain.slx': 'shared_gain.slx', 'legacy_ctrl.mdl': 'legacy_ctrl.mdl' });
     await open(page, 'shared_gain.slx', 'legacy_ctrl.mdl');

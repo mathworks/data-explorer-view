@@ -166,7 +166,9 @@ describe('isTypingInField', () => {
     }
   });
 
-  it('is false on anything else', () => {
+  it('is false on anything else, a checkbox and a radio included', () => {
+    expect(isTypingInField(keyFrom(Object.assign(document.createElement('input'), { type: 'checkbox' })))).toBe(false);
+    expect(isTypingInField(keyFrom(Object.assign(document.createElement('input'), { type: 'radio' })))).toBe(false);
     expect(isTypingInField(keyFrom(document.createElement('div')))).toBe(false);
     expect(isTypingInField(keyFrom(document.createElement('dex-tree-table')))).toBe(false);
   });

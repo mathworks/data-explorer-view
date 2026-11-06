@@ -21,6 +21,7 @@ import { createWorkspace } from '../../../model/source/workspace.js';
 import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
+import { isTextField } from '../../shared/textField.js';
 import type { DexAppShell } from '../dex-app-shell.js';
 import {
   clearSelection,
@@ -59,13 +60,14 @@ const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
- * Whether the focus, inside the widgets' shadow roots too, is in a field that takes text: for the
- * Edit menu's items, which come with no key event for view's isTypingInField(event) to read.
+ * Whether the focus, inside the widgets' shadow roots too, is in a field that takes text (by the
+ * rule view's isTypingInField(event) keeps): for a menu's or the toolbar's Undo, which come with no
+ * key event to read.
  */
 function typingInField(): boolean {
   let el = document.activeElement;
   while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el instanceof HTMLElement && el.isContentEditable);
+  return isTextField(el);
 }
 
 /**
