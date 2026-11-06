@@ -16,11 +16,14 @@
 
 import { isGraphPath } from 'data-explorer-core';
 import { buildRelationshipGraph } from '../../../model/graph/relationshipGraph.js';
-import { graphIdOf, type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import { graphIdOf, type GraphEdgeKind, type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import { buildSectionRowId } from '../../../model/ids/sectionRowId.js';
+import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import { sourceUri } from '../../../model/source/sourceUri.js';
 import type { RawSource } from '../../../model/usage/usageCells.js';
 import type { DexRelationshipGraph } from '../modules/dex-relationship-graph.js';
 import type { FolderView } from './folder.js';
+import { graphNameOf, rowIn } from './rows.js';
 
 /**
  * How long after the first change since the last build the graph is built again, in ms: every
@@ -59,7 +62,39 @@ export interface GraphPane {
   refresh(): void;
   /** Select and bring forward the box of the file `uri`, or its item `name` (opening its box), once the graph holds it. */
   reveal(uri: string, name?: string): void;
+  /**
+   * Select and bring forward what the row `rowId` of the file `uri` stands for, `rows` its table's:
+   * for a row of a model's External Data or Model References, the file it names (its box, or its
+   * ghost); for another row, its item (graphNameOf: a block by its key, anything in a variable by
+   * the variable), else the file's box; for none, the file's box. For a table's Show in Graph.
+   */
+  showRow(uri: string, rows: readonly TreeTableRow[], rowId: string | null): void;
   dispose(): void;
+}
+
+/** The sections of a model's table whose rows name another file: what a Show in Graph on one reveals. */
+const REFERENCE_SECTIONS: ReadonlySet<string> = new Set([buildSectionRowId('dataSources'), buildSectionRowId('references')]);
+
+/** The kinds of edge from a file to a file it references. */
+const FILE_LINKS: ReadonlySet<GraphEdgeKind> = new Set(['model-ref', 'data-link', 'sldd-ref']);
+
+/** A file's name in any case, with no extension: a model reference may name its model without one. */
+const stemOf = (name: string): string => name.toLowerCase().replace(/\.[^./\\]*$/, '');
+
+/**
+ * The box the reference `ref` of the file `uri` is drawn to: the file it resolves to, or the ghost of
+ * the name, at the end of a link from the file's box, matched by name in any case, with or without
+ * its extension. Null where the file's box has no such link.
+ */
+function referencedId(graph: RelationshipGraph, uri: string, ref: string): string | null {
+  const from = graph.boxes.find((b) => !b.ghost && b.uri === uri);
+  if (!from) return null;
+  for (const edge of graph.edges) {
+    if (edge.from !== from.id || !FILE_LINKS.has(edge.kind)) continue;
+    const to = graph.boxes.find((b) => b.id === edge.to);
+    if (to && (to.label.toLowerCase() === ref.toLowerCase() || stemOf(to.label) === stemOf(ref))) return to.id;
+  }
+  return null;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -80,7 +115,8 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   let seen: ReturnType<typeof openFiles> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let building = false;
-  let pendingReveal: { uri: string; name?: string } | null = null;
+  // What to reveal once the graph holds it: an item by `name`, a reference by `ref`, else the box.
+  let pendingReveal: { uri: string; name?: string; ref?: string } | null = null;
   let disposed = false;
 
   const check = (): void => {
@@ -92,7 +128,8 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
 
   const showRevealed = (graph: RelationshipGraph | null): void => {
     if (!pendingReveal || !graph) return;
-    const id = graphIdOf(graph, pendingReveal.uri, pendingReveal.name);
+    const { uri, name, ref } = pendingReveal;
+    const id = (ref === undefined ? null : referencedId(graph, uri, ref)) ?? graphIdOf(graph, uri, name);
     pendingReveal = null;
     if (!id) return;
     // An item is drawn in its box only while the box is open.
@@ -146,6 +183,14 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
     }
   }
 
+  const revealWhenDrawn = (what: NonNullable<typeof pendingReveal>): void => {
+    pendingReveal = what;
+    check();
+    // Out of date, or being built: the reveal waits for the build. Else it is the graph there is.
+    if (outOfDate) schedule();
+    else if (!building && timer === undefined) showRevealed(el.graph);
+  };
+
   const schedule = (): void => {
     if (timer !== undefined || disposed || !context.shown()) return;
     timer = setTimeout(() => {
@@ -187,11 +232,13 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       if (outOfDate) schedule();
     },
     reveal(uri, name) {
-      pendingReveal = { uri, ...(name === undefined ? {} : { name }) };
-      check();
-      // Out of date, or being built: the reveal waits for the build. Else it is the graph there is.
-      if (outOfDate) schedule();
-      else if (!building && timer === undefined) showRevealed(el.graph);
+      revealWhenDrawn({ uri, ...(name === undefined ? {} : { name }) });
+    },
+    showRow(uri, rows, rowId) {
+      const row = rowId === null ? undefined : rowIn(rows, rowId);
+      if (row?.parent && REFERENCE_SECTIONS.has(row.parent)) return revealWhenDrawn({ uri, ref: row.Name.label });
+      const name = rowId === null ? undefined : graphNameOf(rows, rowId);
+      revealWhenDrawn({ uri, ...(name === undefined ? {} : { name }) });
     },
     dispose() {
       disposed = true;

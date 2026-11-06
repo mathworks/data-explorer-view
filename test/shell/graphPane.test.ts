@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
 import type { RawSource } from '../../src/model/usage/usageCells.js';
 import type { FolderView } from '../../src/widgets/app-shell/connect/folder.js';
 import { connectGraphPane, REBUILD_MS, type GraphPaneContext, type GraphTab } from '../../src/widgets/app-shell/connect/graphPane.js';
@@ -121,6 +122,31 @@ describe('the graph pane', () => {
     expect(el.reveal).toHaveBeenCalledTimes(2);
     await pause();
     expect(el.reveal).toHaveBeenLastCalledWith('file:///w/shared_gain.slx');
+  });
+
+  it("shows a model's reference row as the file it names, or its ghost, and any other row as its item", async () => {
+    const rows = [
+      { ID: 'section:dataSources', parent: null, Name: { label: 'External Data' } },
+      { ID: 'ds/params', parent: 'section:dataSources', Name: { label: 'params.sldd' } },
+      { ID: 'section:blocks', parent: null, Name: { label: 'Model Elements' } },
+      { ID: 'b/2', parent: 'section:blocks', Name: { label: 'DictOnly' }, _blockKey: '2' },
+    ] as unknown as TreeTableRow[];
+    const tabs = [tabOf('shadow_ws.slx'), tabOf('params.sldd')];
+    const { el, pane: p } = pane(tabs);
+    p.showRow('file:///w/shadow_ws.slx', rows, 'ds/params');
+    await pause();
+    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/params.sldd');
+    p.showRow('file:///w/shadow_ws.slx', rows, 'b/2');
+    expect(el.reveal).toHaveBeenLastCalledWith(el.graph!.boxes[0]!.items.find((i) => i.name === 'DictOnly')!.id);
+    p.showRow('file:///w/shadow_ws.slx', rows, null);
+    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
+    // The dictionary closed: the model's reference is its ghost, named as the model spells it.
+    tabs.pop();
+    p.showRow('file:///w/shadow_ws.slx', rows, 'ds/params');
+    await pause();
+    const ghost = el.graph!.boxes.find((b) => b.ghost)!;
+    expect(ghost.label.toLowerCase()).toBe('params.sldd');
+    expect(el.reveal).toHaveBeenLastCalledWith(ghost.id);
   });
 
   it('opens a box or an item, and looks for a ghost from the file that references it', async () => {

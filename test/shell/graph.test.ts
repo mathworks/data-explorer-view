@@ -155,6 +155,17 @@ describe('the relationship graph', () => {
     expect(graph().expanded).toEqual([params.id]);
   });
 
+  it("is where a model's External Data row's Show in Graph goes, on the file it names", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'shadow_ws.slx');
+    const reveal = vi.spyOn(graph(), 'reveal');
+    await menuOn('shadow_ws.slx', 'params.sldd');
+    choose('showInGraph');
+    await until(() => graphShown() && reveal.mock.calls.length === 1);
+    const params = graph().graph!.boxes.find((b) => b.label === 'params.sldd')!;
+    expect(reveal.mock.calls[0]![0]).toBe(params.id);
+  });
+
   it('is shown by the Show Graph command, as the palette lists it', async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd');

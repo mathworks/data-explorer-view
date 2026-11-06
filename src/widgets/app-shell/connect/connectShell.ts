@@ -47,7 +47,7 @@ import { ShellNavigation } from './navigation.js';
 import { connectModules } from './modules.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
-import { graphNameOf, rowIn, sectionOf } from './rows.js';
+import { rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions, shellPrompts } from './questions.js';
@@ -382,11 +382,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           later();
         }),
         handle.on('copyFailed', (failure) => log('error', `Could not copy: ${failure.message}`)),
-        // Show in Graph: Root, the row's item (or the file's box) selected and brought forward.
+        // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box) brought forward.
         handle.on('action', ({ actionId, rowId }) => {
           if (actionId !== SHOW_IN_GRAPH.id) return;
           showRoot();
-          graph.reveal(uri, rowId === null ? undefined : graphNameOf(tab.table?.rows ?? [], rowId));
+          graph.showRow(uri, tab.table?.rows ?? [], rowId);
         }),
         // For the toolbar, the Explorer and the Gallery: each whole paint, the first too (which no
         // change may follow), and any change at all. What the document refused, and why, is a line
