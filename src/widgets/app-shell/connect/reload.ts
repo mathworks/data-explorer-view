@@ -9,6 +9,7 @@
 // whether a tab is still open), so the shell holds one and the rules stay out of connectShell. The
 // question the in-page dialog asks for a host with none of its own is reloadQuestion, below.
 
+import { extOf } from 'data-explorer-core';
 import type { Doc } from '../../../model/source/workspace.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { ConfirmOptions } from '../dex-confirm-dialog.js';
@@ -130,7 +131,7 @@ export class ReloadGate<T extends ReloadTab> {
  * detail says so; a dictionary marks them. Keep My Edits is the answer that loses nothing now.
  */
 export function reloadQuestion(name: string): ConfirmOptions {
-  const ext = /\.[^./\\]*$/.exec(name)?.[0].toLowerCase() ?? '';
+  const ext = extOf(name);
   const kept =
     ext === '.mat'
       ? "If you keep them, saving writes this MAT-file over the other program's changes, " +
