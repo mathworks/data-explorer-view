@@ -56,17 +56,26 @@ Where it differs from the prototype it follows, and why:
 - The default look is the prototype's: two columns of top-down trees, what a file references in
   the row under it. Each file takes the width it needs in its tree rather than a slot as wide as
   the column's widest box, and the gap between the columns is as wide as the data links' lanes need
-  (8 pixels a link, between 120 and 300) rather than 300: the prototype's slots and gap drew the
-  fifteen files of the table below 2170 pixels wide, a label 4 pixels at a fit.
+  (about 13.3 pixels of gap a link, their lanes 8 pixels apart over 60% of it, between 120 and
+  300) rather than 300: the prototype's slots and gap drew the fifteen files of the table below
+  2170 pixels wide, a label 4 pixels at a fit.
 - `layout: 'indented'` draws each column as a file tree instead: one box a row, what a file
   references in the rows under it a step to the right, a line down the referrer's left side. A large
   set of files draws far narrower, so it reads at a larger scale; a column too long for a 1440 by 900
-  window is dealt into columns side by side, whole trees each, decided with every box closed.
+  window is dealt into columns side by side, whole trees each, decided with every box closed. The
+  wrap aims at a fixed 900 by 600 canvas, about the shell's graph at that size, not at the element's
+  own: the layout knows no pane, and following one would move every box on a resize.
 - A fit stops at 0.7, where a label is near 8 pixels; what does not fit then starts at the top
   left, to pan from. A box opened is zoomed to with what it reaches at no less than that too.
 - A box opened lights the files it reaches along data links, dictionary references and usages, not
   the models a model references: it is opened to see the data its blocks read, as the prototype's
   expand lit the files a model links.
+- A data link takes the border token of the file it links (`--dex-graph-sldd-border`,
+  `--dex-graph-mat-border`), as the prototype coloured links by their target, so
+  `--dex-graph-edge-data-link` now colours only a link to a file of neither kind, which core's
+  extraction never names. The Legend's "Dictionary Reference" and "Data Link to Dictionary" are then
+  near one colour, and one in the high-contrast theme: where they run tells them apart, a reference
+  between two dictionaries in the right column, a link across the gap from a model.
 
 What fits, in the app shell at 1440 by 900 (a graph about 900 by 610 pixels), for fifteen files
 (eight models one tree five leaves wide, five dictionaries one tree three wide, two MAT-files):

@@ -3,15 +3,15 @@
 // orthogonal route for each edge whose ends show. A port of the prototype's two-column layout, which
 // the look of the graph comes from, and the same two columns as indented trees.
 //
-// TWO COLUMNS OF TREES ('tree', the default). The models on the left, as trees of their model references: what a model
-// references in the row under it, side by side, the model centred over them. The dictionaries on
-// the right, as trees of their references, and the MAT-files under them. Trees sit side by side up
-// to a few boxes wide (three of models, two of data files), and the next starts a row of its own
-// under them, so files that reference nothing make a grid rather than one row too wide to read. A
-// file a model links (data-link) and a variable a block reads (param-usage) are reached across the
-// gap between the columns, each edge on a lane of its own there so that edges side by side do not
-// merge into one line; a block reading its own model's workspace (ws-usage) is routed inside the
-// model's box, on the right of its items.
+// TWO COLUMNS OF TREES ('tree', the default). The models on the left, as trees of their model
+// references: what a model references in the row under it, side by side, the model centred over
+// them. The dictionaries on the right, as trees of their references, and the MAT-files under them.
+// Trees sit side by side up to a few boxes wide (three of models, two of data files), and the next
+// starts a row of its own under them, so files that reference nothing make a grid rather than one
+// row too wide to read. A file a model links (data-link) and a variable a block reads (param-usage)
+// are reached across the gap between the columns, each edge on a lane of its own there so that
+// edges side by side do not merge into one line; a block reading its own model's workspace
+// (ws-usage) is routed inside the model's box, on the right of its items.
 //
 // TWO COLUMNS OF INDENTED TREES ('indented'). The same columns, each file a row of its own, what it
 // references in the rows under it, each shifted a step right of it, a line down its left side to
@@ -145,8 +145,10 @@ const TRUNK = 12;
 const LANE_PAD = 10;
 const LANE_STEP = 4;
 // The canvas a long indented column is wrapped for: about the app shell's centre in a 1440 by 900
-// window. And how much larger a wrap must let the picture be drawn there for it to be worth what it
-// costs: an edge to a box of a second run passes under the boxes of the first.
+// window, a fixed one and not the element's own. The layout is the model's and knows no pane, and
+// a wrap that followed the pane would move every box as the window was resized. And how much
+// larger a wrap must let the picture be drawn there for it to be worth what it costs: an edge to a
+// box of a second run passes under the boxes of the first.
 const WRAP_WIDTH = 900;
 const WRAP_HEIGHT = 600;
 const WRAP_GAIN = 1.2;
@@ -368,7 +370,10 @@ function placeColumn(nodes: Placed[], edges: readonly GraphEdge[], x0: number, y
 
 // --- The indented layout ------------------------------------------------------------------
 
-/** A file in one column's indented trees: its depth, and the file it is drawn under (null for a root). */
+/**
+ * A file in one column's indented trees: its depth, and the file it is drawn under (null for a
+ * root).
+ */
 interface TreeNode {
   id: string;
   depth: number;
@@ -423,7 +428,7 @@ const closedHeight = (tree: readonly TreeNode[]): number => tree.length * BOX_HE
 const treeWidth = (column: Column, tree: readonly TreeNode[]): number =>
   tree.reduce((w, n) => Math.max(w, n.depth * INDENT + column.nodes.get(n.id)!.width), 0);
 
-/** The trees in order, into runs of no more than `height` each (a tree taller alone keeps its whole height). */
+/** The trees in order, into runs no taller than `height` each (a tree taller alone keeps its height). */
 function wrap(column: Column, height: number): TreeNode[][][] {
   const runs: TreeNode[][][] = [];
   let used = 0;
@@ -479,9 +484,9 @@ function wrapHeight(columns: readonly Column[], across: number, down: number): n
 
 /**
  * Lay one column out from `x0`, `y0`, wrapped at `height`: each run of trees a column of its own,
- * left to right; in a run, each file a row, as tall as its box, the rows of a tree INDENTED_ROW_GAP apart and
- * the trees TREE_GAP apart; each file INDENT right of the one it is drawn under. Answers the right
- * edge of the widest run, or `x0` for none.
+ * left to right; in a run, each file a row, as tall as its box, the rows of a tree INDENTED_ROW_GAP
+ * apart and the trees TREE_GAP apart; each file INDENT right of the one it is drawn under. Answers
+ * the right edge of the last run, the rightmost, or `x0` for none.
  */
 function placeIndented(column: Column, x0: number, y0: number, height: number): number {
   let x = x0;
@@ -865,10 +870,10 @@ function vertical(s: GraphRect, t: GraphRect, sRow: number, tRow: number): Graph
 const headY = (r: GraphRect): number => r.y + (r.height === BOX_HEADER ? BOX_HEADER : OPEN_HEADER) / 2;
 
 /**
- * A reference's route from `s` to `t` in the indented layout. Along the tree (no `lane`): down from `s`'s bottom, TRUNK in
- * from its left edge, to the level of `t`'s label, and right to `t`'s left side, which is INDENT in
- * from `s`'s. Round the outside: from the side of `s` to the lane, along it, and to the same side of
- * `t`, each at its label.
+ * A reference's route from `s` to `t` in the indented layout. Along the tree (no `lane`): down from
+ * `s`'s bottom, TRUNK in from its left edge, to the level of `t`'s label, and right to `t`'s left
+ * side, which is INDENT in from `s`'s. Round the outside: from the side of `s` to the lane, along
+ * it, and to the same side of `t`, each at its label.
  */
 function reference(s: GraphRect, t: GraphRect, lane: Lane | undefined): GraphPoint[] {
   if (!lane) {

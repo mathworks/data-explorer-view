@@ -82,7 +82,9 @@ const REACH_MARGIN = 40;
 // The corner radius a route's turns are drawn with.
 const CORNER = 8;
 
-// The Legend's lines: each colour an edge is drawn in from what core extracts, and what it says.
+// The Legend's lines: each colour an edge is drawn in from what core extracts, and what it says. A
+// dictionary reference and a data link to a dictionary are near one colour (one in high contrast):
+// where they run tells them apart, a reference between dictionaries, a link across the gap.
 const LEGEND_LINES: readonly (readonly [string, string])[] = [
   ['model-ref', 'Model Reference'],
   ['sldd-ref', 'Dictionary Reference'],
@@ -148,14 +150,14 @@ function pathOf(points: readonly GraphPoint[]): string {
 }
 
 /**
- * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,
- * each a box of its kind's colour, a file referenced and not open dashed, and the edges between
- * them. Every box starts closed. An open box lists the blocks and variables that take
- * part, a model's workspace variables under a divider, and every other box the items of its own
- * those reach (a model open shows, in a dictionary, the variables its blocks read), with an edge
- * from each block to each variable it reads, labelled with the block parameter. The edges run under
- * the boxes; what the selection reaches is drawn over them. The graph comes from
- * `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
+ * How the open models, dictionaries and MAT-files connect: the models on the left as a tree of
+ * their references, the data files on the right, each a box of its kind's colour, a file referenced
+ * and not open dashed, and the edges between them. Every box starts closed. An open box lists the
+ * blocks and variables that take part, a model's workspace variables under a divider, and every
+ * other box the items of its own those reach (a model open shows, in a dictionary, the variables
+ * its blocks read), with an edge from each block to each variable it reads, labelled with the block
+ * parameter. The edges run under the boxes; what the selection reaches is drawn over them. The
+ * graph comes from `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
  *
  * A click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges
  * reach, dimming the rest; a click on the background clears it. A double-click asks to open the
@@ -206,9 +208,10 @@ export class DexRelationshipGraph extends LitElement {
    * trees, what a file references side by side in the row under it. 'indented' draws each column
    * as a file tree, one box a row, what a file references in the rows under it a step to the right,
    * which draws a large set of files narrower and so at a larger scale: fifteen files that fit a
-   * 1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A change fits the graph
-   * afresh, its boxes being elsewhere; what is open and selected stays. A value it does not know is
-   * 'tree'. Attribute `layout`.
+   * 1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is
+   * dealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A
+   * change fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A
+   * value it does not know is 'tree'. Attribute `layout`.
    */
   @property({ type: String }) layout: GraphLayoutStyle = 'tree';
 

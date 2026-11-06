@@ -519,6 +519,11 @@ export const relationshipGraphStyles = css`
       outline: 2px solid Highlight;
     }
 
+    /* The item whose connections are traced, which no border colour of its own picks out here. */
+    .item:hover {
+      outline: 1px solid Highlight;
+    }
+
     .canvas:focus-visible {
       outline: 2px solid CanvasText;
       outline-offset: -2px;
