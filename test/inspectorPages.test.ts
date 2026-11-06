@@ -237,15 +237,25 @@ describe('asked without options', () => {
 });
 
 describe('usedByGroup', () => {
-  it("lists a variable's blocks, each a link to its block, with its path and its model", () => {
+  it("lists a variable's blocks, each a link to its block, with what its name does not say: its path, and its model", () => {
+    // As the table's Usage cell reads them: the block's name, and the model where it is another's.
+    // A block at the top of its system has a path that is its name, which said again read
+    // "K: K"; a Model Workspace variable's blocks are its own model's, which the cell names not.
     const group = usedByGroup({ UsedBy: {
       blockLinks: [
         { blockName: 'Gain', blockPath: 'ctrl/Gain', modelName: 'plant', modelUri: 'file:///w/plant.slx', linkTarget: 'blocks:7@file:///w/plant.slx' },
         { blockName: 'K', blockPath: 'K', modelName: '', modelUri: 'file:///w/own.slx', linkTarget: 'blocks:9@file:///w/own.slx' },
+        { blockName: 'G', blockPath: 'G', modelName: 'other', modelUri: 'file:///w/other.slx', linkTarget: 'blocks:3@file:///w/other.slx' },
+        { blockName: 'In', blockPath: 'sub/In', modelName: '', modelUri: 'file:///w/own.slx', linkTarget: 'blocks:4@file:///w/own.slx' },
       ],
     } });
     expect(group?.title).toBe('Used By');
-    expect(rowsOf(group ?? undefined)).toEqual(['Gain: ctrl/Gain (plant) -> blocks:7@file:///w/plant.slx', 'K: K -> blocks:9@file:///w/own.slx']);
+    expect(rowsOf(group ?? undefined)).toEqual([
+      'Gain: ctrl/Gain (plant) -> blocks:7@file:///w/plant.slx',
+      'K:  -> blocks:9@file:///w/own.slx',
+      'G: (other) -> blocks:3@file:///w/other.slx',
+      'In: sub/In -> blocks:4@file:///w/own.slx',
+    ]);
   });
 
   it("lists a block's parameters, each value a link to the variable it reads", () => {

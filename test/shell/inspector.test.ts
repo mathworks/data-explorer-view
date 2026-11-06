@@ -204,8 +204,14 @@ describe('the Properties view, beside a tab', () => {
     tabNamed('shadow_ws.slx')!.click();
     await until(() => activeTab() === tabNamed('shadow_ws.slx'));
     await selectRow('shadow_ws.slx', 'Kp');
-    // The open tabs' usage fills the cell (no folder is shown): the block, by its path in its model.
-    await until(() => rows('Used By').join() === 'WsGain: WsGain');
+    // The open tabs' usage fills the cell (no folder is shown): the block, as the table's Usage cell
+    // names it. It is at the top of the model whose workspace holds Kp, so nothing more is said of
+    // where it is (its path is its name; the model is the tab's own).
+    await until(() => rows('Used By').join() === 'WsGain: ');
+    // What the table's own cell for it reads.
+    const kp = await rowOf('shadow_ws.slx', 'Kp');
+    const cell = tableOf('shadow_ws.slx')!.shadowRoot!.querySelector(`tr[data-row-id="${CSS.escape(kp.ID)}"] td.col-UsedBy`);
+    expect(cell?.textContent?.trim()).toBe('WsGain');
     clickLink('WsGain');
     const block = await rowOf('shadow_ws.slx', 'WsGain');
     await until(() => tableOf('shadow_ws.slx')!.selectedRowIds.join() === block.ID);

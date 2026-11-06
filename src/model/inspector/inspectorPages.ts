@@ -139,8 +139,9 @@ const str = (x: unknown): string => (typeof x === 'string' ? x : '');
  * A table row's Usage cell (`UsedBy`) as a group of the inspector's, its links the cell's: for a
  * block's row, what its parameters read ("Uses": each parameter, its value a link to the variable,
  * or core's own cell before a usage graph filled it); for any other, who uses it ("Used By": each
- * block a link to it, with its path and model, or core's own list of links). Null for a cell with
- * nothing in it, which the page leaves out.
+ * block a link to it, with its path where the block is inside a subsystem and its model where it is
+ * another's, or core's own list of links). Null for a cell with nothing in it, which the page leaves
+ * out.
  */
 export function usedByGroup(row: { UsedBy?: unknown; _isBlockRow?: boolean } | undefined): PropertyGroup | null {
   const cell = row?.UsedBy;
@@ -149,8 +150,12 @@ export function usedByGroup(row: { UsedBy?: unknown; _isBlockRow?: boolean } | u
     if (cell !== '') rows.push(text(cell, ''));
   } else if (isRecord(cell) && 'blockLinks' in cell) {
     for (const b of Array.isArray(cell.blockLinks) ? cell.blockLinks.filter(isRecord) : []) {
+      // What the block's name does not say, as the table's cell reads it: its path, where the block
+      // is not at the top of its system (there the path is the name, which said again read "K: K"),
+      // and its model, where it is another's than the row's (the cell names its own model not).
       const model = str(b.modelName);
-      const where = `${str(b.blockPath)}${model ? ` (${model})` : ''}`;
+      const path = str(b.blockPath) === str(b.blockName) ? '' : str(b.blockPath);
+      const where = [path, model ? `(${model})` : ''].filter((part) => part !== '').join(' ');
       const target = str(b.linkTarget);
       rows.push(target ? { name: str(b.blockName), value: where, editable: false, type: 'link', linkTarget: target } : text(str(b.blockName), where));
     }
