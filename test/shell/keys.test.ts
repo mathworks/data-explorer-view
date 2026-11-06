@@ -51,6 +51,9 @@ describe('the shell answers its chords', () => {
       [{ key: 'w', ctrlKey: true }, 'close-tab'],
       [{ key: 'Tab', ctrlKey: true }, 'next-tab'],
       [{ key: 'Tab', ctrlKey: true, shiftKey: true }, 'previous-tab'],
+      [{ key: '\\', ctrlKey: true }, 'split-right'],
+      [{ key: '1', ctrlKey: true }, 'focus-pane-1'],
+      [{ key: '2', ctrlKey: true }, 'focus-pane-2'],
       [{ key: 'f', ctrlKey: true }, 'focus-filter'],
       [{ key: 'ArrowLeft', altKey: true }, 'back'],
       [{ key: 'ArrowRight', altKey: true }, 'forward'],
@@ -93,6 +96,8 @@ describe('the shell answers its chords', () => {
     expect(press({ key: 'w', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 'f', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 'ArrowLeft', altKey: true }, input)).toBe(false);
+    expect(press({ key: '2', ctrlKey: true }, input)).toBe(false);
+    expect(press({ key: '\\', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 's', ctrlKey: true }, input)).toBe(true);
     expect(press({ key: 'o', ctrlKey: true }, input)).toBe(true);
     expect(press({ key: 'n', ctrlKey: true }, input)).toBe(true);
@@ -130,7 +135,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual(['next-tab', 'back']);
   });
 
-  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette and Root's graph", () => {
+  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette, Root's graph and the panes'", () => {
     onPlatform('Win32');
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
@@ -145,9 +150,15 @@ describe('the shell answers its chords', () => {
     press({ key: 'P', ctrlKey: true, shiftKey: true });
     press({ key: 'F1' });
     press({ key: 'H', ctrlKey: true, shiftKey: true });
-    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette', 'show-graph']);
+    // The panes' chords: a native menu has no item for them.
+    press({ key: '\\', ctrlKey: true });
+    press({ key: '2', ctrlKey: true });
+    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette', 'show-graph', 'split-right', 'focus-pane-2']);
     expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual([
       'save-all',
+      'split-right',
+      'focus-pane-1',
+      'focus-pane-2',
       'back',
       'forward',
       'up',

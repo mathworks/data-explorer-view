@@ -8,10 +8,14 @@
 // (on the left for the left), one dropped on the other pane's row or documents moves there, and a
 // pane whose last tab goes goes with it; a new file opens in the focused pane, a file already open
 // in its tab wherever it is (one tab per file); each pane keeps its own preview tab; Root shows the
-// graph over both; and the divider stays where the user left it, kept with the layout.
+// graph over both; the divider stays where the user left it, kept with the layout; and the
+// commands and chords: Split Right (Mod+\), Move to Other Pane, Mod+1 and Mod+2 to go to a pane,
+// Ctrl+Tab round the focused pane's tabs alone.
 import { describe, expect, it } from 'vitest';
 import { sourceUri } from '../../src/model/source/sourceUri.js';
+import { onMac } from '../../src/widgets/app-shell/connect/keys.js';
 import type { DexDocTabs } from '../../src/widgets/app-shell/dex-doc-tabs.js';
+import type { PaletteCommand } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
 import type { DexPropertyInspector } from '../../src/widgets/property-inspector/dex-property-inspector.js';
 import {
   docsArea,
@@ -20,6 +24,7 @@ import {
   graphShown,
   locationBar,
   open,
+  palette,
   rowOf,
   selectRow,
   startPage,
@@ -391,5 +396,136 @@ describe('one tab per file', () => {
     const names = rows().flatMap((r) => r.tabs.map((t) => t.subtitle ?? t.label)).sort();
     expect(names).toEqual(['ParamMat.mat', 'params.sldd', 'shadow_ws.slx']);
     expect(document.querySelectorAll('.doc-panel').length).toBe(3);
+  });
+});
+
+describe('the commands and chords', () => {
+  /** A chord pressed where the focus is (the body by default), Mod as the platform has it. */
+  function chord(key: string, from: EventTarget = document.body, mod = true): boolean {
+    const mac = onMac();
+    const e = new KeyboardEvent('keydown', { key, metaKey: mod && mac, ctrlKey: !mod || !mac, bubbles: true, composed: true, cancelable: true });
+    from.dispatchEvent(e);
+    return e.defaultPrevented;
+  }
+  // The commands the palette was last shown with.
+  let offered: PaletteCommand[] = [];
+  const watchPalette = () => {
+    const show = palette().show.bind(palette());
+    palette().show = (commands) => ((offered = commands), show(commands));
+  };
+  const paletteRow = (id: string) => offered.find((c) => c.id === id)!;
+
+  it('Split Right moves the active tab into a new pane on the right; from the left pane of two, into the right one', async () => {
+    const page = await opened();
+    page.command('split-right');
+    await until(() => panes().length === 2);
+    expect(panes()).toEqual(['params.sldd ParamMat.mat*', 'shadow_ws.slx*']);
+    expect(docsArea().focusedPane).toBe(1);
+    // From the right pane, nothing is to its right.
+    page.command('split-right');
+    await until(() => segments().at(-1) === 'shadow_ws.slx');
+    expect(panes()).toEqual(['params.sldd ParamMat.mat*', 'shadow_ws.slx*']);
+    pressIn('ParamMat.mat');
+    await until(() => docsArea().focusedPane === 0);
+    expect(chord('\\')).toBe(true);
+    await until(() => panes()[1] === 'shadow_ws.slx ParamMat.mat*');
+    expect(panes()[0]).toBe('params.sldd*');
+  });
+
+  it("makes no pane of a lone pane's only tab", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    page.command('split-right');
+    page.command('move-to-other-pane');
+    await until(() => segments().at(-1) === 'params.sldd');
+    expect(panes()).toEqual(['params.sldd*']);
+    expect(docsArea().split).toBe(false);
+  });
+
+  it('Move to Other Pane moves the active tab across, making the other pane from a lone one, and joins them from a pane of one tab', async () => {
+    const page = await opened();
+    page.command('move-to-other-pane');
+    await until(() => panes().length === 2);
+    expect(panes()).toEqual(['params.sldd ParamMat.mat*', 'shadow_ws.slx*']);
+    pressIn('ParamMat.mat');
+    await until(() => docsArea().focusedPane === 0);
+    page.command('move-to-other-pane');
+    await until(() => panes()[1] === 'shadow_ws.slx ParamMat.mat*');
+    // The right pane's tab, back to the left one: its pane keeps the other tab.
+    page.command('move-to-other-pane');
+    await until(() => panes()[0] === 'params.sldd ParamMat.mat*');
+    expect(panes()[1]).toBe('shadow_ws.slx*');
+    // The right pane's only tab: the panes join.
+    pressIn('shadow_ws.slx');
+    await until(() => docsArea().focusedPane === 1);
+    page.command('move-to-other-pane');
+    await until(() => panes().length === 1);
+    expect(panes()).toEqual(['params.sldd ParamMat.mat shadow_ws.slx*']);
+  });
+
+  it('Mod+1 and Mod+2 go to each pane, the keyboard on its tab, from Root too', async () => {
+    const page = await opened();
+    page.command('split-right');
+    await until(() => panes().length === 2);
+    expect(chord('1')).toBe(true);
+    await until(() => docsArea().focusedPane === 0);
+    await until(() => rows()[0]!.shadowRoot!.activeElement === tabEl('ParamMat.mat'));
+    expect(segments().at(-1)).toBe('ParamMat.mat');
+    chord('2');
+    await until(() => rows()[1]!.shadowRoot!.activeElement === tabEl('shadow_ws.slx'));
+    expect(docsArea().focusedPane).toBe(1);
+    page.command('show-graph');
+    await until(() => graphShown());
+    chord('1');
+    await until(() => docsArea().split && docsArea().focusedPane === 0);
+    expect(shown()).toEqual(['ParamMat.mat@0', 'shadow_ws.slx@1']);
+    // The right pane's only tab moved to the left one: with one pane, Mod+2 goes nowhere, and is
+    // spent all the same.
+    chord('2');
+    await until(() => docsArea().focusedPane === 1);
+    page.command('move-to-other-pane');
+    await until(() => panes().length === 1);
+    expect(chord('2')).toBe(true);
+    expect(docsArea().focusedPane).toBe(0);
+  });
+
+  it("Ctrl+Tab goes round the focused pane's tabs alone", async () => {
+    const page = startPage({ ...FILES, 'rt_bin.sldd': 'rt_bin.sldd' });
+    await open(page, 'params.sldd', 'ParamMat.mat', 'shadow_ws.slx', 'rt_bin.sldd');
+    page.command('split-right');
+    await until(() => panes().length === 2);
+    pressIn('shadow_ws.slx');
+    await until(() => docsArea().focusedPane === 0 && segments().at(-1) === 'shadow_ws.slx');
+    const order: string[] = [];
+    let last = 'shadow_ws.slx';
+    for (let i = 0; i < 3; i++) {
+      chord('Tab', document.body, false);
+      await until(() => segments().at(-1) !== last);
+      last = segments().at(-1)!;
+      order.push(last);
+    }
+    expect(order).toEqual(['params.sldd', 'ParamMat.mat', 'shadow_ws.slx']);
+    expect(panes()[1]).toBe('rt_bin.sldd*');
+    expect(docsArea().focusedPane).toBe(0);
+  });
+
+  it("lists the panes' commands in the palette, each enabled as it would act now", async () => {
+    const page = await opened();
+    watchPalette();
+    page.command('palette');
+    await until(() => offered.length > 0);
+    expect(['split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2'].map((id) => !paletteRow(id).disabled)).toEqual([true, true, true, false]);
+    palette().close();
+    page.command('split-right');
+    await until(() => panes().length === 2);
+    offered = [];
+    page.command('palette');
+    await until(() => offered.length > 0);
+    expect(paletteRow('focus-pane-2').disabled).toBeFalsy();
+    // The right pane's tab is active: nothing is to its right.
+    expect(paletteRow('split-right').disabled).toBe(true);
+    expect(paletteRow('move-to-other-pane').disabled).toBeFalsy();
+    palette().dispatchEvent(new CustomEvent('dex-palette-run', { detail: { id: 'focus-pane-1' }, bubbles: true, composed: true }));
+    await until(() => docsArea().focusedPane === 0);
   });
 });

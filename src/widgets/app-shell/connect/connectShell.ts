@@ -70,7 +70,7 @@ import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
-import { paletteCommands } from './paletteItems.js';
+import { paletteCommands, type PaneCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
 import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
 
@@ -359,6 +359,27 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   function focusPane(pane: number): void {
     if (showing > 0 || !tabs.active) return;
     if (tabs.focus(pane)) shown();
+  }
+
+  // Mod+1 or Mod+2: the pane `pane` focused (from Root, the documents shown again), and the
+  // keyboard put on its active tab once its row is drawn (later's refresh, queued before), so the
+  // next key pressed is that pane's.
+  function goToPane(pane: number): void {
+    if (pane >= tabs.panes.length || tabs.items.length === 0) return;
+    if (tabs.focus(pane)) shown();
+    queueMicrotask(() => {
+      if (!disposed) paneRows.rows[pane]?.focusActive();
+    });
+  }
+
+  // What the panes' commands would do now, for the palette's rows.
+  function paneCommands(): PaneCommands {
+    const active = tabs.active;
+    return {
+      splitRight: !!active && tabs.splits(active, 'right'),
+      moveToOther: !!active && tabs.splits(active, tabs.otherSide(active)),
+      panes: tabs.items.length === 0 ? 0 : tabs.panes.length,
+    };
   }
 
   function activate(tab: OpenTab): void {
@@ -681,7 +702,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState()));
+      return parts.palette.show(paletteCommands(toolbarState(), paneCommands()));
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -707,6 +728,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     close: (tab) => void requestClose(tab),
     shown,
     keyboardToRoot: rootTakesTheKeyboard,
+    goToPane,
     later,
     failed,
   };

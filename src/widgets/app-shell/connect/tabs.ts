@@ -220,6 +220,11 @@ export class TabList<T> {
     return true;
   }
 
+  /** The side of `item`'s pane the other pane is on, or would be made on: the right of the first, the left of the second. */
+  otherSide(item: T): PaneSide {
+    return this.paneOf(item) > 0 ? 'left' : 'right';
+  }
+
   /** Whether `split(item, side)` would move it: there is another tab beside it to leave behind, or another pane on that side. */
   splits(item: T, side: PaneSide): boolean {
     const from = this.paneOf(item);

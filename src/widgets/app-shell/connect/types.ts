@@ -19,7 +19,11 @@ import type { Theme } from '../../../model/shell/settings.js';
  * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
  * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
  * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
- * goes to the Explorer's Root, where the relationship graph is.
+ * goes to the Explorer's Root, where the relationship graph is. The documents split in two panes
+ * side by side: `split-right` moves the active tab into a pane on the right (a new one, or the
+ * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
+ * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
+ * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
  */
 export type ShellCommand =
   | 'new-file'
@@ -38,6 +42,10 @@ export type ShellCommand =
   | 'delete'
   | 'next-tab'
   | 'previous-tab'
+  | 'split-right'
+  | 'move-to-other-pane'
+  | 'focus-pane-1'
+  | 'focus-pane-2'
   | 'focus-filter'
   | 'back'
   | 'forward'

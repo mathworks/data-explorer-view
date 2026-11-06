@@ -27,6 +27,8 @@ export interface CarryOutContext {
   shown(): void;
   /** Root is shown: the keyboard to the Explorer's Root row, or to what fills the center. */
   keyboardToRoot(): void;
+  /** Go to the pane at `index` (0 the left): focused, the keyboard on its active tab. Nothing for a pane there is not. */
+  goToPane(index: number): void;
   later(): void;
   /** Something could not be done: say so. */
   failed(message: string): void;
@@ -112,7 +114,17 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       break;
     case 'next-tab':
     case 'previous-tab':
+      // Round the focused pane's tabs: the other pane's are a Mod+1 or Mod+2 away.
       if (on.tabs.cycle(id === 'next-tab' ? 1 : -1)) on.shown();
+      break;
+    case 'split-right':
+    case 'move-to-other-pane':
+      // The tab moves, and is shown and focused where it went; a pane's only tab makes no new pane.
+      if (tab && on.tabs.split(tab, id === 'split-right' ? 'right' : on.tabs.otherSide(tab))) on.shown();
+      break;
+    case 'focus-pane-1':
+    case 'focus-pane-2':
+      on.goToPane(id === 'focus-pane-1' ? 0 : 1);
       break;
     case 'focus-filter':
       tab?.table?.focusFilter();
