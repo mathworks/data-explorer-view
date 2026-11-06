@@ -12,7 +12,9 @@
 //    saying there what the part under the pointer says a drop would do (its `data-drop-hint`, a
 //    refusal with `data-drop-refused`), since the browser shows no tooltip during a drag, and going
 //    with a drop anywhere, since the row whose dragend clears it may have moved away. Without it, the
-//    box stayed where the pointer left the table.
+//    box stayed where the pointer left the table. The words are read a frame after the dragover, by
+//    when the part has answered that dragover itself: read as the event came, they were the last
+//    row's, one dragover late, and blinked between rows.
 // happy-dom has no drag pipeline: events are dispatched with a stub DataTransfer, as
 // treeTableDragDrop.test.ts does.
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -56,6 +58,8 @@ function fire(target: EventTarget, type: string, init: { clientX?: number; clien
   target.dispatchEvent(ev);
   return { ev, dataTransfer };
 }
+/** A frame later: when the box reads what the part under the pointer says. */
+const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
 const tr = (table: DexTreeTable, id: string) => table.shadowRoot!.querySelector<HTMLElement>(`tr[data-row-id="${id}"]`)!;
 const box = (table: DexTreeTable) => table.shadowRoot!.querySelector<HTMLElement>('.drop-tooltip');
 
@@ -139,20 +143,78 @@ describe("the box at the pointer, over the rest of the page", () => {
     document.body.append(row);
     fire(tr(table, 'a'), 'dragstart');
     fire(name, 'dragover', { clientX: 300, clientY: 120 });
+    await frame();
     await table.updateComplete;
     expect(box(table)?.querySelector('.drop-tooltip-action')?.textContent).toBe('Move Simulink Parameter into Design Data');
     expect(box(table)?.classList.contains('forbidden')).toBe(false);
     row.dataset.dropHint = 'Simulink Parameter cannot be in Configurations';
     row.dataset.dropRefused = '';
     fire(name, 'dragover', { clientX: 300, clientY: 120 });
+    await frame();
     await table.updateComplete;
     expect(box(table)?.querySelector('.drop-tooltip-action')?.textContent).toBe('Simulink Parameter cannot be in Configurations');
     expect(box(table)?.classList.contains('forbidden')).toBe(true);
     // Off it again, over a part that says nothing: no action.
     fire(document.body, 'dragover', { clientX: 10, clientY: 10 });
+    await frame();
     await table.updateComplete;
     expect(box(table)?.querySelector('.drop-tooltip-action')).toBeNull();
     expect(box(table)?.classList.contains('forbidden')).toBe(false);
+  });
+
+  it('says the words the part puts on the row as it answers the same dragover, not the last one\'s', async () => {
+    // As the Explorer does: its row's own dragover listener asks the app, and its next draw (a
+    // microtask later) writes the answer on the row. The box hears the dragover first, on the
+    // document in the capture phase, before the row has heard it at all.
+    const table = await mount({ dragOut: true });
+    const rows = ['Design Data', 'Configurations'].map((section) => {
+      const el = document.createElement('div');
+      el.addEventListener('dragover', () =>
+        queueMicrotask(() => {
+          for (const other of document.querySelectorAll<HTMLElement>('[data-drop-hint]')) delete other.dataset.dropHint;
+          el.dataset.dropHint = `Move Kp into ${section}`;
+        }),
+      );
+      document.body.append(el);
+      return el;
+    });
+    const said = () => box(table)?.querySelector('.drop-tooltip-action')?.textContent ?? null;
+    fire(tr(table, 'a'), 'dragstart');
+    fire(rows[0]!, 'dragover', { clientX: 300, clientY: 120 });
+    // The box moves with the pointer at once.
+    await table.updateComplete;
+    expect(box(table)?.style.left).toBe('314px');
+    await frame();
+    await table.updateComplete;
+    expect(said()).toBe('Move Kp into Design Data');
+    // Onto the next row: its words at its first dragover, with no frame of the last row's or none.
+    fire(rows[1]!, 'dragover', { clientX: 300, clientY: 150 });
+    await table.updateComplete;
+    expect(said()).toBe('Move Kp into Design Data');
+    await frame();
+    await table.updateComplete;
+    expect(said()).toBe('Move Kp into Configurations');
+  });
+
+  it('reads nothing after a drop, and nothing over its own rows, from a dragover just before', async () => {
+    const table = await mount({ dragOut: true });
+    const row = document.createElement('div');
+    row.dataset.dropHint = 'Move Kp into Design Data';
+    document.body.append(row);
+    fire(tr(table, 'a'), 'dragstart');
+    fire(row, 'dragover', { clientX: 300, clientY: 120 });
+    fire(row, 'drop', { clientX: 300, clientY: 120 });
+    await frame();
+    await table.updateComplete;
+    expect(box(table)).toBeNull();
+
+    // Back over the table's own rows, which say their own words: the part's do not come after them.
+    fire(tr(table, 'a'), 'dragstart');
+    fire(row, 'dragover', { clientX: 300, clientY: 120 });
+    fire(tr(table, 'b'), 'dragover', { clientX: 40, clientY: 60 });
+    await frame();
+    await table.updateComplete;
+    expect(box(table)?.querySelector('.drop-tooltip-action')?.textContent).not.toBe('Move Kp into Design Data');
   });
 
   it('stops following once the drag has ended, taking its listeners off the document', async () => {
