@@ -100,6 +100,32 @@ describe('the Log view', () => {
     ]);
   });
 
+  it('says why a file changed on disk could not be reloaded, and not that it was', async () => {
+    const page = startPage(FILES);
+    await open(page, 'ParamMat.mat');
+    const lines = logged();
+    // Gone from the disk: its read fails, and nothing was reloaded.
+    page.main.files.delete(at('ParamMat.mat'));
+    page.main.changed(at('ParamMat.mat'));
+    await until(() => lines.length === 1);
+    expect(lines).toEqual([`error Failed to reload ParamMat.mat: ENOENT: no such file, open '${at('ParamMat.mat')}'`]);
+  });
+
+  it("says a project's page could not be read", async () => {
+    const dir = tempFolder('plant', { 'Plant.prj': 'params.sldd' });
+    const page = startPage();
+    const { port1, port2 } = new MessageChannel();
+    const reads = folderReads(dir);
+    const refusing: FolderReads = { ...reads, reader: (files) => ({ ...reads.reader(files), projectStore: async () => Promise.reject(new Error('Not a project file.')) }) };
+    const served = serveFolder(refusing, portFromMessagePort(port1));
+    stop.push(() => (served.dispose(), port1.close()));
+    page.handle.showFolder(dir, port2);
+    const lines = logged();
+    void page.handle.openPaths([path.join(dir, 'Plant.prj')]);
+    await until(() => lines.some((l) => l.startsWith('error')));
+    expect(lines.filter((l) => !l.startsWith('info Showing'))).toEqual(['error Failed to read Plant: Not a project file.']);
+  });
+
   it('says which folder is shown, and why one could not be read', async () => {
     const dir = tempFolder('plant', { 'params.sldd': 'params.sldd' });
     const page = startPage();

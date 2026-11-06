@@ -432,10 +432,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // --- Files changed on disk ---------------------------------------------------------------------
 
+  // A reload unasked, or one that failed, said in the Log once it is done (an answer is said as given).
   const reloads = new ReloadGate<OpenTab>({
     read: (path) => host.readFile(path),
     confirm: confirmReload,
     isOpen,
+    reloaded: (tab) => log('info', `${tab.name} changed on disk: reloaded`),
+    failed: (_tab, text) => log('error', text),
   });
 
   // --- Commands ----------------------------------------------------------------------------------
@@ -543,12 +546,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       log('info', `Showing the folder ${shown.root}`);
       modules.scope(basenameOf(shown.root));
       void ws.setUsage(shown.session.usage, shown.session.reposts);
-      repaintProjects(tabs.items, shown);
+      repaintProjects(tabs.items, shown, log);
       follow();
       graph.stale();
     },
     changed(shown, uris) {
-      repaintProjects(tabs.items, shown, uris);
+      repaintProjects(tabs.items, shown, log, uris);
       graph.stale();
     },
     failed: (text) => log('error', `This folder could not be read: ${text}`),
@@ -567,10 +570,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
       const uri = sourceUri(path);
       const tab = disposed ? undefined : tabs.find((t) => sourceUri(t.path) === uri);
-      if (!tab?.doc) return;
-      // A clean document takes the disk's file without asking; one with edits says in its answer.
-      if (!tab.doc.dirty) log('info', `${tab.name} changed on disk: reloaded`);
-      void reloads.changedOnDisk(tab, tab.doc.dirty);
+      // A clean document takes the disk's file without asking; one with edits is asked first.
+      if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
     },
     command,
     async requestClose() {

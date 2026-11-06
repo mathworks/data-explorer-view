@@ -159,30 +159,46 @@ export function newProjectPage(tab: OpenTab, revealIn: string, follow: (root: st
   return page;
 }
 
-/** Draw `tab`'s project page from `folder`'s store, or say the folder it is in is needed. */
-export async function paintProject(tab: OpenTab, page: DexProjectPage, folder: FolderView | undefined): Promise<void> {
+/**
+ * Draw `tab`'s project page from `folder`'s store, or say the folder it is in is needed. Resolves to
+ * why its store could not be read, which the page says too; undefined when it was drawn.
+ */
+export async function paintProject(tab: OpenTab, page: DexProjectPage, folder: FolderView | undefined): Promise<string | undefined> {
   try {
     const store = folder ? await folder.projectStore(sourceUri(tab.path)) : null;
     if (store) page.payload = projectPageMessage(store, tab.path, folderOf(tab.path));
     else page.error = 'Open the folder this project is in to see its page.';
+    return undefined;
   } catch (err) {
     page.error = `Failed to read ${tab.name}: ${message(err)}`;
+    return page.error;
   }
 }
 
-/** Draw again from `folder`'s store each project's page among `tabs`, or only those whose marker is among `uris`. */
-export function repaintProjects(tabs: readonly OpenTab[], folder: FolderView, uris?: readonly string[]): void {
-  for (const t of tabs) if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, folder);
+/** What a project's page says in the Log. */
+type ProjectLog = (level: 'info' | 'error', text: string) => void;
+
+/**
+ * Draw again from `folder`'s store each project's page among `tabs`, or only those whose marker is
+ * among `uris`; one that could not be read says why in the Log (`log`).
+ */
+export function repaintProjects(tabs: readonly OpenTab[], folder: FolderView, log: ProjectLog, uris?: readonly string[]): void {
+  for (const t of tabs) {
+    if (!t.page || (uris && !uris.includes(sourceUri(t.path)))) continue;
+    void paintProject(t, t.page, folder).then((failed) => {
+      if (failed) log('error', failed);
+    });
+  }
 }
 
 /**
  * Show the project of `tab` on its page, drawn from the shown folder's store: a link on it opens
  * its file as a preview (`open`), and one that cannot be followed says why on the page and in the
- * Log.
+ * Log, as a store that cannot be read does.
  */
 export async function showProject(
   tab: OpenTab,
-  on: { host: ShellHost; folder(): FolderView | undefined; open(path: string): Promise<unknown>; log(level: 'info' | 'error', text: string): void },
+  on: { host: ShellHost; folder(): FolderView | undefined; open(path: string): Promise<unknown>; log: ProjectLog },
 ): Promise<void> {
   const revealIn = on.host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
   const follow = (root: string, link: ProjectOpenDetail) =>
@@ -190,8 +206,8 @@ export async function showProject(
       on.log('error', `Could not open ${link.path}: ${message(err)}`);
       throw err;
     });
-  await paintProject(tab, newProjectPage(tab, revealIn, follow), on.folder());
-  on.log('info', `Opened ${tab.name}`);
+  const failed = await paintProject(tab, newProjectPage(tab, revealIn, follow), on.folder());
+  on.log(failed ? 'error' : 'info', failed ?? `Opened ${tab.name}`);
 }
 
 /**

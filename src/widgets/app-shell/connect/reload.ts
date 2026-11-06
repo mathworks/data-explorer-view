@@ -39,6 +39,10 @@ export interface ReloadGateOptions<T> {
    * it closed is not acted on, since its document is disposed by then.
    */
   isOpen(tab: T): boolean;
+  /** A clean document of `tab` took the disk's file, unasked. */
+  reloaded?(tab: T): void;
+  /** The disk's file of `tab` could not be read or taken: why, as its table's banner says it. */
+  failed?(tab: T, message: string): void;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -107,7 +111,8 @@ export class ReloadGate<T extends ReloadTab> {
 
   /**
    * Read the file of `tab` and keep the document over it (`keep`) or take it in its place; a read
-   * or a take that fails says so in its table's banner. Nothing for a tab that closed meanwhile.
+   * or a take that fails says so in its table's banner and to `failed`, and a clean document that
+   * took the file unasked tells `reloaded`. Nothing for a tab that closed meanwhile.
    */
   async actOnChange(tab: T, keep: boolean, unsaved: boolean): Promise<void> {
     if (!tab.doc) return;
@@ -120,7 +125,7 @@ export class ReloadGate<T extends ReloadTab> {
     } catch (err) {
       if (!this.options.isOpen(tab)) return;
       const what = keep ? `read ${tab.name} again` : `reload ${tab.name}`;
-      if (tab.table) tab.table.banners = { error: `Failed to ${what}: ${message(err)}` };
+      this.fail(tab, `Failed to ${what}: ${message(err)}`);
       // The file is gone, or cannot be read: a document that holds what the disk does not stays
       // unsaved, kept or not, since there is nothing to take in its place.
       if (unsaved) await tab.doc?.keepOver(new Uint8Array()).catch(() => undefined);
@@ -141,8 +146,15 @@ export class ReloadGate<T extends ReloadTab> {
       else await tab.doc.reload(bytes);
     } catch (err) {
       const what = keep ? `read ${tab.name} again` : `reload ${tab.name}`;
-      if (tab.table) tab.table.banners = { error: `Failed to ${what}: ${message(err)}` };
+      return this.fail(tab, `Failed to ${what}: ${message(err)}`);
     }
+    // Unasked: a question's answer is said where it is given.
+    if (!keep && !unsaved) this.options.reloaded?.(tab);
+  }
+
+  private fail(tab: T, text: string): void {
+    if (tab.table) tab.table.banners = { error: text };
+    this.options.failed?.(tab, text);
   }
 }
 
