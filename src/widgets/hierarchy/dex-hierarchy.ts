@@ -139,7 +139,9 @@ export class DexHierarchy extends LitElement {
       color: var(--dex-selection-fg, #333);
     }
 
-    .row.active:hover {
+    /* Only while it is not the selection: bare, (0,3,0) would outrank the selection's rule below
+       and grey an active, selected row under the pointer, whatever their order. */
+    .row.active:not([aria-selected='true']):hover {
       background: var(--dex-bg-active, #e0e0e0);
     }
 
@@ -365,7 +367,9 @@ export class DexHierarchy extends LitElement {
   // A menu the keyboard asked for, whose own contextmenu event (which the browser sends for the
   // same key, after its keydown or its keyup) is not a second ask. A pointer's press lets go of it
   // (a right click always has one), and so does a task after the key's keyup: a contextmenu with no
-  // pointer after that (an assistive technology's "show menu") is an ask of its own.
+  // pointer after that (an assistive technology's "show menu") is an ask of its own. So does the
+  // keyboard leaving the tree: a menu shown with focusFirst takes it before the key is let go, and
+  // the keyup lands there.
   private _keyMenu = false;
 
   /**
@@ -660,6 +664,7 @@ export class DexHierarchy extends LitElement {
         @keydown=${this._onKeydown}
         @keyup=${this._onKeyup}
         @pointerdown=${() => (this._keyMenu = false)}
+        @focusout=${() => (this._keyMenu = false)}
       >
         ${lines.map((line) => this._row(line, line.item.key === tabbable))}
       </div>

@@ -574,6 +574,27 @@ describe('rows of the Folder view', () => {
     expect(asked).toEqual([]);
   });
 
+  it('lets go of the key once the menu takes the keyboard, whose keyup the tree never hears', async () => {
+    // A menu shown with focusFirst takes the focus before the key is let go: the keyup lands on it.
+    const el = await folder();
+    const menu = document.createElement('button');
+    document.body.append(menu);
+    const asked: HierarchyMenuDetail[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => {
+      asked.push(e.detail);
+      menu.focus();
+    });
+    const ref = rowAt(el, '/w/m/p');
+    ref.focus();
+    ref.click();
+    ref.dispatchEvent(new KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true }));
+    expect(document.activeElement).toBe(menu);
+    menu.dispatchEvent(new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true }));
+    const later = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(later);
+    expect(asked.map((d) => d.keyboard ?? false)).toEqual([true, false]);
+  });
+
   it("hears a contextmenu with no pointer a moment after the key's keyup as an ask of its own", async () => {
     // An assistive technology's "show menu" sends one, with no pointer and no key.
     const el = await folder();
@@ -683,9 +704,14 @@ describe('the look of the marks', () => {
   it("draws the active tab's row a fill lighter than the selection's, the selected row over it, a preview's name in italics", () => {
     expect(rule('.row.active')).toContain('background: var(--dex-bg-hover, #e8e8e8)');
     expect(rule('.row.active')).toContain('color: var(--dex-selection-fg, #333)');
-    expect(rule('.row.active:hover')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    // Under the pointer, only while it is not the selection: `.row.active:hover` alone (0,3,0) would
+    // outrank the selection's rule (0,2,0) and grey the most common row, active and selected, which
+    // the order of the rules cannot undo. So the selector says it, and no bare one is left.
+    const hover = ".row.active:not([aria-selected='true']):hover";
+    expect(rule(hover)).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    expect(() => rule('.row.active:hover')).toThrow('no rule');
     const all = sheets();
-    expect(all.indexOf(".row[aria-selected='true'] {")).toBeGreaterThan(all.indexOf('.row.active:hover'));
+    expect(all.indexOf(".row[aria-selected='true'] {")).toBeGreaterThan(all.indexOf(hover));
     expect(rule('.preview .label')).toContain('font-style: italic');
   });
 
