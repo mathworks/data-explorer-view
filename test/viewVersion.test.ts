@@ -20,6 +20,12 @@ describe('VIEW_VERSION', () => {
     expect(VIEW_VERSION).toMatch(/^\d+\.\d+\.\d+/);
   });
 
+  // Typed string, not the literal: the API check reads an export's type, and a literal type would
+  // be a changed type at every release.
+  it('is declared a string, not the literal of this release', () => {
+    expect(readFileSync(join(ROOT, 'src', 'model', 'version.ts'), 'utf8')).toContain(`export const VIEW_VERSION: string = '${PKG.version}';`);
+  });
+
   it('is the module scripts/gen-version.mjs writes', () => {
     expect(() => execFileSync(process.execPath, [join(ROOT, 'scripts', 'gen-version.mjs'), '--check'], { encoding: 'utf8' })).not.toThrow();
   });
