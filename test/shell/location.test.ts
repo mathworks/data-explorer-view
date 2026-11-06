@@ -13,7 +13,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
 import { locationOf, samePlace } from '../../src/widgets/app-shell/connect/location.js';
-import { docTabs, locationBar, open, selectRow, startPage, tabIdOf, tableOf, until, welcomeShown } from './harness.js';
+import { docTabs, graphShown, locationBar, open, selectRow, startPage, tabIdOf, tableOf, until } from './harness.js';
 
 const row = (ID: string, parent: string | null, label: string, iconId?: string): TreeTableRow =>
   ({ ID, parent, Name: { label, ...(iconId ? { iconId } : {}) } }) as TreeTableRow;
@@ -142,11 +142,11 @@ describe('the location bar, connected', () => {
     go('up');
     await until(() => selected('params.sldd') === '' && labels() === 'Root › params.sldd');
     go('up');
-    await until(() => labels() === 'Root' && welcomeShown());
+    await until(() => labels() === 'Root' && graphShown());
     expect(locationBar().canUp).toBe(false);
     // And Back returns from Root to the file.
     go('back');
-    await until(() => labels() === 'Root › params.sldd' && !welcomeShown());
+    await until(() => labels() === 'Root › params.sldd' && !graphShown());
   });
 
   it('a segment goes to the place it names', async () => {
@@ -157,7 +157,7 @@ describe('the location bar, connected', () => {
     go(2);
     await until(() => selected('params.sldd') === 'section:design');
     go(0);
-    await until(welcomeShown);
+    await until(graphShown);
   });
 
   it("forgets a closed tab's places: Back does not go to it", async () => {

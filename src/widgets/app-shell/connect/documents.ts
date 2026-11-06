@@ -43,6 +43,9 @@ export interface OpenTab extends ShellTab {
   bytes?: Uint8Array;
 }
 
+/** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
+export const SHOW_IN_GRAPH = { id: 'showInGraph', label: 'Show in Graph' } as const;
+
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /** The page's clipboard, as connectTable's own default writes to it: a page without one fails the copy, saying so. */
@@ -131,6 +134,8 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),
     // A name a link holds means the file the folder's tree shows for it.
     resolveLink: (link: LinkTarget, fromUri: string) => wiring.folder()?.resolveLink(link, fromUri),
+    // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).
+    menuItems: () => [{ ...SHOW_IN_GRAPH }],
   });
   tab.handle = handle;
   return handle;

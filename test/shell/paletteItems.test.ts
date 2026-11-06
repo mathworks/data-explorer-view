@@ -2,8 +2,8 @@
 //
 // The command palette's list (connect/paletteItems.ts): every toolbar action, enabled exactly as
 // its button is, under a name that says what it does out of the toolbar's context ("Open File…"
-// for the toolbar's "Open"); a command to show each of the shell's views (connect/views.ts); and
-// Settings and About. Each carries the chord that does the same, in the platform's words, and its
+// for the toolbar's "Open"); a command to show each of the shell's views (connect/views.ts), and
+// one to show Root's relationship graph; and Settings and About. Each carries the chord that does the same, in the platform's words, and its
 // id is the ShellCommand the shell carries out.
 import { describe, expect, it } from 'vitest';
 import { paletteCommands } from '../../src/widgets/app-shell/connect/paletteItems.js';
@@ -13,7 +13,7 @@ import type { ToolbarState } from '../../src/widgets/app-shell/connect/toolbarIt
 const NOTHING: ToolbarState = { canOpenFolder: true, active: null, anyDirty: false, can: () => false, mac: false };
 
 describe('paletteCommands', () => {
-  it('lists the toolbar actions, the views, Settings and About, in that order, each in its group', () => {
+  it('lists the toolbar actions, the views, the graph, Settings and About, in that order, each in its group', () => {
     expect(paletteCommands(NOTHING).map((c) => [c.id, c.label, c.category])).toEqual([
       ['open-file', 'Open File…', 'File'],
       ['open-folder', 'Open Folder…', 'File'],
@@ -35,6 +35,7 @@ describe('paletteCommands', () => {
       ['show-raw', 'Show Raw', 'View'],
       ['show-terminal', 'Show Terminal', 'View'],
       ['show-log', 'Show Log', 'View'],
+      ['show-graph', 'Show Graph', 'View'],
       ['settings', 'Settings', 'Preferences'],
       ['about', 'About', 'Help'],
     ]);

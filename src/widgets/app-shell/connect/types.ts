@@ -16,7 +16,8 @@ import type { Theme } from '../../../model/shell/settings.js';
 /**
  * A command the shell carries out: a toolbar button's id, a chord's, an explorer menu item's, a
  * command palette row's, and what a native menu asks for through `ShellHandle.command`. `palette`
- * opens the command palette; each `show-<view>` brings that view of the shell forward.
+ * opens the command palette; each `show-<view>` brings that view of the shell forward, and
+ * `show-graph` goes to the Explorer's Root, where the relationship graph is.
  */
 export type ShellCommand =
   | 'open-file'
@@ -47,7 +48,8 @@ export type ShellCommand =
   | 'show-properties'
   | 'show-raw'
   | 'show-terminal'
-  | 'show-log';
+  | 'show-log'
+  | 'show-graph';
 
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';

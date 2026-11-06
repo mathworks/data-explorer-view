@@ -91,7 +91,7 @@ export class DexShellDocs extends LitElement {
     }
   `];
 
-  /** The welcome is shown, over the panels: no file is open, or the Explorer's Root is. Attribute `welcome`. */
+  /** The welcome is shown, over the panels: no file is open (Root with files open shows the graph's panel). Attribute `welcome`. */
   @property({ type: Boolean, reflect: true }) welcome = true;
   /** The welcome offers Open Folder…: the host can show a folder. Attribute `can-open-folder`. */
   @property({ type: Boolean, attribute: 'can-open-folder' }) canOpenFolder = false;

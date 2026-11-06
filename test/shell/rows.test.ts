@@ -7,7 +7,7 @@
 // a child the table merged in later is found as soon as it is there.
 import { describe, expect, it } from 'vitest';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
-import { rowIn, sectionOf } from '../../src/widgets/app-shell/connect/rows.js';
+import { graphNameOf, rowIn, sectionOf } from '../../src/widgets/app-shell/connect/rows.js';
 
 const row = (ID: string, parent: string | null, label = ID): TreeTableRow => ({ ID, parent, Name: { label } }) as TreeTableRow;
 const PAINT: readonly TreeTableRow[] = [
@@ -56,5 +56,23 @@ describe('sectionOf', () => {
     expect(sectionOf(PAINT, 'gone')).toBeUndefined();
     expect(sectionOf([row('orphan', 'missing')], 'orphan')).toBeUndefined();
     expect(sectionOf([row('a', 'b'), row('b', 'a')], 'a')).toBeUndefined();
+  });
+});
+
+describe('graphNameOf', () => {
+  it("is a block's key, and else the name of the entry a row is in, as the graph reveals it", () => {
+    const opened = [...PAINT, row('e:Bus/a', 'e:Bus', 'a'), row('e:Bus/a/b', 'e:Bus/a', 'b')];
+    expect(graphNameOf(opened, 'e:Bus')).toBe('Bus');
+    expect(graphNameOf(opened, 'e:Bus/a/b')).toBe('Bus');
+    const mat = [row('v:ParamMat', null, 'ParamMat'), row('v:ParamMat/Value', 'v:ParamMat', 'Value')];
+    expect(graphNameOf(mat, 'v:ParamMat/Value')).toBe('ParamMat');
+    const block = { ...row('b:Gain', 'b:Sub', 'Gain'), _blockKey: '7' } as TreeTableRow;
+    expect(graphNameOf([row('b:Sub', null, 'Sub'), block], 'b:Gain')).toBe('7');
+  });
+
+  it("is none for a section's row, an unknown row, or a broken chain", () => {
+    expect(graphNameOf(PAINT, 'section:design')).toBeUndefined();
+    expect(graphNameOf(PAINT, 'gone')).toBeUndefined();
+    expect(graphNameOf([row('a', 'b'), row('b', 'a')], 'a')).toBeUndefined();
   });
 });

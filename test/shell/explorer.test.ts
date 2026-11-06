@@ -15,6 +15,7 @@ import {
   edit,
   explorer,
   explorerRowOf,
+  graphShown,
   inspectorNote,
   locationBar,
   open,
@@ -101,11 +102,12 @@ describe('the Explorer', () => {
     expect(explorer().selected?.fileId).toBe(tabIdOf('params.sldd'));
   });
 
-  it('Root shows no document: the welcome, no tab active, the inspector empty, the location at Root', async () => {
+  it('Root shows no document: the graph of the files open, no tab active, the inspector empty, the location at Root', async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'ParamMat.mat');
     openRequest({ fileId: null, pin: false });
-    await until(welcomeShown);
+    await until(graphShown);
+    expect(welcomeShown()).toBe(false);
     expect(document.querySelectorAll('.doc-panel:not([hidden])')).toHaveLength(0);
     expect(docTabs().active).toBe('');
     await until(() => activeTab() === null);
@@ -116,7 +118,7 @@ describe('the Explorer', () => {
     expect(document.title).toBe('Data Explorer');
     // A file opened from there shows again.
     openRequest({ fileId: tabIdOf('params.sldd'), pin: false });
-    await until(() => !welcomeShown() && docTabs().active === tabIdOf('params.sldd'));
+    await until(() => !graphShown() && docTabs().active === tabIdOf('params.sldd'));
   });
 
   it("a file's menu saves it, saves it elsewhere, or closes it, whichever tab is active", async () => {

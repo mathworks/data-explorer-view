@@ -7,12 +7,14 @@
 // function, as connectHierarchy takes one, since the shell's note is a property of its folder
 // element rather than an element of the page.
 
+import { isGraphPath } from 'data-explorer-core';
 import { createFolderSession, type FolderSession } from '../../../model/folder/folderSession.js';
 import { folderReader } from '../../../model/source/folderReader.js';
 import { portFromMessagePort } from '../../../model/source/ports.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
 import type { ProjectStore } from '../../../model/hierarchy/graphSources.js';
+import type { RawSource } from '../../../model/usage/usageCells.js';
 import { connectHierarchy } from '../../hierarchy/connectHierarchy.js';
 import type { DexHierarchy } from '../../hierarchy/dex-hierarchy.js';
 
@@ -32,6 +34,8 @@ export interface FolderView {
   projectStore(uri: string): Promise<ProjectStore | null>;
   /** The marker (its uri) of the project in the folder `dir`, if the folder holds one. */
   projectIn(dir: string): Promise<string | undefined>;
+  /** The folder's files a relationship graph draws (core's `isGraphPath`), read afresh; one that cannot be read is left out. */
+  graphSources(): Promise<RawSource[]>;
   /** Hear the folder change: `uris` the files it touched, none for anything. */
   onChange(listener: (uris?: readonly string[]) => void): () => void;
   /** Stop: the tree hears nothing more, and the port is closed. */
@@ -62,6 +66,12 @@ export function showFolder(
       return reader.projectStore({ uriString: uri, path: uriPath(uri) });
     },
     projectIn: async (dir) => (await session.projectIn(sourceUri(dir)))?.id,
+    // Listed again, as the host answers bytes only for a file of its last listing.
+    async graphSources() {
+      const files = (await reader.list()).filter((f) => isGraphPath(f.path));
+      const read = await Promise.all(files.map(async (f) => ({ f, bytes: await reader.bytes(f) })));
+      return read.flatMap(({ f, bytes }) => (bytes ? [{ uriString: f.uriString, path: f.path, bytes }] : []));
+    },
     onChange: (listener) => reader.onChange(listener),
     dispose() {
       handle.dispose();

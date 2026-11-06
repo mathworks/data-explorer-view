@@ -45,6 +45,7 @@ import { defineGalleryPanel, type DexGalleryPanel } from '../../src/widgets/app-
 import { defineCommandWindow, type DexCommandWindow } from '../../src/widgets/app-shell/modules/dex-command-window.js';
 import { defineLogPanel, type DexLogPanel } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
 import { defineCommandPalette, type DexCommandPalette } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
+import { defineRelationshipGraph, type DexRelationshipGraph } from '../../src/widgets/app-shell/modules/dex-relationship-graph.js';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
 import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from '../../src/widgets/app-shell/connect/types.js';
 
@@ -103,6 +104,7 @@ defineGalleryPanel();
 defineCommandWindow();
 defineLogPanel();
 defineCommandPalette();
+defineRelationshipGraph();
 
 /** What the host was asked, and how it answers. */
 export interface Main {
@@ -285,6 +287,9 @@ export const tabIdOf = (name: string) => docTabs().tabs.find((t) => t.label === 
 
 /** The welcome in the documents' area is on screen. */
 export const welcomeShown = () => docsArea().shadowRoot?.querySelector<HTMLElement>('.welcome')?.hidden === false;
+/** Root's relationship graph, and whether it is on screen (its panel shown). */
+export const graph = () => document.querySelector<DexRelationshipGraph>('dex-relationship-graph')!;
+export const graphShown = () => !!graph() && !graph().closest('[hidden]');
 
 /** The Explorer's file rows, as drawn: their labels, the unsaved mark among them. */
 export const explorerRows = () =>

@@ -5,9 +5,10 @@
 // and the location bar in their rows, a `<dex-shell-view>` for each of the shell's views
 // (views.ts: the Explorer, with the open files and the folder under them, the Gallery and Search
 // on the left; the Properties and Raw on the right; the Terminal and the Log in the bottom panel),
-// the Settings and About actions on the left, the documents' area in the center, and the status
-// text. In the body, once, the overlays every part shares: the variable editor, the context menu,
-// the error and confirm dialogs, the toasts, the two popovers and the command palette.
+// the Settings and About actions on the left, the documents' area in the center (the open files'
+// panels, and Root's relationship graph), and the status text. In the body, once, the overlays
+// every part shares: the variable editor, the context menu, the error and confirm dialogs, the
+// toasts, the two popovers and the command palette.
 //
 // Its own module so that connectShell, which wires these, is not also the page's markup.
 
@@ -61,7 +62,13 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const docs = document.createElement('dex-shell-docs');
   const strip = document.createElement('dex-doc-tabs');
   strip.slot = 'tabs';
-  docs.append(strip);
+  // The relationship graph: Root's, while files are open, in a panel of its own under the files'.
+  const graphPanel = document.createElement('section');
+  graphPanel.className = 'graph-panel';
+  graphPanel.hidden = true;
+  const graph = document.createElement('dex-relationship-graph');
+  graphPanel.append(graph);
+  docs.append(strip, graphPanel);
 
   // The inspector, and the note it shows in its place while it has nothing to show.
   const inspectorEmpty = document.createElement('dex-shell-note');
@@ -112,6 +119,8 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
     tree,
     docs,
     strip,
+    graphPanel,
+    graph,
     inspectorEmpty,
     inspector,
     status,

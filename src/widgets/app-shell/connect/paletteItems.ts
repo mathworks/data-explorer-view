@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // What the command palette lists: every toolbar action, enabled exactly as its button is now, then
-// a command to show each of the shell's views, then Settings and About. Each row's id is the
+// a command to show each of the shell's views and Root's relationship graph, then Settings and
+// About. Each row's id is the
 // ShellCommand it runs, and its shortcut the chord that does the same, in the platform's words
 // (chordLabel). Pure: connectShell hands it the toolbar's state as the palette opens.
 //
@@ -42,6 +43,7 @@ export function paletteCommands(state: ToolbarState): PaletteCommand[] {
       command(item.id as ShellCommand, LABELS[item.id as ShellCommand] ?? item.label, categoryOf(item.align), item.shortcut, !!item.disabled),
     ),
     ...SHELL_VIEWS.map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
+    command('show-graph', 'Show Graph', 'View'),
     command('settings', 'Settings', 'Preferences', label(chordOf('settings'))),
     command('about', 'About', 'Help'),
   ];

@@ -207,7 +207,7 @@ describe('the shell opens files as tabs', () => {
   it("a model's menu copies a row's name and value through the host's clipboard", async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx' });
     await open(page, 'shadow_ws.slx');
-    expect((await menuOn('shadow_ws.slx', 'Kp')).map((i) => i.id)).toEqual(['copyName', 'copyValue']);
+    expect((await menuOn('shadow_ws.slx', 'Kp')).map((i) => i.id)).toEqual(['copyName', 'copyValue', 'showInGraph']);
     choose('copyName');
     await menuOn('shadow_ws.slx', 'Kp');
     choose('copyValue');
@@ -228,6 +228,7 @@ describe('the shell opens files as tabs', () => {
       'redo',
       'copyName',
       'copyValue',
+      'showInGraph',
     ]);
     // Copy Name, from the editing menu, puts text on the host's clipboard.
     choose('copyName');
@@ -235,7 +236,7 @@ describe('the shell opens files as tabs', () => {
     expect(page.main.copied).toEqual(['Ki']);
     await until(() => !!tableOf('viewing_only.mat')!.banners?.notice);
     expect(tableOf('viewing_only.mat')!.banners?.notice).toMatch(/opens for viewing only/);
-    expect((await menuOn('viewing_only.mat', 'd_scalar')).map((i) => i.id)).toEqual(['copyName', 'copyValue']);
+    expect((await menuOn('viewing_only.mat', 'd_scalar')).map((i) => i.id)).toEqual(['copyName', 'copyValue', 'showInGraph']);
     choose('copyValue');
     await until(() => page.main.copied.length === 2);
     expect(page.main.copied).toEqual(['Ki', '3.5']);

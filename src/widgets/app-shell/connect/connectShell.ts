@@ -15,7 +15,8 @@
 // of it moved out: what it builds (parts.ts), a tab's document and its widgets (documents.ts), the
 // settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
 // the parts' requests (requests.ts), the document commands (carryOut.ts), the folder shown
-// (shownFolder.ts), and the modules' views (modules.ts: Raw, Search, the Gallery, the Terminal).
+// (shownFolder.ts), the modules' views (modules.ts: Raw, Search, the Gallery, the Terminal), and
+// Root's relationship graph (graphPane.ts).
 
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
@@ -33,10 +34,12 @@ import {
   repaintProjects,
   showProject,
   statusOf,
+  SHOW_IN_GRAPH,
   type OpenTab,
 } from './documents.js';
 import { explorerFiles } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
+import { connectGraphPane } from './graphPane.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination } from './links.js';
 import { locationOf, type ShellPlace } from './location.js';
@@ -44,7 +47,7 @@ import { ShellNavigation } from './navigation.js';
 import { connectModules } from './modules.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
-import { rowIn, sectionOf } from './rows.js';
+import { graphNameOf, rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions, shellPrompts } from './questions.js';
@@ -161,7 +164,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     strip.tabs = tabs.items.map(docTabOf);
     strip.active = active?.id ?? '';
     for (const tab of tabs.items) tab.panel.hidden = tab !== active;
-    docs.welcome = !active;
+    // Root: the relationship graph while files are open, the welcome while none is.
+    docs.welcome = tabs.items.length === 0;
+    parts.graphPanel.hidden = !!active || tabs.items.length === 0;
     docs.canOpenFolder = !!host.pickFolder;
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
@@ -205,6 +210,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     location.canForward = nav.canForward;
     location.canUp = nav.canUp;
     modules.refresh();
+    graph.refresh();
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
@@ -374,6 +380,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           later();
         }),
         handle.on('copyFailed', (failure) => log('error', `Could not copy: ${failure.message}`)),
+        // Show in Graph: Root, the row's item (or the file's box) selected and brought forward.
+        handle.on('action', ({ actionId, rowId }) => {
+          if (actionId !== SHOW_IN_GRAPH.id) return;
+          showRoot();
+          graph.reveal(uri, rowId === null ? undefined : graphNameOf(tab.table?.rows ?? [], rowId));
+        }),
         // For the toolbar, any change at all: an edit, the clipboard, a repaint. What the document
         // refused, and why, is a line of the Log, past the dialog that said it. (Its `error`
         // changes are its banner's, and what failed is said where it failed: the workspace's
@@ -479,6 +491,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   stops.push(() => modules.dispose());
 
+  // Root's relationship graph (graphPane.ts), over the tabs' bytes and the folder's files.
+  const graph = connectGraphPane(parts.graph, {
+    tabs: () => tabs.items,
+    folder: folderNow,
+    shown: () => !disposed && !tabs.active && tabs.items.length > 0,
+    open: openOn,
+    notOpen: (ref) => say('info', `${ref} is not open`),
+    failed,
+  });
+  stops.push(() => graph.dispose());
+
   // --- The parts' requests -----------------------------------------------------------------------
 
   // Each part's request (requests.ts), a tab named by its id.
@@ -512,7 +535,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // Every open table is painted again, its Usage filled from the folder shown, and every
   // project's page from its store, again when the folder says its marker changed (a matlab.toml
-  // saved).
+  // saved). The graph draws the folder's files.
   const folders = connectShownFolder(folderPart, tree, {
     open: openOn,
     shown(shown) {
@@ -521,8 +544,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       void ws.setUsage(shown.session.usage, shown.session.reposts);
       repaintProjects(tabs.items, shown);
       follow();
+      graph.stale();
     },
-    changed: (shown, uris) => repaintProjects(tabs.items, shown, uris),
+    changed(shown, uris) {
+      repaintProjects(tabs.items, shown, uris);
+      graph.stale();
+    },
     failed: (text) => log('error', `This folder could not be read: ${text}`),
   });
 

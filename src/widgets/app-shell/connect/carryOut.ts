@@ -76,5 +76,9 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       on.nav[id]();
       on.later();
       break;
+    case 'show-graph':
+      // The Explorer's Root, where the relationship graph is drawn.
+      if (on.tabs.deactivate()) on.shown();
+      break;
   }
 }
