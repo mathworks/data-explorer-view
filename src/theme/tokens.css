@@ -46,7 +46,7 @@
   --dex-font-mono: 'SF Mono', 'Menlo', 'Monaco', monospace;
   --dex-font-size: 13px;
   --dex-row-height: 28px;
-  /* Source-code syntax tokens (dex-code-viewer) — light / VS Code palette */
+  /* Syntax colours (dex-raw-viewer's JSON and XML) — light / VS Code palette */
   --dex-syntax-comment: #008000;
   --dex-syntax-string: #a31515;
   --dex-syntax-number: #098658;
@@ -220,6 +220,14 @@
   --dex-border-color: #000;
   --dex-border-color-light: #555;
   --dex-focus-ring: 0 0 0 3px rgba(0, 80, 160, 0.6);
+  /* Syntax colours: each at 7:1 or more on the white surface. */
+  --dex-syntax-comment: #006400;
+  --dex-syntax-string: #8b0000;
+  --dex-syntax-number: #005c3a;
+  --dex-syntax-keyword: #0050a0;
+  --dex-syntax-literal: #0050a0;
+  --dex-syntax-title: #5c3b00;
+  --dex-syntax-meta: #003670;
 
   --dex-selection-fg: #000;
   --dex-color-link: #0050a0;
