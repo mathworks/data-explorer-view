@@ -660,10 +660,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
     },
     command,
-    notify({ level, text }) {
+    notify(notice) {
       if (disposed) return;
-      // A level from a page in plain JavaScript that is none of the three is the plainest.
-      say(level === 'warning' || level === 'error' ? level : 'info', text);
+      // A page in plain JavaScript may hand anything: text that is no string is said as text, and no
+      // text is nothing to say (no empty toast); a level that is none of the three is the plainest.
+      const text = notice?.text == null ? '' : String(notice.text);
+      if (text === '') return;
+      say(notice.level === 'warning' || notice.level === 'error' ? notice.level : 'info', text);
     },
     setSystemTheme(theme) {
       if (!disposed) system.set(theme);

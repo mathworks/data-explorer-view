@@ -69,6 +69,19 @@ describe('notify', () => {
     expect(log).toEqual(['info Plain.', 'info Odd.']);
   });
 
+  it('takes what a page in plain JavaScript hands it: text that is no string as its text, and no text as nothing to say', () => {
+    const page = startPage();
+    const { toasts, log } = heard();
+    expect(() => {
+      (page.handle.notify as (notice?: unknown) => void)();
+      (page.handle.notify as (notice?: unknown) => void)({});
+      (page.handle.notify as (notice?: unknown) => void)({ level: 'warning', text: '' });
+      (page.handle.notify as (notice?: unknown) => void)({ text: 404 });
+    }).not.toThrow();
+    expect(toasts).toEqual([{ level: 'info', message: '404' }]);
+    expect(log).toEqual(['info 404']);
+  });
+
   it('says nothing once the shell is taken down', () => {
     const page = startPage();
     const { toasts, log } = heard();

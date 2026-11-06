@@ -147,7 +147,7 @@ export interface ShellNotice {
    * 'warning' or an 'error' stays until its × is pressed, since it has to be read. Default 'info'.
    */
   level?: 'info' | 'warning' | 'error';
-  /** What it says, as text (a line break in it starts a new line). */
+  /** What it says, as text (a line break in it starts a new line). Empty, it says nothing, and nothing is shown. */
   text: string;
 }
 
