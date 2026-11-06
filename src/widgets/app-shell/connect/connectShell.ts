@@ -308,7 +308,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
     if (!fromCommand) await modules.idle();
-    // A cell editor still open holds what the user typed: the save takes it.
+    // A cell editor still open, or a field of the inspector the focus is in, holds what the user
+    // typed: the save takes it.
+    inspector.commit();
     await tab.handle?.commitEdit();
     const writes = as || !!tab.doc?.dirty;
     const result = await saver.save(tab, as);
@@ -337,7 +339,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // An edit a Terminal line still running makes is one too, as it is for a save.
   async function requestClose(tab: OpenTab): Promise<void> {
     await modules.idle();
-    // What a cell editor still open holds is an unsaved edit too.
+    // What a cell editor still open holds is an unsaved edit too, and so is an inspector field's.
+    inspector.commit();
     await tab.handle?.commitEdit();
     if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab)) close(tab);
   }
@@ -656,6 +659,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     async requestClose() {
       if (disposed) return true;
       await modules.idle();
+      inspector.commit();
       await Promise.all(tabs.items.map((t) => t.handle?.commitEdit()));
       return settle(tabs.items, confirmClose, (t) => save(t));
     },

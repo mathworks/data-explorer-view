@@ -351,6 +351,79 @@ describe('editing a property', () => {
     expect(seen).toEqual([{ propName: 'Description', key: 'Description', newValue: 'one\ntwo\nthree', oldValue: 'one\ntwo' }]);
   });
 
+  it("keeps what is typed in a field while the page is pushed again, and puts back one whose change was refused", async () => {
+    // A change of one field is answered by the page pushed again (its repaint, its refusal, the
+    // document's unsaved state), maybe more than once, while the user types in the next field: that
+    // text is theirs until they change it, and a push must not wipe it.
+    const page: PropertyGroup[] = [
+      { title: 'G', properties: [{ name: 'Name', value: 'Kp', editable: true, key: 'Name' }, { name: 'Value', value: '1', editable: true, key: 'Value' }] },
+    ];
+    const el = await makeInspector(page);
+    const [name, value] = [...el.shadowRoot!.querySelectorAll<HTMLInputElement>('input.prop-input')];
+    value!.value = 'bogus';
+    value!.dispatchEvent(new Event('input'));
+    value!.dispatchEvent(new Event('change'));
+    name!.value = 'Kq';
+    name!.dispatchEvent(new Event('input'));
+    await setGroups(el, structuredClone(page));
+    await setGroups(el, structuredClone(page));
+    expect(name!.value).toBe('Kq');
+    expect(value!.value).toBe('1');
+    // Left without a change (typed back as it was), the field follows its page again.
+    name!.value = 'Kp';
+    name!.dispatchEvent(new Event('input'));
+    name!.dispatchEvent(new Event('blur'));
+    await setGroups(el, [{ title: 'G', properties: [{ name: 'Name', value: 'Kr', editable: true, key: 'Name' }, page[0]!.properties[1]!] }]);
+    expect(name!.value).toBe('Kr');
+  });
+
+  it('commit() sends the change of the field the focus is in, once, as leaving it would', async () => {
+    // For an app's Save, which a chord gives with the focus still in the field.
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'Value', value: '1', editable: true, key: 'Value' }] }]);
+    const seen: unknown[] = [];
+    el.addEventListener('dex-property-changed', (e) => seen.push((e as CustomEvent).detail));
+    el.commit();
+    const input = el.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!;
+    input.focus();
+    el.commit();
+    expect(seen).toEqual([]);
+    input.value = '7';
+    input.dispatchEvent(new Event('input'));
+    el.commit();
+    // The change its blur then fires is the one already sent.
+    input.dispatchEvent(new Event('change'));
+    expect(seen).toEqual([{ propName: 'Value', key: 'Value', newValue: '7', oldValue: '1' }]);
+  });
+
+  it('names each field for a screen reader by its property', async () => {
+    const el = await makeInspector([
+      {
+        title: 'G',
+        properties: [
+          { name: 'Value', value: '1', editable: true, key: 'Value' },
+          { name: 'Data Scope', value: 'Auto', editable: true, key: 'dataScope', options: ['Auto'] },
+          { name: 'Description', value: '', editable: true, key: 'Description', multiline: true },
+        ],
+      },
+    ]);
+    expect([...el.shadowRoot!.querySelectorAll('.prop-input')].map((f) => [f.tagName, f.getAttribute('aria-label')])).toEqual([
+      ['INPUT', 'Value'],
+      ['SELECT', 'Data Scope'],
+      ['TEXTAREA', 'Description'],
+    ]);
+  });
+
+  it('shows a choice with no value as none, which cannot be chosen back', async () => {
+    // Core names no default for an unset choice (a struct type's Data Scope): the list shows it
+    // empty, and offers only the choices.
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'Data Scope', value: '', editable: true, key: 'dataScope', options: ['Auto', 'Exported'] }] }]);
+    const select = el.shadowRoot!.querySelector<HTMLSelectElement>('select.prop-input')!;
+    expect(select.value).toBe('');
+    const blank = select.options[0]!;
+    expect([blank.value, blank.disabled, blank.hidden]).toEqual(['', true, true]);
+    expect([...select.options].filter((o) => !o.disabled).map((o) => o.value)).toEqual(['Auto', 'Exported']);
+  });
+
   it('prefers the link rendering when a property is both a link and editable', async () => {
     // A cross-reference is not user-typeable; offering an input would invite an
     // edit the host cannot apply.

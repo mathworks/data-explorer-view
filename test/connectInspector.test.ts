@@ -281,6 +281,22 @@ describe('writing a change back', () => {
     expect(edits.at(-1)).toEqual({ rowId: 'r2', columnId: 'dataScope', oldValue: 'Auto', newValue: 'Imported' });
   });
 
+  it("commit() writes back what is typed in the field the focus is in, for an app's Save", async () => {
+    const page = { rowId: 'r1', groups: [{ title: 'G', properties: [{ name: 'Value', value: '1', editable: true, key: 'Value' }] }] };
+    const { feed, edits } = feedOf([page]);
+    const pi = document.createElement('dex-property-inspector');
+    document.body.append(pi);
+    const inspector = connectInspector(pi, feed as never);
+    cleanups.push(() => inspector.dispose());
+    await pi.updateComplete;
+    const input = pi.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!;
+    input.focus();
+    input.value = '9';
+    input.dispatchEvent(new Event('input'));
+    inspector.commit();
+    expect(edits).toEqual([{ rowId: 'r1', columnId: 'Value', oldValue: '1', newValue: '9' }]);
+  });
+
   it('writes nothing for a change with no key, a page with no row, a feed it no longer follows, or after dispose', async () => {
     const { feed, edits, send } = feedOf([{ rowId: 'r1', groups: [{ title: 'G', properties: [] }] }]);
     const pi = document.createElement('dex-property-inspector');

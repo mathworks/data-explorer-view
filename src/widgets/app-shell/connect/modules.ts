@@ -131,8 +131,9 @@ export function connectModules(context: ModulesContext): Modules {
         editable,
         // Painted, and still taking no entry: a .mdl, a file kept for viewing only.
         ...(handle.view && !editable ? { note: `${tab.name} takes no edits.` } : {}),
-        // What a cell editor still open holds is the document's before the add.
+        // What a cell editor or an inspector field still open holds is the document's before the add.
         add: async (entry) => {
+          context.parts.inspector.commit();
           await handle.commitEdit();
           if (isEditable(source)) source.addEntry(entry);
         },

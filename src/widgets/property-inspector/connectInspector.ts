@@ -47,6 +47,12 @@ export interface InspectorHandle {
    * already follows changes nothing.
    */
   follow(feed: InspectorFeed | null): void;
+  /**
+   * Write back what is typed in the field the focus is in, as leaving it would (the inspector's
+   * `commit()`): for an app's Save, before the table's `commitEdit()`, which then waits for it, so a
+   * chord given with the focus still in the field saves what was typed there.
+   */
+  commit(): void;
   /** Stop: the inspector keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -151,6 +157,9 @@ export function connectInspector(
       inspector.groups = [];
       setEmpty(true);
       stop = next ? next.onPage(show) : () => {};
+    },
+    commit() {
+      if (!disposed) inspector.commit();
     },
     dispose() {
       if (disposed) return;

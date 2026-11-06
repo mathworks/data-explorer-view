@@ -10,6 +10,7 @@
 // both.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DexPropertyInspector } from '../../src/widgets/property-inspector/dex-property-inspector.js';
+import { onMac } from '../../src/widgets/app-shell/connect/keys.js';
 import {
   activeTab,
   dirtyTabs,
@@ -20,6 +21,7 @@ import {
   open,
   previewTabs,
   rowOf,
+  savedTo,
   sectionOf,
   selectRow,
   settled,
@@ -29,6 +31,7 @@ import {
   tableOf,
   textOf,
   until,
+  valueIn,
 } from './harness.js';
 
 afterEach(() => void vi.restoreAllMocks());
@@ -101,6 +104,39 @@ describe('the Properties view, beside a tab', () => {
     await until(() => rows().includes('Modified: Yes'));
     page.command('save');
     await until(() => rows().includes('Modified: No'));
+  });
+
+  it('keeps what is typed in the next field while the change of one is written and its page sent again', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const value = await fieldOf('Value');
+    value.value = '5';
+    value.dispatchEvent(new Event('input'));
+    value.dispatchEvent(new Event('change'));
+    const name = await fieldOf('Name');
+    name.value = 'Kq';
+    name.dispatchEvent(new Event('input'));
+    await until(() => dirtyTabs().join() === 'params.sldd');
+    await until(() => inspector().groups[0]!.properties.find((p) => p.name === 'Value')?.value === '5');
+    await settled();
+    expect(fieldNow('Name')!.value).toBe('Kq');
+  });
+
+  it('saves what is typed in a field with Mod+S, the focus still in it', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const value = await fieldOf('Value');
+    value.focus();
+    value.value = '8';
+    value.dispatchEvent(new Event('input'));
+    const mod = onMac() ? { metaKey: true } : { ctrlKey: true };
+    value.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ...mod, bubbles: true, composed: true, cancelable: true }));
+    await until(() => !!savedTo(page.main, 'params.sldd'));
+    expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Kp')).toBe('8');
+    await settled();
+    expect(dirtyTabs()).toEqual([]);
   });
 
   it('says why a change is refused, in the dialog the table uses, and puts the field back', async () => {
