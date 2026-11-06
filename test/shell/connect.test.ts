@@ -188,6 +188,11 @@ describe('connectShell', () => {
     await page.handle.openPaths([at('params.sldd'), '/work/Plant.prj']);
     await until(() => !!tableOf('params.sldd')?.rows.length && !!document.querySelector('dex-project-page')?.shadowRoot);
     page.command('show-graph');
+    // The graph built (a moment after Root is shown) and its boxes drawn, which a walk at once misses.
+    const graph = document.querySelector('dex-relationship-graph')!;
+    await until(() => (graph.graph?.boxes.length ?? 0) > 0);
+    await graph.updateComplete;
+    expect(graph.shadowRoot!.querySelectorAll('*').length).toBeGreaterThan(10);
     page.command('palette');
     await settled();
     // Every element in the page and in every shadow root, as drawn.
