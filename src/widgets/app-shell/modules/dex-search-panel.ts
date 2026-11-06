@@ -484,7 +484,7 @@ export class DexSearchPanel extends LitElement {
         <input
           class="input"
           type="search"
-          placeholder="Search names, values, types"
+          placeholder="Search entry names"
           aria-label="Search"
           role="combobox"
           aria-autocomplete="list"

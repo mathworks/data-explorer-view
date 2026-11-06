@@ -94,7 +94,8 @@ describe('dex-search-panel: the box', () => {
   it('is a search field, with the placeholder and the scope under it', async () => {
     const el = await panel({ scope: 'Open files and the folder' });
     expect(input(el).type).toBe('search');
-    expect(input(el).placeholder).toBe('Search names, values, types');
+    // Names, and not values or types: the model matches entry names, files and block paths only.
+    expect(input(el).placeholder).toBe('Search entry names');
     expect(input(el).getAttribute('aria-label')).toBe('Search');
     expect(text(el.shadowRoot!.querySelector('.scope'))).toBe('Open files and the folder');
   });
