@@ -24,6 +24,9 @@ export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
 export type {
+  ExplorerDropDetail,
+  ExplorerDropTarget,
+  ExplorerDropVerdict,
   ExplorerEventMap,
   ExplorerFile,
   ExplorerGroup,

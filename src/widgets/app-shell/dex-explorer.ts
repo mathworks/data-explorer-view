@@ -5,6 +5,7 @@ import { property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { defineElement } from '../shared/define.js';
 import { defineIcon } from '../shared/dex-icon.js';
+import { dragModeFromModifiers, type DragMode } from '../shared/dragMode.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { styleProps } from '../shared/styleProps.js';
 
@@ -72,6 +73,46 @@ export interface ExplorerMenuDetail {
   y: number;
 }
 
+/** A row a drag of table rows may be let go over: a file, or a section of one (never Root). */
+export interface ExplorerDropTarget {
+  /** The file. */
+  fileId: string;
+  /** The file's section; absent for the file itself. */
+  sectionId?: string;
+}
+
+/** What a drop of table rows on a row would do, as the app's `dropPredictor` answers it. */
+export interface ExplorerDropVerdict {
+  /** It may be let go here. */
+  canDrop: boolean;
+  /**
+   * What a drop here does, where it is not what the keys held ask: a copy, for rows that can only
+   * be copied (from a document that may not be edited). Absent, the default: the keys' mode.
+   */
+  effect?: DragMode;
+  /**
+   * What the row says of it, as its tooltip and to a screen reader: what the drop does ("Move
+   * Simulink Parameter to Design Data in plant.sldd"), or why it is refused. Empty says nothing.
+   */
+  tooltip: string;
+}
+
+/** What `dex-explorer-drop` carries: the row table rows were let go over, and whether to move or copy them. */
+export interface ExplorerDropDetail {
+  /** The file. */
+  fileId: string;
+  /** The file's section; absent for the file itself. */
+  sectionId?: string;
+  /** What the drop does: the effect the predictor said, else the keys held at the last dragover. */
+  mode: DragMode;
+}
+
+// What a drag of a table's rows carries (the tree table's dragstart sets it): a drag of anything
+// else, files from the OS among them, is not one this list takes.
+const ROWS_TYPE = 'application/dex-rows';
+
+const carriesRows = (e: DragEvent): boolean => Array.from(e.dataTransfer?.types ?? []).includes(ROWS_TYPE);
+
 // The headings, in the order they are drawn, as the prototype's Workspace tree lists them.
 const GROUPS: readonly { group: ExplorerGroup; heading: string }[] = [
   { group: 'model', heading: 'Simulink Models' },
@@ -121,6 +162,14 @@ const sectionsOf = (file: ExplorerFile): ExplorerSection[] => (Array.isArray(fil
  *
  * The arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,
  * Left closes it or goes from a section to its file, Home and End go to the first and the last.
+ *
+ * Table rows dragged onto a file's row or a section's (a drag that carries `application/dex-rows`)
+ * are the app's to judge too: on each dragover the element asks `dropPredictor` about the row under
+ * the pointer, with the mode the keys held ask (a move; a copy with Option on macOS and Ctrl
+ * elsewhere, as a drag in a table asks), and outlines the row in the accent for a drop it takes, in
+ * the error colour for one it refuses, the answer's words its tooltip and said to a screen reader;
+ * no answer draws nothing and takes no drop. A drop it still takes sends `dex-explorer-drop`, in the
+ * mode of the last dragover. Root, a heading and a drag of anything else are no drop target.
  *
  * @tagname dex-explorer
  */
@@ -216,6 +265,17 @@ export class DexExplorer extends LitElement {
       flex-shrink: 0;
     }
 
+    /* A drag of table rows over the row: the outline the table's own rows draw for a drop they take
+       (the accent) and one they refuse (the error colour), so a drop reads the same in both. */
+    .row.drop-allowed {
+      box-shadow: inset 0 0 0 2px var(--dex-color-accent, #0078d4);
+    }
+
+    .row.drop-refused {
+      box-shadow: inset 0 0 0 2px var(--dex-color-error, #d32f2f);
+      cursor: no-drop;
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -233,6 +293,18 @@ export class DexExplorer extends LitElement {
 
       .row:focus-visible {
         outline: 2px solid CanvasText;
+        outline-offset: -2px;
+      }
+
+      /* Forced colours take the box-shadow away: an outline instead, solid for a drop the row takes,
+         dashed for one it refuses, so the two differ by more than a colour the user's theme picks. */
+      .row.drop-allowed {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+      }
+
+      .row.drop-refused {
+        outline: 2px dashed CanvasText;
         outline-offset: -2px;
       }
     }
@@ -253,6 +325,14 @@ export class DexExplorer extends LitElement {
   @property({ attribute: false }) selected: ExplorerSelection | null = null;
   /** What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`. */
   @property({ attribute: 'root-label' }) rootLabel = 'Root';
+  /**
+   * What a drag of table rows let go over a file's row or a section's would do: asked on each
+   * dragover of such a drag, with the row and the mode the keys held ask, and again as it is let go.
+   * Its answer is drawn on the row (an outline, a tooltip, words for a screen reader) and decides
+   * whether the row takes the drop; null takes none there and draws nothing (a drop that would do
+   * nothing, a file that takes none). Null, the default: the explorer takes no drop. Property only.
+   */
+  @property({ attribute: false }) dropPredictor: ((target: ExplorerDropTarget, mode: DragMode) => ExplorerDropVerdict | null) | null = null;
 
   // The ids of the files open in the tree. The element's own: the app says which files there
   // are, and the user which of them to look into.
@@ -265,6 +345,26 @@ export class DexExplorer extends LitElement {
   private _revealing: { fileId: string; sectionId: string } | null = null;
   // The row `selected` moved to, to scroll into view once it is drawn.
   private _scrollKey: string | null = null;
+  // The row a drag of table rows is over, by key, and what the predictor said of a drop there.
+  @state() private _drop: { key: string; canDrop: boolean; tooltip: string } | null = null;
+  // The mode the last dragover asked for, which its drop is carried out in: Chromium on macOS often
+  // reports the key as released by the time of the drop, as the tree table's comment says.
+  private _dropMode: DragMode = 'move';
+
+  // A drag that ends anywhere ends the cue: the drag's source hears its end, and the window does.
+  private readonly _onDragEnded = (): void => {
+    this._drop = null;
+  };
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener('dragend', this._onDragEnded, true);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener('dragend', this._onDragEnded, true);
+  }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     // A file that is gone is forgotten, so the same file opened again later starts closed.
@@ -470,6 +570,67 @@ export class DexExplorer extends LitElement {
     e.preventDefault();
   }
 
+  // --- Table rows dropped on a file or a section ---------------------------------------------------
+
+  // The file or section a row stands for, as a drop target, where the drag is one this list takes
+  // (table rows) and the app judges drops (a predictor); none for Root.
+  private _dropTarget(e: DragEvent, line: Line): ExplorerDropTarget | null {
+    if (line.kind === 'root' || !this.dropPredictor || !carriesRows(e)) return null;
+    return line.kind === 'file' ? { fileId: line.file.id } : { fileId: line.file.id, sectionId: line.section.id };
+  }
+
+  private _onDragOver(e: DragEvent, line: Line): void {
+    const target = this._dropTarget(e, line);
+    if (!target) return;
+    const mode = dragModeFromModifiers(navigator.platform, { altKey: e.altKey, ctrlKey: e.ctrlKey });
+    const verdict = this.dropPredictor!(target, mode);
+    this._dropMode = verdict?.effect ?? mode;
+    if (!verdict) {
+      this._drop = null;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+    // A new object only for a change: a dragover comes many times a second, and each would redraw.
+    const was = this._drop;
+    if (!was || was.key !== line.key || was.canDrop !== verdict.canDrop || was.tooltip !== verdict.tooltip) {
+      this._drop = { key: line.key, canDrop: verdict.canDrop, tooltip: verdict.tooltip };
+    }
+    if (verdict.canDrop) {
+      // A row that takes the drop must say so, or the browser sends no drop.
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = this._dropMode;
+    } else if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'none';
+    }
+  }
+
+  // Off the row: but a move onto one of its own parts (its icon, its name) is a dragleave too.
+  private _onDragLeave(e: DragEvent, line: Line): void {
+    const to = e.relatedTarget as Node | null;
+    if (to && (e.currentTarget as Node | null)?.contains(to)) return;
+    if (this._drop?.key === line.key) this._drop = null;
+  }
+
+  private _onDrop(e: DragEvent, line: Line): void {
+    const target = this._dropTarget(e, line);
+    if (!target) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._drop = null;
+    // Asked again as it lands, in the mode the last dragover showed: what it would do may have
+    // changed since (the file was closed, or its rules came).
+    const mode = this._dropMode;
+    const verdict = this.dropPredictor!(target, mode);
+    if (!verdict?.canDrop) return;
+    this.dispatchEvent(
+      new CustomEvent<ExplorerDropDetail>('dex-explorer-drop', {
+        detail: { ...target, mode: verdict.effect ?? mode },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   private _onTwisty(e: Event, file: ExplorerFile): void {
     // The twisty opens and closes, and asks for nothing.
     e.stopPropagation();
@@ -498,9 +659,13 @@ export class DexExplorer extends LitElement {
     const level = line.kind === 'section' ? 2 : 1;
     const twisty = line.kind === 'file' && sectionsOf(line.file).length > 0;
     const open = line.kind === 'file' && line.open;
+    // A drag of table rows over it: its cue, and the predictor's words as its tooltip meanwhile.
+    const drop = this._drop?.key === line.key ? this._drop : null;
+    const cue = drop ? (drop.canDrop ? ' drop-allowed' : ' drop-refused') : '';
+    const title = drop?.tooltip || (line.kind === 'file' && line.file.title) || nothing;
     return html`
       <div
-        class="row"
+        class="row${cue}"
         role="treeitem"
         data-key=${line.key}
         aria-level=${level}
@@ -509,11 +674,14 @@ export class DexExplorer extends LitElement {
         aria-expanded=${twisty ? String(open) : nothing}
         aria-selected=${String(line.key === selectedKey)}
         tabindex=${line.key === tabbable ? '0' : '-1'}
-        title=${(line.kind === 'file' && line.file.title) || nothing}
+        title=${title}
         @click=${() => this._send(line, false)}
         @dblclick=${() => this._send(line, true)}
         @contextmenu=${(e: MouseEvent) => this._onContextMenu(e, line)}
         @focus=${() => (this._focusKey = line.key)}
+        @dragover=${(e: DragEvent) => this._onDragOver(e, line)}
+        @dragleave=${(e: DragEvent) => this._onDragLeave(e, line)}
+        @drop=${(e: DragEvent) => this._onDrop(e, line)}
       >
         <span class="indent" ${styleProps({ width: `${(level - 1) * 16}px` })}></span>
         <span
@@ -535,8 +703,10 @@ export class DexExplorer extends LitElement {
     // One row takes the Tab key: the one the keyboard was on, else the selected one, else Root.
     const tabbable = [this._focusKey, selectedKey].find((key) => key !== null && lines.some((l) => l.key === key)) ?? ROOT_KEY;
     // Keyed, so a row keeps its element as files come and go above it, and the focus stays on
-    // the row it was on rather than on whatever row moves into its place.
+    // the row it was on rather than on whatever row moves into its place. Before the tree, what a
+    // drop on the row a drag is over would do, for a screen reader: the outline is the eye's.
     return html`
+      <div class="sr-only" role="status" aria-live="polite">${this._drop?.tooltip ?? ''}</div>
       <div role="tree" aria-label="Open files" @keydown=${this._onKeydown}>
         ${this._row(lines[0]!, selectedKey, tabbable)}
         ${repeat(
@@ -579,6 +749,11 @@ export interface ExplorerEventMap {
   'dex-explorer-open': CustomEvent<ExplorerOpenDetail>;
   /** Show this file's menu at this point of the viewport: a file's row was right-clicked. A request. */
   'dex-explorer-menu': CustomEvent<ExplorerMenuDetail>;
+  /**
+   * Table rows were let go over this file's row, or this section's, and `dropPredictor` takes the
+   * drop: move or copy them there. A request: the explorer changes nothing itself.
+   */
+  'dex-explorer-drop': CustomEvent<ExplorerDropDetail>;
 }
 
 declare global {
