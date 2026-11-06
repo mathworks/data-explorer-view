@@ -82,13 +82,16 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   const { active } = state;
   const table = (id: ShellCommand, label: string, icon: string, group: string): ToolbarItem =>
     item(id, label, icon, group, !state.can(TABLE_ACTIONS[id]!), 'end');
+  // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
+  // Blue and grey are all that tells the two apart, so on a Minimal toolbar, whose glyphs are one
+  // colour, the unsaved one keeps its colours: the one icon in colour on the row.
+  const save = item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty));
   return [
     // A new data dictionary, the one kind of file New makes, as the prototype's tooltip said.
     ...(state.canNewFile ? [newFile(item('new-file', 'New', 'new_server', 'open', false))] : []),
     item('open-file', 'Open', 'openFolder', 'open', false),
     ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
-    // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
-    item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty)),
+    active?.dirty ? { ...save, colorful: true } : save,
     item('save-as', 'Save As', 'saveAs', 'save', !active?.editable),
     item('save-all', 'Save All', 'save_all', 'save', !state.anyDirty),
     item('close-tab', 'Close', 'close', 'close', active === null),

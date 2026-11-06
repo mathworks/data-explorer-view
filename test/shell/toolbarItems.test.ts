@@ -50,6 +50,14 @@ describe('toolbarItems', () => {
     expect(icon({ ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true })).toBe('unsaved');
   });
 
+  it('keeps the unsaved Save in its colours, which a Minimal toolbar would draw as the saved one', () => {
+    // The two floppies are one shape in two colours: drawn in one colour, they are the same glyph.
+    const colorful = (state: ToolbarState) => toolbarItems(state).filter((i) => i.colorful).map((i) => [i.id, i.icon]);
+    expect(colorful(NOTHING)).toEqual([]);
+    expect(colorful({ ...NOTHING, active: { editable: true, dirty: false }, anyDirty: true })).toEqual([]);
+    expect(colorful({ ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true })).toEqual([['save', 'unsaved']]);
+  });
+
   it('offers Folder only to a host that can show one', () => {
     expect(ids({ ...NOTHING, canOpenFolder: false })).not.toContain('open-folder');
     expect(ids(NOTHING)).toContain('open-folder');

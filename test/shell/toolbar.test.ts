@@ -7,6 +7,7 @@
 // no focus, so a cell editor still open is still open: every command first commits it, as Save
 // always did. toolbarItems.test.ts pins the rule; this, that the shell follows it.
 import { describe, expect, it, vi } from 'vitest';
+import type { DexIcon } from '../../src/widgets/shared/dex-icon.js';
 import {
   at,
   dirtyTabs,
@@ -71,6 +72,21 @@ describe('the toolbar', () => {
     await open(page, 'legacy_ctrl.mdl');
     await until(lacks('save', 'save-as', 'undo'));
     expect(enabledItems()).toEqual(expect.arrayContaining(['save-all', 'close-tab']));
+  });
+
+  it('draws an unsaved Save in its colours on the Minimal toolbar, where every other icon is one colour', async () => {
+    // The blue floppy and the grey one are one shape: in one colour they would be the same glyph.
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const saveIcon = () => toolbarButton('Save')!.querySelector<DexIcon>('dex-icon')!;
+    await until(() => toolbarButton('Save')?.querySelector('dex-icon') != null);
+    expect([toolbar().mono, saveIcon().iconId, saveIcon().mono]).toEqual([true, 'saved', true]);
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => saveIcon().iconId === 'unsaved');
+    expect(saveIcon().mono).toBe(false);
+    const others = [...toolbar().shadowRoot!.querySelectorAll<DexIcon>('dex-icon')].filter((i) => i !== saveIcon());
+    expect(others.length).toBeGreaterThan(5);
+    expect(others.every((i) => i.mono)).toBe(true);
   });
 
   it("is drawn, with the Explorer and the Gallery, from a table's first paint, before any selection or change", async () => {

@@ -315,6 +315,25 @@ describe('the icons in one colour', () => {
     const icon = button(el, 'Save').querySelector('dex-icon') as DexIcon;
     expect([icon.mono, icon.size]).toEqual([true, 14]);
   });
+
+  it('but for an item that keeps its colours: the one icon drawn as its file has it, mono or not', async () => {
+    // A blue floppy and a grey one are one shape: in one colour, an unsaved Save would look like a
+    // saved one. The shell's Save keeps its colours while the active file holds unsaved edits, so
+    // it is the one icon in colour on a row of glyphs.
+    const el = await toolbar([
+      { id: 'save', label: 'Save', icon: 'unsaved', colorful: true },
+      { id: 'undo', label: 'Undo', icon: 'undo' },
+    ]);
+    el.mono = true;
+    await el.updateComplete;
+    expect(icons(el).map((i) => [i.iconId, i.mono])).toEqual([
+      ['unsaved', false],
+      ['undo', true],
+    ]);
+    el.mono = false;
+    await el.updateComplete;
+    expect(icons(el).map((i) => i.mono)).toEqual([false, false]);
+  });
 });
 
 describe('the keyboard', () => {
