@@ -8,6 +8,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { installFileDrop } from '../../src/widgets/app-shell/connect/drop.js';
 import { DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
+import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
+import type { ShellHost } from '../../src/widgets/app-shell/connect/types.js';
 import { docsArea, settled, startPage, until } from './harness.js';
 
 const stops: (() => void)[] = [];
@@ -136,6 +138,39 @@ describe("the shell's documents, while files are dragged over the page", () => {
     await until(() => docsArea().dropping);
     page.shell.dispatchEvent(fileDrag('dragleave', ['a.sldd'], document.body));
     await until(() => !docsArea().dropping);
+  });
+
+  it('follow a shell connected before it was put in the page, and one inside a shadow root', async () => {
+    // The elements around the documents were read once, as the shell was connected: a shell not in
+    // the page yet had none of the page's, and one in a shadow root stopped at that root.
+    const host: ShellHost = {
+      pickFiles: async () => [],
+      readFile: async () => new Uint8Array(),
+      saveFile: async () => ({ overwritten: false }),
+      saveFileAs: async () => null,
+    };
+    stops.push(installFileDrop(window, () => {}));
+    const early = document.createElement('dex-app-shell');
+    const handle = connectShell(early, { host });
+    stops.push(() => handle.dispose());
+    document.body.append(early);
+    const docs = early.querySelector('dex-shell-docs')!;
+    window.dispatchEvent(fileDrag('dragover', ['plant.sldd']));
+    await until(() => docs.dropping);
+    window.dispatchEvent(fileDrag('dragleave', ['plant.sldd']));
+    await until(() => !docs.dropping);
+    handle.dispose();
+
+    const outer = document.body.appendChild(document.createElement('div'));
+    const shadowed = document.createElement('dex-app-shell');
+    outer.attachShadow({ mode: 'open' }).append(shadowed);
+    const inner = connectShell(shadowed, { host });
+    stops.push(() => inner.dispose());
+    const docsInside = shadowed.querySelector('dex-shell-docs')!;
+    window.dispatchEvent(fileDrag('dragover', ['plant.sldd']));
+    await until(() => docsInside.dropping);
+    window.dispatchEvent(fileDrag('drop', ['plant.sldd']));
+    await until(() => !docsInside.dropping);
   });
 
   it('show nothing for a page that installs no drop, and stop following once the shell is taken down', async () => {

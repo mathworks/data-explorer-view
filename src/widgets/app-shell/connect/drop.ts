@@ -10,7 +10,8 @@
 // the drop's DataTransfer whole rather than its files (a browser host may want its items, to tell a
 // folder from a file), and can be taken away again. While a file drag is over it, the target (the
 // body, for the window) has the class `drop-target`, for the page's own stylesheet to mark it; the
-// shell's documents follow that class too (followDropMark), and outline the area the files open in.
+// shell's documents follow that class too (followDropMark), on themselves and on the elements around
+// them, read again at each drag, and outline the area the files open in.
 
 // The class a target has while files are dragged over it.
 const MARK = 'drop-target';
@@ -54,14 +55,12 @@ export function installFileDrop(target: HTMLElement | Window, drop: (data: DataT
 
 /**
  * Tell `mark` whether files are being dragged over `el`, to be dropped where installFileDrop takes
- * them: whether `el` or an element around it, up to the page's root, has the class it marks its
- * target with (the body, for a drop installed on the window). Told once at once, then at each
- * change, and false when stopped; returns what stops it. The elements are those around `el` now:
- * one moved elsewhere afterwards is followed where it was.
+ * them: whether `el` or an element around it, up to the page's root and through any shadow root it
+ * is in, has the class it marks its target with (the body, for a drop installed on the window).
+ * Told once at once, then at each change, and false when stopped; returns what stops it.
  */
 export function followDropMark(el: Element, mark: (dragging: boolean) => void): () => void {
-  const around: Element[] = [];
-  for (let at: Element | null = el; at; at = at.parentElement) around.push(at);
+  let around: Element[] = [];
   let now = false;
   const read = (): void => {
     const dragging = around.some((at) => at.classList.contains(MARK));
@@ -69,10 +68,37 @@ export function followDropMark(el: Element, mark: (dragging: boolean) => void): 
   };
   // Each element's own class, not the page's subtree: what the widgets inside change is not read.
   const observer = new MutationObserver(read);
-  for (const at of around) observer.observe(at, { attributes: true, attributeFilter: ['class'] });
-  read();
+  // The elements around `el` are read again at each drag over the page: one connected before it was
+  // put in the page, or moved since, is inside others than it was.
+  const watch = (): void => {
+    const next = aroundOf(el);
+    if (next.length === around.length && next.every((at, i) => at === around[i])) return;
+    observer.disconnect();
+    around = next;
+    for (const at of around) observer.observe(at, { attributes: true, attributeFilter: ['class'] });
+  };
+  const onDrag = (): void => {
+    watch();
+    read();
+  };
+  window.addEventListener('dragenter', onDrag, true);
+  window.addEventListener('dragover', onDrag, true);
+  onDrag();
   return () => {
+    window.removeEventListener('dragenter', onDrag, true);
+    window.removeEventListener('dragover', onDrag, true);
     observer.disconnect();
     if (now) mark((now = false));
   };
+}
+
+// `el` and the elements around it, out to the page's root, a shadow root's host after its children.
+function aroundOf(el: Element): Element[] {
+  const around: Element[] = [];
+  for (let at: Element | null = el; at; ) {
+    around.push(at);
+    const root = at.getRootNode();
+    at = at.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+  }
+  return around;
 }
