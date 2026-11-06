@@ -9,6 +9,7 @@
 
 import type { Theme } from '../../../model/shell/settings.js';
 
+/** Draw the page in `theme`: view's theme stylesheet reads it from the root element's `data-theme`. */
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
 }

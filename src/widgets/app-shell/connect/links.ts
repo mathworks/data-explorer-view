@@ -9,6 +9,7 @@ import { projectPathSegments } from '../../../model/ids/pathUtil.js';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 
+/** Where a link leads. */
 export interface LinkDestination {
   /** The file to open, absolute. */
   path: string;
@@ -34,6 +35,7 @@ function sourcePath(source: string, fromPath: string): string {
   return isPath(path) ? path : `${folderOf(fromPath)}/${path}`;
 }
 
+/** Where `link`, in the file at `fromPath`, leads: the file to open, and the row to select there by name. */
 export function linkDestination(link: LinkTarget, fromPath: string): LinkDestination {
   switch (link.kind) {
     case 'file':

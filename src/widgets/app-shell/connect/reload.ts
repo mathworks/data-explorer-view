@@ -41,6 +41,10 @@ export interface ReloadGateOptions<T> {
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/**
+ * What a file changed on disk does to its tab: changedOnDisk for each change a watcher (or a save
+ * written over) reports; the gate asks, reads and acts, one change at a time per tab.
+ */
 export class ReloadGate<T extends ReloadTab> {
   /** The tabs being asked about a change, until the answer is acted on; one change at a time each. */
   private readonly asking = new Map<T, Promise<void>>();
@@ -52,6 +56,7 @@ export class ReloadGate<T extends ReloadTab> {
   private readonly changedAgain = new Set<T>();
   private readonly againUnsaved = new Set<T>();
 
+  /** A gate that reads, asks and checks a tab is open through `options`. */
   constructor(private readonly options: ReloadGateOptions<T>) {}
 
   /**
@@ -98,6 +103,10 @@ export class ReloadGate<T extends ReloadTab> {
     }
   }
 
+  /**
+   * Read the file of `tab` and keep the document over it (`keep`) or take it in its place; a read
+   * or a take that fails says so in its table's banner. Nothing for a tab that closed meanwhile.
+   */
   async actOnChange(tab: T, keep: boolean, unsaved: boolean): Promise<void> {
     if (!tab.doc) return;
     // Kept, whatever the document reads by the answer: a save of it may have landed meanwhile, under

@@ -16,8 +16,11 @@ import type { ProjectStore } from '../../../model/hierarchy/graphSources.js';
 import { connectHierarchy } from '../../hierarchy/connectHierarchy.js';
 import type { DexHierarchy } from '../../hierarchy/dex-hierarchy.js';
 
+/** A folder shown in a tree, read across its port: what the shell asks of it. */
 export interface FolderView {
+  /** The folder's path, as the host named it. */
   readonly root: string;
+  /** Its session: the hierarchy, the Usage graphs and the names its search reads. */
   readonly session: FolderSession;
   /** Whether the folder's last listing holds the file of `uri`. */
   lists(uri: string): boolean;
@@ -31,6 +34,7 @@ export interface FolderView {
   projectIn(dir: string): Promise<string | undefined>;
   /** Hear the folder change: `uris` the files it touched, none for anything. */
   onChange(listener: (uris?: readonly string[]) => void): () => void;
+  /** Stop: the tree hears nothing more, and the port is closed. */
   dispose(): void;
 }
 

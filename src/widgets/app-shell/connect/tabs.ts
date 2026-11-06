@@ -21,9 +21,13 @@ export interface ShellTab {
   name: string;
   /** The panel in the documents' area the tab shows. */
   panel: HTMLElement;
+  /** The table its file is shown in, once there is one: a project has none, and a file that could not be read one with the reason. */
   table?: DexTreeTable;
+  /** Its document in the shell's workspace, once its file is read. */
   doc?: Doc;
+  /** Its table, connected to the document's source. */
   handle?: TableHandle;
+  /** A project's page, in place of a table. */
   page?: DexProjectPage;
   /** Its document holds edits its file does not. */
   dirty?: boolean;
@@ -36,18 +40,22 @@ export class TabList<T> {
   private list: T[] = [];
   private current = -1;
 
+  /** The tabs, in the order of the row. */
   get items(): readonly T[] {
     return this.list;
   }
 
+  /** The active tab, or none (nothing open, or the Explorer's Root). */
   get active(): T | undefined {
     return this.list[this.current];
   }
 
+  /** Where the active tab is in `items`, or -1 for none. */
   get activeIndex(): number {
     return this.current;
   }
 
+  /** The first tab `pred` holds for. */
   find(pred: (item: T) => boolean): T | undefined {
     return this.list.find(pred);
   }
@@ -58,6 +66,7 @@ export class TabList<T> {
     this.current = this.list.length - 1;
   }
 
+  /** Make `item` the active tab; whether it was not already (false too for a tab not in the list). */
   activate(item: T): boolean {
     const i = this.list.indexOf(item);
     if (i < 0 || i === this.current) return false;

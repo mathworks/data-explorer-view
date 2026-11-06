@@ -13,6 +13,7 @@ import type { DexIcon } from '../../shared/dex-icon.js';
 
 type Records = Awaited<ReturnType<NameIndex['list']>>;
 
+/** An installed search, as the shell drives it. */
 export interface SearchHandle {
   /** The folder's names changed (another folder, or a change in it): read them again when asked. */
   reset(): void;
@@ -20,6 +21,11 @@ export interface SearchHandle {
   dispose(): void;
 }
 
+/**
+ * Search the names `names` gives (the folder shown's) as `input` is typed in: the matches in
+ * `results`, in place of `tree` while there is a query; a match clicked, or the first on Enter,
+ * goes to `pick` with its file's uri and the name to select there. Escape empties the box.
+ */
 export function installSearch(
   input: HTMLInputElement,
   results: HTMLElement,

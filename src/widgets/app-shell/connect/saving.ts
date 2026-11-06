@@ -12,9 +12,13 @@ import type { Doc } from '../../../model/source/workspace.js';
 import type { ConfirmOptions } from '../dex-confirm-dialog.js';
 import type { CloseAnswer, ShellHost } from './types.js';
 
+/** A tab, as a save sees it: its file, its name, and its document, once read. */
 export interface Savable {
+  /** The file the document saves over. */
   path: string;
+  /** What a refusal and a question name it by. */
   name: string;
+  /** Its document; none before its file is read, which has nothing to save. */
   doc?: Doc;
 }
 
@@ -26,9 +30,11 @@ export type SaveResult = { kind: 'saved'; overwritten?: boolean } | { kind: 'sav
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Saves tabs' documents through the host, one save of a tab at a time. */
 export class Saver {
   private readonly queues = new WeakMap<Savable, Promise<unknown>>();
 
+  /** Saves through `host`'s saveFile and saveFileAs. */
   constructor(private readonly host: Pick<ShellHost, 'saveFile' | 'saveFileAs'>) {}
 
   /**
