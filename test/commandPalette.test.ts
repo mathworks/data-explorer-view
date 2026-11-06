@@ -369,6 +369,16 @@ describe('the pointer', () => {
     expect(down.defaultPrevented).toBe(false);
   });
 
+  it("blurs the page behind its backdrop, as the prototype's did, by its stylesheet alone", () => {
+    // A rule of the element's own sheet, so a page's strict policy (style-src 'self') allows it.
+    const text = [DexCommandPalette.styles]
+      .flat(Infinity)
+      .map((s) => (s as { cssText: string }).cssText)
+      .join('\n')
+      .replace(/\s+/g, ' ');
+    expect(text).toMatch(/:host\(\[open\]\) \{[^}]*backdrop-filter: blur\(2px\);/);
+  });
+
   it('closes on a click on the backdrop, sending nothing', async () => {
     const el = await open();
     el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));

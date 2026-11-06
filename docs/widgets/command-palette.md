@@ -1,7 +1,7 @@
 # `<dex-command-palette>`
 
-The shell's command palette: a box at the top of the window, over the page, in which a few typed
-letters find a command. show() opens it with the commands to offer. The list follows the typing:
+The shell's command palette: a box at the top of the window, over the page (dimmed and a little
+blurred behind it), in which a few typed letters find a command. show() opens it with the commands to offer. The list follows the typing:
 labels that begin with the query first, then those whose words it begins, then those that only
 hold its letters in order, the letters matched drawn in bold. The commands run lately come first
 among equals, and first of all before anything is typed. ArrowUp and ArrowDown move through the

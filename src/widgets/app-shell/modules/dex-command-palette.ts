@@ -64,13 +64,16 @@ export class DexCommandPalette extends LitElement {
     }
 
     /* The host is the backdrop, lighter than the dialogs': the palette asks no question, and the
-       page under it is still what the commands act on. */
+       page under it is still what the commands act on. The page is blurred a little behind it, as
+       the prototype's was, so the box reads as above it rather than part of it; a rule of this
+       sheet, which a strict style-src allows, and no element of its own. */
     :host([open]) {
       display: block;
       position: fixed;
       inset: 0;
       z-index: 10000;
       background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(2px);
     }
 
     /* In the top third, centred, as the prototype placed it: under the toolbar, where the
