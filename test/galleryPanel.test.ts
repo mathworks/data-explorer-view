@@ -26,7 +26,7 @@ import { allTiles, matCatalog } from '../src/model/ids/addCatalog.js';
 beforeAll(() => defineGalleryPanel());
 afterEach(() => document.body.replaceChildren());
 
-async function panel(props: Partial<Pick<DexGalleryPanel, 'classes' | 'sections' | 'target' | 'disabled'>> = {}): Promise<DexGalleryPanel> {
+async function panel(props: Partial<Pick<DexGalleryPanel, 'classes' | 'sections' | 'target' | 'disabled' | 'note'>> = {}): Promise<DexGalleryPanel> {
   const el = document.createElement('dex-gallery-panel');
   Object.assign(el, props);
   document.body.append(el);
@@ -112,7 +112,7 @@ describe('dex-gallery-panel: what it draws', () => {
 
   it('has an attribute for each setting a page might write in markup', () => {
     const observed = (DexGalleryPanel as unknown as { observedAttributes: string[] }).observedAttributes;
-    expect([...observed].sort()).toEqual(['disabled', 'target']);
+    expect([...observed].sort()).toEqual(['disabled', 'note', 'target']);
   });
 });
 
@@ -162,6 +162,15 @@ describe('dex-gallery-panel: disabled', () => {
     expect(text(el.shadowRoot!.querySelector('.note'))).toBe('Open a dictionary, a MAT-file or a model to add entries.');
     expect(gallery(el).hasAttribute('inert')).toBe(true);
     expect(tiles(el).length).toBe(allTiles().length);
+  });
+
+  it("says the app's note in place of its own, where the app says why", async () => {
+    const el = await panel({ disabled: true, note: 'legacy_ctrl.mdl takes no edits.' });
+    expect(text(el.shadowRoot!.querySelector('.note'))).toBe('legacy_ctrl.mdl takes no edits.');
+    el.setAttribute('note', 'Read-only.');
+    await el.updateComplete;
+    expect(text(el.shadowRoot!.querySelector('.note'))).toBe('Read-only.');
+    expect(new DexGalleryPanel().note).toBe('Open a dictionary, a MAT-file or a model to add entries.');
   });
 
   it('asks for nothing, whatever is clicked', async () => {

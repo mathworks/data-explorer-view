@@ -38,7 +38,7 @@ export interface GalleryAddDetail {
  *
  * `classes` and `sections` are the Add gallery's, forwarded: a dictionary's every tile by
  * default, a MAT-file's or a model's classes where they are given. While `disabled`, a note says
- * what to open, and the tiles are shown but take no press and no focus.
+ * why (`note`: what to open, by default), and the tiles are shown but take no press and no focus.
  *
  * @tagname dex-gallery-panel
  */
@@ -123,6 +123,13 @@ export class DexGalleryPanel extends LitElement {
    */
   @property({ type: Boolean }) disabled = false;
 
+  /**
+   * What the note says while `disabled`: why no entry can be added, as the app knows it ("plant.mdl
+   * takes no edits."). Default 'Open a dictionary, a MAT-file or a model to add entries.'.
+   * Attribute `note`.
+   */
+  @property({ type: String }) note = 'Open a dictionary, a MAT-file or a model to add entries.';
+
   // The gallery's request, under the panel's own name: an app listens for one event of one panel,
   // and hears each add once. Stopped whether or not it is passed on, so a disabled panel lets
   // nothing out at all (inert keeps a click off a tile in a browser; this keeps it off where a
@@ -144,7 +151,7 @@ export class DexGalleryPanel extends LitElement {
     // on `inline` alone to keep the focus where the user is.
     return html`
       <div class="header" title=${this.target || nothing}>${this.target ? `Add to ${this.target}` : 'Add'}</div>
-      ${this.disabled ? html`<div class="note">Open a dictionary, a MAT-file or a model to add entries.</div>` : nothing}
+      ${this.disabled ? html`<div class="note">${this.note}</div>` : nothing}
       <dex-add-gallery
         inline
         .classes=${this.classes}

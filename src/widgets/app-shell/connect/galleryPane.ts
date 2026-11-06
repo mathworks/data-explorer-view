@@ -3,9 +3,9 @@
 // The Gallery view's wiring: <dex-gallery-panel> shows the Add gallery's tiles for the active file,
 // as its table's view says it can take them (TableView.add, addSections: a dictionary's every tile,
 // a MAT-file's or a model's own classes, a model's configuration sets beside them), headed with the
-// file's name, and greyed for no file or one the page does not edit. A tile pressed adds one entry
-// to that file, as the table's own `+ Add` does: through the document's source, its Name open for
-// a rename once it is there. connectShell calls refresh() as the active tab or its view changes.
+// file's name, and greyed for no file or one the page does not edit, which its note names. A tile
+// pressed adds one entry to that file, as the table's own `+ Add` does: through the document's
+// source, its Name open for a rename once it is there. connectShell calls refresh() as the active tab or its view changes.
 
 import type { NewEntry, TableView } from '../../../model/source/tableSource.js';
 import type { DexGalleryPanel } from '../modules/dex-gallery-panel.js';
@@ -18,16 +18,21 @@ export interface GalleryTarget {
   view: TableView | undefined;
   /** Whether the page edits it now: else the tiles are greyed. */
   editable: boolean;
+  /** Why it takes no entry, for a file that takes none (a .mdl, a file kept for viewing only); absent, the panel's own note. */
+  note?: string;
   /** Add one entry to it: the shell commits a cell editor still open first. */
   add(entry: NewEntry): void | Promise<void>;
 }
 
 /** Wire `panel` to the active file (`target()`, null for none); refresh() draws it as it is now. */
 export function connectGalleryPane(panel: DexGalleryPanel, context: { target(): GalleryTarget | null }): { refresh(): void; dispose(): void } {
+  // The panel's own note, what to open, for no file and for one that has not said why.
+  const opening = panel.note;
   const refresh = (): void => {
     const target = context.target();
     panel.target = target?.name ?? '';
     panel.disabled = !target?.editable;
+    panel.note = target?.note ?? opening;
     panel.classes = target?.view?.add?.classes ?? null;
     panel.sections = target?.view?.addSections ?? null;
   };

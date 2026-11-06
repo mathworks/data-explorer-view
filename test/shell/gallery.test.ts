@@ -40,12 +40,18 @@ describe('the Gallery view', () => {
     expect(galleryPanel().sections).toEqual(['config']);
   });
 
-  it('is greyed for a file the page does not edit', async () => {
+  it('is greyed for a file the page does not edit, and says that file takes no edits', async () => {
     const page = startPage(FILES);
+    const OPEN_ONE = 'Open a dictionary, a MAT-file or a model to add entries.';
+    expect(galleryPanel().note).toBe(OPEN_ONE);
     await open(page, 'legacy_ctrl.mdl');
     await until(() => galleryPanel().target === 'legacy_ctrl.mdl' && galleryPanel().disabled);
+    await until(() => galleryPanel().note === 'legacy_ctrl.mdl takes no edits.');
     await open(page, 'viewing_only.mat');
-    await until(() => galleryPanel().target === 'viewing_only.mat' && galleryPanel().disabled);
+    await until(() => galleryPanel().target === 'viewing_only.mat' && galleryPanel().note === 'viewing_only.mat takes no edits.');
+    // A file it edits, or none at all: its own note again.
+    await open(page, 'params.sldd');
+    await until(() => !galleryPanel().disabled && galleryPanel().note === OPEN_ONE);
   });
 
   it('adds an entry of a tile to the active file, its Name open for a rename', async () => {
