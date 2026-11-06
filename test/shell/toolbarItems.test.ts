@@ -86,9 +86,42 @@ describe('toolbarItems', () => {
       cut: 'Ctrl+X',
       copy: 'Ctrl+C',
       paste: 'Ctrl+V',
-      delete: 'Delete',
+      // As the table's menu writes the key: Del, and ⌫ on macOS, whose key marked delete is Backspace.
+      delete: 'Del',
     });
-    expect(shortcut(true)).toMatchObject({ 'new-file': '⌘N', 'open-file': '⌘O', 'save-as': '⇧⌘S', 'save-all': '⌥⌘S', redo: '⇧⌘Z' });
+    expect(shortcut(true)).toMatchObject({ 'new-file': '⌘N', 'open-file': '⌘O', 'save-as': '⇧⌘S', 'save-all': '⌥⌘S', redo: '⇧⌘Z', delete: '⌫' });
+  });
+
+  it("says in its tooltip what a button leaning on its icon opens, as the prototype's did, with its chord", () => {
+    const titles = (mac: boolean) => Object.fromEntries(toolbarItems({ ...NOTHING, mac }).map((i) => [i.id, i.title]));
+    expect(titles(false)).toMatchObject({ 'open-file': 'Open File (Ctrl+O)', 'open-folder': 'Open Folder (Ctrl+Shift+O)' });
+    expect(titles(true)).toMatchObject({ 'open-file': 'Open File (⌘O)', 'open-folder': 'Open Folder (⇧⌘O)' });
+    // The rest say their label, which the toolbar writes with the chord.
+    expect(titles(false)).toMatchObject({ save: undefined, delete: undefined, 'add-child': undefined });
+  });
+
+  it("names the editing buttons' chords as the table's own menu labels its items", async () => {
+    // What the claim at the top of toolbarItems.ts says: a tooltip and the menu item name one chord.
+    const { buildContextMenuItems } = await import('../../src/widgets/tree-table/menuItems.js');
+    const rows = [
+      { ID: 's', parent: null, Name: { label: 'Design Data' } },
+      { ID: 'a', parent: 's', Name: { label: 'A' }, _canCopy: true, _canDelete: true, _canAddChild: true },
+    ];
+    const menu = buildContextMenuItems({
+      rows: rows as never,
+      selectedRowIds: ['a'],
+      anchorRowId: 'a',
+      clipboard: { canPaste: true, mode: 'copy', items: [] },
+      editable: true,
+      hasTextView: false,
+      pasteTarget: null,
+      addChildChord: true,
+    });
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+    const bar = Object.fromEntries(toolbarItems({ ...NOTHING, mac }).map((i) => [i.id, i.shortcut]));
+    const byMenu = Object.fromEntries(menu.map((i) => [i.id, i.shortcut]));
+    expect(['undo', 'redo', 'cut', 'copy', 'paste', 'delete'].map((id) => bar[id])).toEqual(['undo', 'redo', 'cut', 'copy', 'paste', 'delete'].map((id) => byMenu[id]));
+    expect(bar['add-child']).toBe(byMenu.addChild);
   });
 
   it('with nothing open, can only make a file and open one', () => {

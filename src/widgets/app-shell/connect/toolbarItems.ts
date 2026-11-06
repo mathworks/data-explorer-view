@@ -8,8 +8,10 @@
 //
 // The editing buttons are the active table's editing menu: each is enabled exactly when the menu's
 // own item is (TableHandle.can), so a button and the right-click menu never disagree, and pressing
-// one runs that item (TableHandle.run). Their chords are the table's (the menu's labels), the rest
-// the shell's own (keys.ts), so a tooltip names the chord that works.
+// one runs that item (TableHandle.run). Their chords are the table's, written as the menu labels
+// them (Delete's key is Del, ⌫ on macOS), the rest the shell's own (keys.ts), so a tooltip names the
+// chord that works. A button whose label leans on its icon ("Open") says in its tooltip what it
+// opens, as the prototype's did ("Open File").
 
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
 import type { ToolbarItem } from '../dex-toolbar.js';
@@ -48,8 +50,13 @@ const TABLE_CHORDS: Partial<Record<ShellCommand, string>> = {
   cut: 'Mod+X',
   copy: 'Mod+C',
   paste: 'Mod+V',
-  delete: 'Delete',
 };
+
+/**
+ * Delete's key, as the table's menu names it: a key and not a chord (the table answers Delete and
+ * Backspace alike), ⌫ on macOS, whose key marked delete is Backspace, and Del elsewhere.
+ */
+const deleteKey = (mac: boolean): string => (mac ? '⌫' : 'Del');
 
 /** Each editing button's item of the table's menu. */
 const TABLE_ACTIONS: Partial<Record<ShellCommand, TableActionId>> = {
@@ -71,12 +78,13 @@ export function tableActionOf(command: ShellCommand): TableActionId | undefined 
 export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   const item = (id: ShellCommand, label: string, icon: string, group: string, disabled: boolean, align?: 'end'): ToolbarItem => {
     const chord = TABLE_CHORDS[id] ?? chordOf(id);
+    const shortcut = id === 'delete' ? deleteKey(state.mac) : chord ? chordLabel(parseChord(chord), state.mac) : undefined;
     return {
       id,
       label,
       icon,
       group,
-      ...(chord ? { shortcut: chordLabel(parseChord(chord), state.mac) } : {}),
+      ...(shortcut ? { shortcut } : {}),
       disabled,
       ...(align ? { align } : {}),
     };
@@ -90,9 +98,9 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   const save = item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty));
   return [
     // A new data dictionary, the one kind of file New makes, as the prototype's tooltip said.
-    ...(state.canNewFile ? [newFile(item('new-file', 'New', 'new_server', 'open', false))] : []),
-    item('open-file', 'Open', 'openFolder', 'open', false),
-    ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
+    ...(state.canNewFile ? [titled(item('new-file', 'New', 'new_server', 'open', false), 'New Data Dictionary')] : []),
+    titled(item('open-file', 'Open', 'openFolder', 'open', false), 'Open File'),
+    ...(state.canOpenFolder ? [titled(item('open-folder', 'Folder', 'folder', 'open', false), 'Open Folder')] : []),
     active?.dirty ? { ...save, colorful: true } : save,
     item('save-as', 'Save As', 'saveAs', 'save', !active?.editable),
     item('save-all', 'Save All', 'save_all', 'save', !state.anyDirty),
@@ -109,9 +117,9 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   ];
 }
 
-/** The New button, whose tooltip names what it makes. */
-function newFile(item: ToolbarItem): ToolbarItem {
-  return { ...item, title: `New Data Dictionary${item.shortcut ? ` (${item.shortcut})` : ''}` };
+/** A button whose tooltip says `what` it makes or opens, rather than its label, with its chord. */
+function titled(item: ToolbarItem, what: string): ToolbarItem {
+  return { ...item, title: `${what}${item.shortcut ? ` (${item.shortcut})` : ''}` };
 }
 
 /** A tab, as the toolbar's state reads it: its document's edits, and its table's menu. */
