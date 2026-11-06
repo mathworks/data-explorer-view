@@ -114,8 +114,10 @@ const sectionsOf = (file: ExplorerFile): ExplorerSection[] => (Array.isArray(fil
  * `dex-explorer-menu`. Which file a row is, what opening it means and which row is the current
  * one are the app's: the row `selected` names is highlighted, and a click changes nothing of it.
  * Which files are open in the tree (their twisty) is the element's own, but for one thing: a
- * `selected` that moves to a section of a closed file opens that file, so the row is seen. A
- * file that leaves `files` is forgotten, so it comes back closed.
+ * `selected` that moves to a section of a closed file opens that file, at once or as soon as the
+ * file lists the section, and the row `selected` moves to is scrolled into view. A file that
+ * leaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the
+ * focus to the next row.
  *
  * The arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,
  * Left closes it or goes from a section to its file, Home and End go to the first and the last.
@@ -137,8 +139,9 @@ export class DexExplorer extends LitElement {
       padding: 4px;
     }
 
-    /* A heading is laid out as a row, with the twisty's place kept, so its words line up with the
-       icons of the files under it, as ts's do. */
+    /* A heading is laid out as a row, with the indent's and the twisty's places kept (each takes
+       the row's gap, the empty indent too), so its words line up with the icons of the files
+       under it, as ts's do. */
     .row,
     .heading {
       display: flex;
@@ -207,6 +210,12 @@ export class DexExplorer extends LitElement {
       min-width: 0;
     }
 
+    /* The unsaved mark is a part of its own, after the name and the row's gap from it: a name too
+       long for the sidebar gives way to the ellipsis, and the mark stays. */
+    .dirty {
+      flex-shrink: 0;
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -236,9 +245,10 @@ export class DexExplorer extends LitElement {
   @property({ attribute: false }) files: ExplorerFile[] = [];
   /**
    * The row to highlight: Root, a file, or a section of a file. Null, the default, highlights
-   * none. The app sets it; the element never changes it, and setting it sends nothing. Moved to a
-   * section of a closed file, it opens the file; the user may close it again, and it stays closed
-   * until `selected` next moves to one of its sections.
+   * none. The app sets it; the element never changes it, and setting it sends nothing. Moved to
+   * another row, it scrolls that row into view once it is drawn; moved to a section of a closed
+   * file, it opens the file, then or once a later `files` lists the section. The user may close
+   * it again, and it stays closed until `selected` next moves to one of its sections.
    */
   @property({ attribute: false }) selected: ExplorerSelection | null = null;
   /** What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`. */
@@ -250,6 +260,11 @@ export class DexExplorer extends LitElement {
   // The row the keyboard is on, by key, and whether it is still to be given the focus once drawn.
   @state() private _focusKey: string | null = null;
   private _focusPending = false;
+  // The section `selected` moved to, while its file is not listed with it yet: an app lists a
+  // file it has just opened with no sections, and reads them after its table is drawn.
+  private _revealing: { fileId: string; sectionId: string } | null = null;
+  // The row `selected` moved to, to scroll into view once it is drawn.
+  private _scrollKey: string | null = null;
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     // A file that is gone is forgotten, so the same file opened again later starts closed.
@@ -257,25 +272,65 @@ export class DexExplorer extends LitElement {
       const ids = new Set(this._files().map((f) => f.id));
       if ([...this._open].some((id) => !ids.has(id))) this._open = new Set([...this._open].filter((id) => ids.has(id)));
     }
-    if (changed.has('selected')) this._reveal(changed.get('selected') as ExplorerSelection | null | undefined);
+    if (changed.has('selected')) this._moved(changed.get('selected') as ExplorerSelection | null | undefined);
+    if (this._revealing && (changed.has('selected') || changed.has('files'))) this._reveal();
+    if (changed.has('files')) this._keepFocus();
+  }
+
+  // `selected` was set: a move to another row is scrolled to, and a move to a section waits for
+  // its file to open. Setting the same place again counts for nothing: an app that does it, as a
+  // new object on each redraw, neither scrolls the view the user has scrolled since nor opens a
+  // file the user has closed since.
+  private _moved(before: ExplorerSelection | null | undefined): void {
+    const selected = this.selected;
+    const key = selected ? keyOf(selected.fileId, selected.sectionId) : null;
+    if (key === (before ? keyOf(before.fileId, before.sectionId) : null)) return;
+    this._scrollKey = key;
+    this._revealing =
+      selected && selected.fileId !== null && selected.sectionId !== undefined
+        ? { fileId: selected.fileId, sectionId: selected.sectionId }
+        : null;
   }
 
   // The app named a section (from the location bar, say): its file opens, so the highlighted row
-  // is on screen. Only when the selection moves to another row. An app that sets the same place
-  // again, as a new object, leaves a file the user has closed since closed; and a section the
-  // file does not list opens nothing, since no row of it would be highlighted.
-  private _reveal(before: ExplorerSelection | null | undefined): void {
-    const selected = this.selected;
-    if (!selected || selected.fileId === null || selected.sectionId === undefined) return;
-    if (before && keyOf(before.fileId, before.sectionId) === keyOf(selected.fileId, selected.sectionId)) return;
-    const file = this._files().find((f) => f.id === selected.fileId);
-    if (file && sectionsOf(file).some((s) => s.id === selected.sectionId)) this._setOpen(file, true);
+  // is there to see. Once the file lists the section, and then never again for that move: the
+  // user may close the file afterwards. A section the file never lists opens nothing, since no
+  // row of it would be highlighted; the wait ends when the selection moves on.
+  private _reveal(): void {
+    const { fileId, sectionId } = this._revealing!;
+    const file = this._files().find((f) => f.id === fileId);
+    if (!file || !sectionsOf(file).some((s) => s.id === sectionId)) return;
+    this._revealing = null;
+    this._setOpen(file, true);
+  }
+
+  // A focused row that new files leave out (its file closed, a section gone as the file is read
+  // again) would take the focus with it, to the page's body, and the keyboard would be lost.
+  // The focus goes to the next row still drawn, as a list moves on past a deleted item; after
+  // the last, to the one before. Read before this draw, so the rows are still the old ones.
+  private _keepFocus(): void {
+    const active = this.shadowRoot?.activeElement;
+    if (!(active instanceof HTMLElement) || active.getAttribute('role') !== 'treeitem') return;
+    const was = [...this.renderRoot.querySelectorAll<HTMLElement>('[role="treeitem"]')].map((el) => el.dataset.key ?? '');
+    const at = was.indexOf(active.dataset.key ?? '');
+    const now = new Set(this._lines().map((l) => l.key));
+    if (at < 0 || now.has(was[at]!)) return;
+    this._focusKey =
+      was.slice(at + 1).find((key) => now.has(key)) ??
+      was.slice(0, at).reverse().find((key) => now.has(key)) ??
+      ROOT_KEY;
+    this._focusPending = true;
   }
 
   protected override updated(): void {
     if (this._focusPending) {
       this._focusPending = false;
       this._rowElement(this._focusKey)?.focus();
+    }
+    const reveal = this._rowElement(this._scrollKey);
+    if (reveal) {
+      this._scrollKey = null;
+      reveal.scrollIntoView?.({ block: 'nearest' });
     }
   }
 
@@ -340,6 +395,8 @@ export class DexExplorer extends LitElement {
   private _focus(key: string): void {
     this._focusKey = key;
     this._focusPending = true;
+    // A move of the user's: a scroll still waiting for its row is not done over it.
+    this._scrollKey = null;
     // Asked for even when the key is the one already held (Home on the first row), so the focus
     // is given now and not at some later, unrelated update.
     this.requestUpdate();
@@ -347,6 +404,7 @@ export class DexExplorer extends LitElement {
 
   private _send(line: Line, pin: boolean): void {
     this._focusKey = line.key;
+    this._scrollKey = null;
     const detail: ExplorerOpenDetail =
       line.kind === 'root'
         ? { fileId: null, pin }
@@ -422,11 +480,12 @@ export class DexExplorer extends LitElement {
   private _label(line: Line) {
     if (line.kind === 'root') return html`<span class="label">${this.rootLabel}</span>`;
     if (line.kind === 'section') return html`<span class="label">${line.section.label}</span>`;
-    // The mark is ts's, and its tab's: ` *` after the name. A screen reader hears what it means.
+    // The mark is ts's, and its tab's: `*` after the name, the row's gap the space before it. A
+    // screen reader hears what it means instead.
+    const name = html`<span class="label">${line.file.label}</span>`;
     return line.file.dirty
-      ? html`<span class="label">${line.file.label}<span aria-hidden="true"> *</span></span
-          ><span class="sr-only">(unsaved changes)</span>`
-      : html`<span class="label">${line.file.label}</span>`;
+      ? html`${name}<span class="dirty" aria-hidden="true">*</span><span class="sr-only">(unsaved changes)</span>`
+      : name;
   }
 
   private _icon(line: Line) {
@@ -486,7 +545,7 @@ export class DexExplorer extends LitElement {
           (g) => html`
             <div role="group" aria-label=${g.heading}>
               <div class="heading" aria-hidden="true">
-                <span class="twisty empty"></span><span class="label">${g.heading}</span>
+                <span class="indent"></span><span class="twisty empty"></span><span class="label">${g.heading}</span>
               </div>
               ${repeat(
                 g.lines,

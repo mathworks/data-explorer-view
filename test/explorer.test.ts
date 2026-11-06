@@ -7,10 +7,10 @@
 // means and which row is current are the app's, so what is pinned here is what it draws for the
 // files and the selection it is given, and what each click, double-click, right-click and key
 // asks for. Over hand-made files, so each case shows the rows it is about.
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
+  DexExplorer,
   defineExplorer,
-  type DexExplorer,
   type ExplorerFile,
   type ExplorerMenuDetail,
   type ExplorerOpenDetail,
@@ -47,6 +47,13 @@ async function explorer(files: ExplorerFile[]): Promise<DexExplorer> {
   return el;
 }
 
+const cssOf = (styles: unknown): string =>
+  [styles]
+    .flat(Infinity)
+    .map((sheet) => (sheet as { cssText: string }).cssText)
+    .join('\n')
+    .replace(/\s+/g, ' ');
+
 async function settle(el: DexExplorer): Promise<void> {
   for (let i = 0; i < 3; i++) {
     await new Promise((done) => setTimeout(done, 0));
@@ -55,7 +62,11 @@ async function settle(el: DexExplorer): Promise<void> {
 }
 
 const rows = (el: DexExplorer): HTMLElement[] => [...el.shadowRoot!.querySelectorAll<HTMLElement>('[role="treeitem"]')];
-const labelOf = (row: Element): string => row.querySelector('.label')!.textContent!;
+// A row's name, with its unsaved mark after it as the user reads it ("dd.sldd *").
+const labelOf = (row: Element): string => {
+  const mark = row.querySelector('.dirty');
+  return row.querySelector('.label')!.textContent! + (mark ? ` ${mark.textContent}` : '');
+};
 const labels = (el: DexExplorer): string[] => rows(el).map(labelOf);
 const rowOf = (el: DexExplorer, label: string): HTMLElement => rows(el).find((r) => labelOf(r) === label)!;
 // Everything drawn, in order: a heading as `[heading]`, a row as its label.
@@ -153,9 +164,29 @@ describe('the rows', () => {
     const el = await explorer([{ ...DD, dirty: true }, MODEL]);
     expect(labels(el)).toEqual(['Root', 'm.slx', 'dd.sldd *']);
     const dd = rowOf(el, 'dd.sldd *');
-    expect(dd.querySelector('.label [aria-hidden="true"]')!.textContent).toBe(' *');
+    // The mark is a part of its own after the name, not in it: a name too long for the sidebar
+    // is cut short with an ellipsis, and the mark is still drawn after it.
+    const name = dd.querySelector('.label')!;
+    expect(name.textContent).toBe('dd.sldd');
+    const mark = name.nextElementSibling!;
+    expect(mark.classList.contains('dirty')).toBe(true);
+    expect(mark.textContent).toBe('*');
+    expect(mark.getAttribute('aria-hidden')).toBe('true');
+    expect(cssOf(DexExplorer.styles)).toContain('.dirty { flex-shrink: 0; }');
     expect(dd.querySelector('.sr-only')!.textContent).toBe('(unsaved changes)');
-    expect(rowOf(el, 'm.slx').querySelector('.sr-only')).toBeNull();
+    expect(rowOf(el, 'm.slx').querySelector('.dirty, .sr-only')).toBeNull();
+  });
+
+  it('lines a heading up with the icons of the files under it, as ts does', async () => {
+    // Laid out as a row is: the same zero-width indent and empty twisty before the words, each
+    // taking the same gap, so the words start where a file's icon does.
+    const el = await explorer([DD]);
+    const heading = el.shadowRoot!.querySelector('.heading')!;
+    const row = rowOf(el, 'dd.sldd');
+    const lead = (e: Element): string[] => [...e.children].slice(0, 2).map((c) => c.className.trim());
+    expect(lead(heading)).toEqual(['indent', 'twisty empty']);
+    expect(lead(row)).toEqual(['indent', 'twisty']);
+    expect(row.querySelector<HTMLElement>('.indent')!.style.width).toBe('0px');
   });
 
   it('gives a twisty only to a file with sections', async () => {
@@ -205,9 +236,13 @@ describe('the rows', () => {
     twisty(rowOf(el, 'dd.sldd')).click();
     await el.updateComplete;
     expect(labels(el)).toEqual(['Root', 'dd.sldd', 'v.mat']);
-    // A double-click on the twisty is two toggles, and still no request.
-    twisty(rowOf(el, 'dd.sldd')).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
-    await el.updateComplete;
+    // A double-click on the twisty is two clicks, so two toggles, then the dblclick: it ends
+    // closed, as it began, and asks for nothing.
+    for (const type of ['click', 'click', 'dblclick']) {
+      twisty(rowOf(el, 'dd.sldd')).dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true }));
+      await el.updateComplete;
+    }
+    expect(labels(el)).toEqual(['Root', 'dd.sldd', 'v.mat']);
     expect(sent).toEqual({ open: [], menu: [] });
   });
 });
@@ -252,6 +287,19 @@ describe('what a click asks for', () => {
       { fileId: DD.id, pin: true },
       { fileId: DD.id, sectionId: 'other', pin: true },
       { fileId: null, pin: true },
+    ]);
+  });
+
+  it('a double-click as the browser sends it, two clicks then the dblclick, asks twice unpinned, then pinned', async () => {
+    const el = await explorer([DD]);
+    const sent = heard();
+    for (const type of ['click', 'click', 'dblclick']) {
+      rowOf(el, 'dd.sldd').dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true }));
+    }
+    expect(sent.open.map((d) => [d.fileId, d.pin])).toEqual([
+      [DD.id, false],
+      [DD.id, false],
+      [DD.id, true],
     ]);
   });
 
@@ -464,6 +512,85 @@ describe('selected', () => {
       expect(labels(el), JSON.stringify(selected)).toEqual(['Root', 'dd.sldd', 'v.mat']);
     }
   });
+
+  it('opens the file once its sections arrive, when they come after the selection named one', async () => {
+    // How an app lists a file it has just opened: at first with no sections, which it reads
+    // after the file's table is drawn; the selection already names the section the user went to.
+    const el = await explorer([{ ...DD, sections: [] }]);
+    el.selected = { fileId: DD.id, sectionId: 'arch' };
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd']);
+    el.files = [DD];
+    await el.updateComplete;
+    expect(rowOf(el, 'dd.sldd').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(el, 'Architectural Data').getAttribute('aria-selected')).toBe('true');
+    // Done once: closed by the user now, it stays closed through new files.
+    twisty(rowOf(el, 'dd.sldd')).click();
+    el.files = [{ ...DD, dirty: true }];
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd *']);
+  });
+
+  it('gives up a wait for sections once the selection moves on', async () => {
+    const el = await explorer([{ ...DD, sections: [] }]);
+    el.selected = { fileId: DD.id, sectionId: 'arch' };
+    await el.updateComplete;
+    el.selected = { fileId: null };
+    await el.updateComplete;
+    el.files = [DD];
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd']);
+  });
+
+  describe('scrolls the row it moves to into view', () => {
+    let scrolled: { key: string; options: unknown }[] = [];
+    const spy = (): void => {
+      scrolled = [];
+      const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement, options) {
+        scrolled.push({ key: this.dataset.key ?? '', options });
+      });
+      unlisten.push(() => scroll.mockRestore());
+    };
+    const key = (el: DexExplorer, label: string): string => rowOf(el, label).dataset.key!;
+
+    it('once, the nearest way, when the row is drawn: at once, or when its sections arrive', async () => {
+      spy();
+      const el = await explorer([DD, { ...BASE, sections: [] }, MAT]);
+      el.selected = { fileId: DD.id, sectionId: 'other' };
+      await el.updateComplete;
+      expect(scrolled).toEqual([{ key: key(el, 'Other Data'), options: { block: 'nearest' } }]);
+      // The same place again scrolls nothing: the user may have scrolled away since.
+      el.selected = { fileId: DD.id, sectionId: 'other' };
+      el.files = [DD, { ...BASE, sections: [] }, MAT];
+      await el.updateComplete;
+      expect(scrolled).toHaveLength(1);
+      // A file's row, or Root's, as well as a section's.
+      el.selected = { fileId: MAT.id };
+      await el.updateComplete;
+      expect(scrolled.at(-1)!.key).toBe(key(el, 'v.mat'));
+      el.selected = { fileId: BASE.id, sectionId: 'design' };
+      await el.updateComplete;
+      expect(scrolled).toHaveLength(2);
+      el.files = [DD, BASE, MAT];
+      await el.updateComplete;
+      // BASE's Design Data, the last of the two.
+      expect(scrolled.at(-1)!.key).toBe(rows(el).filter((r) => labelOf(r) === 'Design Data').at(-1)!.dataset.key);
+      expect(scrolled).toHaveLength(3);
+    });
+
+    it('not after the user has chosen a row meanwhile', async () => {
+      spy();
+      const el = await explorer([{ ...DD, sections: [] }, MAT]);
+      el.selected = { fileId: DD.id, sectionId: 'arch' };
+      await el.updateComplete;
+      rowOf(el, 'v.mat').click();
+      el.files = [DD, MAT];
+      await el.updateComplete;
+      // The file still opens, so the row the app named is there to see; the view stays put.
+      expect(rowOf(el, 'dd.sldd').getAttribute('aria-expanded')).toBe('true');
+      expect(scrolled).toEqual([]);
+    });
+  });
 });
 
 describe('files that come and go', () => {
@@ -494,5 +621,42 @@ describe('files that come and go', () => {
     await el.updateComplete;
     expect(labels(el)).toEqual(['Root', 'dd.sldd', 'base.sldd', 'Design Data', 'v.mat']);
     expect(rowOf(el, 'dd.sldd').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('moves the focus off a row that goes: to the next row still there, else the one before, else Root', async () => {
+    const el = await explorer([DD, BASE, MAT]);
+    rowOf(el, 'base.sldd').focus();
+    await settle(el);
+    el.files = [DD, MAT];
+    await settle(el);
+    expect(focused(el)).toBe('v.mat');
+    // The last row: nothing after it, so the one before.
+    el.files = [DD];
+    await settle(el);
+    expect(focused(el)).toBe('dd.sldd');
+    // A section that goes, as its file is read again.
+    twisty(rowOf(el, 'dd.sldd')).click();
+    await settle(el);
+    rowOf(el, 'Configurations').focus();
+    await settle(el);
+    el.files = [{ ...DD, sections: DD.sections!.slice(0, 2) }];
+    await settle(el);
+    expect(focused(el)).toBe('Architectural Data');
+    el.files = [];
+    await settle(el);
+    expect(focused(el)).toBe('Root');
+    expect(rowOf(el, 'Root').tabIndex).toBe(0);
+  });
+
+  it('takes no focus when a row goes while the focus is elsewhere', async () => {
+    const el = await explorer([DD, BASE]);
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    rowOf(el, 'base.sldd').focus();
+    await settle(el);
+    outside.focus();
+    el.files = [DD];
+    await settle(el);
+    expect(document.activeElement).toBe(outside);
   });
 });
