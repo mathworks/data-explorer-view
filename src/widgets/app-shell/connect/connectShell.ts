@@ -449,8 +449,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The tab active when the command was given, whatever is active by the time it is carried out.
     const tab = tabs.active;
     if (id === 'settings' || id === 'about') return popovers.toggle(id);
-    // The palette, as its own modal: the popovers make way first, one Escape closing one layer.
+    // The palette, as its own modal: the popovers make way first, one Escape closing one layer;
+    // none over another modal, whose keys are its own, until one stack keeps their order (F2).
     if (id === 'palette') {
+      if (parts.modalOpen()) return;
       popovers.closeAll();
       return parts.palette.show(paletteCommands(toolbarState()));
     }
@@ -460,10 +462,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       modules.show(view.view);
       return later();
     }
-    if ((id === 'undo' || id === 'redo') && focusIsInTextField()) {
-      document.execCommand(id);
-      return;
-    }
+    if ((id === 'undo' || id === 'redo') && focusIsInTextField()) return void document.execCommand(id);
     // A toolbar press takes no focus, so a cell editor still open is open now: what it holds is
     // the document's before anything acts on it.
     void Promise.resolve(tab?.handle?.commitEdit()).then(() => {

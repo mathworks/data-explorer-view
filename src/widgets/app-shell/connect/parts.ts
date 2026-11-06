@@ -138,6 +138,10 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
     settingsPanel,
     aboutPanel,
     confirm,
+    /** Whether a modal of the shell's is up: a question, the error dialog, the variable editor (each says `open`). */
+    modalOpen(): boolean {
+      return [confirm, dialog, editor].some((modal) => modal.hasAttribute('open'));
+    },
     /** Take the parts out of the shell and the overlays out of the body. */
     remove(): void {
       for (const el of [...children, ...overlays]) el.remove();

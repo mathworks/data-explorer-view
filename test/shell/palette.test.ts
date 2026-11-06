@@ -9,7 +9,7 @@
 // with a box (Search, the Terminal) takes the keyboard.
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PaletteCommand } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
-import { commandWindow, dirtyTabs, edit, open, palette, searchPanel, settingsPanel, settled, startPage, until, type Page } from './harness.js';
+import { commandWindow, confirmButton, confirmDialog, dirtyTabs, edit, errorDialog, open, palette, searchPanel, settingsPanel, settled, startPage, until, variableEditor, type Page } from './harness.js';
 
 afterEach(() => Reflect.deleteProperty(navigator, 'platform'));
 
@@ -44,6 +44,35 @@ describe('the command palette', () => {
     await until(() => dirtyTabs().length === 1);
     page.command('palette');
     expect(!!offered().find((c) => c.id === 'save')!.disabled).toBe(false);
+  });
+
+  it('does not open over a modal the shell has up: a question, the error dialog, the variable editor', async () => {
+    Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    const page = startPage(FILES, { without: ['confirmClose', 'confirmReload'] });
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    const chord = () => (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true, composed: true, cancelable: true }));
+    // A question the close asks.
+    page.command('close-tab');
+    await until(() => confirmDialog().hasAttribute('open'));
+    chord();
+    page.command('palette');
+    expect(palette().open).toBe(false);
+    (await confirmButton('Cancel')).click();
+    await until(() => !confirmDialog().hasAttribute('open'));
+    // The error dialog, and the variable editor.
+    errorDialog().show({ title: 'Could Not Save params.sldd', reason: 'The disk is full.' });
+    page.command('palette');
+    expect(palette().open).toBe(false);
+    errorDialog().close();
+    variableEditor().show(document.body, { name: 'Kp', className: 'double', dims: [2, 2], nodeId: 'n' });
+    page.command('palette');
+    expect(palette().open).toBe(false);
+    variableEditor().close();
+    // And with none up, it opens.
+    page.command('palette');
+    expect(palette().open).toBe(true);
   });
 
   it('carries out a command run in it, as its button would', async () => {

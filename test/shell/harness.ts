@@ -240,6 +240,7 @@ export const toolbarButton = (label: string) =>
 /** The toolbar's items that can be pressed now, by id. */
 export const enabledItems = () => toolbar().items.filter((i) => !i.disabled).map((i) => i.id);
 export const errorDialog = () => document.querySelector('dex-error-dialog')!;
+export const variableEditor = () => document.querySelector('dex-variable-editor')!;
 export const inspectorNote = () => document.querySelector<HTMLElement>('.dex-inspector-empty')!;
 export const statusText = () => document.querySelector<HTMLElement>('[slot="status"]')?.textContent ?? '';
 
