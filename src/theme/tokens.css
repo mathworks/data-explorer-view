@@ -112,6 +112,14 @@
   /* The largest the variable editor's grid grows before it scrolls. */
   --dex-matrix-max-height: 320px;
   --dex-matrix-max-width: 640px;
+  /* The app shell (data-explorer-view/app-shell): its activity bars, toolbar row, tab bar and the
+     line a resizer shows under the pointer. */
+  --dex-bg-activity-bar: #f0f0f0;
+  --dex-activity-fg: #616161;
+  --dex-activity-active: #0078d4;
+  --dex-bg-toolbar: #fff;
+  --dex-bg-tabbar: #f0f0f0;
+  --dex-shell-resizer-hover: #0078d4;
 }
 
 [data-theme="dark"] {
@@ -184,6 +192,12 @@
      the half turn of hue puts each colour back where it was: a blue stroke stays blue, a green
      tick green. */
   --dex-icon-filter: invert(0.85) hue-rotate(180deg);
+  --dex-bg-activity-bar: #252526;
+  --dex-activity-fg: #c5c5c5;
+  --dex-activity-active: #4ba3e3;
+  --dex-bg-toolbar: #1e1e1e;
+  --dex-bg-tabbar: #252526;
+  --dex-shell-resizer-hover: #4ba3e3;
 }
 
 [data-theme="high-contrast"] {
@@ -244,4 +258,10 @@
   --dex-add-gallery-tint: #fff;
   --dex-add-gallery-bg: #fff;
   --dex-add-gallery-header-bg: #fff;
+  --dex-bg-activity-bar: #f0f0f0;
+  --dex-activity-fg: #000;
+  --dex-activity-active: #0050a0;
+  --dex-bg-toolbar: #fff;
+  --dex-bg-tabbar: #e8e8e8;
+  --dex-shell-resizer-hover: #0050a0;
 }
