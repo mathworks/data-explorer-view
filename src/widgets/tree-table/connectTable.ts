@@ -202,7 +202,8 @@ export interface TableHandleEventMap {
    * or a `replaceAll`, the view it drew. Sent once its rows are in the table and `view` is it, so
    * what an app reads off the handle (`view`, `can()`) is the paint's: for a toolbar to be enabled
    * as the file stands from its first paint, before any selection or change. Not for a repaint of
-   * one entry, nor a selection.
+   * one entry, nor a selection. (A listener of any event that throws is said on the console, and
+   * the table goes on.)
    */
   painted: TableView;
 }
@@ -317,8 +318,17 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     copyFailed: new Set(),
     painted: new Set(),
   };
+  // Each listener on its own: one that throws is the app's to fix, said on the console as the
+  // workspace says a listener's failure, and costs the table nothing (what a paint does after it,
+  // its source's `opened` among it) nor the listeners after it.
   const emit = <K extends keyof TableHandleEventMap>(type: K, detail: TableHandleEventMap[K]): void => {
-    for (const listener of [...listeners[type]]) (listener as (d: TableHandleEventMap[K]) => void)(detail);
+    for (const listener of [...listeners[type]]) {
+      try {
+        (listener as (d: TableHandleEventMap[K]) => void)(detail);
+      } catch (err) {
+        console.error(err);
+      }
+    }
   };
 
   // The one variable editor, made here unless the app has one.

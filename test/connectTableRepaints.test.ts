@@ -12,9 +12,9 @@
 // one the editing trace (editingTrace.test.ts) does not play.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectTable, defineTreeTable, type DexTreeTable, type TableHandle } from '../src/widgets/tree-table/index.js';
-import { createWorkspace, messageSource, type TablePort, type Workspace } from '../src/model/index.js';
+import { createWorkspace, messageSource, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -108,6 +108,36 @@ describe('the painted event', () => {
     hear(setRows(withoutB()));
     await settle(table);
     expect(painted.map((p) => p.rows)).toEqual([3, 2]);
+  });
+});
+
+describe('a listener that throws', () => {
+  it("costs the table nothing: the source is still told of its paint, and the other listeners hear it", async () => {
+    const opened = vi.fn();
+    const source = {
+      open: async () => ({ docUri: DOC, rows: dictRows(), columns: ['Name'], columnLabels: { Name: 'Name' } }),
+      children: async () => ({ rows: [] }),
+      matrix: async () => ({ message: '' }),
+      inspect: async () => ({ groups: [] }),
+      subscribe: () => () => {},
+      opened,
+    } as unknown as TableSource;
+    const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const table = document.createElement('dex-tree-table') as DexTreeTable;
+    document.body.append(table);
+    const handle = connectTable(table, source);
+    handles.push(handle);
+    const heard: number[] = [];
+    handle.on('painted', () => {
+      throw new Error('the app slipped');
+    });
+    handle.on('painted', (view) => void heard.push(view.rows.length));
+    await settle(table);
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(heard).toEqual([3]);
+    expect(table.rows).toHaveLength(3);
+    expect(String(said.mock.calls[0]?.[0])).toContain('the app slipped');
+    said.mockRestore();
   });
 });
 
