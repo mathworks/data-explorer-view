@@ -57,9 +57,9 @@ class FakeResizeObserver {
 }
 
 // The boxes a window of some size gives the shell's parts, by selector (0 for any other): happy-dom
-// lays nothing out. A box a test sets on one element itself still wins.
-function layOut(sizes: Record<string, { width?: number; height?: number }>): void {
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+// lays nothing out. A box a test sets on one element itself still wins. The spy, to count measures.
+function layOut(sizes: Record<string, { width?: number; height?: number }>) {
+  return vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     const box = Object.entries(sizes).find(([selector]) => this.matches(selector))?.[1];
     return new DOMRect(0, 0, box?.width ?? 0, box?.height ?? 0);
   });
@@ -559,6 +559,22 @@ describe('resizing', () => {
     expect(shell.layout.left.size).toBe(320);
   });
 
+  it('measures the main area once for a drag, not on each of its moves', async () => {
+    // A measure lays the page out, and a drag moves many times a second; no move changes the
+    // main area's box, so the one its pointerdown measured holds for the whole drag.
+    const shell = await mount();
+    const measures = layOut({ '.main': { width: 842, height: 600 } });
+    const left = sash(shell, 'left');
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    const atDown = measures.mock.calls.length;
+    expect(atDown).toBeGreaterThan(0);
+    for (const clientX of [270, 290, 900]) left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX, clientY: 300, bubbles: true }));
+    expect(measures.mock.calls.length).toBe(atDown);
+    // Fitted all the same, to the box measured at the start: 320 at most, as above.
+    expect(shell.layout.left.size).toBe(320);
+    left.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
+  });
+
   it('ends a drag the pointer is lost from, keeping the size it got to', async () => {
     for (const end of ['pointercancel', 'lostpointercapture']) {
       const shell = await mount(standard(), `shell-${end}`);
@@ -682,6 +698,21 @@ describe('fitting to the window', () => {
     step('ArrowLeft');
     expect(shell.layout.left.size).toBe(462);
     expect(kept().left.size).toBe(462);
+  });
+
+  it('states the largest size again when the window is resized, though no drawn size changes', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const shell = await mount();
+    layOut(WINDOW);
+    resized(shell);
+    await settle(shell);
+    // 1000 - 74 - 8 - 240 = 678 shared, so 478 at most; the side's 220 fits, and stays.
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('478');
+    layOut({ '.main': { width: 1400, height: 700 } });
+    resized(shell);
+    await settle(shell);
+    expect(shell.layout.left.size).toBe(220);
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('878');
   });
 
   it('fits each side against what the one before it left, when both overflow', async () => {

@@ -515,7 +515,10 @@ export class DexAppShell extends LitElement {
   // no pointerup will come to end it.
   private _setChosen(next: ShellLayoutState): void {
     this._chosen = next;
-    this._draw();
+    // Not measured again during a drag: its pointerdown measured the main area, whose box no
+    // change of the layout moves, and a measure on every move would lay the page out on each.
+    // A resize of the window in the middle of it is the size observer's, which measures.
+    this._draw(this._drag === null);
     if (this._drag && !isOpen(next[this._drag.side])) this._endDrag();
     const shown = new Set<Element>();
     for (const side of SIDES) {
@@ -530,10 +533,11 @@ export class DexAppShell extends LitElement {
     }
   }
 
-  // The drawn layout: the chosen one fitted to the main area as it measures now. The same object
-  // while nothing drawn changes, so a report of a size that changes nothing renders nothing.
-  private _draw(): void {
-    this._measure();
+  // The drawn layout: the chosen one fitted to the main area, measured now unless `measure` is
+  // false. The same object while nothing drawn changes, so a change that changes nothing drawn
+  // renders nothing.
+  private _draw(measure: boolean): void {
+    if (measure) this._measure();
     const drawn = this._fitted(this._chosen);
     if (!sameLayout(drawn, this._layout)) this._layout = drawn;
   }
@@ -706,7 +710,13 @@ export class DexAppShell extends LitElement {
     this._sizeObserver = null;
     const main = this.renderRoot.querySelector('.main');
     if (!main) return;
-    this._sizeObserver = new ResizeObserver(() => this._draw());
+    this._sizeObserver = new ResizeObserver(() => {
+      const was = this._box;
+      this._draw(true);
+      // A new box that changes no drawn size still changes the largest size each separator
+      // states (aria-valuemax), which only a render writes.
+      if (was?.width !== this._box?.width || was?.height !== this._box?.height) this.requestUpdate();
+    });
     this._sizeObserver.observe(main);
   }
 
