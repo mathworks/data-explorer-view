@@ -1,0 +1,24 @@
+/* Copyright 2026 The MathWorks, Inc. */
+
+/* The app page: the shell is the whole window, as an app's would be. It draws its own frame, in
+   view's tokens, so the page has nothing else to colour. */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--dex-bg-primary);
+}
+
+dex-app-shell {
+  height: 100%;
+}
+
+/* While files are dragged over the window (installFileDrop marks the body). */
+body.drop-target dex-app-shell {
+  outline: 2px dashed var(--dex-color-accent);
+  outline-offset: -4px;
+}
