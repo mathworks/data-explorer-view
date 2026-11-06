@@ -22,6 +22,8 @@ export interface ShownFolderActions {
   shown(folder: FolderView): void;
   /** `folder` changed: `uris` the files it touched, none for anything. */
   changed(folder: FolderView, uris?: readonly string[]): void;
+  /** The folder shown could not be read: why, as its note says it. */
+  failed?(message: string): void;
 }
 
 /** The folder shown in the Explorer, if any, and how to show another. */
@@ -63,6 +65,7 @@ export function connectShownFolder(part: DexShellFolder, tree: DexHierarchy, act
         error: (text) => {
           note = `This folder could not be read: ${text}`;
           part.note = note;
+          actions.failed?.(text);
         },
       });
       folder = shown;

@@ -26,6 +26,7 @@ import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
 import type { DexAppShell } from '../dex-app-shell.js';
+import type { LogLevel } from '../modules/dex-log-panel.js';
 import {
   clearSelection,
   connectDocument,
@@ -97,7 +98,20 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The Usage column is filled from the shown folder's session (ws.setUsage when one is shown).
   // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
   // document says the table cannot show is a toast, as it stands.
-  const ws = createWorkspace({ editing: true, notify: (notice) => toasts.show(notice) });
+  // Every notice is a line of the Log too, which keeps what a toast lets go by.
+  const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
+  const ws = createWorkspace({
+    editing: true,
+    notify(notice) {
+      toasts.show(notice);
+      log(notice.level === 'status' ? 'info' : notice.level, notice.message);
+    },
+  });
+  // What the shell caught and must say: a toast, and its line in the Log.
+  const failed = (text: string): void => {
+    toasts.show({ level: 'error', message: text });
+    log('error', text);
+  };
 
   // The inspector follows the active tab's table, or none (its empty text).
   const inspector = connectInspector(parts.inspector, null, { variableEditor: editor, empty: parts.inspectorEmpty });
@@ -123,9 +137,15 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const confirmClose = (names: string[]): Promise<CloseAnswer> =>
     host.confirmClose ? host.confirmClose(names) : questions.ask(closeQuestion(names)).then(closeAnswerOf);
   const confirmReload = (tab: OpenTab): Promise<boolean> =>
-    host.confirmReload
+    (host.confirmReload
       ? host.confirmReload(tab.name)
-      : questions.ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload');
+      : questions.ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload')
+    ).then((reload) => {
+      // What was done about it, in the Log: the answer is the user's, and its toast-less cost is not.
+      if (reload) log('info', `${tab.name} changed on disk: reloaded, its unsaved edits dropped`);
+      else log('warning', `${tab.name} changed on disk: its unsaved edits kept over the change`);
+      return reload;
+    });
   const isOpen = (tab: OpenTab): boolean => !disposed && tabs.items.includes(tab);
 
   // --- Painting ----------------------------------------------------------------------------------
@@ -256,7 +276,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // Save writes over the file, Save As where the user says, which the tab then shows. A save
   // that cannot be made says why.
   const saver = new Saver(host);
-  const saved = (name: string) => toasts.show({ level: 'info', message: `Saved ${name}`, ms: 2000 });
+  const saved = (name: string) => {
+    toasts.show({ level: 'info', message: `Saved ${name}`, ms: 2000 });
+    log('info', `Saved ${name}`);
+  };
   async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
@@ -277,6 +300,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       close(tab);
       saved((await open(result.path)).name);
     } else if (result.kind === 'not-saved' && result.error) {
+      log('error', `Could not save ${tab.name}: ${result.error}`);
       // The Terminal says why itself, on its own line.
       if (fromCommand) throw new Error(result.error);
       popovers.closeAll();
@@ -364,7 +388,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const { path } = tab;
     if (isProjectFile(path)) {
       const revealIn = host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
-      await paintProject(tab, newProjectPage(tab, revealIn, followProjectLink), folderNow());
+      // A link that cannot be followed says why on the page, and in the Log.
+      const follow = (root: string, link: ProjectOpenDetail) =>
+        followProjectLink(root, link).catch((err) => {
+          log('error', `Could not open ${link.path}: ${message(err)}`);
+          throw err;
+        });
+      await paintProject(tab, newProjectPage(tab, revealIn, follow), folderNow());
+      log('info', `Opened ${tab.name}`);
       return;
     }
     const storageKey = `${key}:${uri}`;
@@ -401,15 +432,25 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           if (tab === tabs.active) visit();
           later();
         }),
-        // For the toolbar, any change at all: an edit, the clipboard, a repaint.
-        doc.table.subscribe(() => later()),
+        handle.on('copyFailed', (failure) => log('error', `Could not copy: ${failure.message}`)),
+        // For the toolbar, any change at all: an edit, the clipboard, a repaint. What the document
+        // refused, and why, is a line of the Log, past the dialog that said it. (Its `error`
+        // changes are its banner's, and what failed is said where it failed: the workspace's
+        // notice, a read, a save.)
+        doc.table.subscribe((change) => {
+          if (change.kind === 'refused') log('warning', `${change.title}: ${change.reason}`);
+          else if (change.kind === 'invalid') log('warning', change.reason);
+          later();
+        }),
       );
       if (tab === tabs.active) follow();
       later();
+      log('info', `Opened ${tab.name}`);
     } catch (err) {
       if (disposed) return;
       const table = tab.table ?? newTable(tab, storageKey);
       table.banners = { error: `Failed to open ${tab.name}: ${message(err)}` };
+      log('error', table.banners.error!);
     }
   }
 
@@ -495,7 +536,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // NotAllowedError) says why; one the user cancelled (AbortError) is an answer, and says nothing.
   function pickFailed(what: string, err: unknown): void {
     if (err instanceof Error && err.name === 'AbortError') return;
-    toasts.show({ level: 'error', message: `Could not open ${what}: ${message(err)}` });
+    failed(`Could not open ${what}: ${message(err)}`);
   }
 
   function carryOut(id: ShellCommand, tab: OpenTab | undefined): void {
@@ -554,7 +595,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     },
     shown: () => viewShown('raw'),
     copy: (text) => copyText(host, text),
-    failed: (text) => toasts.show({ level: 'error', message: text }),
+    failed,
   });
   stops.push(() => rawPane.dispose());
 
@@ -563,7 +604,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     openRecords: () => tabs.items.flatMap((t) => (t.doc && t.table ? namesOfRows(t.table.rows, t.doc.uri, t.doc.kind) : [])),
     folderNames: () => folderNow()?.session.names,
     open: (uri, name) => openOn(uri, name),
-    failed: (text) => toasts.show({ level: 'error', message: text }),
+    failed,
   });
   searchPane.scope(null);
   stops.push(() => searchPane.dispose());
@@ -671,12 +712,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const folders = connectShownFolder(folderPart, tree, {
     open: openOn,
     shown(shown) {
+      log('info', `Showing the folder ${shown.root}`);
       searchPane.scope(basenameOf(shown.root));
       void ws.setUsage(shown.session.usage, shown.session.reposts);
       repaintProjects(shown);
       follow();
     },
     changed: repaintProjects,
+    failed: (text) => log('error', `This folder could not be read: ${text}`),
   });
 
   // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
@@ -692,7 +735,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
       const uri = sourceUri(path);
       const tab = disposed ? undefined : tabs.find((t) => sourceUri(t.path) === uri);
-      if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
+      if (!tab?.doc) return;
+      // A clean document takes the disk's file without asking; one with edits says in its answer.
+      if (!tab.doc.dirty) log('info', `${tab.name} changed on disk: reloaded`);
+      void reloads.changedOnDisk(tab, tab.doc.dirty);
     },
     command,
     async requestClose() {
