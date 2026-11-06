@@ -13,6 +13,7 @@ import type { Toast } from '../../src/widgets/app-shell/dex-toast-host.js';
 import type { PaletteCommand } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
 import type { LogEntry } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
 import {
+  at,
   choose,
   dirtyTabs,
   edit,
@@ -95,6 +96,23 @@ describe('Undo and Redo, by what the active document can undo', () => {
   });
 });
 
+describe('Undo and Redo follow the history where no table change does', () => {
+  it('a reload of the text a JSON dictionary already holds drops its Redo, and the toolbar follows', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(has('undo'));
+    toolbarButton('Undo')!.click();
+    await until(has('redo'));
+    expect(dirtyTabs()).toEqual([]);
+    // The file on disk changed, as the watcher says, to what the document holds already: it is
+    // read again without asking (it is clean), its text the same, and only its stack moves.
+    page.main.changed(at('params.sldd'));
+    await until(lacks('redo'));
+    expect(enabledItems()).not.toContain('undo');
+  });
+});
+
 describe("Save's icon", () => {
   it('is the unsaved one while the active file holds unsaved edits, and the saved one again once saved', async () => {
     const page = startPage(FILES);
@@ -172,14 +190,32 @@ describe('the row menu from the keyboard', () => {
     const menu = document.querySelector('dex-context-menu')!;
     const shown: string[][] = [];
     const show = menu.show.bind(menu);
-    menu.show = (x, y, items) => (shown.push(items.filter((i) => !i.separator).map((i) => i.id)), show(x, y, items));
+    menu.show = (x, y, items, options) => (shown.push(items.filter((i) => !i.separator).map((i) => i.id)), show(x, y, items, options));
     await selectRow('params.sldd', 'Kp');
     const grid = tableOf('params.sldd')!.shadowRoot!.querySelector<HTMLElement>('.table-container')!;
+    // The keyboard is on the grid, as after a click on the row.
+    grid.focus();
     const e = new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, composed: true, cancelable: true });
     grid.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(true);
     expect(shown).toHaveLength(1);
     expect(shown[0]).toEqual(expect.arrayContaining(['copy', 'cut', 'paste', 'delete', 'undo', 'redo', 'showInGraph']));
     expect(tableOf('params.sldd')!.keyboardMenu).toBe(true);
+    // The menu has the keyboard: an arrow moves along it, not the selection, and Escape gives the
+    // keyboard back to the grid.
+    const deepActive = (): Element | null => {
+      let el = document.activeElement;
+      while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+      return el;
+    };
+    await until(() => !!deepActive()?.closest('.item'));
+    const key = (k: string) => deepActive()!.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true }));
+    const selected = [...tableOf('params.sldd')!.selectedRowIds];
+    await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    key('ArrowDown');
+    expect(tableOf('params.sldd')!.selectedRowIds).toEqual(selected);
+    key('Escape');
+    expect(menu.hasAttribute('open')).toBe(false);
+    expect(deepActive()).toBe(grid);
   });
 });

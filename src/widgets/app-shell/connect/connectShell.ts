@@ -33,13 +33,13 @@ import {
   connectDocument,
   docTabOf,
   newTable,
-  ranNote,
   repaintProjects,
   showProject,
   statusOf,
   SHOW_IN_GRAPH,
   type OpenTab,
 } from './documents.js';
+import { ranNote } from './editingNotes.js';
 import { explorerFiles } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
 import { connectGraphPane } from './graphPane.js';

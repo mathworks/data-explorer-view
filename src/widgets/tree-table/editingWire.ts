@@ -236,7 +236,8 @@ export function wireEditing(host: EditingHost): EditingWire {
   // promise turns later (a JSON dictionary's structural edits wait their turn on its text), so before
   // the task ends; one across a channel answers later than that, and its gesture is told before. A
   // refusal marks every gesture still waiting, as which one it was is not said: none is told rather
-  // than the wrong one.
+  // than the wrong one. So a refusal that comes late for an earlier gesture (one queued behind a slow
+  // edit) silences an unrelated gesture handed in the task it lands in: that one is then not said.
   let waiting: { run: EditingRun; refused: boolean }[] = [];
   let telling: ReturnType<typeof setTimeout> | null = null;
   // Hand the gesture over (`give`), waiting before it is given, so that a refusal said while the
