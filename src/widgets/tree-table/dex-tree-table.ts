@@ -139,6 +139,11 @@ const BUFFER_ROWS = 10;
 // The keys that open the row menu with `keyboardMenu`, as aria-keyshortcuts names them.
 const MENU_KEYS = 'Shift+F10 ContextMenu';
 
+// What a part of the page says a drop of the table's rows on it would do, on the element under the
+// pointer, for the box at the pointer to say over it (dragOut): the words, and that it refuses one.
+const DROP_HINT = 'data-drop-hint';
+const DROP_REFUSED = 'data-drop-refused';
+
 // Default column widths as RELATIVE weights: only their ratio matters, because
 // _getColWidth renders each one as its share of the weights of the columns
 // actually visible. So the numbers stay meaningful whatever subset of columns the
@@ -1608,9 +1613,12 @@ export class DexTreeTable extends LitElement {
    * (`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
    * drag allows no move, so the document never loses an entry by it, and no row of this table takes
    * a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
-   * icon and name) follows the pointer over the rest of the page too, saying no action there: what a
-   * drop does outside the table is for the part under the pointer to show. Default false: a table
-   * that takes no row drag drags none, and the box stays over the table. Attribute `drag-out`.
+   * icon and name) follows the pointer over the rest of the page too, until the drag is let go
+   * anywhere, saying there what the part under the pointer says a drop would do: the words of the
+   * nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+   * as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+   * false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+   * `drag-out`.
    */
   @property({ type: Boolean, attribute: 'drag-out' }) dragOut = false;
 
@@ -3252,30 +3260,50 @@ export class DexTreeTable extends LitElement {
 
   // While a drag of this table's rows is over the rest of the page (dragOut), the box at the pointer
   // goes with it: the native drag image is hidden (_setDragImage), so it is the only thing there that
-  // says what is being dragged. A dragover anywhere in the document reaches this listener, captured
-  // on the document so a part that stops the event (a drop zone) still lets the box move; one over
-  // a table that takes row drags is the table's own to answer (_onRowDragOver, _onBodyDragOver),
-  // which say an action. Elsewhere, and over a table that takes no drop, whose rows answer nothing,
-  // the action is not the table's to say: the part under the pointer shows its own.
-  private _boundFollow: ((e: Event) => void) | null = null;
+  // says what is being dragged, and the browser shows no tooltip during a drag. A dragover anywhere in
+  // the document reaches this listener, captured on the document so a part that stops the event (a
+  // drop zone) still lets the box move; one over a table that takes row drags is the table's own to
+  // answer (_onRowDragOver, _onBodyDragOver), which say an action. Elsewhere, and over a table that
+  // takes no drop, whose rows answer nothing, the action is the part under the pointer's to say, by
+  // the attributes its element under the pointer carries (dragOut): read off the event's path, so
+  // the table knows nothing of what that part is. It says it once drawn, which the dragover that
+  // follows, a few milliseconds later, shows.
+  //
+  // A drop anywhere ends the following, and the box: the dragend that clears it is sent to the row the
+  // drag started on, which a move may have taken out of the table by then.
+  private _boundFollow: { over: (e: Event) => void; drop: () => void } | null = null;
 
   private _followDrag(): void {
     this._stopFollowingDrag();
-    const follow = (e: Event): void => {
-      if (this._dragsRows && e.composedPath().includes(this)) return;
+    const over = (e: Event): void => {
+      const path = e.composedPath();
+      if (this._dragsRows && path.includes(this)) return;
       const drag = e as DragEvent;
       this._dropTooltipX = drag.clientX;
       this._dropTooltipY = drag.clientY;
+      const hinted = path.find((node) => typeof (node as Element).hasAttribute === 'function' && (node as Element).hasAttribute(DROP_HINT)) as
+        | Element
+        | undefined;
+      this._dropTooltip = hinted?.getAttribute(DROP_HINT) ?? '';
+      this._dropForbidden = !!hinted?.hasAttribute(DROP_REFUSED);
+    };
+    const drop = (): void => {
+      this._stopFollowingDrag();
       this._dropTooltip = '';
       this._dropForbidden = false;
+      this._dragIconId = '';
+      this._dragLabel = '';
+      this._dragCount = 0;
     };
-    this._boundFollow = follow;
-    document.addEventListener('dragover', follow, true);
+    this._boundFollow = { over, drop };
+    document.addEventListener('dragover', over, true);
+    document.addEventListener('drop', drop, true);
   }
 
   private _stopFollowingDrag(): void {
     if (!this._boundFollow) return;
-    document.removeEventListener('dragover', this._boundFollow, true);
+    document.removeEventListener('dragover', this._boundFollow.over, true);
+    document.removeEventListener('drop', this._boundFollow.drop, true);
     this._boundFollow = null;
   }
 

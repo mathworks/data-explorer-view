@@ -9,15 +9,20 @@
 //    and no row of it takes a drop;
 //  - while a row drag of the table's is on, the box at the pointer (the dragged row's icon and name,
 //    which stands in for the browser's drag image) follows the pointer over the rest of the page too,
-//    saying no action there, where the part under the pointer says what a drop does. Without it, the
+//    saying there what the part under the pointer says a drop would do (its `data-drop-hint`, a
+//    refusal with `data-drop-refused`), since the browser shows no tooltip during a drag, and going
+//    with a drop anywhere, since the row whose dragend clears it may have moved away. Without it, the
 //    box stayed where the pointer left the table.
 // happy-dom has no drag pipeline: events are dispatched with a stub DataTransfer, as
 // treeTableDragDrop.test.ts does.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DexTreeTable, defineTreeTable, type TreeTableRow } from '../src/widgets/tree-table/dex-tree-table.js';
 
 defineTreeTable();
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  document.body.replaceChildren();
+  vi.restoreAllMocks();
+});
 
 const row = (id: string, name = id): TreeTableRow => ({ ID: id, parent: null, Name: { label: name }, Value: '', DataType: '', Description: '', Status: '' });
 const ROWS = [row('a', 'Kp'), row('b', 'Ki')];
@@ -125,13 +130,58 @@ describe("the box at the pointer, over the rest of the page", () => {
     expect(box(table)?.querySelector('.drop-tooltip-action')).toBeNull();
   });
 
-  it('stops following once the drag has ended', async () => {
+  it('says what the part under the pointer says a drop there would do, a refusal as one', async () => {
+    const table = await mount({ dragOut: true });
+    const row = document.createElement('div');
+    row.dataset.dropHint = 'Move Simulink Parameter into Design Data';
+    const name = document.createElement('span');
+    row.append(name);
+    document.body.append(row);
+    fire(tr(table, 'a'), 'dragstart');
+    fire(name, 'dragover', { clientX: 300, clientY: 120 });
+    await table.updateComplete;
+    expect(box(table)?.querySelector('.drop-tooltip-action')?.textContent).toBe('Move Simulink Parameter into Design Data');
+    expect(box(table)?.classList.contains('forbidden')).toBe(false);
+    row.dataset.dropHint = 'Simulink Parameter cannot be in Configurations';
+    row.dataset.dropRefused = '';
+    fire(name, 'dragover', { clientX: 300, clientY: 120 });
+    await table.updateComplete;
+    expect(box(table)?.querySelector('.drop-tooltip-action')?.textContent).toBe('Simulink Parameter cannot be in Configurations');
+    expect(box(table)?.classList.contains('forbidden')).toBe(true);
+    // Off it again, over a part that says nothing: no action.
+    fire(document.body, 'dragover', { clientX: 10, clientY: 10 });
+    await table.updateComplete;
+    expect(box(table)?.querySelector('.drop-tooltip-action')).toBeNull();
+    expect(box(table)?.classList.contains('forbidden')).toBe(false);
+  });
+
+  it('stops following once the drag has ended, taking its listeners off the document', async () => {
+    const table = await mount({ dragOut: true });
+    const elsewhere = document.createElement('nav');
+    document.body.append(elsewhere);
+    const removed = vi.spyOn(document, 'removeEventListener');
+    fire(tr(table, 'a'), 'dragstart');
+    fire(tr(table, 'a'), 'dragend');
+    expect(removed.mock.calls.filter(([type, , capture]) => type === 'dragover' && capture === true)).toHaveLength(1);
+    expect(removed.mock.calls.filter(([type, , capture]) => type === 'drop' && capture === true)).toHaveLength(1);
+    fire(elsewhere, 'dragover', { clientX: 300, clientY: 120 });
+    await table.updateComplete;
+    expect(box(table)).toBeNull();
+  });
+
+  it('goes with a drop anywhere, though no dragend comes back (the row it started on moved away)', async () => {
     const table = await mount({ dragOut: true });
     const elsewhere = document.createElement('nav');
     document.body.append(elsewhere);
     fire(tr(table, 'a'), 'dragstart');
-    fire(tr(table, 'a'), 'dragend');
     fire(elsewhere, 'dragover', { clientX: 300, clientY: 120 });
+    await table.updateComplete;
+    expect(box(table)).not.toBeNull();
+    fire(elsewhere, 'drop', { clientX: 300, clientY: 120 });
+    await table.updateComplete;
+    expect(box(table)).toBeNull();
+    // And it follows no more.
+    fire(elsewhere, 'dragover', { clientX: 200, clientY: 100 });
     await table.updateComplete;
     expect(box(table)).toBeNull();
   });
