@@ -52,6 +52,7 @@ describe('the hidden attribute', () => {
       'DexHierarchy',
       'DexIcon',
       'DexLocationBar',
+      'DexLogPanel',
       'DexMatrixGrid',
       'DexMatrixOpen',
       'DexProjectPage',
