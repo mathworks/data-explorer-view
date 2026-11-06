@@ -147,11 +147,13 @@ export class JsonView implements EditableTableSource {
   /** How many times this table changed its rows, or put its tree out of step, outside a wide repaint. */
   private rowsTouched = 0;
   /**
-   * When each entry's rows were last sent (`rowsTouched` then), by the entry's row id, since the last
-   * wide repaint began: what tells a narrow repaint that waited on the Usage column that a newer
-   * paint of its entry went out meanwhile.
+   * Each entry's latest turn, by its row id, since the last wide repaint began: taken by a narrow
+   * repaint as it BEGINS (postEntryRows) and by a paint of the entry sent at once (postRowPatch).
+   * A repaint that waited on the Usage column lands only if it still holds its entry's latest turn:
+   * one begun or sent after it is the newer reading, whichever of them is done first.
    */
-  private readonly entrySent = new Map<string, number>();
+  private readonly entryTurns = new Map<string, number>();
+  private entryTurn = 0;
   /** This table has closed: set first in dispose, and asked by everything still running then. */
   private disposed = false;
   /** The table has asked for its rows (`open`). Until then a wide repaint paints nothing. */
@@ -274,7 +276,7 @@ export class JsonView implements EditableTableSource {
   private postRowPatch(change: TableChange): void {
     if (this.disposed) return;
     this.rowsTouched++;
-    if (change.kind === 'updateEntry') this.entrySent.set(change.entryRowId, this.rowsTouched);
+    if (change.kind === 'updateEntry') this.takeTurn(change.entryRowId);
     this.emit(change);
     this.changed();
   }
@@ -332,7 +334,7 @@ export class JsonView implements EditableTableSource {
     // one whose rows are on screen, and a repaint begun before it is no longer the newest.
     const epoch = ++this.wideEpoch;
     // Every narrow repaint still waiting is older than this one, which drops it (postEntryRows).
-    this.entrySent.clear();
+    this.entryTurns.clear();
     this.latestPost = this.paintWide(epoch);
     return this.latestPost;
   }
@@ -473,17 +475,25 @@ export class JsonView implements EditableTableSource {
    */
   private postEntryRows(entryRowId: string, entry: any): Promise<void> {
     const rows = this.entryRowsOf(entry);
-    const since = this.rowsTouched;
+    const turn = this.takeTurn(entryRowId);
     const epoch = this.wideEpoch;
     return this.fillUsage(rows)
       .catch(() => false)
       .then(() => {
-        // Overtaken while the Usage column was filled: a paint of the same entry went out since (an
-        // undo pressed straight after an edit repaints it at once, while the edit's echo waits here),
-        // or a wide one began. Those rows are newer than these, which would put back what they took.
-        if (this.wideEpoch !== epoch || (this.entrySent.get(entryRowId) ?? 0) > since) return;
+        // Overtaken while the Usage column was filled: a repaint of the same entry began since (a
+        // refused edit's take-back, after the edit's own), a paint of it went out (an undo pressed
+        // straight after an edit, while the edit's echo waits here), or a wide one began. Their rows
+        // are newer than these, which would put back what they took.
+        if (this.wideEpoch !== epoch || this.entryTurns.get(entryRowId) !== turn) return;
         this.postRowPatch({ kind: 'updateEntry', entryRowId, rows });
       });
+  }
+
+  /** The next turn of the entry `entryRowId`: its latest, until another repaint or paint of it takes one. */
+  private takeTurn(entryRowId: string): number {
+    const turn = ++this.entryTurn;
+    this.entryTurns.set(entryRowId, turn);
+    return turn;
   }
 
   /**

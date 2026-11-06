@@ -287,3 +287,37 @@ describe('an undo straight after an edit, with the Usage column filled', () => {
     }
   });
 });
+
+// The same race the other way round, with the Usage graph cold (fillNow cannot fill, which the
+// extension's is after any editor opens or closes): an edit paints at once and starts a repaint to
+// fill its Usage; its write is refused, and the take-back starts a repaint of the old value. The
+// edit's repaint, begun first, may land first: it must not be the one that stays. Each narrow
+// repaint holds its entry's turn from when it began, and lands only if no repaint of the entry
+// began, nor any paint of it went out, after it.
+describe('a refused edit taken back while the Usage graph is cold', () => {
+  it('shows the value the text still holds, not the edit it refused', async () => {
+    const usage: JsonUsageFill = { fill: () => new Promise<void>((r) => setTimeout(r, 0)), fillNow: () => false };
+    const o = await open('test/fixtures/params.sldd', undefined, { usage });
+    const source = o.view.source as any;
+    let rows: any[] = (o.view.posts.filter((p: any) => p.type === 'setRows').pop() as any).rows;
+    source.subscribe((change: any) => {
+      if (change.kind === 'replaceAll') rows = change.view.rows;
+      if (change.kind !== 'updateEntry') return;
+      const at = rows.findIndex((r) => r.ID === change.entryRowId);
+      if (at < 0) return;
+      let end = at + 1;
+      while (end < rows.length && !isEntryRow(rows[end]) && !String(rows[end].ID).startsWith('section:')) end++;
+      rows = [...rows.slice(0, at), ...change.rows, ...rows.slice(end)];
+    });
+    const kp = () => rows.find((r) => isEntryRow(r) && nameOf(r) === 'Kp');
+    const value = () => String(kp().Value?.text ?? kp().Value);
+    const before = value();
+    const textBefore = o.text.text;
+    // The text refuses every write, as it does one made against a text that moved meanwhile.
+    (o.text as any).apply = async () => false;
+    void source.edit({ rowId: kp().ID, columnId: 'Value', oldValue: before, newValue: '99' });
+    await settle(20);
+    assert.strictEqual(o.text.text, textBefore, 'the text holds what it held');
+    assert.strictEqual(value(), before, 'the table shows it');
+  });
+});
