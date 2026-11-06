@@ -62,6 +62,32 @@ describe('in-page questions', () => {
   });
 });
 
+describe('a reload question queued behind another', () => {
+  it("is never asked for a tab closed while it waited, and that tab's file is not read", async () => {
+    // The host asks about closing itself, and leaves reload questions to the shell.
+    const page = startPage(FILES, { without: ['confirmReload'] });
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    await edit('params.sldd', 'Kp', '5');
+    await edit('ParamMat.mat', 'ParamMat', '[1 2 3; 4 5 7]');
+    await until(() => dirtyTabs().length === 2);
+    await outside(page, 'params.sldd', 'Ki', '30');
+    await until(() => asking().includes('params.sldd changed on disk.'));
+    // ParamMat.mat's question waits behind params.sldd's.
+    await outside(page, 'ParamMat.mat', 'ParamMat', '[9 9 9; 9 9 9]');
+    await settled();
+    expect(asking()).toContain('params.sldd changed on disk.');
+    // ParamMat.mat, the active tab, is closed meanwhile, its edits let go.
+    page.main.closeAnswers.push('discard');
+    page.command('close-tab');
+    await until(() => tabNames().join() === 'params.sldd');
+    const reads = page.main.reads.filter((p) => p === at('ParamMat.mat')).length;
+    (await confirmButton('Keep My Edits')).click();
+    await settled(50);
+    expect(asking()).toBe('');
+    expect(page.main.reads.filter((p) => p === at('ParamMat.mat')).length).toBe(reads);
+  });
+});
+
 describe('a reload question still out', () => {
   /** A page whose host is asked about params.sldd's change, and answers when the test says. */
   async function askedAboutAChange() {
