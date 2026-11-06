@@ -11,7 +11,8 @@
 // the text, a patch of the entry's own span (one undo step); the change the write fires confirms
 // the paint (its echo), and every other change of the text — an undo, a redo, a keystroke in a text
 // view, a reload — is planned narrowly where it can be (core's jsonEntrySync), and repainted wide
-// where it cannot. Structural edits are queued, one text state at a time (queueStructural).
+// where it cannot. Every edit, a cell's or a structural one, is queued, one text state at a time
+// (queueWrite).
 import {
   addChild as addChildEdit,
   addNewEntry,
@@ -167,8 +168,10 @@ export class JsonView implements EditableTableSource {
   private paintedMark: ClipMark | undefined;
   /** Whether the last change this table saw was an undo or a redo. */
   private lastByHistory = false;
-  /** Structural edits, one text state at a time (queueStructural). */
-  private structuralChain: Promise<unknown> = Promise.resolve();
+  /** Every edit that writes the text, one text state at a time (queueWrite): settled once the last queued one has. */
+  private writeChain: Promise<void> = Promise.resolve();
+  /** How many queued edits have not yet settled: with none, a cell edit runs in the run it is sent in. */
+  private writesQueued = 0;
 
   constructor(
     private readonly doc: JsonDocument,
@@ -708,8 +711,11 @@ export class JsonView implements EditableTableSource {
   // span, anything thrown) call undoPaint.
   edit(msg: CellEdit): Promise<void> {
     if (this.disposed) return Promise.resolve();
-    // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for.
-    return this.applyEdit(msg);
+    // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for. At
+    // once when no write is in front of it, so it paints in this run; else behind that write. One
+    // whose table closed while it waited does nothing, as one sent after the close: it has nowhere
+    // to paint, and would read back into the registry the tree the close released.
+    return this.queueWrite(() => (this.disposed ? Promise.resolve() : this.applyEdit(msg)), true);
   }
 
   private async applyEdit(msg: CellEdit): Promise<void> {
@@ -1133,24 +1139,41 @@ export class JsonView implements EditableTableSource {
   }
 
   /**
-   * Structural edits, one text state at a time. Every one reads the text when it starts and writes
-   * at the end, with an await between: two in flight at once would compute offsets over a text the
-   * other moved. So each waits for the write in front of it; none is dropped, and one that fails
-   * does not poison the chain. A cell edit is not queued.
+   * Every edit that writes the text, one text state at a time, a cell edit as much as a structural
+   * one. Each reads the text and the tree when it starts and writes at the end, with an await
+   * between, and the tree runs AHEAD of the text over that await (the edit paints first). One begun
+   * meanwhile would read a text the write in front of it is about to move: its offsets refused, or
+   * no span at all for an entry only that write adds, while the tree already holds it (an edit sent
+   * the moment an add says its selection). So each waits for the edit in front of it to settle;
+   * none is dropped, one that fails does not hold up the next, and each is still its own write, one
+   * undo step. A cell edit with nothing in front of it (`now`) runs in the run it is sent in, so it
+   * paints before anything else happens, as it always has.
    */
-  private queueStructural(run: () => Promise<unknown>): Promise<unknown> {
-    this.structuralChain = this.structuralChain.catch(() => {}).then(run);
-    return this.structuralChain;
+  private queueWrite<T>(run: () => Promise<T>, now = false): Promise<T> {
+    const ahead = this.writeChain;
+    const atOnce = now && this.writesQueued === 0;
+    // Counted, and the chain moved on, BEFORE the run starts: an edit sent from inside it (a
+    // listener of the paint it makes) waits for it.
+    this.writesQueued++;
+    let release!: () => void;
+    this.writeChain = new Promise<void>((resolve) => (release = resolve));
+    const turn = atOnce ? run() : ahead.then(run);
+    const settled = (): void => {
+      this.writesQueued--;
+      release();
+    };
+    turn.then(settled, settled);
+    return turn;
   }
 
   delete(rowIds: readonly string[]): void {
     if (this.disposed) return;
-    void this.queueStructural(() => this.applyDelete(rowIds));
+    void this.queueWrite(() => this.applyDelete(rowIds));
   }
 
   addChild(rowId: string): void {
     if (this.disposed) return;
-    void this.queueStructural(() => this.applyAddChild(rowId));
+    void this.queueWrite(() => this.applyAddChild(rowId));
   }
 
   // A paste reads the clipboard when its turn comes, so the second of two queued pastes of one cut
@@ -1158,7 +1181,7 @@ export class JsonView implements EditableTableSource {
   paste(rowId: string): void {
     if (this.disposed) return;
     const registers = this.doc.options.registers;
-    void this.queueStructural(() =>
+    void this.queueWrite(() =>
       runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps()),
     );
   }
@@ -1169,17 +1192,17 @@ export class JsonView implements EditableTableSource {
     if (this.disposed) return;
     const registers = this.doc.options.registers;
     const register = registers.dragRegister(mode, () => registers.broadcastDragState());
-    void this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps()));
+    void this.queueWrite(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps()));
   }
 
   addEntry(msg: NewEntry): void {
     if (this.disposed) return;
-    void this.queueStructural(() => this.applyAddEntry(msg));
+    void this.queueWrite(() => this.applyAddEntry(msg));
   }
 
   /**
    * Create ONE new default entry from the Add gallery: a paste with no source, always narrow. Through
-   * queueStructural, never directly.
+   * queueWrite, never directly.
    */
   private async applyAddEntry(msg: NewEntry): Promise<void> {
     let painted = false;
