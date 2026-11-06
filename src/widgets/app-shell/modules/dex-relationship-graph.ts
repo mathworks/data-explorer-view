@@ -658,9 +658,10 @@ export class DexRelationshipGraph extends LitElement {
 
   private _onKeydown(e: KeyboardEvent): void {
     // A chord is the app's, never a move in the graph; a key on a button inside it (a box's toggle,
-    // focused by a click) is the button's, which Space and Enter press.
+    // focused by a click) is the button's, which Space and Enter press, but for Escape, which a
+    // button has no use for and which ends the dimming of the box just opened by that click.
     if (e.altKey || e.ctrlKey || e.metaKey || !this._layout) return;
-    if ((e.target as Element | null)?.closest?.('button')) return;
+    if (e.key !== 'Escape' && (e.target as Element | null)?.closest?.('button')) return;
     switch (e.key) {
       case 'ArrowUp':
       case 'ArrowDown':

@@ -655,6 +655,18 @@ describe('a box opened', () => {
     expect(selected).toEqual([]);
   });
 
+  it("stops dimming on Escape from the box's toggle, which a click on it leaves focused", async () => {
+    const el = await graph();
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    const toggle = boxEl(el, idOf('CaseBp.mat')).querySelector<HTMLButtonElement>('.toggle')!;
+    const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true });
+    toggle.dispatchEvent(e);
+    await el.updateComplete;
+    expect(e.defaultPrevented).toBe(true);
+    expect(dimmed(el)).toEqual([]);
+  });
+
   it('gives way to a selection, which lights what it reaches instead', async () => {
     const el = await graph();
     el.expanded = [idOf('CaseBp.mat')];
