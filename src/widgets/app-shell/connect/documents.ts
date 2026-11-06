@@ -131,6 +131,9 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     readOnlyMenu: true,
     copyText: true,
     undoChords: true,
+    // Its rows can be dragged onto the Explorer, to a file or a section of one (explorerDrop.ts): from
+    // a document that may not be edited too, to be copied.
+    dragOut: true,
     // The inspector beside it shows the file's page while no row is selected, a section's, several
     // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
     inspectorPages: true,

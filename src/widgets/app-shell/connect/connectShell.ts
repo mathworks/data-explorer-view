@@ -14,15 +14,17 @@
 // The rules themselves are the modules beside this one; this file orchestrates. Several are pieces
 // of it moved out: what it builds (parts.ts), a tab's document and its widgets (documents.ts), the
 // settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
-// the parts' requests (requests.ts), the document commands (carryOut.ts), the folder shown
-// (shownFolder.ts), the modules' views (modules.ts: Raw, Search, the Gallery, the Terminal), and
-// Root's relationship graph (graphPane.ts).
+// the parts' requests (requests.ts), the rows dropped on the Explorer (explorerDrop.ts), the
+// document commands (carryOut.ts), the folder shown (shownFolder.ts), the modules' views
+// (modules.ts: Raw, Search, the Gallery, the Terminal), and Root's relationship graph (graphPane.ts).
 
+import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { isEditable, type InspectorFeed } from '../../../model/source/tableSource.js';
 import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
+import type { DragDescriptor } from '../../../model/source/wire.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
 import { basenameOf, isProjectFile, isSlddFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
@@ -41,6 +43,7 @@ import {
   type OpenTab,
 } from './documents.js';
 import { ranNote } from './editingNotes.js';
+import { connectExplorerDrop } from './explorerDrop.js';
 import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import type { LocationSegment } from '../dex-location-bar.js';
 import type { FolderView } from './folder.js';
@@ -123,13 +126,22 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     },
   });
   stops.push(() => openUsage.dispose());
-  // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
+  // Its documents share one clipboard, so a row copied in one tab pastes into another, and one drag
+  // register, whose drag in flight the Explorer's drops are judged by (explorerDrop.ts). What a
   // document says the table cannot show is a toast, as it stands, and a line of the Log, which
-  // keeps what a toast lets go by.
+  // keeps what a toast lets go by; the last few are kept, so that a drop's refusal the workspace
+  // said already (a move that left its original behind) is not said twice.
+  const registers = createRegisters();
+  let dragging: DragDescriptor | null = null;
+  stops.push(registers.listen({ drag: (descriptor) => void (dragging = descriptor) }));
+  const noticed: string[] = [];
   const ws = createWorkspace({
     editing: true,
+    registers,
     usage: openUsage,
     notify(notice) {
+      noticed.push(notice.message);
+      if (noticed.length > 8) noticed.shift();
       toasts.show(notice);
       log(notice.level === 'status' ? 'info' : notice.level, notice.message);
     },
@@ -680,6 +692,20 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // New's chord only for a host that makes files, asked at each press as the host's members are.
   stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
+
+  // Table rows dragged onto the Explorer, onto a file or a section of one, open in a tab whether or
+  // not it is on screen: moved or copied there, and said as an edit is.
+  stops.push(
+    connectExplorerDrop(explorer, {
+      drag: () => dragging,
+      tabOf: (id) => tabs.find((t) => t.id === id),
+      tabOfUri: (uri) => tabs.find((t) => t.doc?.uri === uri),
+      dropped: (text) => say('info', text, 2000),
+      refused: (text) => {
+        if (!noticed.includes(text)) failed(text);
+      },
+    }),
+  );
 
   // --- The folder --------------------------------------------------------------------------------
 

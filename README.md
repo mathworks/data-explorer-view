@@ -510,7 +510,10 @@ tabs, saves them, asks before unsaved edits are lost, reloads a file that
 changed on disk, follows links from file to file, and shows a folder with its
 Usage and search, each as the sections above describe. With no folder shown,
 the Usage column is answered over the files open. Search ranks what it finds
-by name, value and type, best first, and says what each entry is.
+by name, value and type, best first, and says what each entry is. Rows dragged
+from a table onto a file in the Explorer, or onto one of its sections, move
+there, whichever tab is on screen; they are copied with Ctrl (Option on macOS),
+and always from a file that is not edited.
 
 ```js
 import 'data-explorer-view/theme.css';
