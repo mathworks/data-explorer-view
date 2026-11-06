@@ -121,6 +121,19 @@ describe('the Explorer', () => {
     await until(() => !graphShown() && docTabs().active === tabIdOf('params.sldd'));
   });
 
+  it("shows a tab's selected row in the inspector again, back from Root", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const inspector = document.querySelector('dex-property-inspector')!;
+    await until(() => inspector.groups.length > 0);
+    const shown = JSON.stringify(inspector.groups);
+    openRequest({ fileId: null, pin: false });
+    await until(() => inspector.groups.length === 0 && !inspectorNote().hidden);
+    openRequest({ fileId: tabIdOf('params.sldd'), pin: false });
+    await until(() => JSON.stringify(inspector.groups) === shown && inspectorNote().hidden);
+  });
+
   it("a file's menu saves it, saves it elsewhere, or closes it, whichever tab is active", async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'ParamMat.mat');

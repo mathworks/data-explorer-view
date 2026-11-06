@@ -158,6 +158,24 @@ describe('following another feed', () => {
     expect(targets).toEqual(['Kp@file:///w/x.sldd']);
   });
 
+  it('shows the page of a table it follows again, its selection unchanged since it left', async () => {
+    // One inspector, the active tab's: a tab left for Root (or another tab) and come back to shows
+    // its selected row's page again, though the table has nothing new to say of it.
+    const { pi, empty, a } = await tabs();
+    const kp = await a.select('Kp');
+    const inspector = connectInspector(pi, a.handle, { empty });
+    cleanups.push(() => inspector.dispose());
+    await settle();
+    const page = (await a.doc.table.inspect(kp.ID)).groups;
+    expect(pi.groups).toEqual(page);
+    inspector.follow(null);
+    expect(pi.groups).toEqual([]);
+    inspector.follow(a.handle);
+    await settle();
+    expect(pi.groups).toEqual(page);
+    expect(empty.hidden).toBe(true);
+  });
+
   it('closes a grid it opened, and leaves one the table opened in the shared editor', async () => {
     const { pi, a, b, calls } = await tabs();
     await a.select('Kp');

@@ -870,7 +870,18 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     },
     onPage(listener) {
       pageListeners.add(listener);
-      if (inspected) inspect(inspected, false);
+      // What is selected now, told to this listener alone: the page the others were last sent is
+      // not sent again, and an inspector that follows this table once more has nothing shown.
+      if (inspected) {
+        const at = asking;
+        void source.inspect(inspected).then(
+          (page) => {
+            if (disposed || at !== asking || !pageListeners.has(listener)) return;
+            listener(page.rowId === undefined ? { groups: [] } : page);
+          },
+          () => {},
+        );
+      }
       return () => void pageListeners.delete(listener);
     },
     async matrix(nodeId): Promise<MatrixPage> {
