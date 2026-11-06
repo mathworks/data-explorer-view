@@ -178,6 +178,15 @@ describe('the rows', () => {
     expect(rowOf(el, 'm.slx').querySelector('.dirty, .sr-only')).toBeNull();
   });
 
+  it("paints the selected row in the system's selection colours in forced colours, its marks too", () => {
+    // Left to the browser, forced colours repainted the row's text over the Highlight surface it was
+    // given, and the selected file's or section's name could not be read (the Search view's rows
+    // take the same rule). The twisty and the unsaved mark have colours of their own to take over.
+    const forced = cssOf(DexExplorer.styles).split('@media (forced-colors: active)')[1] ?? '';
+    expect(forced).toContain(".row[aria-selected='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; }");
+    expect(forced).toContain(".row[aria-selected='true'] :is(.twisty, .dirty) { color: HighlightText; }");
+  });
+
   it('lines a heading up with the icons of the files under it, as the prototype does', async () => {
     // Laid out as a row is: the same zero-width indent and empty twisty before the words, each
     // taking the same gap, so the words start where a file's icon does.

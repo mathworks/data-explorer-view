@@ -290,9 +290,17 @@ export class DexExplorer extends LitElement {
       white-space: nowrap;
     }
 
+    /* The selected row in the system's selection colours, kept as given: left to the browser, its
+       text was repainted over the Highlight surface and could not be read. The twisty and the
+       unsaved mark, which have colours of their own, take the selection's ink too. */
     @media (forced-colors: active) {
       .row[aria-selected='true'] {
+        forced-color-adjust: none;
         background: Highlight;
+        color: HighlightText;
+      }
+
+      .row[aria-selected='true'] :is(.twisty, .dirty) {
         color: HighlightText;
       }
 
