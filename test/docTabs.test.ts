@@ -19,6 +19,7 @@ import {
   type DocTabsEventMap,
 } from '../src/widgets/app-shell/dex-doc-tabs.js';
 import { highContrastStyles } from '../src/widgets/shared/high-contrast.styles.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineDocTabs());
 afterEach(() => document.body.replaceChildren());
@@ -236,10 +237,17 @@ describe('the tabs', () => {
     expect(subtitle.textContent).toBe('a.sldd');
     expect([...tab.children].map((c) => c.className || c.localName)).toEqual(['subtitle', 'dex-icon', 'label', 'close']);
     expect(getComputedStyle(subtitle).fontSize).toBe('11px');
-    // Text, not a mark: muted, but readable on the bar and on the active tab's white (4.5:1).
+    // Text, not a mark: the secondary ink, readable (4.5:1) on the bar, a hovered tab and the active
+    // tab in every theme. The muted ink was 4.3:1 on the dark bar.
     const ink = getComputedStyle(subtitle).color;
     expect(contrast(ink, getComputedStyle(el.shadowRoot!.querySelector('.bar')!).backgroundColor)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(ink, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText).join('\n');
+    expect(/\.subtitle \{[^}]*color: var\((--dex-[\w-]+), #555\)/.exec(css.replace(/\s+/g, ' '))?.[1]).toBe('--dex-color-text-secondary');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      for (const surface of ['--dex-bg-tabbar', '--dex-bg-hover', '--dex-bg-primary']) {
+        expect(contrast(tokens.get('--dex-color-text-secondary')!, tokens.get(surface)!), `${set} ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
     // The italic is the label's, the part a preview shows; the file's name stays upright.
     expect(getComputedStyle(subtitle).fontStyle).not.toBe('italic');
     expect(tab.getAttribute('aria-label')).toBe('a.sldd, Design Data, preview');
@@ -472,7 +480,7 @@ describe('scrolling', () => {
     expect(css).toContain('dex-icon { flex-shrink: 0; width: 14px; height: 14px; }');
   });
 
-  it('scrolls the active tab into view again when a narrower window turns the … button on', async () => {
+  it('scrolls the active tab into view again whenever the row is resized, the … button coming or there already', async () => {
     const observers: (() => void)[] = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -497,9 +505,12 @@ describe('scrolling', () => {
       observers[0]!();
       expect(overflowButton(el)).not.toBeNull();
       expect(scrolled).toEqual(['c']);
-      // Measured again with the button there: nothing changed, nothing scrolled.
+      // Narrowed again, the button there already (a window made smaller, a sidebar's sash dragged):
+      // the active tab is kept in view all the same, clear of the button.
+      Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 120 });
       observers[0]!();
-      expect(scrolled).toEqual(['c']);
+      expect(overflowButton(el)).not.toBeNull();
+      expect(scrolled).toEqual(['c', 'c']);
     } finally {
       scroll.mockRestore();
       vi.unstubAllGlobals();
@@ -527,7 +538,22 @@ describe('scrolling', () => {
     await el.updateComplete;
     expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([true, true, false]);
     const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
-    expect(css).toContain('.tab[data-clipped] .close { visibility: hidden; }');
+    // The × alone: an unsaved tab's ● still says it is unsaved at the edge.
+    expect(css).toContain('.tab[data-clipped] .x { visibility: hidden; }');
+    expect(css).not.toContain('.tab[data-clipped] .close');
+  });
+
+  it('never draws a tab wider than the row, its label giving way to an ellipsis instead', async () => {
+    // A section's tab (the file, its icon, the section) could be wider than a narrow window's row.
+    // happy-dom lays nothing out, so the rules are what is pinned.
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')).join('\n');
+    expect(/\.tab \{[^}]*\}/.exec(css)?.[0]).toContain('max-width: 100%;');
+    expect(/\.close \{[^}]*\}/.exec(css)?.[0]).toContain('flex-shrink: 0;');
+    for (const part of ['label', 'subtitle']) {
+      const rule = new RegExp(`\\.${part} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
+      expect(rule, part).toContain('overflow: hidden;');
+      expect(rule, part).toContain('text-overflow: ellipsis;');
+    }
   });
 
   it('turns a vertical wheel into a sideways scroll of a crowded row, and leaves an uncrowded one to the page', async () => {

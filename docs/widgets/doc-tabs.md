@@ -12,7 +12,8 @@ Data` while its selection is in that section). A preview tab (a file only being 
 the next one opened replaces) has its label in italics. A tab with unsaved changes shows ● where
 its × is, until the pointer or the keyboard comes onto it. A row too long for its width scrolls
 sideways, keeps the active tab in view, clear of the … button it then offers, which lists every
-tab, and hides the × of a tab scrolled partly out past its start, so no × is left there alone.
+tab, as it is drawn and as it is resized; it hides the × of a tab scrolled partly out past its
+start, so no × is left there alone, and draws no tab wider than itself.
 The arrow keys move along the tabs, and Home and End go to either end.
 
 ```js

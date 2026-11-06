@@ -69,8 +69,9 @@ const TAB_TYPE = 'application/x-dex-tab';
  * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
  * where its × is, until the pointer or the keyboard comes onto it. A row too long for its width
  * scrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it
- * then offers, which lists every tab; a tab scrolled partly out past the row's start hides its ×. The
- * arrow keys move the focus along the tabs, and Home and End to either end.
+ * then offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly
+ * out past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the
+ * focus along the tabs, and Home and End to either end.
  *
  * @tagname dex-doc-tabs
  */
@@ -110,13 +111,16 @@ export class DexDocTabs extends LitElement {
     }
 
     /* Every tab has the 2px bottom border, transparent but on the active one, so the label does not
-       jump as the mark moves. */
+       jump as the mark moves. No tab is wider than the row: in a narrow window a section's tab (the
+       file, the icon, the section) gives way, its subtitle and label to an ellipsis, and its ×
+       stays. */
     .tab {
       position: relative;
       display: flex;
       align-items: center;
       gap: 4px;
       flex-shrink: 0;
+      max-width: 100%;
       padding: 0 6px 0 12px;
       box-sizing: border-box;
       border-right: 1px solid var(--dex-border-color, #d0d0d0);
@@ -155,15 +159,16 @@ export class DexDocTabs extends LitElement {
       text-overflow: ellipsis;
     }
 
-    /* The file a tab's label is a part of: smaller and muted, but text that reads, 4.5:1 on the bar
-       and on the active tab; upright on a preview tab, whose italic is the label's. */
+    /* The file a tab's label is a part of: smaller, in the secondary ink, text that reads at 4.5:1
+       on the bar, a hovered tab and the active one in every theme (the muted ink is 4.3:1 on the
+       dark bar); upright on a preview tab, whose italic is the label's. */
     .subtitle {
       max-width: 160px;
       margin-inline-end: 2px;
       overflow: hidden;
       text-overflow: ellipsis;
       font-size: 11px;
-      color: var(--dex-color-text-muted, #666);
+      color: var(--dex-color-text-secondary, #555);
     }
 
     .preview .label {
@@ -174,6 +179,7 @@ export class DexDocTabs extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
       width: 16px;
       height: 16px;
       padding: 0;
@@ -195,8 +201,9 @@ export class DexDocTabs extends LitElement {
 
     /* A tab scrolled partly out past the row's start (data-clipped, measured as the strip scrolls)
        shows its end at the edge, often its × alone, a control with nothing beside it to say what it
-       closes: hidden there, the dot too, and kept in its place so the tab keeps its width. */
-    .tab[data-clipped] .close {
+       closes: the × is hidden there, kept in its place so the tab keeps its width. An unsaved tab's
+       ● stays, still saying so. */
+    .tab[data-clipped] .x {
       visibility: hidden;
     }
 
@@ -489,11 +496,16 @@ export class DexDocTabs extends LitElement {
 
   // The bar, not the strip: the strip narrows as the … button comes and widens as it goes, and
   // watching it would measure again on every change the measuring itself makes. The bar's width is
-  // the room the row has; a change of the tabs inside it is measured as they are drawn.
+  // the room the row has; a change of the tabs inside it is measured as they are drawn. At each
+  // resize the active tab is scrolled into view again, so a row narrowed while crowded already (a
+  // smaller window, a sidebar's sash dragged) keeps it clear of the … button.
   private _observe(): void {
     const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
     if (!bar || typeof ResizeObserver === 'undefined') return;
-    this._resize ??= new ResizeObserver(() => this._layout());
+    this._resize ??= new ResizeObserver(() => {
+      this._scrollPending = true;
+      this._layout();
+    });
     this._resize.observe(bar);
   }
 
