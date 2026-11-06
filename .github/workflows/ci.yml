@@ -50,6 +50,12 @@ jobs:
       - name: Import boundaries
         run: npm run check:boundary
 
+      # VIEW_VERSION (src/model/version.ts) is written from package.json's version by the
+      # build. Checked before the build below rewrites it, so a version bump committed
+      # without a build fails here, naming the file.
+      - name: src/model/version.ts is package.json's version
+        run: npm run check:version
+
       # dist/ is committed and is what a consumer runs (see .gitignore), so it must be
       # the build of src/. It deletes dist/ first because tsc never deletes an output:
       # built over the committed copy, a file whose source is gone would stay and pass.
@@ -61,9 +67,9 @@ jobs:
         run: |
           rm -rf dist
           npm run build
-          git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets
-          git diff --exit-code --stat -- dist custom-elements.json docs/widgets
-          test -z "$(git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets)"
+          git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets src/model/version.ts src/widgets/icon-assets/assets.ts
+          git diff --exit-code --stat -- dist custom-elements.json docs/widgets src/model/version.ts src/widgets/icon-assets/assets.ts
+          test -z "$(git status --porcelain --untracked-files=all -- dist custom-elements.json docs/widgets src/model/version.ts src/widgets/icon-assets/assets.ts)"
 
       # The public API against the latest v* tag: an export, a widget's member, attribute or
       # event, a detail's or a wire message's field, a token or an icon that is gone (a detail

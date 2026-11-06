@@ -84,15 +84,16 @@
     "./icons/*": "./icons/*"
   },
   "scripts": {
-    "build": "node scripts/gen-icon-assets.mjs && tsc -p tsconfig.build.json && npm run build:api",
+    "build": "node scripts/gen-icon-assets.mjs && node scripts/gen-version.mjs && tsc -p tsconfig.build.json && npm run build:api",
     "build:api": "cem analyze --config custom-elements-manifest.config.mjs --quiet && node scripts/gen-widget-docs.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.model.json",
     "check:boundary": "node scripts/check-boundary.mjs",
     "check:api": "node scripts/check-api.mjs",
     "check:leak": "node scripts/leak-check.mjs",
+    "check:version": "node scripts/gen-version.mjs --check",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "verify": "npm run typecheck && npm run check:boundary && npm run build && npm run check:api && npm run test && npm run check:leak",
+    "verify": "npm run typecheck && npm run check:boundary && npm run check:version && npm run build && npm run check:api && npm run test && npm run check:leak",
     "gallery": "vite --config gallery/vite.config.ts",
     "gallery:build": "tsc -p gallery/tsconfig.json && vite build --config gallery/vite.config.ts",
     "test:gallery": "playwright test -c gallery/playwright.config.ts"
