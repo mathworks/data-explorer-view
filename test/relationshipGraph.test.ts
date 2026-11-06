@@ -14,7 +14,8 @@
 // Real MATLAB-written fixtures throughout: test-integration/fixtures/caserefs is a model linked to
 // three dictionaries (one of them through another) and a MAT-file, spelt in the wrong case.
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { buildUsageIndex, scanMat, scanSldd, sourceKind } from 'data-explorer-core';
 import { join } from 'node:path';
 import { strToU8, zipSync } from 'fflate';
 import type { RawSource } from '../src/model/usage/usageCells.js';
@@ -362,6 +363,79 @@ describe('files of one name in different folders', () => {
       'param-usage ctrlA.slx:LimitA -> sharedParams.sldd:SharedGain (Value)',
     ]);
   });
+});
+
+describe('what it asks core', () => {
+  // The builder asks core's index only for the names a model's blocks mention, not for every name
+  // of every file in the model's scope. Pinned as an equality with asking for every one: over each
+  // fixture set (no two files of one name in a set, so one index over all of it answers as the
+  // per-model ones do), the usage edges are exactly those a brute force finds by asking core about
+  // every variable of every data file and every model's workspace.
+  const setOf = (dir: string): RawSource[] =>
+    readdirSync(join(ROOT, dir))
+      .filter((n) => sourceKind(n) !== null && sourceKind(n) !== 'prj' && statSync(join(ROOT, dir, n)).isFile())
+      .sort()
+      .map((n) => file(dir, n));
+  const SETS = [FIXTURES, ...readdirSync(join(ROOT, 'test-integration/fixtures')).map((d) => `test-integration/fixtures/${d}`)];
+
+  const bruteForce = (files: RawSource[]): string[] => {
+    const index = buildUsageIndex(files.map((f) => ({ srcId: f.uriString, filename: f.path, bytes: f.bytes })));
+    const out: string[] = [];
+    const ask = (uri: string, names: Iterable<string>, group: string) => {
+      for (const name of names) for (const u of index.usagesOf(uri, name)) out.push(`${u.linkTarget} -> ${uri} ${group}:${name} (${u.paramProperty})`);
+    };
+    for (const m of index.models) ask(m.srcId, m.workspaceNames, 'workspace');
+    for (const f of files) {
+      try {
+        if (sourceKind(f.path) === 'sldd') ask(f.uriString, scanSldd(f.bytes).names.filter(Boolean), 'data');
+        if (sourceKind(f.path) === 'mat') ask(f.uriString, scanMat(f.bytes).names.filter(Boolean), 'data');
+      } catch {
+        /* unreadable: no names, as for the builder */
+      }
+    }
+    return out.sort();
+  };
+  const drawn = (g: RelationshipGraph): string[] =>
+    g.edges
+      .filter((e) => e.kind === 'param-usage' || e.kind === 'ws-usage')
+      .map((e) => {
+        const [, , target] = JSON.parse(e.from) as string[];
+        const [uri, group, name] = JSON.parse(e.to) as string[];
+        return `${target} -> ${uri} ${group}:${name} (${e.label})`;
+      })
+      .sort();
+
+  it.each(SETS)('%s: draws every usage asking for every name would find, and no other', (dir) => {
+    const files = setOf(dir);
+    expect(drawn(buildRelationshipGraph(files))).toEqual(bruteForce(files));
+  });
+
+  it('finds usages in the sets above, so the equality is not of two empty lists', () => {
+    const total = SETS.reduce((n, dir) => n + bruteForce(setOf(dir)).length, 0);
+    expect(total).toBeGreaterThan(20);
+  });
+
+  it(
+    'builds a graph of many models over a very large dictionary in a fraction of a second',
+    () => {
+      // 320 models sharing a dictionary of 140,000 entries, each block reading two of them: asked
+      // name by name for every model, that was 45 million questions and 3.6 seconds. The bound is
+      // far above what it takes, so a slow machine does not fail it and the old cost would.
+      const entries = Array.from({ length: 140_000 }, (_, i) => `P${i}`);
+      const files: RawSource[] = [raw('/w/big.sldd', sldd(entries))];
+      for (let m = 0; m < 320; m++) {
+        const blocks = `<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">P${m * 7}*P${m * 11 + 1}</P></Block>`;
+        files.push(raw(`/w/m${m}.slx`, slx({ blocks, dictionary: 'big.sldd' })));
+      }
+      const start = performance.now();
+      const g = buildRelationshipGraph(files);
+      const took = performance.now() - start;
+      expect(g.edges.filter((e) => e.kind === 'param-usage')).toHaveLength(640);
+      expect(g.boxes[0]!.items.length).toBeGreaterThan(400);
+      expect(took).toBeLessThan(2000);
+    },
+    60_000,
+  );
 });
 
 describe('what it is given', () => {

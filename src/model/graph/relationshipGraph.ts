@@ -37,6 +37,7 @@
 import {
   buildUsageIndexFromSummaries,
   extractSlxStructure,
+  identifiersIn,
   mergeFileSummaries,
   parseModel,
   refBasename,
@@ -133,10 +134,13 @@ function readFile(file: RawSource): ReadFile | null {
 }
 
 /** The names a data file defines, in its own order: the one summary its part holds. */
-function dataNames(read: ReadFile): string[] {
+function dataNameSet(read: ReadFile): ReadonlySet<string> {
   const part = read.kind === 'sldd' ? read.summary?.slddByName : read.summary?.matByName;
-  const summary = part ? [...part.values()][0] : undefined;
-  return summary ? [...summary.names] : [];
+  return (part ? [...part.values()][0]?.names : undefined) ?? new Set();
+}
+
+function dataNames(read: ReadFile): string[] {
+  return [...dataNameSet(read)];
 }
 
 /** The ghost kind a data-link reference names: a MAT-file or a model by its extension, else a dictionary. */
@@ -322,8 +326,19 @@ function usageEdges(reads: readonly ReadFile[], tree: RelGraph, boxById: Map<str
         }
       }
     };
-    usages(model, model.summary.models[0]?.workspaceNames ?? [], 'workspace');
-    for (const data of scope) usages(data, dataNames(data), 'data');
+    // Asked only for the names the model's blocks mention, not every name of every file in scope:
+    // core credits a usage to an identifier of a block parameter's expression and to nothing else
+    // (identifiersIn, the same call its index makes), so a name no expression holds has none to
+    // give, and the answers are the same. What it saves is the product of models and names: 320
+    // models sharing a 140,000-entry dictionary asked 45 million questions to find 640 usages.
+    const summary = model.summary.models[0];
+    const mentioned = [...new Set((summary?.blockParams ?? []).flatMap((p) => identifiersIn(p.expression)))];
+    const workspace = summary?.workspaceNames ?? new Set<string>();
+    usages(model, mentioned.filter((name) => workspace.has(name)), 'workspace');
+    for (const data of scope) {
+      const defined = dataNameSet(data);
+      usages(data, mentioned.filter((name) => defined.has(name)), 'data');
+    }
   }
 
   // The items of each box: the variables read, in their file's order (a workspace's own), then the
