@@ -27,6 +27,7 @@ import type { DexAppShell } from '../dex-app-shell.js';
 import {
   clearSelection,
   connectDocument,
+  copyText,
   docTabOf,
   newProjectPage,
   newTable,
@@ -42,6 +43,7 @@ import { linkDestination, projectLinkPath } from './links.js';
 import { locationOf, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { buildShell } from './parts.js';
+import { connectRawPane } from './rawPane.js';
 import { rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
@@ -210,7 +212,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     location.canBack = nav.canBack;
     location.canForward = nav.canForward;
     location.canUp = nav.canUp;
+    rawPane.refresh();
   }
+
+  /** Whether the view `id` is on screen: the one its side shows, on a side that is open. */
+  const viewShown = (id: string): boolean => {
+    const side = SHELL_VIEWS.find((v) => v.view === id)?.side;
+    return !!side && shell.layout[side].open && shell.layout[side].view === id;
+  };
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
   // everything that follows the active tab follows this one; the user has been here.
@@ -431,7 +440,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       return parts.palette.show(paletteCommands(toolbarState()));
     }
     const view = viewOfCommand(id);
-    if (view) return showView(view.view);
+    if (view) {
+      showView(view.view);
+      return later();
+    }
     if ((id === 'undo' || id === 'redo') && focusIsInTextField()) {
       document.execCommand(id);
       return;
@@ -446,7 +458,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // A view brought forward; one with a box of its own (Search, the Terminal) takes the keyboard.
   function showView(view: string): void {
     shell.showView(view);
-    focusViewBox(view);
+    if (viewShown(view)) return focusViewBox(view);
+    // Asked before the shell has read its views (in the task that connected it): it reads them in
+    // a microtask of the append, which runs before this one.
+    queueMicrotask(() => {
+      shell.showView(view);
+      focusViewBox(view);
+      later();
+    });
   }
   function focusViewBox(view: string): void {
     if (view === 'search') parts.search.focusInput();
@@ -503,6 +522,23 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
   }
 
+  // --- The modules' views ------------------------------------------------------------------------
+
+  // Raw: what the active document's file holds for the selected row, or for the file itself.
+  const rawPane = connectRawPane(parts.raw, {
+    target() {
+      const tab = tabs.active;
+      const doc = tab?.doc;
+      if (!tab || !doc) return null;
+      const raw = doc.table.raw?.bind(doc.table);
+      return { key: tab.id, ...(raw ? { raw } : {}), rowId: tab.selection[0] ?? doc.uri };
+    },
+    shown: () => viewShown('raw'),
+    copy: (text) => copyText(host, text),
+    failed: (text) => toasts.show({ level: 'error', message: text }),
+  });
+  stops.push(() => rawPane.dispose());
+
   // --- The parts' requests -----------------------------------------------------------------------
 
   const tabOf = (id: string | null | undefined) => (id ? tabs.find((t) => t.id === id) : undefined);
@@ -516,6 +552,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // A view the user shows by its button or its chord takes the keyboard as its command gives it.
   listen(shell, 'dex-shell-view-changed', (e) => {
     if (e.detail.open && e.detail.view) focusViewBox(e.detail.view);
+    // A view come on screen shows what it would have shown meanwhile.
+    later();
   });
   listen(shell, 'dex-shell-action', (e) => {
     const { actionId, anchor } = e.detail;

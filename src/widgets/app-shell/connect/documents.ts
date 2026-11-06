@@ -47,6 +47,11 @@ function pageClipboard(text: string): Promise<void> {
   return navigator.clipboard.writeText(text);
 }
 
+/** Put `text` on the host's clipboard, or the page's for a host without one, asked at each copy. */
+export function copyText(host: ShellHost, text: string): Promise<void> {
+  return host.copyText ? host.copyText(text) : pageClipboard(text);
+}
+
 /** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
 export function docTabOf(tab: OpenTab): DocTab {
   const group = fileGroupOf(tab.path);
@@ -116,7 +121,7 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     undoChords: true,
     errorDialog: wiring.dialog,
     // The host's clipboard, or the page's for a host without one, asked at each copy.
-    copy: (text) => (host.copyText ? host.copyText(text) : pageClipboard(text)),
+    copy: (text) => copyText(host, text),
     // Usage is core's in a model; in a dictionary or a MAT-file the shown folder's usage
     // graphs fill it, so a file outside the folder has none.
     columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),
