@@ -18,33 +18,32 @@
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
-import { NavHistory } from '../../../model/shell/navHistory.js';
 import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import type { DexAppShell } from '../dex-app-shell.js';
-import type { ConfirmOptions } from '../dex-confirm-dialog.js';
 import {
   clearSelection,
   connectDocument,
   docTabOf,
-  keepRows,
   newProjectPage,
   newTable,
   paintProject,
-  rowIn,
-  sectionOf,
   statusOf,
   type OpenTab,
 } from './documents.js';
 import { explorerFiles } from './explorerFiles.js';
+import { connectFileMenu } from './fileMenu.js';
 import { showFolder, type FolderView } from './folder.js';
 import { installSearch } from './folderSearch.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination, projectLinkPath } from './links.js';
-import { locationOf, samePlace, type LocationStep, type ShellPlace } from './location.js';
+import { locationOf, type ShellPlace } from './location.js';
+import { ShellNavigation } from './navigation.js';
 import { buildShell } from './parts.js';
+import { rowIn, sectionOf } from './rows.js';
 import { connectPopovers, pageStorage } from './popovers.js';
+import { inPageQuestions } from './questions.js';
 import { ReloadGate, reloadQuestion } from './reload.js';
 import { Saver, closeAnswerOf, closeQuestion, settle } from './saving.js';
 import { TabList } from './tabs.js';
@@ -116,55 +115,42 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   stops.push(() => popovers.dispose());
 
-  // The shell's confirm dialog, one question at a time: asked another while one is open, it answers
-  // the open one with its cancel, so a reload question would cancel a "Save changes?" under it, and a
-  // close would answer a reload question Keep My Edits. Each waits for the one before it. One that is
-  // no longer worth asking (`still`: its tab closed) is answered with its cancel: unasked by its
-  // turn, or taken down as its tab closes, which the answer before it may have just done.
-  let questions: Promise<unknown> = Promise.resolve();
-  let shownStill: (() => boolean) | null = null;
-  const ask = (question: ConfirmOptions, still: () => boolean = () => true): Promise<string> => {
-    const answer = questions.then(async () => {
-      if (!still()) return question.cancelId;
-      popovers.closeAll();
-      shownStill = still;
-      try {
-        return await confirm.show(question);
-      } finally {
-        shownStill = null;
-      }
-    });
-    questions = answer.catch(() => undefined);
-    return answer;
-  };
-  const askedInVain = (): void => {
-    if (shownStill && !shownStill()) confirm.close();
-  };
+  // The shell's confirm dialog, one question at a time (questions.ts), for a host with none.
+  const questions = inPageQuestions(confirm, () => popovers.closeAll());
   // The host's own questions where it has them; the shell's confirm dialog where it has none.
   const confirmClose = (names: string[]): Promise<CloseAnswer> =>
-    host.confirmClose ? host.confirmClose(names) : ask(closeQuestion(names)).then(closeAnswerOf);
+    host.confirmClose ? host.confirmClose(names) : questions.ask(closeQuestion(names)).then(closeAnswerOf);
   const confirmReload = (tab: OpenTab): Promise<boolean> =>
     host.confirmReload
       ? host.confirmReload(tab.name)
-      : ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload');
+      : questions.ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload');
   const isOpen = (tab: OpenTab): boolean => !disposed && tabs.items.includes(tab);
 
   // --- Painting ----------------------------------------------------------------------------------
-
-  // Where the user has been, for Back and Forward; and the location bar's segments and Up as drawn.
-  const history = new NavHistory<ShellPlace>(samePlace);
-  let restoring = false;
-  let steps: LocationStep[] = [];
-  let up: ShellPlace | null = null;
 
   /** The place the user is now: the active tab and its selection's first row, or Root. */
   const here = (): ShellPlace => {
     const active = tabs.active;
     return active ? { tabId: active.id, rowId: active.selection[0] ?? null } : { tabId: null, rowId: null };
   };
-  const visit = (): void => {
-    if (!restoring) history.visit(here());
-  };
+  // Where the user has been, for Back and Forward, and where Up and the segments go. A place is
+  // shown by showing its tab (or Root) and then selecting its row, or none for the file itself.
+  const nav = new ShellNavigation({
+    here,
+    show(place) {
+      if (place.tabId === null) {
+        showRoot();
+        return true;
+      }
+      const tab = tabs.find((t) => t.id === place.tabId);
+      if (!tab) return false;
+      activate(tab);
+      if (place.rowId === null) clearSelection(tab);
+      else tab.handle?.select([place.rowId]);
+      return true;
+    },
+  });
+  const visit = (): void => nav.visit();
 
   // The inspector and the folder's tree follow the active tab.
   const follow = () => {
@@ -210,16 +196,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       mac: onMac(),
     });
     explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
+    // The rows the active table holds now: its paint, the entries repainted since, the children
+    // it was answered; none for a project page or a file still being read.
+    const rows = active?.table?.rows ?? [];
     const rowId = here().rowId;
-    const section = active && rowId !== null ? sectionOf(active, rowId) : undefined;
+    const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
     explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-    const at = locationOf(active ?? null, rowId, (id) => (active ? rowIn(active, id) : undefined), explorer.rootLabel);
-    steps = at.segments;
-    up = at.up;
-    location.segments = steps;
-    location.canBack = history.canBack;
-    location.canForward = history.canForward;
-    location.canUp = up !== null;
+    const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel);
+    nav.located(at);
+    location.segments = at.segments;
+    location.canBack = nav.canBack;
+    location.canForward = nav.canForward;
+    location.canUp = nav.canUp;
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
@@ -238,27 +226,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The Explorer's Root: no document shown, the tabs kept.
   function showRoot(): void {
     if (tabs.deactivate()) shown();
-  }
-
-  // Go to a place of the history or the location bar: its tab and its row, or Root. The moves
-  // themselves are no visits; `visitIt` makes the place one (Up, a segment), and Back and Forward,
-  // which move along the history, do not.
-  function goTo(place: ShellPlace, visitIt: boolean): void {
-    const tab = place.tabId === null ? undefined : tabs.find((t) => t.id === place.tabId);
-    if (place.tabId !== null && !tab) return;
-    restoring = true;
-    try {
-      if (!tab) showRoot();
-      else {
-        activate(tab);
-        if (place.rowId === null) clearSelection(tab);
-        else tab.handle?.select([place.rowId]);
-      }
-    } finally {
-      restoring = false;
-    }
-    if (visitIt) history.visit(place);
-    later();
   }
 
   function pin(tab: OpenTab): void {
@@ -312,8 +279,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const wasActive = tab === tabs.active;
     tabs.remove(tab);
     // Back must not land on a place that went with the tab, nor a question stay up about it.
-    history.prune((place) => place.tabId !== tab.id);
-    askedInVain();
+    nav.forget(tab.id);
+    questions.recheck();
     if (wasActive) shown();
     else paint();
   }
@@ -349,15 +316,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
     const replaced = how.preview ? tabs.find((t) => !!t.preview && !t.dirty) : undefined;
     const at = replaced ? tabs.items.indexOf(replaced) : -1;
-    if (replaced) {
-      // Its neighbour is active only until the new tab is: no place the user went to.
-      restoring = true;
-      try {
-        close(replaced);
-      } finally {
-        restoring = false;
-      }
-    }
+    // Its neighbour is active only until the new tab is: no place the user went to.
+    if (replaced) nav.quietly(() => close(replaced));
     const panel = document.createElement('section');
     panel.className = 'doc-panel';
     panel.setAttribute('role', 'tabpanel');
@@ -365,7 +325,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     docs.append(panel);
     // A project's tab by the name its row in the folder has: every TOML project's file is matlab.toml.
     const name = isProjectFile(path) ? projectFallbackName(path) : basenameOf(path);
-    const tab: OpenTab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], rows: new Map(), stops: [] };
+    const tab: OpenTab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], stops: [] };
     tabs.add(tab);
     if (at >= 0) tabs.move(tab, at);
     shown();
@@ -407,12 +367,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           if (tab === tabs.active) visit();
           later();
         }),
-        // The rows it sends, for the location bar; and, for the toolbar, any change at all (an
-        // edit, the clipboard, a repaint).
-        doc.table.subscribe((change) => {
-          keepRows(tab, change);
-          later();
-        }),
+        // For the toolbar, any change at all: an edit, the clipboard, a repaint.
+        doc.table.subscribe(() => later()),
       );
       if (tab === tabs.active) follow();
       later();
@@ -503,13 +459,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         tab?.table?.focusFilter();
         break;
       case 'back':
-      case 'forward': {
-        const place = id === 'back' ? history.back() : history.forward();
-        if (place) goTo(place, false);
+        nav.back();
+        later();
         break;
-      }
+      case 'forward':
+        nav.forward();
+        later();
+        break;
       case 'up':
-        if (up) goTo(up, true);
+        nav.up();
+        later();
         break;
     }
   }
@@ -547,8 +506,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   listen(location, 'dex-location-go', (e) => {
     const { to } = e.detail;
     if (typeof to !== 'number') return command(to);
-    const step = steps[to];
-    if (step) goTo(step.place, true);
+    nav.toStep(to);
+    later();
   });
   listen(explorer, 'dex-explorer-open', (e) => {
     const { fileId, sectionId, pin: keep } = e.detail;
@@ -560,30 +519,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (sectionId !== undefined) tab.handle?.select([sectionId]);
   });
 
-  // A file's menu in the Explorer: the shared context menu, with Save, Save As and Close for that
-  // file. Acted on by its next choice only: a dismissal, or the menu shown again by a table, ends it.
-  let menuFor: OpenTab | null = null;
-  listen(explorer, 'dex-explorer-menu', (e) => {
-    const tab = tabOf(e.detail.fileId);
-    if (!tab) return;
-    const editable = !!tab.doc?.editable;
-    menu.show(e.detail.x, e.detail.y, [
-      { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty) },
-      { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable },
-      { id: '', label: '', separator: true },
-      { id: 'close-tab', label: 'Close', icon: 'close' },
-    ]);
-    menuFor = tab;
-  });
-  listen(menu, 'dex-action', (e) => {
-    const tab = menuFor;
-    menuFor = null;
-    if (!tab || !tabs.items.includes(tab)) return;
-    const id = e.detail.actionId;
-    if (id === 'save' || id === 'save-as') void save(tab, id === 'save-as');
-    else if (id === 'close-tab') void requestClose(tab);
-  });
-  listen(menu, 'dex-menu-closed', () => (menuFor = null));
+  // A file's menu in the Explorer: Save, Save As and Close for that file.
+  stops.push(
+    connectFileMenu(explorer, menu, {
+      tabOf: (fileId) => tabOf(fileId),
+      save: (tab, as) => void save(tab, as),
+      close: (tab) => void requestClose(tab),
+    }),
+  );
 
   stops.push(installKeys(command, { nativeMenu: options.nativeMenu }));
 

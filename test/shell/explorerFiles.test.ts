@@ -71,6 +71,16 @@ describe('explorerFiles', () => {
     ]);
   });
 
+  it('reads a paint\'s sections once, and a new paint\'s afresh', () => {
+    const rows = [row('section:design', null, 'Design Data')];
+    const tab = { id: 't1', path: '/w/params.sldd', name: 'params.sldd', rows };
+    const [first] = explorerFiles([tab]);
+    const [again] = explorerFiles([tab]);
+    expect(again!.sections).toBe(first!.sections);
+    const [repainted] = explorerFiles([{ ...tab, rows: [...rows, row('section:config', null, 'Configurations')] }]);
+    expect(repainted!.sections!.map((s) => s.id)).toEqual(['section:design', 'section:config']);
+  });
+
   it("gives a MAT-file none: its top-level rows are its variables", () => {
     const rows = [row('section:x', null, 'Looks like one'), row('v1', null, 'ParamMat')];
     expect(explorerFiles([{ id: 't1', path: '/w/run.mat', name: 'run.mat', rows }])[0]!.sections).toEqual([]);

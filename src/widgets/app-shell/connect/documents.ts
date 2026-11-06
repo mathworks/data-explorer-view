@@ -1,10 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A tab's document and the widgets it is shown in: its table, connected to the document's source
-// as every document of the editing workspace is, or a project's page; the rows its table holds, for
-// the location bar and the Explorer; and how its tab and the status bar name it. connectShell opens
-// and closes tabs and says what each event means; these are the parts of that which are about one
-// tab alone.
+// as every document of the editing workspace is, or a project's page; and how its tab and the
+// status bar name it. connectShell opens and closes tabs and says what each event means; these are
+// the parts of that which are about one tab alone.
 //
 // Lifted, where the Electron app had them, from data-explorer-app src/renderer/app.ts at 0983920
 // (newTable, newProjectPage, paintProject, and the connectTable options of its open()).
@@ -12,10 +11,7 @@
 import type { Doc } from '../../../model/source/workspace.js';
 import { projectPageMessage } from '../../../model/source/projectPage.js';
 import { sourceUri } from '../../../model/source/sourceUri.js';
-import type { TableChange, TableView } from '../../../model/source/tableSource.js';
-import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
-import { isSectionRowId } from '../../../model/ids/sectionRowId.js';
 import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
 import type { DexProjectPage, ProjectOpenDetail } from '../../project-page/dex-project-page.js';
@@ -29,15 +25,10 @@ import { folderOf } from './links.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 
-/** A tab as the shell keeps it: a ShellTab, and what it has heard of its table. */
+/** A tab as the shell keeps it: a ShellTab, its table's selection, and its listeners. */
 export interface OpenTab extends ShellTab {
   /** The selection its table last said (TableHandle `select`), for the history, the Explorer and the location. */
   selection: readonly string[];
-  /**
-   * Rows its source sent since its table's last whole paint (`updateEntry`, `insertEntry`), by
-   * id: the location bar's path climbs through these and the paint's own (TableHandle.view).
-   */
-  rows: Map<string, TreeTableRow>;
   /** What stops its listeners, when it closes. */
   stops: (() => void)[];
 }
@@ -61,42 +52,6 @@ export function docTabOf(tab: OpenTab): DocTab {
 export function statusOf(tab: OpenTab | undefined): string {
   const group = tab ? fileGroupOf(tab.path) : 'other';
   return group === 'other' ? '' : `${FILE_FORMATS[group]}${tab?.dirty ? ' · Modified' : ''}`;
-}
-
-// --- Rows ----------------------------------------------------------------------------------------
-
-// The paints' row indexes, made once per paint as the location bar first asks one of them.
-const viewIndexes = new WeakMap<TableView, Map<string, TreeTableRow>>();
-
-/** A row of `tab`'s table: one sent since its last whole paint, one of that paint, or one the table merged in (a `children` answer). */
-export function rowIn(tab: OpenTab, rowId: string): TreeTableRow | undefined {
-  const sent = tab.rows.get(rowId);
-  if (sent) return sent;
-  const view = tab.handle?.view;
-  if (view) {
-    let index = viewIndexes.get(view);
-    if (!index) viewIndexes.set(view, (index = new Map(view.rows.map((r) => [r.ID, r]))));
-    const row = index.get(rowId);
-    if (row) return row;
-  }
-  return tab.table?.rows.find((r) => r.ID === rowId);
-}
-
-/** Keep the rows `change` sent: a whole paint is TableHandle.view's from now on, so the rows sent before it go. */
-export function keepRows(tab: OpenTab, change: TableChange): void {
-  if (change.kind === 'replaceAll') tab.rows.clear();
-  else if (change.kind === 'updateEntry' || change.kind === 'insertEntry') for (const row of change.rows) tab.rows.set(row.ID, row);
-}
-
-/** The top-level section row above `rowId` in `tab`'s table, if it is one: the Explorer's row for it. */
-export function sectionOf(tab: OpenTab, rowId: string): string | undefined {
-  const seen = new Set<string>();
-  let row = rowIn(tab, rowId);
-  while (row && row.parent !== null && !seen.has(row.ID)) {
-    seen.add(row.ID);
-    row = rowIn(tab, row.parent);
-  }
-  return row && row.parent === null && isSectionRowId(row.ID) ? row.ID : undefined;
 }
 
 /**

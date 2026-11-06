@@ -70,8 +70,17 @@ export function explorerFiles(tabs: readonly ExplorerTab[]): ExplorerFile[] {
   });
 }
 
+// A paint's sections, read once per paint: the shell hands the Explorer its files again on every
+// selection and every change, and a paint's rows are thousands where its sections are a handful.
+const sectionsByPaint = new WeakMap<readonly TreeTableRow[], ExplorerSection[]>();
+
 function sectionsOf(rows: readonly TreeTableRow[]): ExplorerSection[] {
-  return rows
-    .filter((row) => row.parent === null && sectionNameFromRowId(row.ID) !== null)
-    .map((row) => ({ id: row.ID, label: row.Name.label, ...(row.Name.iconId ? { icon: row.Name.iconId } : {}) }));
+  let sections = sectionsByPaint.get(rows);
+  if (!sections) {
+    sections = rows
+      .filter((row) => row.parent === null && sectionNameFromRowId(row.ID) !== null)
+      .map((row) => ({ id: row.ID, label: row.Name.label, ...(row.Name.iconId ? { icon: row.Name.iconId } : {}) }));
+    sectionsByPaint.set(rows, sections);
+  }
+  return sections;
 }
