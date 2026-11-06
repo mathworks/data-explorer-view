@@ -144,6 +144,18 @@ describe('the shell answers its chords', () => {
     expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette', 'palette']);
   });
 
+  it('leaves the chord of a command the shell does not offer now to the page, asked at each press', () => {
+    onPlatform('Win32');
+    let offered = false;
+    const ran: ShellCommand[] = [];
+    stops.push(installKeys((c) => ran.push(c), { offers: (c) => c !== 'new-file' || offered }));
+    expect(press({ key: 'n', ctrlKey: true })).toBe(false);
+    expect(press({ key: 'o', ctrlKey: true })).toBe(true);
+    offered = true;
+    expect(press({ key: 'n', ctrlKey: true })).toBe(true);
+    expect(ran).toEqual(['open-file', 'new-file']);
+  });
+
   it("opens the palette on F1 as on Mod+Shift+P, which Firefox keeps for its private window", () => {
     for (const platform of ['Win32', 'MacIntel']) {
       onPlatform(platform);

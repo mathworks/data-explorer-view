@@ -7,7 +7,7 @@
 // holds yet, so it is unsaved from the start (its tab's ●, the title, the status bar, the window's
 // edited mark) and its first Save writes it, the bytes MATLAB writes for a new dictionary. Nothing is
 // read from the path. A cancel does nothing, a dialog that fails says why, a path the shell cannot
-// make a dictionary at says so, and a host without newFile offers no New at all.
+// make a dictionary at says so, and a host without newFile offers no New at all, nor takes its chord.
 //
 // A New onto a file a tab has open is refused. A browser's save picker has emptied that file as it
 // closed (Chromium makes or empties the file it names): what the tab holds of it, as the shell last
@@ -208,5 +208,10 @@ describe('New', () => {
     await settled();
     expect(tabNames()).toEqual([]);
     expect(toastTexts()).toEqual([]);
+    // Nor its chord: the press is left to the page.
+    Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    const press = new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(false);
   });
 });

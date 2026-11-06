@@ -248,8 +248,9 @@ async function save() {
   page does not edit reads `bytes`, as `reload` does.
 - `ws.create(name, uri)` opens a new, empty data dictionary that no file holds
   yet (the app shell's New): what MATLAB writes for a new dictionary, a text
-  one, edited as any JSON dictionary is. It is dirty from the start, whatever is
-  undone, until a save of it lands; that save writes the file.
+  one, edited as any JSON dictionary is (checked with MATLAB R2027a; older
+  releases are unverified). It is dirty from the start, whatever is undone,
+  until a save of it lands; that save writes the file.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only
@@ -543,7 +544,7 @@ shell runs.
 | Member | When the shell calls it | Without it |
 |---|---|---|
 | `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
-| `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` | no New: the host makes no files |
+| `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` (MATLAB R2027a opens what it writes; older releases are unverified) | no New: the host makes no files |
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
 | `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
 | `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
@@ -689,10 +690,10 @@ and leaves Undo and Redo to a table, which undoes its own document.
 A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
 the command palette and the views' chords, and the menu the rest. In a browser
-tab, a few chords are the browser's whatever the page does: Chromium keeps
-Cmd/Ctrl+N for a new window and Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for
-its own tabs, and there the toolbar, the tab row and the command palette do the
-same. The shell's own
+tab, a few chords are the browser's whatever the page does: a browser keeps
+Cmd/Ctrl+N for a new window (Chromium and Firefox both do), and Chromium keeps
+Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs; there the toolbar,
+the tab row and the command palette do the same. The shell's own
 chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows

@@ -71,8 +71,9 @@ or a key press. Asked at any other time, a picker rejects and a file input never
 
 - `pickFiles` and `pickFolder` reject at once, with a message that says to try again from a click
   or a key press, when `navigator.userActivation` says none led to them. New and Save As say the
-  same when the browser refuses its save picker for want of one. Chromium keeps Cmd/Ctrl+N for a
-  new window, so in a browser tab New is the toolbar's or the command palette's.
+  same when the browser refuses its save picker for want of one. A browser keeps Cmd/Ctrl+N for a
+  new window (Chromium and Firefox both do), so in a browser tab New is the toolbar's or the command
+  palette's.
 - A save that needs leave to write, started without one (a save as the page closes, say), rejects
   with "Save again from a click or a key press, or use Save As."
 - A picker opened while another is open answers that nothing was picked.

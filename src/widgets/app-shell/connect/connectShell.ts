@@ -661,7 +661,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }),
   );
 
-  stops.push(installKeys(command, { nativeMenu: options.nativeMenu }));
+  // New's chord only for a host that makes files, asked at each press as the host's members are.
+  stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
 
   // --- The folder --------------------------------------------------------------------------------
 

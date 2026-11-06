@@ -86,12 +86,24 @@ export function onMac(): boolean {
   return isMacPlatform(navigator.platform || navigator.userAgent || '');
 }
 
+/** How installKeys answers. */
+export interface KeyOptions {
+  /** A native menu has the File and Edit chords: only those it has no item for are answered. */
+  nativeMenu?: boolean;
+  /**
+   * Whether the shell offers `command` now (New, for a host that makes files), asked at each press:
+   * the chord of one it does not is left to the page, unspent. Default: every one.
+   */
+  offers?(command: ShellCommand): boolean;
+}
+
 /**
  * Answer the shell's chords on the window with `run`, until the returned function is called. Each
  * chord answered is spent (preventDefault). With `nativeMenu`, only the chords a native menu has
- * no item for: Undo and Redo among the rest are the menu's.
+ * no item for: Undo and Redo among the rest are the menu's. A chord of a command the shell does not
+ * offer now (`offers`) is not answered.
  */
-export function installKeys(run: (command: ShellCommand) => void, options: { nativeMenu?: boolean } = {}): () => void {
+export function installKeys(run: (command: ShellCommand) => void, options: KeyOptions = {}): () => void {
   const chords: { chord: Chord; spec: ShellChord }[] = SHELL_CHORDS.filter((spec) => !options.nativeMenu || spec.withNativeMenu).map((spec) => ({
     chord: parseChord(spec.chord),
     spec,
@@ -103,6 +115,7 @@ export function installKeys(run: (command: ShellCommand) => void, options: { nat
     if (!hit) return;
     if (!hit.spec.inField && isTextField(e.composedPath()[0] as Element | undefined)) return;
     if (hit.spec.tablesOwn && e.composedPath().some((el) => el instanceof DexTreeTable)) return;
+    if (options.offers && !options.offers(hit.spec.command)) return;
     // Spent even when held, so a held Mod+S does not reach the browser's Save Page on its repeats.
     e.preventDefault();
     if (e.repeat && !hit.spec.repeats) return;
