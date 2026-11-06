@@ -453,7 +453,7 @@ describe('the view', () => {
 
   it('fits the whole graph in the canvas, from its button or fit()', async () => {
     const el = await graph();
-    sized(el, 500, 300);
+    sized(el, 1000, 600);
     const layout = layoutGraph(GRAPH, new Set());
     for (const fit of [() => el.fit(), () => button(el, 'Fit to view').click()]) {
       button(el, 'Zoom in').click();
@@ -463,9 +463,35 @@ describe('the view', () => {
       expect(v.scale).toBeLessThanOrEqual(1);
       expect(v.x).toBeGreaterThanOrEqual(0);
       expect(v.y).toBeGreaterThanOrEqual(0);
-      expect(v.x + layout.width * v.scale).toBeLessThanOrEqual(500 + 1e-6);
-      expect(v.y + layout.height * v.scale).toBeLessThanOrEqual(300 + 1e-6);
+      expect(v.x + layout.width * v.scale).toBeLessThanOrEqual(1000 + 1e-6);
+      expect(v.y + layout.height * v.scale).toBeLessThanOrEqual(600 + 1e-6);
     }
+  });
+
+  it('fits no smaller than a scale its boxes can be read at, and then shows the top left to pan from', async () => {
+    // The gallery's ten unrelated files fitted into a small pane: shrunk to fit, the boxes were
+    // unreadable. A fit stops at 0.6, and what does not fit then starts at the top left.
+    const lone = (i: number): RelationshipGraph['boxes'][number] => ({
+      id: `mem:///w/m${i}.slx`,
+      uri: `mem:///w/m${i}.slx`,
+      kind: 'model',
+      label: `LongModelName${i}.slx`,
+      ghost: false,
+      items: [],
+    });
+    const el = await graph({ boxes: Array.from({ length: 10 }, (_, i) => lone(i)), edges: [] });
+    sized(el, 300, 200);
+    el.fit();
+    await el.updateComplete;
+    expect(view(el)).toEqual({ x: 0, y: 0, scale: 0.6 });
+    // A pane wide enough at that scale and too short: centred across, from the top down.
+    const layout = layoutGraph(el.graph!, new Set());
+    sized(el, Math.ceil(layout.width * 0.6) + 100, 200);
+    el.fit();
+    await el.updateComplete;
+    expect(view(el).scale).toBe(0.6);
+    expect(view(el).x).toBeCloseTo(50, 6);
+    expect(view(el).y).toBe(0);
   });
 
   it('fits a graph it is first given once it has a size', async () => {

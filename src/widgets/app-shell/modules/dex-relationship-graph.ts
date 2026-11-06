@@ -60,6 +60,9 @@ export interface GraphExpandDetail {
 
 // The view's bounds, and how far each step moves it: ts's numbers.
 const MIN_SCALE = 0.3;
+// The least a fit shrinks to: below it a box's 11px label is under 7px and no longer reads. A graph
+// bigger than the canvas at this scale shows its top left, and the user pans to the rest.
+const FIT_MIN_SCALE = 0.6;
 const MAX_SCALE = 3;
 const BUTTON_STEP = 0.2;
 // The wheel zooms by a factor of how far it scrolled, e^(-rate * pixels): a wheel's notch of about
@@ -278,7 +281,8 @@ export class DexRelationshipGraph extends LitElement {
   }
 
   /**
-   * Scales and moves the view so the whole graph shows, centred, at no more than its own size.
+   * Scales and moves the view so the whole graph shows, centred, at no more than its own size and
+   * no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
    * Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
    * lays out; before the element has a size (not on the page yet, or hidden), once it has one.
    */
@@ -309,8 +313,10 @@ export class DexRelationshipGraph extends LitElement {
     }
     // Done, so what was waiting for a size (the first fit of this graph) is not done over it.
     this._pending = null;
-    const scale = Math.min(width / layout.width, height / layout.height, 1) * 0.9;
-    this._view = { x: (width - layout.width * scale) / 2, y: (height - layout.height * scale) / 2, scale };
+    const scale = Math.max(FIT_MIN_SCALE, Math.min(width / layout.width, height / layout.height, 1) * 0.9);
+    // Centred along each side the graph fits, and from its start along a side it does not.
+    const along = (room: number, size: number): number => Math.max(0, (room - size * scale) / 2);
+    this._view = { x: along(width, layout.width), y: along(height, layout.height), scale };
   }
 
   private _revealNow(id: string): void {
