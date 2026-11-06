@@ -19,6 +19,7 @@
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
+import { isEditable } from '../../../model/source/tableSource.js';
 import { namesOfRows } from '../../../model/search/openDocNames.js';
 import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
@@ -44,6 +45,7 @@ import { linkDestination, projectLinkPath } from './links.js';
 import { locationOf, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { buildShell } from './parts.js';
+import { connectGalleryPane } from './galleryPane.js';
 import { connectRawPane } from './rawPane.js';
 import { connectSearchPane } from './searchPane.js';
 import { rowIn, sectionOf } from './rows.js';
@@ -215,6 +217,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     location.canForward = nav.canForward;
     location.canUp = nav.canUp;
     rawPane.refresh();
+    galleryPane.refresh();
   }
 
   /** Whether the view `id` is on screen: the one its side shows, on a side that is open. */
@@ -558,6 +561,28 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   searchPane.scope(null);
   stops.push(() => searchPane.dispose());
+
+  // Gallery: the Add gallery's tiles for the active file, a tile adding one entry to it.
+  const galleryPane = connectGalleryPane(parts.gallery, {
+    target() {
+      const tab = tabs.active;
+      const doc = tab?.doc;
+      const handle = tab?.handle;
+      if (!tab || !doc || !handle) return tab ? { name: tab.name, view: undefined, editable: false, add: () => {} } : null;
+      const source = doc.table;
+      return {
+        name: tab.name,
+        view: handle.view,
+        editable: doc.editable && !!handle.view?.editable && isEditable(source),
+        // What a cell editor still open holds is the document's before the add.
+        add: async (entry) => {
+          await handle.commitEdit();
+          if (isEditable(source)) source.addEntry(entry);
+        },
+      };
+    },
+  });
+  stops.push(() => galleryPane.dispose());
 
   // --- The parts' requests -----------------------------------------------------------------------
 
