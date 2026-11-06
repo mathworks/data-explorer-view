@@ -407,6 +407,63 @@ describe('selected', () => {
     expect(chosen()).toEqual([]);
     expect(sent).toEqual({ open: [], menu: [] });
   });
+
+  it('opens the closed file of a section it names, so the highlighted row is seen, and sends nothing', async () => {
+    const el = await explorer([DD, BASE]);
+    const sent = heard();
+    el.selected = { fileId: DD.id, sectionId: 'arch' };
+    await el.updateComplete;
+    expect(rowOf(el, 'dd.sldd').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(el, 'Architectural Data').getAttribute('aria-selected')).toBe('true');
+    // Only that file.
+    expect(rowOf(el, 'base.sldd').getAttribute('aria-expanded')).toBe('false');
+    expect(sent).toEqual({ open: [], menu: [] });
+  });
+
+  it('opens it when given with the files, before the first draw', async () => {
+    const el = document.createElement('dex-explorer');
+    el.files = [DD];
+    el.selected = { fileId: DD.id, sectionId: 'other' };
+    document.body.append(el);
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd', 'Design Data', 'Architectural Data', 'Configurations', 'Other Data']);
+  });
+
+  it('leaves closed a file the user closes, until the selection moves to one of its sections again', async () => {
+    const el = await explorer([DD]);
+    el.selected = { fileId: DD.id, sectionId: 'design' };
+    await el.updateComplete;
+    twisty(rowOf(el, 'dd.sldd')).click();
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd']);
+    // The same place again, as a new object (an app that sets selected on every redraw): still closed.
+    el.selected = { fileId: DD.id, sectionId: 'design' };
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd']);
+    el.files = [{ ...DD, dirty: true }];
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['Root', 'dd.sldd *']);
+    // Another of its sections: open again.
+    el.selected = { fileId: DD.id, sectionId: 'configs' };
+    await el.updateComplete;
+    expect(rowOf(el, 'dd.sldd *').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(el, 'Configurations').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('opens nothing for the file itself, Root, a section the file does not list, or a file not there', async () => {
+    const el = await explorer([DD, MAT]);
+    for (const selected of [
+      { fileId: DD.id },
+      { fileId: null },
+      { fileId: DD.id, sectionId: 'gone' },
+      { fileId: MAT.id, sectionId: 'design' },
+      { fileId: 'file:///w/closed.sldd', sectionId: 'design' },
+    ]) {
+      el.selected = selected;
+      await el.updateComplete;
+      expect(labels(el), JSON.stringify(selected)).toEqual(['Root', 'dd.sldd', 'v.mat']);
+    }
+  });
 });
 
 describe('files that come and go', () => {

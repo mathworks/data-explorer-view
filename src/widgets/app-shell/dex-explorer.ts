@@ -113,8 +113,9 @@ const sectionsOf = (file: ExplorerFile): ExplorerSection[] => (Array.isArray(fil
  * for it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends
  * `dex-explorer-menu`. Which file a row is, what opening it means and which row is the current
  * one are the app's: the row `selected` names is highlighted, and a click changes nothing of it.
- * Which files are open in the tree (their twisty) is the element's own, and a file that leaves
- * `files` is forgotten, so it comes back closed.
+ * Which files are open in the tree (their twisty) is the element's own, but for one thing: a
+ * `selected` that moves to a section of a closed file opens that file, so the row is seen. A
+ * file that leaves `files` is forgotten, so it comes back closed.
  *
  * The arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,
  * Left closes it or goes from a section to its file, Home and End go to the first and the last.
@@ -234,8 +235,10 @@ export class DexExplorer extends LitElement {
    */
   @property({ attribute: false }) files: ExplorerFile[] = [];
   /**
-   * The row to highlight: Root, a file, or a section of an open file. Null, the default,
-   * highlights none. The app sets it; the element never changes it, and setting it sends nothing.
+   * The row to highlight: Root, a file, or a section of a file. Null, the default, highlights
+   * none. The app sets it; the element never changes it, and setting it sends nothing. Moved to a
+   * section of a closed file, it opens the file; the user may close it again, and it stays closed
+   * until `selected` next moves to one of its sections.
    */
   @property({ attribute: false }) selected: ExplorerSelection | null = null;
   /** What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`. */
@@ -254,6 +257,19 @@ export class DexExplorer extends LitElement {
       const ids = new Set(this._files().map((f) => f.id));
       if ([...this._open].some((id) => !ids.has(id))) this._open = new Set([...this._open].filter((id) => ids.has(id)));
     }
+    if (changed.has('selected')) this._reveal(changed.get('selected') as ExplorerSelection | null | undefined);
+  }
+
+  // The app named a section (from the location bar, say): its file opens, so the highlighted row
+  // is on screen. Only when the selection moves to another row. An app that sets the same place
+  // again, as a new object, leaves a file the user has closed since closed; and a section the
+  // file does not list opens nothing, since no row of it would be highlighted.
+  private _reveal(before: ExplorerSelection | null | undefined): void {
+    const selected = this.selected;
+    if (!selected || selected.fileId === null || selected.sectionId === undefined) return;
+    if (before && keyOf(before.fileId, before.sectionId) === keyOf(selected.fileId, selected.sectionId)) return;
+    const file = this._files().find((f) => f.id === selected.fileId);
+    if (file && sectionsOf(file).some((s) => s.id === selected.sectionId)) this._setOpen(file, true);
   }
 
   protected override updated(): void {
