@@ -351,7 +351,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // as it was.
   const saver = new Saver(host);
   const saved = (name: string, downloaded = false) => say('info', `${downloaded ? 'Downloaded' : 'Saved'} ${name}`, 2000);
-  async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
+  /** How a save went: written (`saved`), handed to the user as a download (`downloaded`), or not made (false). */
+  type Saved = 'saved' | 'downloaded' | false;
+  async function save(tab: OpenTab, as = false, fromCommand = false): Promise<Saved> {
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
     if (!fromCommand) await modules.idle();
@@ -366,7 +368,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // that saved first does not go on.
     if (result.kind === 'saved' && result.overwritten) {
       await reloads.changedOnDisk(tab, true, true);
-      return !tab.doc?.dirty;
+      return tab.doc?.dirty ? false : 'saved';
     }
     if (result.kind === 'saved' && writes) saved(tab.name, result.downloaded);
     if (result.kind === 'saved-as') {
@@ -379,8 +381,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       popovers.closeAll();
       dialog.show({ title: `Could Not Save ${tab.name}`, reason: result.error });
     }
-    return result.kind !== 'not-saved';
+    if (result.kind === 'not-saved') return false;
+    return result.kind === 'saved' && result.downloaded ? 'downloaded' : 'saved';
   }
+  /** Whether `tab` was saved, written or downloaded: what a close waiting on its save goes on by. */
+  const saveOk = async (tab: OpenTab): Promise<boolean> => (await save(tab)) !== false;
 
   // A tab with unsaved edits closes once the user says to save them (and they are) or discard them.
   // An edit a Terminal line still running makes is one too, as it is for a save.
@@ -389,7 +394,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // What a cell editor still open holds is an unsaved edit too, and so is an inspector field's.
     inspector.commit();
     await tab.handle?.commitEdit();
-    if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab)) close(tab);
+    if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab)) close(tab);
   }
 
   // A tab's listeners, table and document let go, and the host told its file is closed.
@@ -662,7 +667,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     nav,
     openPaths,
     openNew,
-    save,
+    save: async (tab, as) => (await save(tab, as)) !== false,
     close: (tab) => void requestClose(tab),
     shown,
     keyboardToRoot: rootTakesTheKeyboard,
@@ -681,8 +686,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     tabs: () => tabs.items,
     folder: folderNow,
     openOn,
+    // The Terminal's line says what the toast does: a download is no save over the file.
     async save(tab) {
-      if (await save(tab, false, true)) return `Saved ${tab.name}.`;
+      const how = await save(tab, false, true);
+      if (how) return `${how === 'downloaded' ? 'Downloaded' : 'Saved'} ${tab.name}.`;
       throw new Error(`${tab.name} was not saved.`);
     },
     failed,
@@ -815,7 +822,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       await modules.idle();
       inspector.commit();
       await Promise.all(tabs.items.map((t) => t.handle?.commitEdit()));
-      return settle(tabs.items, confirmClose, (t) => save(t));
+      return settle(tabs.items, confirmClose, saveOk);
     },
     dispose() {
       if (disposed) return;

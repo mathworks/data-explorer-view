@@ -116,6 +116,20 @@ describe('the Terminal view', () => {
     expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Kp')).toBe('5');
   });
 
+  it('says a save the host made a download of was downloaded, as the toast does', async () => {
+    // A browser page with no handle to the file hands its bytes over as a download: the file on disk
+    // is as it was, so the line does not say it was saved.
+    const page = startPage(FILES);
+    const write = page.host.saveFile;
+    page.host.saveFile = async (path, bytes) => ({ ...(await write(path, bytes)), downloaded: true });
+    await open(page, 'params.sldd');
+    run('Kp = 5');
+    run('save');
+    await until(() => output().length >= 2);
+    expect(output()).toEqual(['Kp = 5', 'Downloaded params.sldd.']);
+    expect(dirtyTabs()).toEqual([]);
+  });
+
   it('says a file the page does not edit is read-only, and has no save', async () => {
     const page = startPage(FILES);
     await open(page, 'legacy_ctrl.mdl');
