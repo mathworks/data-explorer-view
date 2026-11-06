@@ -77,6 +77,10 @@ Where it differs from the prototype it follows, and why:
   near one colour, and one in the high-contrast theme: where they run tells them apart, a reference
   between two dictionaries in the right column, a link across the gap from a model.
 
+`focus()` gives the canvas the keyboard, where the arrow keys go from box to box; asked while
+there is no graph to draw yet, it gives it once there is, unless the focus has gone somewhere in
+the page meanwhile.
+
 What fits, in the app shell at 1440 by 900 (a graph about 900 by 610 pixels), for fifteen files
 (eight models one tree five leaves wide, five dictionaries one tree three wide, two MAT-files):
 

@@ -36,7 +36,9 @@ explorer.addEventListener('dex-explorer-menu', (e) => {
 ```
 
 Which files are open onto their sections is the element's own, and a file that leaves `files` is
-forgotten, so it comes back closed.
+forgotten, so it comes back closed. `focusRow(at)` gives the keyboard to a row (`{ fileId: null }`
+for Root), and says whether it took it: the shell calls it when its tab row hides at Root with the
+focus on a tab.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 

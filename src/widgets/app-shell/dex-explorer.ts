@@ -439,6 +439,18 @@ export class DexExplorer extends LitElement {
     }
   }
 
+  /**
+   * Give the keyboard to the row `at` names: Root for `{ fileId: null }`, a file, or a section of an
+   * open file, as the arrow keys would land on it. Whether the row took it: false for one not drawn
+   * (a file not listed, a section of a closed file, an Explorer not drawn yet).
+   */
+  focusRow(at: ExplorerSelection): boolean {
+    const row = this._rowElement(keyOf(at.fileId, at.sectionId));
+    if (!row) return false;
+    row.focus();
+    return this.shadowRoot?.activeElement === row;
+  }
+
   private _files(): ExplorerFile[] {
     return Array.isArray(this.files) ? this.files : [];
   }

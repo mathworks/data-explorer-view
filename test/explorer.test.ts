@@ -431,6 +431,25 @@ describe('the keyboard', () => {
   });
 });
 
+describe('focusRow', () => {
+  it('gives the keyboard to the row named, Root or a file or an open section, and says whether it took it', async () => {
+    // What an app calls when the place moves to a row whose part held the focus (the shell's tab
+    // row hidden at Root): the keyboard lands where the user went, and the arrows go on from there.
+    const el = await explorer([DD, MODEL]);
+    expect(el.focusRow({ fileId: null })).toBe(true);
+    expect(focused(el)).toBe('Root');
+    press(el, 'ArrowDown');
+    await el.updateComplete;
+    expect(focused(el)).toBe('m.slx');
+    expect(el.focusRow({ fileId: DD.id })).toBe(true);
+    expect(focused(el)).toBe('dd.sldd');
+    // A section of a closed file is no row, nor is a file not listed.
+    expect(el.focusRow({ fileId: DD.id, sectionId: 'design' })).toBe(false);
+    expect(el.focusRow({ fileId: 'file:///w/gone.sldd' })).toBe(false);
+    expect(focused(el)).toBe('dd.sldd');
+  });
+});
+
 describe('selected', () => {
   it('highlights the row the app names, a file, a section or Root, and sends nothing', async () => {
     const el = await explorer([DD, MODEL]);

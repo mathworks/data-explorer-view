@@ -15,6 +15,7 @@ import {
   dirtyTabs,
   edit,
   explorer,
+  graph,
   locationBar,
   open,
   previewTabs,
@@ -30,6 +31,8 @@ import {
   tabNamed,
   tabNames,
   tableOf,
+  toolbar,
+  toolbarButton,
   tempFolder,
   treeLabels,
   until,
@@ -178,6 +181,40 @@ describe('the tab row', () => {
     await until(() => docTabs().hidden);
     page.command('next-tab');
     await until(() => !docTabs().hidden);
+  });
+
+  it("hidden with the focus on a tab, gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // Alt+Up from a focused tab goes to Root, which hides the row the focus was in: it fell to the
+    // page's body. A focus elsewhere is left where it is.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    await until(() => !docTabs().hidden && !!tabNamed('params.sldd'));
+    tabNamed('params.sldd')!.focus();
+    expect(docTabs().shadowRoot!.activeElement).toBe(tabNamed('params.sldd'));
+    page.command('up');
+    await until(() => docTabs().hidden);
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.getAttribute('role')).toBe('treeitem');
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center where the row was.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    tabNamed('params.sldd')!.focus();
+    page.command('up');
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the row (on the toolbar's Open, say): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    toolbarButton('Open')!.focus();
+    page.command('up');
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
   });
 });
 

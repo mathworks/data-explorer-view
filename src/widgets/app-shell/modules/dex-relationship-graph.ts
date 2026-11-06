@@ -255,6 +255,8 @@ export class DexRelationshipGraph extends LitElement {
   // A press on the background, until it is let go: a drag pans, a click clears the selection.
   private _press: { x: number; y: number; view: View; moved: boolean } | null = null;
   private _resize: ResizeObserver | null = null;
+  // focus() was called before there was a graph to draw (one still being built): given once there is.
+  private _focusWhenDrawn = false;
   // An object, so its `passive: false` reaches addEventListener: a wheel that zooms must be able to
   // stop the page from scrolling.
   private readonly _wheel = { handleEvent: (e: WheelEvent) => this._onWheel(e), passive: false };
@@ -403,6 +405,31 @@ export class DexRelationshipGraph extends LitElement {
   fit(): void {
     if (this.isUpdatePending) this._pending = 'fit';
     else this._fitNow();
+  }
+
+  /**
+   * Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
+   * there is no graph to draw yet (an app still building it), once there is, unless the focus has
+   * gone somewhere in the page by then (anywhere but its body).
+   */
+  override focus(options?: FocusOptions): void {
+    const canvas = this._focusableCanvas();
+    this._focusWhenDrawn = !canvas;
+    canvas?.focus(options);
+  }
+
+  protected override updated(): void {
+    if (!this._focusWhenDrawn) return;
+    const canvas = this._focusableCanvas();
+    if (!canvas) return;
+    this._focusWhenDrawn = false;
+    const at = document.activeElement;
+    if (!at || at === document.body) canvas.focus();
+  }
+
+  // The canvas a drawn graph takes the keyboard on; none while it says there is nothing to draw.
+  private _focusableCanvas(): HTMLElement | null {
+    return this.renderRoot?.querySelector<HTMLElement>('.canvas[tabindex]') ?? null;
   }
 
   /**

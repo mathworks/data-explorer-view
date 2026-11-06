@@ -180,6 +180,33 @@ describe('what it draws', () => {
   });
 });
 
+describe('focus()', () => {
+  it('gives the canvas the keyboard, and, asked while there is no graph yet, once there is, unless the focus went elsewhere', async () => {
+    // An app hands the keyboard to the graph as it shows it (the shell's tab row hidden at Root with
+    // the focus in it), and may still be building the graph.
+    const el = await graph();
+    el.focus();
+    expect(sr(el).activeElement).toBe(canvas(el));
+    (sr(el).activeElement as HTMLElement).blur();
+
+    const empty = await graph(null);
+    empty.focus();
+    expect(sr(empty).activeElement ?? null).toBeNull();
+    empty.graph = GRAPH;
+    await empty.updateComplete;
+    expect(sr(empty).activeElement).toBe(canvas(empty));
+
+    // The focus taken elsewhere meanwhile: the graph, drawn, leaves it there.
+    const late = await graph(null);
+    late.focus();
+    const other = document.body.appendChild(document.createElement('button'));
+    other.focus();
+    late.graph = GRAPH;
+    await late.updateComplete;
+    expect(document.activeElement).toBe(other);
+  });
+});
+
 describe('the layout', () => {
   // Two layouts of the same graph: the prototype's top-down trees, the default, and indented trees,
   // which draw a large set narrower. The layout is the model's (layout.ts); the widget draws what it

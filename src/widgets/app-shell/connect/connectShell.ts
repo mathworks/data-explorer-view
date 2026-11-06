@@ -282,6 +282,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
     strip.tabs = tabs.items.map((t) => docTabOf(t, titleOf(t.path)));
     strip.active = active?.id ?? '';
+    if (!active && strip.shadowRoot?.activeElement) rootTakesTheKeyboard();
     strip.hidden = !active;
     explorer.files = explorerFiles(
       tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })),
@@ -304,6 +305,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     graph.refresh();
     // A tab opened, closed, saved or reloaded since: the Usage it answers is owed to the others.
     if (!folderNow()) openUsage.changed();
+  }
+
+  // The tab row hides at Root with the focus on one of its tabs (Alt+Up from a tab): rather than fall
+  // to the page's body, the keyboard goes to the Explorer's Root row, where the user went, or, with
+  // the Explorer off screen, to the graph that fills the center where the row was (once it is drawn,
+  // if it is still being built).
+  function rootTakesTheKeyboard(): void {
+    (strip.shadowRoot?.activeElement as HTMLElement | null)?.blur();
+    const left = shell.layout.left;
+    if (left.open && left.view === 'explorer' && explorer.focusRow({ fileId: null })) return;
+    parts.graph.focus();
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
