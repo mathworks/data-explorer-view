@@ -5,24 +5,34 @@
 // theme they say applied to the page at once (the prototype applied it only when Settings was
 // opened, so a dark choice came back light), Auto following the system's theme, the gear and the
 // (i) toggling their popovers, a change kept and applied, and the layout kept under the shell's
-// own key. And the popovers make way for a dialog: one Escape must not close two layers.
+// own key. The icon style reaches the toolbar, the location bar and the shell's bars, and the
+// table style every table the shell makes, the ones it makes later too. And the popovers make way
+// for a dialog: one Escape must not close two layers.
 import { describe, expect, it } from 'vitest';
-import type { Theme } from '../../src/model/shell/settings.js';
+import { DEFAULT_SETTINGS, type ShellSettings, type Theme } from '../../src/model/shell/settings.js';
 import {
   aboutPanel,
   activityButton,
+  at,
   confirmDialog,
   dirtyTabs,
   edit,
   errorDialog,
+  locationBar,
   open,
   settingsPanel,
   startPage,
+  tableOf,
   toolbar,
   until,
 } from './harness.js';
 
 const theme = () => document.documentElement.dataset.theme;
+
+/** Ask for `settings` as the popover does, on a click of one of its segments. */
+function choose(settings: ShellSettings): void {
+  settingsPanel().dispatchEvent(new CustomEvent('dex-settings-change', { detail: { settings }, bubbles: true, composed: true }));
+}
 
 /** A system theme a test sets, as a host's would report it. */
 function fakeSystem(initial: Theme) {
@@ -43,7 +53,8 @@ describe('the settings', () => {
     localStorage.setItem('dex-shell:settings', JSON.stringify({ theme: 'dark', toolbar: 'compact' }));
     startPage();
     expect(theme()).toBe('dark');
-    expect(settingsPanel().settings).toEqual({ theme: 'dark', toolbar: 'compact' });
+    // A record kept before the icon and table styles were settings: theirs are the defaults.
+    expect(settingsPanel().settings).toEqual({ theme: 'dark', toolbar: 'compact', iconStyle: 'minimal', tableStyle: 'grid' });
   });
 
   it('under the storage key the app gives', () => {
@@ -58,7 +69,7 @@ describe('the settings', () => {
     expect(theme()).toBe('dark');
     system.set('high-contrast');
     expect(theme()).toBe('high-contrast');
-    settingsPanel().dispatchEvent(new CustomEvent('dex-settings-change', { detail: { settings: { theme: 'light', toolbar: 'normal' } }, bubbles: true, composed: true }));
+    choose({ ...DEFAULT_SETTINGS, theme: 'light' });
     expect(theme()).toBe('light');
     system.set('dark');
     expect(theme()).toBe('light');
@@ -66,10 +77,11 @@ describe('the settings', () => {
 
   it('a change is kept, applied, and shown in the popover, the toolbar going compact', async () => {
     startPage({}, { systemTheme: fakeSystem('light').option });
-    settingsPanel().dispatchEvent(new CustomEvent('dex-settings-change', { detail: { settings: { theme: 'dark', toolbar: 'compact' } }, bubbles: true, composed: true }));
-    expect(JSON.parse(localStorage.getItem('dex-shell:settings')!)).toEqual({ theme: 'dark', toolbar: 'compact' });
+    const asked: ShellSettings = { ...DEFAULT_SETTINGS, theme: 'dark', toolbar: 'compact' };
+    choose(asked);
+    expect(JSON.parse(localStorage.getItem('dex-shell:settings')!)).toEqual(asked);
     expect(theme()).toBe('dark');
-    expect(settingsPanel().settings).toEqual({ theme: 'dark', toolbar: 'compact' });
+    expect(settingsPanel().settings).toEqual(asked);
     await until(() => toolbar().compact);
   });
 
@@ -92,10 +104,68 @@ describe('the settings', () => {
     try {
       startPage({}, { systemTheme: fakeSystem('dark').option });
       expect(theme()).toBe('dark');
-      expect(settingsPanel().settings).toEqual({ theme: 'auto', toolbar: 'normal' });
+      expect(settingsPanel().settings).toEqual(DEFAULT_SETTINGS);
     } finally {
       Storage.prototype.getItem = get;
     }
+  });
+});
+
+describe('the icon style', () => {
+  // Minimal, the default (the prototype's), draws the icons of the shell's own buttons in one
+  // colour: the toolbar's, Back, Forward and Up, the activity bars' and the status bar's.
+  const mono = (page: ReturnType<typeof startPage>) => [toolbar().mono, locationBar().mono, page.shell.mono];
+
+  it('is Minimal at first: the toolbar, the location bar and the bars draw their icons in one colour', () => {
+    const page = startPage();
+    expect(settingsPanel().settings.iconStyle).toBe('minimal');
+    expect(mono(page)).toEqual([true, true, true]);
+  });
+
+  it('Colorful draws them in their own colours, is kept, and comes back so at the next start', () => {
+    const page = startPage();
+    choose({ ...DEFAULT_SETTINGS, iconStyle: 'colorful' });
+    expect(mono(page)).toEqual([false, false, false]);
+    expect(JSON.parse(localStorage.getItem('dex-shell:settings')!).iconStyle).toBe('colorful');
+    page.handle.dispose();
+    const next = startPage();
+    expect(mono(next)).toEqual([false, false, false]);
+    choose({ ...DEFAULT_SETTINGS });
+    expect(mono(next)).toEqual([true, true, true]);
+  });
+});
+
+describe('the table style', () => {
+  // Grid, the default, is the table's own (`normal`); Rows is its `light`. Every table the shell
+  // makes follows the setting: those open when it changes, and those made after.
+  const styles = (...names: string[]) => names.map((n) => tableOf(n)?.tableStyle);
+
+  it('is Grid at first, every table ruled round its cells', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    expect(styles('params.sldd', 'ParamMat.mat')).toEqual(['normal', 'normal']);
+  });
+
+  it('Rows redraws every open table, and a table made after it is drawn so too', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd');
+    choose({ ...DEFAULT_SETTINGS, tableStyle: 'rows' });
+    expect(styles('params.sldd')).toEqual(['light']);
+    await open(page, 'ParamMat.mat');
+    expect(styles('params.sldd', 'ParamMat.mat')).toEqual(['light', 'light']);
+    // A file that could not be read is a table too, its banner saying why.
+    void page.handle.openPaths([at('gone.sldd')]);
+    await until(() => !!tableOf('gone.sldd')?.banners?.error);
+    expect(styles('gone.sldd')).toEqual(['light']);
+    choose({ ...DEFAULT_SETTINGS, tableStyle: 'grid' });
+    expect(styles('params.sldd', 'ParamMat.mat', 'gone.sldd')).toEqual(['normal', 'normal', 'normal']);
+  });
+
+  it('kept as Rows, is how the tables of the next start are drawn', async () => {
+    localStorage.setItem('dex-shell:settings', JSON.stringify({ ...DEFAULT_SETTINGS, tableStyle: 'rows' }));
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    expect(styles('params.sldd')).toEqual(['light']);
   });
 });
 

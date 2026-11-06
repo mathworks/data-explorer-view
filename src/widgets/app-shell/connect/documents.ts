@@ -92,10 +92,11 @@ export function clearSelection(tab: OpenTab): void {
 
 // --- The widgets ---------------------------------------------------------------------------------
 
-/** A table in `tab`'s panel, its column choices kept under `storageKey`. */
-export function newTable(tab: OpenTab, storageKey: string, editable = false): DexTreeTable {
+/** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
+export function newTable(tab: OpenTab, storageKey: string, editable = false, tableStyle: DexTreeTable['tableStyle'] = 'normal'): DexTreeTable {
   const table = document.createElement('dex-tree-table');
   table.readonly = !editable;
+  table.tableStyle = tableStyle;
   // Before it is connected: the table reads its column choices from the key it has then.
   table.storageKey = storageKey;
   tab.panel.append(table);
@@ -111,12 +112,14 @@ export interface DocumentWiring {
   dialog: DexErrorDialog;
   /** The folder shown now, if any: its Usage, and the files its tree shows for a link's names. */
   folder(): FolderView | undefined;
+  /** How a table made now is ruled: the table style setting's. */
+  tableStyle(): DexTreeTable['tableStyle'];
 }
 
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiring: DocumentWiring): TableHandle {
   const { host } = wiring;
-  const handle = connectTable(newTable(tab, storageKey, doc.editable), doc.table, {
+  const handle = connectTable(newTable(tab, storageKey, doc.editable, wiring.tableStyle()), doc.table, {
     variableEditor: wiring.editor,
     contextMenu: wiring.menu,
     // Every document wired for editing: one that takes no edits (a .mdl, a .slx or MAT-file

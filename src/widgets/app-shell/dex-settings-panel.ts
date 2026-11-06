@@ -25,26 +25,40 @@ interface Choice<T> {
   title?: string;
 }
 
-// In the prototype's order, which is its screenshot's: the themes, then the system's.
+// The system's first, as the prototype's code has it (an older screenshot of it put Auto last): the
+// default, and the choice most people keep. Then the themes themselves.
 const THEMES: readonly Choice<ShellSettings['theme']>[] = [
+  { value: 'auto', label: 'Auto', title: "The system's theme" },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
   { value: 'high-contrast', label: 'Hi-Con', title: 'High contrast' },
-  { value: 'auto', label: 'Auto', title: "The system's theme" },
 ];
 
+// The compact row keeps every label: it is lower, its icons smaller and beside their labels.
 const TOOLBARS: readonly Choice<ShellSettings['toolbar']>[] = [
-  { value: 'normal', label: 'Normal', title: 'Labelled buttons' },
-  { value: 'compact', label: 'Compact', title: 'Icons alone' },
+  { value: 'normal', label: 'Normal', title: 'Labels under the icons' },
+  { value: 'compact', label: 'Compact', title: 'Smaller icons, with the labels beside them' },
+];
+
+// The shell's own buttons alone: a file's or an entry's icon keeps its colours either way.
+const ICON_STYLES: readonly Choice<ShellSettings['iconStyle']>[] = [
+  { value: 'minimal', label: 'Minimal', title: "The toolbar's and the bars' icons in one colour" },
+  { value: 'colorful', label: 'Colorful', title: 'The icons in their own colours' },
+];
+
+const TABLE_STYLES: readonly Choice<ShellSettings['tableStyle']>[] = [
+  { value: 'grid', label: 'Grid', title: 'Lines round every cell' },
+  { value: 'rows', label: 'Rows', title: 'A faint line between rows alone' },
 ];
 
 /**
- * The shell's Settings popover, opened from the gear of an activity bar: the theme (Light, Dark,
- * Hi-Con, Auto) and the toolbar's density (Normal, Compact), each a row of segments that is a
- * radio group. It shows `settings` and asks for a change: a click, or an arrow key inside a
- * group, sends `dex-settings-change` with the whole new record and changes nothing by itself. The
- * app applies the settings, keeps them, and sets `settings` back; the popover stays open, so the
- * themes can be tried one after another.
+ * The shell's Settings popover, opened from the gear of an activity bar: the theme (Auto, Light,
+ * Dark, Hi-Con), the toolbar's density (Normal, Compact: smaller icons with the labels beside
+ * them), the icons of the shell's buttons (Minimal, in one colour, or Colorful) and the tables'
+ * rules (Grid or Rows), each a row of segments that is a radio group. It shows `settings` and asks
+ * for a change: a click, or an arrow key inside a group, sends `dex-settings-change` with the whole
+ * new record and changes nothing by itself. The app applies the settings, keeps them, and sets
+ * `settings` back; the popover stays open, so the themes can be tried one after another.
  *
  * show() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),
  * focused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes
@@ -228,6 +242,8 @@ export class DexSettingsPanel extends LitElement {
         <div class="title">Settings</div>
         ${this._row('theme', 'Theme', THEMES)}
         ${this._row('toolbar', 'Toolbar', TOOLBARS)}
+        ${this._row('iconStyle', 'Icons', ICON_STYLES)}
+        ${this._row('tableStyle', 'Table', TABLE_STYLES)}
       </div>
     `;
   }

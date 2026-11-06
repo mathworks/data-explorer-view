@@ -109,7 +109,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
   const folderNow = (): FolderView | undefined => folders.current;
-  const wiring = { host, editor, menu, dialog, folder: folderNow };
+  // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
+  const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
 
   const popovers = connectPopovers(shell, parts, {
     store: pageStorage(),
@@ -117,6 +118,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     system: options.systemTheme ?? systemThemeFromMedia(),
     appName,
     about: options.about ?? [],
+    tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
   });
   stops.push(() => popovers.dispose());
 
@@ -404,7 +406,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       log('info', `Opened ${tab.name}`);
     } catch (err) {
       if (disposed) return;
-      const table = tab.table ?? newTable(tab, storageKey);
+      const table = tab.table ?? newTable(tab, storageKey, false, popovers.tableStyle());
       table.banners = { error: `Failed to open ${tab.name}: ${message(err)}` };
       log('error', table.banners.error!);
     }

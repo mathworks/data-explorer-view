@@ -2,8 +2,8 @@
 // @vitest-environment happy-dom
 //
 // The shell's Settings popover, opened from the gear at the foot of an activity bar: a segmented
-// control for the theme and one for the toolbar's density. It only shows what it is given and
-// asks for a change; the app applies the theme, keeps the settings, and sets them back. So what is
+// control for each setting, the theme, the toolbar's density, the icons' style and the tables'
+// rules, in that order. It only shows what it is given and asks for a change; the app applies the theme, keeps the settings, and sets them back. So what is
 // pinned here is that contract: the checked segments are exactly `settings`, a click or an arrow
 // key sends the whole new record and changes nothing by itself, and the popover stays open while
 // a person tries the themes one after another.
@@ -172,35 +172,60 @@ describe('where it opens', () => {
 });
 
 describe('what it shows', () => {
-  it('a dialog named Settings, with a Theme and a Toolbar radio group', async () => {
+  it('a dialog named Settings, with a Theme, a Toolbar, an Icons and a Table radio group, in that order', async () => {
     const el = await open();
     const dialog = el.shadowRoot!.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Settings');
     expect(dialog.querySelector('.title')!.textContent!.trim()).toBe('Settings');
-    expect(radios(el, 'Theme').map((r) => r.textContent!.trim())).toEqual(['Light', 'Dark', 'Hi-Con', 'Auto']);
+    expect([...dialog.querySelectorAll('[role="radiogroup"]')].map((g) => g.getAttribute('aria-label'))).toEqual(['Theme', 'Toolbar', 'Icons', 'Table']);
+    // Auto first: the default, and what most people keep.
+    expect(radios(el, 'Theme').map((r) => r.textContent!.trim())).toEqual(['Auto', 'Light', 'Dark', 'Hi-Con']);
     expect(radios(el, 'Toolbar').map((r) => r.textContent!.trim())).toEqual(['Normal', 'Compact']);
+    expect(radios(el, 'Icons').map((r) => r.textContent!.trim())).toEqual(['Minimal', 'Colorful']);
+    expect(radios(el, 'Table').map((r) => r.textContent!.trim())).toEqual(['Grid', 'Rows']);
+    // Each row's label is what names its group.
+    expect([...dialog.querySelectorAll('.label')].map((l) => l.textContent!.trim())).toEqual(['Theme', 'Toolbar', 'Icons', 'Table']);
+  });
+
+  it('says in a tooltip what each choice does, the compact toolbar keeping its labels', async () => {
+    // The compact toolbar is a lower row with smaller icons and every label beside its icon: a
+    // tooltip that said "Icons alone" promised a row it does not draw.
+    const el = await open();
+    const titles = (name: string) => radios(el, name).map((r) => r.title);
+    expect(titles('Toolbar')).toEqual(['Labels under the icons', 'Smaller icons, with the labels beside them']);
+    expect(titles('Toolbar').join(' ')).not.toMatch(/alone/i);
+    expect(titles('Icons')).toEqual(["The toolbar's and the bars' icons in one colour", 'The icons in their own colours']);
+    expect(titles('Table')).toEqual(['Lines round every cell', 'A faint line between rows alone']);
+    expect(radio(el, 'Theme', 'Auto').title).toBe("The system's theme");
+    expect(radio(el, 'Theme', 'Hi-Con').title).toBe('High contrast');
   });
 
   it('checks the segments `settings` names, and only those', async () => {
     const el = await open();
     expect(checked(el, 'Theme')).toEqual(['Auto']);
     expect(checked(el, 'Toolbar')).toEqual(['Normal']);
-    expect(radios(el, 'Theme').map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'true']);
+    expect(checked(el, 'Icons')).toEqual(['Minimal']);
+    expect(checked(el, 'Table')).toEqual(['Grid']);
+    expect(radios(el, 'Theme').map((r) => r.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false']);
   });
 
   it('follows `settings` when the app sets it', async () => {
     const el = await open();
-    el.settings = { theme: 'high-contrast', toolbar: 'compact' };
+    el.settings = { theme: 'high-contrast', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' };
     await el.updateComplete;
     expect(checked(el, 'Theme')).toEqual(['Hi-Con']);
     expect(checked(el, 'Toolbar')).toEqual(['Compact']);
+    expect(checked(el, 'Icons')).toEqual(['Colorful']);
+    expect(checked(el, 'Table')).toEqual(['Rows']);
   });
 
   it('puts only the checked segment of each group in the Tab order', async () => {
     // A radio group is one Tab stop; the arrows move inside it.
-    const el = await open({ theme: 'dark', toolbar: 'compact' });
-    expect(radios(el, 'Theme').map((r) => r.tabIndex)).toEqual([-1, 0, -1, -1]);
+    const el = await open({ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'grid' });
+    expect(radios(el, 'Theme').map((r) => r.tabIndex)).toEqual([-1, -1, 0, -1]);
     expect(radios(el, 'Toolbar').map((r) => r.tabIndex)).toEqual([-1, 0]);
+    expect(radios(el, 'Icons').map((r) => r.tabIndex)).toEqual([-1, 0]);
+    expect(radios(el, 'Table').map((r) => r.tabIndex)).toEqual([0, -1]);
   });
 
   it('is open, and says so in an attribute, from show() to close()', async () => {
@@ -224,17 +249,17 @@ describe('what it shows', () => {
 
 describe('asking for a change', () => {
   it('a click on Dark asks for the same settings with the dark theme, and stays open', async () => {
-    const el = await open({ theme: 'light', toolbar: 'compact' });
+    const el = await open({ theme: 'light', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' });
     const sent = requests();
     radio(el, 'Theme', 'Dark').click();
     await el.updateComplete;
-    expect(sent).toEqual([{ theme: 'dark', toolbar: 'compact' }]);
+    expect(sent).toEqual([{ theme: 'dark', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows' }]);
     expect(el.open).toBe(true);
   });
 
   it('changes nothing by itself: Light stays checked until the app sets `settings`', async () => {
     // The app may refuse, or apply it later; the panel shows what IS, not what was asked.
-    const el = await open({ theme: 'light', toolbar: 'normal' });
+    const el = await open({ ...DEFAULT_SETTINGS, theme: 'light' });
     radio(el, 'Theme', 'Dark').click();
     await el.updateComplete;
     expect(checked(el, 'Theme')).toEqual(['Light']);
@@ -244,7 +269,19 @@ describe('asking for a change', () => {
     const el = await open();
     const sent = requests();
     radio(el, 'Toolbar', 'Compact').click();
-    expect(sent).toEqual([{ theme: 'auto', toolbar: 'compact' }]);
+    expect(sent).toEqual([{ ...DEFAULT_SETTINGS, toolbar: 'compact' }]);
+  });
+
+  it('a click on Colorful asks for the icons in their colours, and one on Rows for the light rules', async () => {
+    const el = await open();
+    const sent = requests();
+    radio(el, 'Icons', 'Colorful').click();
+    radio(el, 'Table', 'Rows').click();
+    // Each from the settings shown, which the app has not changed yet: one change each.
+    expect(sent).toEqual([
+      { ...DEFAULT_SETTINGS, iconStyle: 'colorful' },
+      { ...DEFAULT_SETTINGS, tableStyle: 'rows' },
+    ]);
   });
 
   it('a click on the segment already checked asks nothing', async () => {
@@ -253,40 +290,42 @@ describe('asking for a change', () => {
     const sent = requests();
     radio(el, 'Theme', 'Auto').click();
     radio(el, 'Toolbar', 'Normal').click();
+    radio(el, 'Icons', 'Minimal').click();
+    radio(el, 'Table', 'Grid').click();
     expect(sent).toEqual([]);
   });
 
   it('sends a record of its own, not the object it was given', async () => {
-    const given: ShellSettings = { theme: 'light', toolbar: 'normal' };
+    const given: ShellSettings = { ...DEFAULT_SETTINGS, theme: 'light' };
     const el = await open(given);
     const sent = requests();
     radio(el, 'Theme', 'Dark').click();
     expect(sent[0]).not.toBe(given);
-    expect(given).toEqual({ theme: 'light', toolbar: 'normal' });
+    expect(given).toEqual({ ...DEFAULT_SETTINGS, theme: 'light' });
   });
 });
 
 describe('the keyboard', () => {
   it('starts on the checked theme', async () => {
-    const el = await open({ theme: 'dark', toolbar: 'normal' });
+    const el = await open({ ...DEFAULT_SETTINGS, theme: 'dark' });
     expect(focused(el)).toBe('Dark');
   });
 
   it('ArrowRight and ArrowDown move to the next theme and ask for it, wrapping at the end', async () => {
-    const el = await open();
+    const el = await open({ ...DEFAULT_SETTINGS, theme: 'dark' });
     const sent = requests();
     const e = key(el.shadowRoot!.activeElement!, 'ArrowRight');
     expect(e.defaultPrevented).toBe(true);
-    expect(focused(el)).toBe('Light');
+    expect(focused(el)).toBe('Hi-Con');
     key(el.shadowRoot!.activeElement!, 'ArrowDown');
-    expect(focused(el)).toBe('Dark');
+    expect(focused(el)).toBe('Auto');
     // The second step goes on from the focused radio, not the checked one: the app has not
     // answered the first request yet.
-    expect(sent.map((s) => s.theme)).toEqual(['light', 'dark']);
+    expect(sent.map((s) => s.theme)).toEqual(['high-contrast', 'auto']);
   });
 
   it('ArrowLeft and ArrowUp move to the previous theme, wrapping at the start', async () => {
-    const el = await open({ theme: 'light', toolbar: 'normal' });
+    const el = await open({ ...DEFAULT_SETTINGS, theme: 'light' });
     const sent = requests();
     key(el.shadowRoot!.activeElement!, 'ArrowLeft');
     expect(focused(el)).toBe('Auto');
@@ -301,7 +340,22 @@ describe('the keyboard', () => {
     radio(el, 'Toolbar', 'Normal').focus();
     key(radio(el, 'Toolbar', 'Normal'), 'ArrowRight');
     expect(focused(el)).toBe('Compact');
-    expect(sent).toEqual([{ theme: 'auto', toolbar: 'compact' }]);
+    expect(sent).toEqual([{ ...DEFAULT_SETTINGS, toolbar: 'compact' }]);
+  });
+
+  it('the Icons and Table arrows change their own setting, wrapping as two segments do', async () => {
+    const el = await open();
+    const sent = requests();
+    radio(el, 'Icons', 'Minimal').focus();
+    key(radio(el, 'Icons', 'Minimal'), 'ArrowLeft');
+    expect(focused(el)).toBe('Colorful');
+    radio(el, 'Table', 'Grid').focus();
+    key(radio(el, 'Table', 'Grid'), 'ArrowDown');
+    expect(focused(el)).toBe('Rows');
+    expect(sent).toEqual([
+      { ...DEFAULT_SETTINGS, iconStyle: 'colorful' },
+      { ...DEFAULT_SETTINGS, tableStyle: 'rows' },
+    ]);
   });
 
   it('leaves an arrow with a modifier alone: that is a shell chord, not a choice', async () => {
