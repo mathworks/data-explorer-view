@@ -19,8 +19,10 @@ import {
   type GraphOpenDetail,
   type GraphSelectedDetail,
 } from '../src/widgets/app-shell/modules/dex-relationship-graph.js';
-import { buildRelationshipGraph, type RelationshipGraph } from '../src/model/graph/relationshipGraph.js';
+import { buildRelationshipGraph } from '../src/model/graph/relationshipGraph.js';
+import type { RelationshipGraph } from '../src/model/graph/graphTypes.js';
 import { layoutGraph } from '../src/model/graph/layout.js';
+import { readModuleGraph, runtimeEdges } from './tools/moduleGraph.js';
 
 beforeAll(() => defineRelationshipGraph());
 afterEach(() => document.body.replaceChildren());
@@ -489,6 +491,23 @@ describe('the legend', () => {
     toggle.click();
     await el.updateComplete;
     expect(sr(el).querySelector('.legend-content')).toBeNull();
+  });
+});
+
+describe('what it loads', () => {
+  it("reaches neither the builder nor core: an app that draws a graph it was handed bundles no parser", () => {
+    const graph = readModuleGraph(join(ROOT, 'src'));
+    const edges = runtimeEdges(graph);
+    const loaded = new Set(['widgets/app-shell/modules/dex-relationship-graph.ts']);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const e of edges) if (loaded.has(e.from) && !loaded.has(e.to)) grew = loaded.add(e.to).size > 0;
+    }
+    expect(loaded).toContain('model/graph/graphTypes.ts');
+    expect(loaded).toContain('model/graph/layout.ts');
+    expect(loaded).not.toContain('model/graph/relationshipGraph.ts');
+    const core = graph.edges.filter((e) => loaded.has(e.from) && !e.typeOnly && e.specifier.startsWith('data-explorer-core'));
+    expect(core.map((e) => `${e.from}:${e.line}`)).toEqual([]);
   });
 });
 

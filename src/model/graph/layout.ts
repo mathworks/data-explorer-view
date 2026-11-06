@@ -29,7 +29,7 @@
 //
 // Widths are estimated from the number of characters, not measured: the model has no DOM to
 // measure text with, and the widget draws names with an ellipsis where an estimate was short.
-import type { GraphBox, GraphEdge, RelationshipGraph } from './relationshipGraph.js';
+import type { GraphBox, GraphEdge, RelationshipGraph } from './graphTypes.js';
 
 /** A point of the canvas, in its own coordinates. */
 export interface GraphPoint {

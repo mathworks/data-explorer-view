@@ -18,16 +18,16 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { strToU8, zipSync } from 'fflate';
 import type { RawSource } from '../src/model/usage/usageCells.js';
+import { buildRelationshipGraph } from '../src/model/graph/relationshipGraph.js';
 import {
   BOX_ICONS,
   ITEM_ICONS,
-  buildRelationshipGraph,
   graphIdOf,
   type GraphBox,
   type GraphEdge,
   type GraphItem,
   type RelationshipGraph,
-} from '../src/model/graph/relationshipGraph.js';
+} from '../src/model/graph/graphTypes.js';
 
 const ROOT = process.cwd();
 
@@ -235,19 +235,9 @@ describe('blocks', () => {
   });
 
   it('draws a block to every variable its expression reads, not only the first', () => {
-    // A model holding one block whose Gain is `Kp*Ki`, built the way usageCells.test.ts builds
-    // its models, so it goes through the same parser.
+    // A model holding one block whose Gain is `Kp*Ki` (slx, below).
     const system = '<Block BlockType="Gain" Name="Pid" SID="7"><P Name="Gain">Kp*Ki</P></Block>';
-    const zipped = zipSync({
-      'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: { ModelUUID: 'u1', DataDictionary: 'params.sldd' } })),
-      'simulink/systems/system_root.xml': strToU8(`<?xml version="1.0" encoding="utf-8"?><System>${system}</System>`),
-      'metadata/coreProperties.xml': strToU8('<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>'),
-    });
-    const model: RawSource = {
-      uriString: 'mem:///w/pid.slx',
-      path: '/w/pid.slx',
-      bytes: zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer,
-    };
+    const model = raw('/w/pid.slx', slx({ blocks: system, dictionary: 'params.sldd' }));
     const g = buildRelationshipGraph([model, file(FIXTURES, 'params.sldd')]);
     expect(edgesOf(g, ['param-usage'])).toEqual([
       'param-usage pid.slx:Pid -> params.sldd:Kp (Gain)',
@@ -263,6 +253,113 @@ describe('blocks', () => {
       'param-usage ctrlA.slx:GainA -> sharedParams.sldd:SharedGain (Gain)',
       'param-usage ctrlA.slx:LimitA -> sharedParams.sldd:SharedGain (Value)',
       'param-usage plantB.slx:GainB -> sharedParams.sldd:SharedGain (Gain)',
+    ]);
+  });
+});
+
+// --- Synthetic models, built as usageCells.test.ts builds them ----------------------------------
+
+const toArrayBuffer = (u8: Uint8Array): ArrayBuffer => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+
+// A `.slx` holding just what a usage answer needs, through the same parser as a real one: its
+// blocks, its linked dictionary, its workspace as the pre-R2019b MAT part inside the package, or
+// its workspace kept in a MAT-file beside it (`WSDataSource: 'MAT-File'`).
+function slx(opts: { blocks: string; dictionary?: string; workspaceMat?: Uint8Array; workspaceFile?: string }): ArrayBuffer {
+  const diagram: Record<string, unknown> = { ModelUUID: 'u1' };
+  if (opts.dictionary) diagram.DataDictionary = opts.dictionary;
+  if (opts.workspaceFile) diagram.ModelWorkspace = { WSDataSource: 'MAT-File', WSSourceFileName: opts.workspaceFile };
+  const parts: Record<string, Uint8Array> = {
+    'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: diagram })),
+    'simulink/systems/system_root.xml': strToU8(`<?xml version="1.0" encoding="utf-8"?><System>${opts.blocks}</System>`),
+    'metadata/coreProperties.xml': strToU8('<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>'),
+  };
+  if (opts.workspaceMat) parts['simulink/modelworkspace.mat'] = opts.workspaceMat;
+  return toArrayBuffer(zipSync(parts));
+}
+
+// A textual dictionary of Simulink.Parameter entries.
+const sldd = (names: string[]): ArrayBuffer =>
+  toArrayBuffer(
+    strToU8(
+      JSON.stringify({
+        __MW_TEXT_PARTS__: {
+          '__MW_TEXT_PART__/data/chunk0': { __MW_TEXT_content: { entries: names.map((name) => ({ name, class: 'Simulink.Parameter' })) } },
+        },
+      }),
+    ),
+  );
+
+// nd_numeric.mat, whose variables are Mat, Nd, Nd4 and Vec.
+const ND = (): ArrayBuffer => bytesOf(`${FIXTURES}/nd_numeric.mat`);
+const raw = (path: string, bytes: ArrayBuffer): RawSource => ({ uriString: `mem://${path}`, path, bytes });
+
+describe('a mask and a workspace in a MAT-file', () => {
+  it('draws no item for a mask parameter, and the masked block to what its mask value reads', () => {
+    // usageCells.test.ts's masked subsystem: MulAdd (SID 158) declares `g1 = 2*Vec`, and its
+    // inner Gain (SID 154) reads `g1`. The inner read resolves in the mask, inside the model, so it
+    // is no edge to any file or workspace; the mask's value is the masked block's own parameter,
+    // and reads `Vec` from the model workspace (the MAT part inside the package).
+    const blocks =
+      `<Block BlockType="SubSystem" Name="MulAdd" SID="158">` +
+      `<Mask><MaskParameter Name="g1" Type="edit"><Value>2*Vec</Value></MaskParameter></Mask>` +
+      `<System><Block BlockType="Gain" Name="Gain" SID="154"><P Name="Gain">g1</P></Block></System>` +
+      `</Block>`;
+    const g = buildRelationshipGraph([raw('/w/plant.slx', slx({ blocks, workspaceMat: new Uint8Array(ND()) }))]);
+    expect(box(g, 'plant.slx').items.map((i) => [i.name, i.group, i.revealName])).toEqual([
+      ['MulAdd', 'data', '158'],
+      ['Vec', 'workspace', 'Vec'],
+    ]);
+    expect(edgesOf(g)).toEqual(['ws-usage plant.slx:MulAdd -> plant.slx:Vec (g1)']);
+  });
+
+  it("reads a workspace kept in a MAT-file as that file's variables, ahead of the dictionary's", () => {
+    // Both wsvars.mat and params.sldd define Vec; the model workspace's file resolves first, so the
+    // dictionary's Vec is read by no block and is no item. Kp is the dictionary's alone.
+    const blocks =
+      '<Block BlockType="Gain" Name="FromWs" SID="1"><P Name="Gain">Vec</P></Block>' +
+      '<Block BlockType="Gain" Name="FromDict" SID="2"><P Name="Gain">Kp</P></Block>';
+    const g = buildRelationshipGraph([
+      raw('/w/m.slx', slx({ blocks, dictionary: 'params.sldd', workspaceFile: 'wsvars.mat' })),
+      raw('/w/wsvars.mat', ND()),
+      raw('/w/params.sldd', sldd(['Vec', 'Kp'])),
+    ]);
+    expect(edgesOf(g)).toEqual([
+      'data-link m.slx -> params.sldd',
+      'data-link m.slx -> wsvars.mat',
+      'param-usage m.slx:FromDict -> params.sldd:Kp (Gain)',
+      'param-usage m.slx:FromWs -> wsvars.mat:Vec (Gain)',
+    ]);
+    expect(box(g, 'params.sldd').items.map((i) => i.name)).toEqual(['Kp']);
+  });
+});
+
+describe('files of one name in different folders', () => {
+  const copy = (folder: string) => ['ctrlA.slx', 'plantB.slx', 'sharedParams.sldd'].map((n) => file(USAGEORDER, n, folder));
+
+  it("draws each copy's models to their own copy's dictionary, by the rule the file edges follow", () => {
+    // Two copies of one set side by side, as a project's variants sit. Core's index keys
+    // dictionaries by name, so one index over both copies sends every model's usages to the copy
+    // given last; the graph scopes an index to each model's own references, resolved as the file
+    // edges are (the referrer's folder first).
+    const g = buildRelationshipGraph([...copy('/w/a'), ...copy('/w/b')]);
+    const where = (id: string) => g.boxes.find((b) => b.id === id || b.items.some((i) => i.id === id))!.uri.replace(/\/[^/]+$/, '');
+    const usages = g.edges.filter((e) => e.kind === 'param-usage');
+    expect(usages).toHaveLength(6);
+    for (const e of usages) expect(where(e.to), e.id).toBe(where(e.from));
+    for (const e of g.edges.filter((x) => x.kind === 'data-link')) expect(where(e.to), e.id).toBe(where(e.from));
+    for (const folder of ['mem:///w/a', 'mem:///w/b']) {
+      expect(g.boxes.find((b) => b.uri === `${folder}/sharedParams.sldd`)!.items.map((i) => i.name)).toEqual(['SharedGain']);
+    }
+  });
+
+  it('follows a reference into another folder when the referrer\'s own has no such file', () => {
+    // Models in one folder and their dictionary in another, the common layout: two folders, and
+    // the reference reaches across, for the file edge and the usages alike.
+    const g = buildRelationshipGraph([file(USAGEORDER, 'ctrlA.slx', '/w/models'), file(USAGEORDER, 'sharedParams.sldd', '/w/data')]);
+    expect(edgesOf(g)).toEqual([
+      'data-link ctrlA.slx -> sharedParams.sldd',
+      'param-usage ctrlA.slx:GainA -> sharedParams.sldd:SharedGain (Gain)',
+      'param-usage ctrlA.slx:LimitA -> sharedParams.sldd:SharedGain (Value)',
     ]);
   });
 });

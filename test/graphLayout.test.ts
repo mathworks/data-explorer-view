@@ -15,14 +15,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  buildRelationshipGraph,
-  type GraphBox,
-  type GraphEdge,
-  type GraphEdgeKind,
-  type GraphItem,
-  type RelationshipGraph,
-} from '../src/model/graph/relationshipGraph.js';
+import { buildRelationshipGraph } from '../src/model/graph/relationshipGraph.js';
+import type { GraphBox, GraphEdge, GraphEdgeKind, GraphItem, RelationshipGraph } from '../src/model/graph/graphTypes.js';
 import { BOX_HEADER, layoutGraph, type GraphLayout, type GraphRect } from '../src/model/graph/layout.js';
 import type { RawSource } from '../src/model/usage/usageCells.js';
 

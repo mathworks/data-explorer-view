@@ -17,7 +17,7 @@ import {
   type GraphEdgeKind,
   type GraphItem,
   type RelationshipGraph,
-} from '../../../model/graph/relationshipGraph.js';
+} from '../../../model/graph/graphTypes.js';
 import {
   layoutGraph,
   type BoxLayout,
