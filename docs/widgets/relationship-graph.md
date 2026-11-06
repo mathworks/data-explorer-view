@@ -1,19 +1,26 @@
 # `<dex-relationship-graph>`
 
-How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right, each
-a box in its kind's colour, a file referenced and not open as a dashed box, and the edges between
-them. Every box starts closed. An open box lists the blocks and variables that take part (a
-model's workspace variables under a divider), each other box shows those of its items the open
-one reaches (a model open shows, in a dictionary, the variables its blocks read), and an edge
-runs from each block to each variable it reads, labelled with the block parameter.
+How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their
+references, the data files on the right, each a box in its kind's colour, a file referenced and not
+open as a dashed box, and the edges between them. Every box starts closed. An open box lists the
+blocks and variables that take part (every block of a model that names something in a parameter,
+and a model's workspace variables under a divider), each other box shows those of its items the
+open one reaches (a model open shows, in a dictionary, the variables its blocks read), and an edge
+runs from each block to each variable it reads, labelled with the block parameter as the block's
+property (`.Gain`). A data link is drawn in the colour of the file it links, a dictionary's green
+or a MAT-file's sand.
 
 A click on a box or an item selects it and lights what its edges reach, dimming the rest; a click
 on the background clears it. A double-click asks to open the file, at the item's row for an item,
 and a dashed box by the reference that names it, for the app to look for. A box's − or + asks to
-hide or show its items, and the app answers by setting `expanded`. The wheel, the + and − buttons
+hide or show its items, and the app answers by setting `expanded`; a box so opened is zoomed to
+with the files it reaches (along data links, dictionary references and usages, not model
+references) and the rest dimmed, until it is closed, Escape is pressed or the background clicked,
+and a double-click on the background asks to close every box and fits the graph. The pointer on an
+item traces what it is joined to; on an edge, the other edges fade. The wheel, the + and − buttons
 and a drag of the background zoom and pan, and the fit button and fit() show the whole graph. A
 Legend names the kinds. On the keyboard, the arrows move the selection to the nearest box that
-way, Enter opens, Space shows or hides a box's items, + and − zoom and 0 fits.
+way, Enter opens, Space shows or hides a box's items, Escape clears, + and − zoom and 0 fits.
 
 ```js
 import { defineRelationshipGraph } from 'data-explorer-view/app-shell';
@@ -36,8 +43,20 @@ view.addEventListener('dex-graph-open', (e) => {
 
 A graph rebuilt from the same files (after an edit) keeps the view, and its ids are the same, so
 `selected` and `expanded` still hold; a graph of other files is fitted to the canvas afresh.
-`reveal(id)` brings a box or an item to the middle, for a "Show in Graph" from a table: the id of
-a file's box, or of an entry's item, is `graphIdOf(graph, uri, name)` (`data-explorer-view/model`).
+`reveal(id)` brings a box or an item to the middle, and `zoomToReach(id)` zooms onto it and what
+it reaches, for a "Show in Graph" from a table: the id of a file's box, or of an entry's item, is
+`graphIdOf(graph, uri, name)` (`data-explorer-view/model`). The app shell's Show in Graph selects
+it, opens its box, and zooms onto its reach.
+
+The look is the prototype's: two columns of top-down trees, what a file references in the row
+under it. What fits: the app shell at 1440 by 900 gives the graph about 900 by 610 pixels, and
+fifteen files (eight models one tree five leaves wide, five dictionaries one tree three wide, two
+MAT-files) draw about 1890 by 390. A fit stops at 0.7, where a label is near 8 pixels, and shows the
+models from the top left, to pan from; a model opened is zoomed to with the data its blocks read at
+0.77, both columns on the screen. Each file takes the width it needs in its tree, rather than the
+prototype's slot of the column's widest box, and the gap between the columns is as wide as the data
+links' lanes need rather than the prototype's 300 pixels: together they drew the same files 2170
+wide, a label 4 pixels at a fit.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 

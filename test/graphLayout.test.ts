@@ -290,6 +290,15 @@ describe('the reference trees', () => {
     expect(cycle.get('B')!.y).toBeGreaterThan(bottom(cycle.get('A')!));
   });
 
+  it('gives each file the width it needs, its children side by side a sibling gap apart, not slots of the widest box', () => {
+    // The prototype gave every file a slot as wide as the column's widest box: one long name
+    // spread every other file of the column out.
+    const g = tree('model', [['A', 'B'], ['A', 'C']], ['A', 'B', 'C', 'AModelWithAVeryLongNameIndeed.slx']);
+    const r = rects(g);
+    expect(r.get('C')!.x - right(r.get('B')!)).toBeCloseTo(30, 6);
+    expect(r.get('AModelWithAVeryLongNameIndeed.slx')!.width).toBeGreaterThan(2 * r.get('B')!.width);
+  });
+
   it('starts the dictionaries at the left edge when there are no models', () => {
     const r = layoutGraph(tree('sldd', [], ['A']), new Set());
     expect(r.boxes[0]!.x).toBeLessThan(100);
@@ -301,6 +310,37 @@ describe('the reference trees', () => {
     g.boxes[0]!.items = Array.from({ length: 6 }, (_, i) => ({ id: `A${i}`, boxId: 'A', name: `b${i}`, revealName: `${i}`, iconId: 'block', group: 'data' as const }));
     const r = new Map(layoutGraph(g, new Set(['A'])).boxes.map((b) => [b.id, b]));
     expect(r.get('B')!.y).toBeGreaterThan(bottom(r.get('A')!));
+  });
+});
+
+describe('the gap between the columns', () => {
+  // As wide as the data links' lanes need, 8px apart over 60% of it, between 120 and 300: the
+  // prototype's 300 was room for 22 links, and with fifteen files it pushed the data files off a
+  // 1440 by 900 window's graph.
+  const linked = (links: number): RelationshipGraph => ({
+    boxes: [
+      { id: 'm', uri: 'm', kind: 'model', label: 'm.slx', ghost: false, items: [] },
+      ...Array.from({ length: links }, (_, i) => ({ id: `d${i}`, uri: `d${i}`, kind: 'sldd' as const, label: `d${i}.sldd`, ghost: false, items: [] })),
+    ],
+    edges: Array.from({ length: links }, (_, i) => ({ id: `m>d${i}`, kind: 'data-link' as const, from: 'm', to: `d${i}` })),
+  });
+  const gapOf = (g: RelationshipGraph, expanded = new Set<string>()): number => {
+    const l = layoutGraph(g, expanded);
+    const model = l.boxes.find((b) => b.id === 'm')!;
+    return Math.min(...l.boxes.filter((b) => b.id !== 'm').map((b) => b.x)) - right(model);
+  };
+
+  it('is as wide as the lanes of its data links need, within bounds', () => {
+    expect(gapOf(linked(2))).toBe(120);
+    expect(gapOf(linked(13))).toBe(Math.ceil((13 * 8) / 0.6));
+    expect(gapOf(linked(40))).toBe(300);
+  });
+
+  it('stays as wide whichever boxes are open, so opening one never moves the data files sideways', () => {
+    const g = caseRefs();
+    const closed = layoutGraph(g, new Set());
+    const open = layoutGraph(g, withItems(g));
+    expect(open.boxes.map((b) => b.x)).toEqual(closed.boxes.map((b) => b.x));
   });
 });
 

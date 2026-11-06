@@ -6,12 +6,22 @@
 // TWO COLUMNS. The models on the left, as trees of their model references: what a model
 // references in the row under it, side by side, the model centred over them. The dictionaries on
 // the right, as trees of their references, and the MAT-files under them. Trees sit side by side up
-// to a few columns (three of models, two of data files), and the next starts a row of its own under
-// them, so files that reference nothing make a grid rather than one row too wide to read. A file a model
-// links (data-link) and a variable a block reads (param-usage) are reached across the gap between
-// the columns, each edge on a lane of its own there so that edges side by side do not merge into
-// one line; a block reading its own model's workspace (ws-usage) is routed inside the model's box,
-// on the right of its items.
+// to a few boxes wide (three of models, two of data files), and the next starts a row of its own
+// under them, so files that reference nothing make a grid rather than one row too wide to read. A
+// file a model links (data-link) and a variable a block reads (param-usage) are reached across the
+// gap between the columns, each edge on a lane of its own there so that edges side by side do not
+// merge into one line; a block reading its own model's workspace (ws-usage) is routed inside the
+// model's box, on the right of its items.
+//
+// WHAT FITS. The app shell at 1440 by 900 gives the graph about 900 by 610. Fifteen files (the
+// complex_dataflow set: eight models one tree five leaves wide, five dictionaries one tree three
+// wide, two MAT-files) draw 1890 by 390: the widget's fit stops at 0.7, where a label is near 8px,
+// and shows the models and the start of the gap, to pan from. A model opened is zoomed to with the
+// data its blocks read: PowerTrain and three data files at 0.77, both columns on the screen. The
+// prototype's slots and gap drew the same files 2170 wide; a fit to the window made a label 4px,
+// and at a readable scale the data files were off the screen. A wider picture still is the price of
+// the top-down trees: a tree is as wide as its leaves, and one model referencing four makes the
+// column four boxes wide.
 //
 // WHAT CHANGED FROM THE PROTOTYPE, and why each is a change rather than a port:
 //
@@ -22,6 +32,10 @@
 //     moves the boxes beside it sideways. The prototype sized a box by what it showed.
 //   - An item is as wide as its box allows, not as its name: the items line up, and the lane a
 //     workspace edge takes on their right is inside the box whatever the names.
+//   - A file takes the width it needs in its tree, and its subtree the width of its children side by
+//     side, where the prototype gave every file a slot as wide as the column's widest box; and the
+//     gap between the columns is as wide as the data links' lanes need, between 120 and 300 (the
+//     prototype's 300, room for 22 links). Both are decided by the graph, not by what is open.
 //   - A route is a list of corner points rather than SVG path text, so a widget draws it as it
 //     likes (the graph widget rounds the corners, as the prototype's curves did) and a test can check
 //     that it is orthogonal and that it starts and ends on the boxes it joins.
@@ -95,13 +109,18 @@ const DIVIDER_GAP = 16;
 const WS_LANE = 20;
 const MIN_BOX_WIDTH = 80;
 const MAX_BOX_WIDTH = 240;
-// Between rows of a tree, between boxes side by side in one, and between the two columns.
+// Between rows of a tree, and between boxes side by side in one.
 const ROW_GAP = 44;
 const SIBLING_GAP = 30;
-const COLUMN_GAP = 300;
-// How many slots of trees side by side before the next tree starts a row of its own under them:
-// the models' column, and the data files'. Ten files referencing nothing were ten roots in one
-// row, and a fit to the window made every box unreadable.
+// The gap between the two columns is as wide as its lanes need: a data link's lane LINK_LANE from
+// the next, all of them over 60% of the gap (the usages share the middle half of it), within the
+// bounds. The prototype's 300 was room for 22 links; fifteen files draw 13.
+const LINK_LANE = 8;
+const MIN_COLUMN_GAP = 120;
+const MAX_COLUMN_GAP = 300;
+// How many of the column's widest boxes wide a row of trees side by side may be before the next
+// tree starts a row of its own under them: the models' column, and the data files'. Ten files
+// referencing nothing were ten roots in one row, and a fit to the window made every box unreadable.
 const MODEL_COLUMNS = 3;
 const DATA_COLUMNS = 2;
 // Around the whole picture.
@@ -168,20 +187,13 @@ function shownItems(graph: RelationshipGraph, expanded: ReadonlySet<string>): Se
 }
 
 /**
- * Where each node of one column's tree goes: its slot (in box widths, fractional for a node centred
- * over its children) and its depth (its row). The prototype's tree layout, kept as it was: the
- * roots are the nodes nothing references, in order (the first node when every node is referenced, in a cycle);
- * a depth-first walk gives each leaf the next slot and each other node the middle of its children's;
- * a node is placed once, under the first node to reach it, and a node no root reaches starts a
- * tree of its own.
- *
- * Two nodes of one row never share a slot: the subtrees are walked one after another, so each
- * takes a run of slots of its own, and a node sits within its own subtree's run.
+ * One column's files as trees of their references: each tree's root, and the files each file is
+ * drawn over. The prototype's walk, kept as it was: the roots are the files nothing references, in
+ * order (the first file when every file is referenced, in a cycle); a depth-first walk from each; a
+ * file is drawn once, under the first file to reach it; and a file no root reaches starts a tree of
+ * its own.
  */
-function treeSlots(
-  ids: readonly string[],
-  edges: readonly GraphEdge[],
-): { placed: Map<string, { slot: number; depth: number; tree: number }>; trees: { first: number; slots: number }[] } {
+function treesOf(ids: readonly string[], edges: readonly GraphEdge[]): { roots: string[]; under: Map<string, string[]>; depth: Map<string, number> } {
   const inTree = new Set(ids);
   const children = new Map<string, string[]>(ids.map((id) => [id, []]));
   const referenced = new Set<string>();
@@ -190,32 +202,30 @@ function treeSlots(
     children.get(e.from)!.push(e.to);
     referenced.add(e.to);
   }
-  const roots = ids.filter((id) => !referenced.has(id));
-  if (roots.length === 0 && ids.length > 0) roots.push(ids[0]!);
+  const starts = ids.filter((id) => !referenced.has(id));
+  if (starts.length === 0 && ids.length > 0) starts.push(ids[0]!);
 
-  const placed = new Map<string, { slot: number; depth: number; tree: number }>();
-  const trees: { first: number; slots: number }[] = [];
-  const visited = new Set<string>();
-  let nextLeaf = 0;
-  const place = (id: string, depth: number): number => {
-    visited.add(id);
-    const slots: number[] = [];
+  const roots: string[] = [];
+  const under = new Map<string, string[]>();
+  const depth = new Map<string, number>();
+  const visit = (id: string, d: number): void => {
+    depth.set(id, d);
+    const placed: string[] = [];
+    under.set(id, placed);
     // Visited is asked as each child comes up, not before the loop: a child an earlier sibling's
-    // subtree reached is that subtree's, and this node is centred over the children it placed.
-    for (const kid of children.get(id)!) if (!visited.has(kid)) slots.push(place(kid, depth + 1));
-    const slot = slots.length === 0 ? nextLeaf++ : (Math.min(...slots) + Math.max(...slots)) / 2;
-    placed.set(id, { slot, depth, tree: trees.length });
-    return slot;
+    // subtree reached is that subtree's, and this file is centred over the children it placed.
+    for (const kid of children.get(id)!) {
+      if (depth.has(kid)) continue;
+      placed.push(kid);
+      visit(kid, d + 1);
+    }
   };
-  // Each walk from a root is one tree, and takes the run of slots from where the last one ended.
-  const tree = (root: string): void => {
-    const first = nextLeaf;
-    place(root, 0);
-    trees.push({ first, slots: nextLeaf - first });
-  };
-  for (const root of roots) if (!visited.has(root)) tree(root);
-  for (const id of ids) if (!visited.has(id)) tree(id);
-  return { placed, trees };
+  for (const id of [...starts, ...ids]) {
+    if (depth.has(id)) continue;
+    roots.push(id);
+    visit(id, 0);
+  }
+  return { roots, under, depth };
 }
 
 /** A box being placed: its graph box, size and, once placed, its rectangle and row. */
@@ -232,51 +242,102 @@ interface Placed {
 }
 
 /**
- * Lay one column's trees out from `x0`, `y0`: each tree's rows as tall as their tallest box, each box
- * centred in a slot as wide as the column's widest box, and the trees side by side in the order
- * given until the next would take the row past `columns` slots, when it starts a row of its own
- * under them (a tree wider than that alone keeps its whole width: what wraps is trees, never the
- * boxes of one). Answers the bottom of the lowest box, or `y0` for none.
+ * Lay one column's trees out from `x0`, `y0`, tidily: each file's subtree as wide as the file, or
+ * as its children's subtrees side by side SIBLING_GAP apart if that is wider; the children of a
+ * file side by side under it, the file centred over them (within its own subtree); each tree's rows
+ * as tall as their tallest box. Trees sit side by side in the order given until the next would
+ * take the row past `columns` boxes `widest` wide, when it starts a row of its own under
+ * them (a tree wider than that alone keeps its whole width: what wraps is trees, never the boxes of
+ * one). Answers the bottom of the lowest box, or `y0` for none.
  *
- * A row of trees is as tall as its tallest tree, and the trees in it share no slot, so no box of
- * one row of trees reaches another and no two trees of a row overlap.
+ * Where the prototype gave every file a slot as wide as the column's widest box, each file here
+ * takes what it needs: fifteen files' models drew 1040 pixels wide where they had drawn 1140.
+ *
+ * No two boxes of one row of one tree share any of the width: a file is within its own subtree's
+ * span, and the subtrees of one row are side by side. A row of trees is as tall as its tallest tree.
  */
-function placeColumn(nodes: Placed[], edges: readonly GraphEdge[], x0: number, slotWidth: number, y0: number, columns: number): number {
+function placeColumn(nodes: Placed[], edges: readonly GraphEdge[], x0: number, y0: number, columns: number, widest: number): number {
   if (nodes.length === 0) return y0;
-  const { placed, trees } = treeSlots(nodes.map((n) => n.box.id), edges);
-  // Each tree's own rows, by depth.
-  const rows = trees.map(() => [] as number[]);
-  for (const n of nodes) {
-    const { depth, tree } = placed.get(n.box.id)!;
-    rows[tree]![depth] = Math.max(rows[tree]![depth] ?? 0, n.height);
-  }
+  const byId = new Map(nodes.map((n) => [n.box.id, n]));
+  const { roots, under, depth } = treesOf(nodes.map((n) => n.box.id), edges);
+
+  // Each subtree's width, from its leaves up.
+  const span = new Map<string, number>();
+  const spanOf = (id: string): number => {
+    const kids = under.get(id)!;
+    const inner = kids.reduce((w, k) => w + spanOf(k), 0) + Math.max(0, kids.length - 1) * SIBLING_GAP;
+    const w = Math.max(byId.get(id)!.width, inner);
+    span.set(id, w);
+    return w;
+  };
+  // Each tree's rows, by depth: as tall as their tallest box.
+  const treeOf = new Map<string, number>();
+  const rows = roots.map(() => [] as number[]);
+  roots.forEach((root, t) => {
+    spanOf(root);
+    const walk = (id: string): void => {
+      treeOf.set(id, t);
+      const d = depth.get(id)!;
+      rows[t]![d] = Math.max(rows[t]![d] ?? 0, byId.get(id)!.height);
+      for (const k of under.get(id)!) walk(k);
+    };
+    walk(root);
+  });
   const heightOf = (t: number): number => rows[t]!.reduce((h, r) => h + r + ROW_GAP, -ROW_GAP);
-  // The trees into rows of trees: where each starts, in slots across and in pixels down.
-  const at = trees.map(() => ({ slot: 0, top: 0 }));
+
+  // The trees into rows of trees: where each starts, across and down.
+  const room = columns * (widest + SIBLING_GAP) - SIBLING_GAP;
+  const at = roots.map(() => ({ left: 0, top: 0 }));
   let used = 0;
   let top = y0;
   let tallest = 0;
-  trees.forEach((t, i) => {
-    if (used > 0 && used + t.slots > columns) {
+  roots.forEach((root, t) => {
+    const w = span.get(root)!;
+    if (used > 0 && used + SIBLING_GAP + w > room) {
       top += tallest + ROW_GAP;
       used = 0;
       tallest = 0;
     }
-    at[i] = { slot: used, top };
-    used += t.slots;
-    tallest = Math.max(tallest, heightOf(i));
+    at[t] = { left: x0 + (used > 0 ? used + SIBLING_GAP : 0), top };
+    used += (used > 0 ? SIBLING_GAP : 0) + w;
+    tallest = Math.max(tallest, heightOf(t));
   });
-  let lowest = y0;
-  for (const n of nodes) {
-    const { slot, depth, tree } = placed.get(n.box.id)!;
-    const t = trees[tree]!;
-    const rowTop = at[tree]!.top + rows[tree]!.slice(0, depth).reduce((h, r) => h + r + ROW_GAP, 0);
-    n.x = x0 + (at[tree]!.slot + slot - t.first) * (slotWidth + SIBLING_GAP) + (slotWidth - n.width) / 2;
+
+  // Each file within its subtree's span, from `left`: its children's spans centred under it, and
+  // it centred over its first and last child, as the prototype centred a file over its children.
+  const place = (id: string, left: number): void => {
+    const n = byId.get(id)!;
+    const kids = under.get(id)!;
+    const t = treeOf.get(id)!;
+    const d = depth.get(id)!;
+    const rowTop = at[t]!.top + rows[t]!.slice(0, d).reduce((h, r) => h + r + ROW_GAP, 0);
     n.y = rowTop;
-    n.rowBottom = rowTop + rows[tree]![depth]!;
-    lowest = Math.max(lowest, n.y + n.height);
-  }
-  return lowest;
+    n.rowBottom = rowTop + rows[t]![d]!;
+    const own = span.get(id)!;
+    if (kids.length === 0) {
+      n.x = left + (own - n.width) / 2;
+      return;
+    }
+    const inner = kids.reduce((w, k) => w + span.get(k)!, 0) + (kids.length - 1) * SIBLING_GAP;
+    let x = left + (own - inner) / 2;
+    for (const k of kids) {
+      place(k, x);
+      x += span.get(k)! + SIBLING_GAP;
+    }
+    const [first, last] = [byId.get(kids[0]!)!, byId.get(kids[kids.length - 1]!)!];
+    const centre = (first.x + first.width / 2 + last.x + last.width / 2) / 2;
+    n.x = clamp(centre - n.width / 2, left, left + own - n.width);
+  };
+  roots.forEach((root, t) => place(root, at[t]!.left));
+  return nodes.reduce((low, n) => Math.max(low, n.y + n.height), y0);
+}
+
+// The widest of some boxes, no narrower than the least a box is.
+const widestOf = (ns: readonly Placed[]): number => ns.reduce((w, n) => Math.max(w, n.width), MIN_BOX_WIDTH);
+
+/** The gap between the columns for `links` data links: a lane each, LINK_LANE apart over 60% of it. */
+function columnGap(links: number): number {
+  return clamp(Math.ceil((links * LINK_LANE) / 0.6), MIN_COLUMN_GAP, MAX_COLUMN_GAP);
 }
 
 /** The offsets that spread `n` things `spacing` apart around 0, in order. */
@@ -320,17 +381,20 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
   const models = nodes.filter((n) => n.box.kind === 'model');
   const sldds = nodes.filter((n) => n.box.kind !== 'model' && n.box.kind !== 'mat');
   const mats = nodes.filter((n) => n.box.kind === 'mat');
-  const widest = (ns: Placed[]): number => ns.reduce((w, n) => Math.max(w, n.width), MIN_BOX_WIDTH);
-
-  // The left column, then the right one beside it (at the left edge when there are no models).
+  // The left column, then the right one beside it (at the left edge when there are no models), the
+  // gap between them as wide as the data links' lanes need. Decided by the graph, not by what shows,
+  // so opening a box never moves the data files sideways.
   const kindOf = (kind: GraphEdge['kind']) => graph.edges.filter((e) => e.kind === kind);
-  placeColumn(models, kindOf('model-ref'), PADDING, widest(models), PADDING, MODEL_COLUMNS);
+  const gap = columnGap(kindOf('data-link').length);
+  placeColumn(models, kindOf('model-ref'), PADDING, PADDING, MODEL_COLUMNS, widestOf(models));
   const leftRight = models.reduce((r, n) => Math.max(r, n.x + n.width), 0);
-  const rightX = models.length > 0 ? leftRight + COLUMN_GAP : PADDING;
-  const rightSlot = widest([...sldds, ...mats]);
-  const slddBottom = placeColumn(sldds, kindOf('sldd-ref'), rightX, rightSlot, PADDING, DATA_COLUMNS);
+  const rightX = models.length > 0 ? leftRight + gap : PADDING;
+  // The data files' rows wrap at the width of both kinds' widest box, so the MAT-files' rows are as
+  // wide as the dictionaries'.
+  const dataWidest = widestOf([...sldds, ...mats]);
+  const slddBottom = placeColumn(sldds, kindOf('sldd-ref'), rightX, PADDING, DATA_COLUMNS, dataWidest);
   // The MAT-files under the dictionaries, each a tree of one, wrapped as they are.
-  placeColumn(mats, [], rightX, rightSlot, sldds.length > 0 ? slddBottom + ROW_GAP : PADDING, DATA_COLUMNS);
+  placeColumn(mats, [], rightX, sldds.length > 0 ? slddBottom + ROW_GAP : PADDING, DATA_COLUMNS, dataWidest);
 
   // The boxes and their items, and every drawn thing's rectangle by id, for the routes.
   const rects = new Map<string, GraphRect>();
@@ -363,7 +427,8 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
     rects,
     rowBottom,
     boxOf,
-    gapCenter: models.length > 0 ? (leftRight + rightX) / 2 : rightX - COLUMN_GAP / 2,
+    gapCenter: models.length > 0 ? (leftRight + rightX) / 2 : rightX - gap / 2,
+    gap,
   });
 
   // The canvas: everything drawn, with the margin on the right and at the bottom too.
@@ -392,6 +457,8 @@ interface RouteContext {
   boxOf: Map<string, string>;
   /** The middle of the gap between the columns. */
   gapCenter: number;
+  /** The gap's width. */
+  gap: number;
 }
 
 /**
@@ -408,7 +475,7 @@ interface RouteContext {
  *   - a ws-usage from the block's right to the variable's right, on a lane in the box's own margin.
  */
 function routeEdges(edges: readonly GraphEdge[], at: RouteContext): EdgeLayout[] {
-  const { rects, rowBottom, boxOf, gapCenter } = at;
+  const { rects, rowBottom, boxOf, gapCenter, gap } = at;
   const rect = (id: string): GraphRect => rects.get(id)!;
   const byId = new Map(edges.map((e) => [e.id, e]));
   const of = (...kinds: GraphEdge['kind'][]) => edges.filter((e) => kinds.includes(e.kind));
@@ -419,7 +486,7 @@ function routeEdges(edges: readonly GraphEdge[], at: RouteContext): EdgeLayout[]
   // A lane in the gap for each cross-column edge: the data links over 60% of it, the usages over half.
   const lane = new Map<string, number>();
   const lanes = (list: GraphEdge[], most: number, share: number): void =>
-    spread(list.length, Math.min(most, (COLUMN_GAP * share) / Math.max(list.length, 1))).forEach((o, i) =>
+    spread(list.length, Math.min(most, (gap * share) / Math.max(list.length, 1))).forEach((o, i) =>
       lane.set(list[i]!.id, gapCenter + o),
     );
   lanes(links, 16, 0.6);

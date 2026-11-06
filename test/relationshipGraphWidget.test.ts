@@ -472,7 +472,8 @@ describe('the view', () => {
 
   it('fits no smaller than a scale its boxes can be read at, and then shows the top left to pan from', async () => {
     // The gallery's ten unrelated files fitted into a small pane: shrunk to fit, the boxes were
-    // unreadable. A fit stops at 0.6, and what does not fit then starts at the top left.
+    // unreadable. A fit stops at 0.7, where a box's 11px label is still near 8px, and what does not
+    // fit then starts at the top left.
     const lone = (i: number): RelationshipGraph['boxes'][number] => ({
       id: `mem:///w/m${i}.slx`,
       uri: `mem:///w/m${i}.slx`,
@@ -485,15 +486,24 @@ describe('the view', () => {
     sized(el, 300, 200);
     el.fit();
     await el.updateComplete;
-    expect(view(el)).toEqual({ x: 0, y: 0, scale: 0.6 });
+    expect(view(el)).toEqual({ x: 0, y: 0, scale: 0.7 });
     // A pane wide enough at that scale and too short: centred across, from the top down.
     const layout = layoutGraph(el.graph!, new Set());
-    sized(el, Math.ceil(layout.width * 0.6) + 100, 200);
+    sized(el, Math.ceil(layout.width * 0.7) + 100, 200);
     el.fit();
     await el.updateComplete;
-    expect(view(el).scale).toBe(0.6);
-    expect(view(el).x).toBeCloseTo(50, 6);
+    expect(view(el).scale).toBe(0.7);
+    expect(view(el).x).toBeCloseTo((Math.ceil(layout.width * 0.7) + 100 - layout.width * 0.7) / 2, 6);
     expect(view(el).y).toBe(0);
+  });
+
+  it('fits a graph that fits at its own size at its own size: the layout has its margin', async () => {
+    const el = await graph();
+    const layout = layoutGraph(GRAPH, new Set());
+    sized(el, Math.ceil(layout.width), Math.ceil(layout.height));
+    el.fit();
+    await el.updateComplete;
+    expect(view(el).scale).toBe(1);
   });
 
   it('fits a graph it is first given once it has a size', async () => {
