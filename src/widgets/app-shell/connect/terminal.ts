@@ -17,7 +17,7 @@
 // Save waits for idle() first.
 
 import { addChoicesOf, runCommand, type CommandTarget } from '../../../model/shell/commands.js';
-import { isEditable, type TableSource } from '../../../model/source/tableSource.js';
+import { isEditable, type TableChange, type TableSource } from '../../../model/source/tableSource.js';
 import type { DexCommandWindow } from '../modules/dex-command-window.js';
 import type { OpenTab } from './documents.js';
 
@@ -33,25 +33,39 @@ export interface TerminalContext {
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** The changes a queued command brings of its own: its repaint, the selection it leaves, its refusal or failure. */
+const SETTLING: ReadonlySet<TableChange['kind']> = new Set(['insertEntry', 'updateEntry', 'replaceAll', 'select', 'refused', 'error']);
+
 /**
  * Run `act`, a queued command of `source`'s, and settle a task after the first change it brings
- * (its repaint, its selection, its refusal), by when the write that follows it in the same task is
- * done; or after `wait` ms, for a command that brings none.
+ * (SETTLING: not the clipboard's state, a drag's, a rename asked for), by when the write that
+ * follows it in the same task is done; or after `wait` ms, for a command that brings none. Rejects
+ * at once, listening no more, for a command that throws.
  */
 export function settleAfter(source: TableSource, act: () => void, wait = 2000): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let done = false;
     let stop = (): void => {};
-    const finish = (): void => {
-      if (done) return;
+    const end = (): boolean => {
+      if (done) return false;
       done = true;
       stop();
       clearTimeout(timer);
-      setTimeout(resolve, 0);
+      return true;
+    };
+    const finish = (): void => {
+      if (end()) setTimeout(resolve, 0);
     };
     const timer = setTimeout(finish, wait);
-    stop = source.subscribe(finish);
-    act();
+    stop = source.subscribe((change) => {
+      if (SETTLING.has(change.kind)) finish();
+    });
+    try {
+      act();
+    } catch (err) {
+      end();
+      reject(err);
+    }
   });
 }
 
