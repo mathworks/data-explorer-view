@@ -130,6 +130,9 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const { onFolder, onChanged } = options;
   const watcher: OpenFileWatch | undefined = onChanged ? watchOpenFiles(files, onChanged, deps) : undefined;
   const made = new NewFiles(files, deps);
+  // The files the shell has open, as it says: each it reads, and each New it is given, until it
+  // closes it. A New over one is not written: the emptied file is the shell's to write back.
+  const opened = new Set<string>();
   let shown: Shown | undefined;
   let edited = false;
 
@@ -234,9 +237,12 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       has: (path) => files.has(path),
     },
     async newFile(suggestedName) {
-      const path = await made.make(suggestedName);
-      // A file on disk is watched from now on, as one read is, by what the next look sees there.
-      if (path !== null && !made.keeps(path)) watcher?.watch(path);
+      const path = await made.make(suggestedName, (p) => opened.has(p));
+      if (path === null) return null;
+      // A file on disk is watched from now on, as one read is, known by what is there now: the new
+      // dictionary, or an open file as the picker left it, which is then no change to reload from.
+      if (!made.keeps(path)) watcher?.watch(path, await files.stamp(path));
+      opened.add(path);
       return path;
     },
     pickFiles: () => pickFiles(files, deps),
@@ -261,13 +267,17 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     async readFile(path) {
       // Only data files are read, as a desktop host reads only those.
       if (!isSupportedPath(path)) throw new Error('Not a data file this app opens.');
+      opened.add(path);
       // The stamp before the bytes: a write between the two is a change the next look reports.
       const stamp = await files.stamp(path);
       const bytes = await files.bytes(path);
       watcher?.watch(path, stamp);
       return bytes;
     },
-    closeFile: (path) => watcher?.unwatch(path),
+    closeFile(path) {
+      opened.delete(path);
+      watcher?.unwatch(path);
+    },
     // A new file the page keeps, with no save picker to have named one on disk, is downloaded.
     saveFile: (path, bytes) =>
       writing(path, async () => (made.keeps(path) ? made.save(path, bytes) : saveFile(files, path, bytes)), () => true),

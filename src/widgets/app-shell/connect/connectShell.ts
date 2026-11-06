@@ -519,9 +519,34 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   async function openNew(path: string): Promise<void> {
     if (disposed) return;
     const name = basenameOf(path);
+    const holder = tabs.find((t) => sourceUri(t.path) === sourceUri(path));
+    if (holder) return keepOpenFile(holder, name);
     if (!isSlddFile(path)) return failed(`Could not make ${name}: a new file is a data dictionary, whose name ends in .sldd.`);
-    if (tabs.find((t) => sourceUri(t.path) === sourceUri(path))) return failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
     await open(path, { created: true });
+  }
+
+  // New named the file `tab` has open, which it does not make. A browser's save picker has emptied
+  // that file as it closed (Chromium makes or empties the file it names): what the tab holds of it,
+  // as the shell last read or saved it, is written back. Where that write fails, or the tab holds
+  // no copy, the document is kept over the emptied file (Doc.keepOver), unsaved, for a Save to write.
+  async function keepOpenFile(tab: OpenTab, name: string): Promise<void> {
+    const now = await host.readFile(tab.path).catch(() => undefined);
+    if (disposed || !isOpen(tab)) return;
+    const emptied = now !== undefined && now.length === 0 && (tab.bytes === undefined || tab.bytes.length > 0);
+    if (!emptied) return failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
+    const said = `Could not make ${name}: it was open in a tab, and the browser emptied it while picking`;
+    if (tab.bytes) {
+      try {
+        await host.saveFile(tab.path, tab.bytes);
+        return failed(`${said}, so its saved copy was written back.`);
+      } catch (err) {
+        log('error', `Could not write ${name} back: ${message(err)}`);
+      }
+    }
+    if (!tab.doc) return failed(`${said}.`);
+    tab.bytes = now;
+    await tab.doc.keepOver(now);
+    failed(`${said}. Save the tab to write it back.`);
   }
 
   function openPaths(paths: readonly string[]): Promise<void> {

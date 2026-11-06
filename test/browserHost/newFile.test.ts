@@ -5,14 +5,24 @@
 // dictionary goes. With Chromium's save picker, the file the user names there, under a path of the
 // host's, which Save then writes in place through the picker's handle (a file the page has a path
 // for keeps it, so it is not opened twice). With none (Firefox, Safari), a file the page keeps
-// itself, under the name the shell offered, which Save downloads, as Save As does there. Nothing is
-// written until that Save: the shell makes the dictionary, and the host only says where it goes.
+// itself, under the name the shell offered, which Save downloads, as Save As does there.
+//
+// Chromium makes the file its save picker names, or empties the one that was there, as the picker
+// closes; the pickers here do the same. A New the user then discarded would leave a file of no bytes,
+// which neither MATLAB nor the shell opens, so the host writes the new dictionary there at once: MATLAB's
+// own (newFile/fixtures/created_r2027a.sldd). Not over a file the page has open, though, which the
+// shell writes back from its tab's copy (test/shell/browserNewFile.test.ts): the emptied file is
+// then no change for the watcher to reload the tab from.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FilePickers } from '../../src/browser/fsAccess.js';
 import { browserHost } from '../../src/browser/host.js';
 import { REVOKE_MS } from '../../src/browser/save.js';
 import { POLL_MS } from '../../src/browser/watch.js';
 import { aborted, asFile, FakeFileHandle } from './fakeFs.js';
+
+const MATLAB_NEW = new Uint8Array(readFileSync(path.join(import.meta.dirname, '../newFile/fixtures/created_r2027a.sldd')));
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -33,10 +43,15 @@ function hostOf(pickers: FilePickers = {}, changed: string[] = []) {
   return host;
 }
 
-/** A save picker that answers with `handle` (or rejects with it), and what it was asked. */
+/**
+ * A save picker that answers with `answer` (or rejects with it), and what it was asked. As
+ * Chromium's: the file it names is made, or emptied, as it resolves, and the page may write it.
+ */
 function savePicker(answer: FakeFileHandle | DOMException) {
   return vi.fn(async (_options: { suggestedName?: string }) => {
     if (answer instanceof DOMException) throw answer;
+    answer.writeOutside('');
+    answer.writePermission = 'granted';
     return asFile(answer);
   });
 }
@@ -59,10 +74,8 @@ function downloads(): { name: string; bytes: () => Promise<string> }[] {
 }
 
 describe('the browser host makes new files', () => {
-  it('with a save picker: where the user says, offering the name the shell gives, saved in place from then on', async () => {
+  it('with a save picker: where the user says, offering the name the shell gives, MATLAB\'s new dictionary there at once', async () => {
     const plant = new FakeFileHandle('plant.sldd');
-    // The save picker's handle is one the page may write: the user chose it to be.
-    plant.writePermission = 'granted';
     const showSaveFilePicker = savePicker(plant);
     const host = hostOf({ showSaveFilePicker });
     const path = await host.newFile!('untitled.sldd');
@@ -70,19 +83,56 @@ describe('the browser host makes new files', () => {
     expect(showSaveFilePicker).toHaveBeenCalledWith({
       suggestedName: 'untitled.sldd',
       types: [{ description: 'SLDD file', accept: { 'application/octet-stream': ['.sldd'] } }],
+      excludeAcceptAllOption: true,
     });
     expect(host.files.get(path!)).toEqual({ name: 'plant.sldd', source: { kind: 'handle', handle: plant } });
-    // Nothing is written until the shell saves it.
-    expect(plant.writes).toEqual([]);
-    await host.saveFile(path!, bytesOf('new'));
-    expect(plant.writes.map(text)).toEqual(['new']);
+    // What the picker left (no bytes) is a dictionary at once, so a New discarded leaves one.
+    expect(plant.writes).toEqual([MATLAB_NEW]);
     expect(plant.requests).toBe(0);
+    // And the shell's Save writes in place.
+    await host.saveFile(path!, bytesOf('new'));
+    expect(plant.writes.map(text)).toEqual([text(MATLAB_NEW), 'new']);
+  });
+
+  it('writes the new dictionary over a file the page has a path for but not open, read from then on through the picker\'s handle', async () => {
+    const plant = new FakeFileHandle('plant.sldd', 'old');
+    const host = hostOf({ showSaveFilePicker: savePicker(plant.again()) });
+    const known = await host.files.addPicked('plant.sldd', { kind: 'handle', handle: asFile(plant) });
+    // Opened and closed since: not open now.
+    await host.readFile(known);
+    host.closeFile!(known);
+    const path = await host.newFile!('untitled.sldd');
+    expect(path).toBe(known);
+    expect((host.files.get(known)!.source as { handle: unknown }).handle).not.toBe(plant);
+    expect(host.files.has('/files/2/plant.sldd')).toBe(false);
+    expect(plant.bytes).toEqual(MATLAB_NEW);
+  });
+
+  it('leaves a file the page has open as the picker left it, and takes that for no change', async () => {
+    vi.useFakeTimers();
+    const plant = new FakeFileHandle('plant.sldd', 'old');
+    const changed: string[] = [];
+    const host = hostOf({ showSaveFilePicker: savePicker(plant.again()) }, changed);
+    const known = await host.files.addPicked('plant.sldd', { kind: 'handle', handle: asFile(plant) });
+    await host.readFile(known);
+    expect(await host.newFile!('untitled.sldd')).toBe(known);
+    // Emptied by the picker, and not written: the shell writes its tab's copy back.
+    expect(text(plant.bytes)).toBe('');
+    expect(plant.writes).toEqual([]);
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    expect(changed).toEqual([]);
+  });
+
+  it('writes no dictionary into a file that is not one', async () => {
+    const notes = new FakeFileHandle('notes.mat', 'old');
+    const host = hostOf({ showSaveFilePicker: savePicker(notes) });
+    expect(await host.newFile!('untitled.sldd')).toBe('/files/1/notes.mat');
+    expect(notes.writes).toEqual([]);
   });
 
   it('watches a picked new file, as a file read is, its own saves no change, until its tab closes', async () => {
     vi.useFakeTimers();
     const plant = new FakeFileHandle('plant.sldd');
-    plant.writePermission = 'granted';
     const changed: string[] = [];
     const host = hostOf({ showSaveFilePicker: savePicker(plant) }, changed);
     const path = (await host.newFile!('untitled.sldd'))!;
@@ -97,16 +147,6 @@ describe('the browser host makes new files', () => {
     plant.writeOutside('again');
     await vi.advanceTimersByTimeAsync(POLL_MS);
     expect(changed).toEqual([path]);
-  });
-
-  it('keeps the path of a file the page has, read from then on through the picker\'s handle', async () => {
-    const plant = new FakeFileHandle('plant.sldd', 'old');
-    const host = hostOf({ showSaveFilePicker: savePicker(plant.again()) });
-    const known = await host.files.addPicked('plant.sldd', { kind: 'handle', handle: asFile(plant) });
-    const path = await host.newFile!('untitled.sldd');
-    expect(path).toBe(known);
-    expect((host.files.get(known)!.source as { handle: unknown }).handle).not.toBe(plant);
-    expect(host.files.has('/files/2/plant.sldd')).toBe(false);
   });
 
   it('answers null when the save picker is cancelled, or another picker is open', async () => {
@@ -132,6 +172,8 @@ describe('the browser host makes new files', () => {
     const path = await host.newFile!('untitled.sldd');
     expect(path).toBe('/files/1/untitled.sldd');
     expect(host.files.get(path!)?.name).toBe('untitled.sldd');
+    // The page holds MATLAB's new dictionary as the file until a Save.
+    expect(await host.readFile(path!)).toEqual(MATLAB_NEW);
     expect(made).toEqual([]);
     expect(await host.saveFile(path!, bytesOf('one'))).toEqual({ overwritten: false });
     expect(await host.saveFile(path!, bytesOf('two'))).toEqual({ overwritten: false });

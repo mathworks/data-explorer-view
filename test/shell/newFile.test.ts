@@ -8,6 +8,10 @@
 // edited mark) and its first Save writes it, the bytes MATLAB writes for a new dictionary. Nothing is
 // read from the path. A cancel does nothing, a dialog that fails says why, a path the shell cannot
 // make a dictionary at says so, and a host without newFile offers no New at all.
+//
+// A New onto a file a tab has open is refused. A browser's save picker has emptied that file as it
+// closed (Chromium makes or empties the file it names): what the tab holds of it, as the shell last
+// read or saved it, is written back; where it cannot be, the tab holds it unsaved, to be saved back.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -27,6 +31,7 @@ import {
   toastTexts,
   toolbar,
   until,
+  valueIn,
   type Page,
 } from './harness.js';
 
@@ -130,6 +135,39 @@ describe('New', () => {
     expect(toastTexts()[1]).toBe('Could not make params.sldd: it is open in a tab. Close the tab first.');
     expect(tabNames()).toEqual(['params.sldd']);
     expect(dirtyTabs()).toEqual([]);
+  });
+
+  it("writes a file a tab has open back from the tab's copy, when the host's dialog emptied it", async () => {
+    const { page } = newFilePage([at('params.sldd')], { 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const before = page.main.files.get(at('params.sldd'))!;
+    // As a browser's save picker does, before the page hears of the file.
+    page.host.newFile = async () => (page.main.files.set(at('params.sldd'), new Uint8Array()), at('params.sldd'));
+    page.command('new-file');
+    await until(() => toastTexts().length === 1);
+    expect(toastTexts()).toEqual(['Could not make params.sldd: it was open in a tab, and the browser emptied it while picking, so its saved copy was written back.']);
+    expect(page.main.saves.map((s) => s.path)).toEqual([at('params.sldd')]);
+    expect(page.main.files.get(at('params.sldd'))).toEqual(before);
+    expect(tabNames()).toEqual(['params.sldd']);
+    expect(dirtyTabs()).toEqual([]);
+  });
+
+  it('holds an emptied file a tab has open unsaved, when its copy cannot be written back, for a Save to write', async () => {
+    const { page } = newFilePage([], { 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    page.host.newFile = async () => {
+      page.main.files.set(at('params.sldd'), new Uint8Array());
+      page.main.failSave = 'The disk is full.';
+      return at('params.sldd');
+    };
+    page.command('new-file');
+    await until(() => toastTexts().some((t) => t.startsWith('Could not make')));
+    expect(toastTexts()).toContain('Could not make params.sldd: it was open in a tab, and the browser emptied it while picking. Save the tab to write it back.');
+    await until(() => dirtyTabs().length === 1);
+    page.main.failSave = undefined;
+    page.command('save');
+    await until(() => dirtyTabs().length === 0);
+    expect(await valueIn(page.main.files.get(at('params.sldd'))!, 'params.sldd', 'Kp')).toBe('1');
   });
 
   it('asks before a new file closes unsaved, as any unsaved file', async () => {

@@ -50,10 +50,16 @@ a Chromium drop without handles) refers to the file on disk, and a browser may r
 once another program has written it (Chromium does; Firefox may): the read then says to open the
 file again.
 
-New (`host.newFile`) only says where the shell's new dictionary goes. With the save picker, the page
-writes nothing to the file named there until its first Save, and watches it from then on, as it
-watches a file it opened. With none, the page keeps the file itself, under the name the shell offers,
-and each Save of it is a download, which marks it saved as a Save As download does.
+New (`host.newFile`) says where the shell's new dictionary goes. With the save picker, the browser
+makes the file named there, or empties the one that was there, as the picker closes (Chromium does,
+before the page hears of the file). So the host writes a new dictionary there at once, which MATLAB
+opens, and a New the user then discards leaves that rather than a file of no bytes; the first Save
+writes the user's dictionary over it, and the page watches the file from New on, as it watches a
+file it opened. A file a tab has open is not made a new file: the picker has emptied it, and the
+shell writes the tab's copy back (or, where that write fails, keeps the tab unsaved, for a Save to
+write it). With no save picker, the page keeps the file itself, under the name the shell offers,
+holding a new dictionary, and each Save of it is a download, which marks it saved as a Save As
+download does.
 
 Safari before 16.4 never says a file dialog was cancelled: an Open File or Open Folder cancelled
 there leaves nothing to answer, and the next one works as usual.

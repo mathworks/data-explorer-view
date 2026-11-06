@@ -66,11 +66,16 @@ export type CloseAnswer = 'save' | 'discard' | 'cancel';
 export interface ShellHost {
   /**
    * Ask where a new data dictionary is to go, `suggestedName` offered (`untitled.sldd`): resolves to
-   * its path, or null when cancelled. The shell opens the path in a tab of its own as a new, empty
-   * dictionary with unsaved edits (Workspace.create), and nothing is written there until the user
-   * saves it, through `saveFile`; nor read, so a file that is there already is written over by that
-   * save. A path the host cannot write may still be answered: its save says why. Absent: the shell
-   * offers no New (no button, chord or command).
+   * its path, which may hold no file yet, or null when cancelled. The shell opens the path in a tab of
+   * its own as a new, empty dictionary with unsaved edits (Workspace.create), and writes it there
+   * when the user saves it, through `saveFile`; it does not read it, so a file that is there already
+   * is written over by that save. A path the host cannot write may still be answered: its save says
+   * why. A host that watches files starts on this path here or at its first `saveFile`: a new file is
+   * never read. Absent: the shell offers no New (no button, chord or command).
+   *
+   * A browser may make the file, or empty the one there, as it is picked (Chromium's save picker
+   * does): the browser host then writes a new dictionary there at once. A path a tab has open is not
+   * made a new file: the shell reads it, and where the dialog emptied it, writes the tab's copy back.
    */
   newFile?(suggestedName: string): Promise<string | null>;
   /** Show the host's Open File dialog; resolves to the chosen paths (empty when cancelled). */
@@ -85,7 +90,8 @@ export interface ShellHost {
   /**
    * Stop watching a file whose tab closed, by the path it was opened with. May be called twice for
    * one path: a tab closed while its file was read is told again once the read lands, since a
-   * watcher starts on the read, past the close it heard.
+   * watcher starts on the read, past the close it heard. A new file's tab (newFile) is told too,
+   * though the file was never read.
    */
   closeFile?(path: string): void;
   /**
