@@ -321,6 +321,74 @@ describe('the chords', () => {
   });
 });
 
+describe('the chords that are not pressed for the shell', () => {
+  it("ignores a held chord's repeats and a key an input method is composing with", async () => {
+    // A repeat would flicker the side open and shut for as long as the keys are held.
+    const shell = await mount();
+    const changes = viewChanges(shell);
+    expect(press({ key: 'E', ctrlKey: true, shiftKey: true, repeat: true }).defaultPrevented).toBe(false);
+    expect(press({ key: 'E', ctrlKey: true, shiftKey: true, isComposing: true }).defaultPrevented).toBe(false);
+    expect(changes).toEqual([]);
+    expect(shell.layout.left.open).toBe(true);
+  });
+});
+
+describe('the focus', () => {
+  // A view that is hidden drops the focus, which then falls to the page, and a keyboard has
+  // nowhere to go on from there; a view shown by its chord is where the keyboard asked to go.
+  function withField(): { views: Element[]; field: HTMLInputElement } {
+    const field = document.createElement('input');
+    const views = standard();
+    (views[0] as DexShellView).append(field);
+    return { views, field };
+  }
+
+  it("moves the focus to a view's button when its side closes with the focus in the view", async () => {
+    const { views, field } = withField();
+    const shell = await mount(views);
+    field.focus();
+    shell.toggleView('explorer');
+    expect(document.activeElement).toBe(shell);
+    expect(shell.shadowRoot!.activeElement).toBe(button(shell, 'Explorer'));
+  });
+
+  it('moves it there too when the side shows another view', async () => {
+    const { views, field } = withField();
+    const shell = await mount(views);
+    field.focus();
+    press({ key: 'F', ctrlKey: true, shiftKey: true });
+    expect(shell.shadowRoot!.activeElement).toBe(button(shell, 'Explorer'));
+  });
+
+  it('leaves the focus where it was when it was not in the view that went', async () => {
+    const { views } = withField();
+    const elsewhere = document.createElement('input');
+    const shell = await mount([...views, elsewhere]);
+    elsewhere.focus();
+    shell.toggleView('explorer');
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it('puts the focus in a view its chord shows: its first control, else the view itself', async () => {
+    const views = standard();
+    const go = document.createElement('button');
+    go.textContent = 'Go';
+    (views[2] as DexShellView).append(document.createElement('span'), go);
+    const shell = await mount(views);
+    press({ key: 'F', ctrlKey: true, shiftKey: true });
+    await settle(shell);
+    expect(document.activeElement).toBe(go);
+
+    // Properties has no control: the chord closes it, and the next opens it on the view itself.
+    press({ key: 'I', ctrlKey: true, shiftKey: true });
+    press({ key: 'I', ctrlKey: true, shiftKey: true });
+    await settle(shell);
+    expect(document.activeElement).toBe(viewOf(shell, 'properties'));
+    // Focusable from a script only: Tab passes the view by.
+    expect(viewOf(shell, 'properties').tabIndex).toBe(-1);
+  });
+});
+
 describe('the actions', () => {
   it("sends dex-shell-action with the button's box when an action's button is pressed", async () => {
     const shell = await mount();
@@ -367,6 +435,16 @@ describe('the rows across the top', () => {
     shell.append(Object.assign(document.createElement('div'), { slot: 'toolbar' }));
     await settle(shell);
     expect(part(shell, '.toolbar-row')!.classList.contains('filled')).toBe(true);
+  });
+});
+
+describe('the documents', () => {
+  it("holds the page's own children in the Editor landmark", async () => {
+    const doc = document.createElement('section');
+    const shell = await mount([...standard(), doc]);
+    const editor = part(shell, 'main.docs')!;
+    expect(editor.getAttribute('aria-label')).toBe('Editor');
+    expect((editor.querySelector('slot:not([name])') as HTMLSlotElement).assignedElements()).toEqual([doc]);
   });
 });
 
@@ -473,45 +551,137 @@ describe('resizing', () => {
     const shell = await mount();
     // An 842 px main area: two 37 px activity bars, two 4 px separators and the 240 px right side
     // leave the left side and the center 520 px, so the side grows to 320 px at most.
-    layOut({ '.main': { width: 842, height: 600 }, '.activity': { width: 37 }, '.resizer.v': { width: 4 } });
+    layOut({ '.main': { width: 842, height: 600 } });
     const left = sash(shell, 'left');
     left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     expect(shell.layout.left.size).toBe(320);
   });
+
+  it('ends a drag the pointer is lost from, keeping the size it got to', async () => {
+    for (const end of ['pointercancel', 'lostpointercapture']) {
+      const shell = await mount(standard(), `shell-${end}`);
+      const left = sash(shell, 'left');
+      left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+      left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 297, clientY: 300, bubbles: true }));
+      left.dispatchEvent(new PointerEvent(end, { pointerId: 1, bubbles: true }));
+      expect(JSON.parse(localStorage.getItem(`shell-${end}`)!).left.size, end).toBe(260);
+      left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 400, clientY: 300, bubbles: true }));
+      expect(shell.layout.left.size, end).toBe(260);
+      shell.remove();
+    }
+  });
+
+  it('keeps the size a drag got to when the shell is removed in the middle of it, and drags no more', async () => {
+    const shell = await mount(standard(), 'shell-test');
+    const left = sash(shell, 'left');
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 307, clientY: 300, bubbles: true }));
+    shell.remove();
+    expect(JSON.parse(localStorage.getItem('shell-test')!).left.size).toBe(270);
+    document.body.append(shell);
+    await settle(shell);
+    sash(shell, 'left').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 500, clientY: 300, bubbles: true }));
+    expect(shell.layout.left.size).toBe(270);
+  });
+
+  it('ends a drag whose side closes under it, and takes the next drag, on another separator', async () => {
+    // Closed by a chord or a command in the middle of the drag, the side takes its separator
+    // with it, and the pointer's capture: no pointerup will come from there.
+    const shell = await mount();
+    const left = sash(shell, 'left');
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 287, clientY: 300, bubbles: true }));
+    shell.toggleView('explorer');
+    await settle(shell);
+    const right = sash(shell, 'right');
+    right.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 300, bubbles: true }));
+    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([250, 240]);
+    right.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 700, clientY: 300, bubbles: true }));
+    right.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 680, clientY: 300, bubbles: true }));
+    expect(shell.layout.right.size).toBe(260);
+  });
+
+  it("resizes from the drag's own separator only", async () => {
+    // Without a capture, the pointer can cross another separator: its moves are not the drag's.
+    const shell = await mount();
+    sash(shell, 'left').dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    sash(shell, 'right').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 400, clientY: 300, bubbles: true }));
+    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([220, 240]);
+    sash(shell, 'left').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 277, clientY: 300, bubbles: true }));
+    expect(shell.layout.left.size).toBe(240);
+  });
 });
 
 describe('fitting to the window', () => {
-  // A 1000 x 700 main area: 82 px of activity bars and separators across it, and a 28 px status
-  // bar and a 4 px separator down the center.
-  const WINDOW = {
-    '.main': { width: 1000, height: 700 },
-    '.center': { height: 700 },
-    '.status-bar': { height: 28 },
-    '.activity': { width: 37 },
-    '.resizer.v': { width: 4 },
-    '.resizer.h': { height: 4 },
-  };
+  // A 1000 x 700 main area. Across it, two 37 px activity bars and a 4 px separator for each open
+  // sidebar; down the center, the 28 px status bar and the bottom panel's 4 px separator.
+  const WINDOW = { '.main': { width: 1000, height: 700 } };
   const withTerminal = (): Element[] => [...standard(), view('bottom', 'terminal', 'Terminal')];
+  const kept = (key = 'shell-test') => JSON.parse(localStorage.getItem(key)!);
+  const resized = (shell: DexAppShell): void => FakeResizeObserver.resized(part(shell, '.main')!);
 
-  it('fits sizes kept on a larger screen once the shell is laid out, and keeps what was kept', async () => {
+  it('fits sizes kept on a larger screen once the shell is laid out, and keeps them as they were', async () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver);
-    const kept = JSON.stringify({ left: { view: 'explorer', open: true, size: 1200 }, bottom: { view: 'terminal', open: true, size: 900 } });
-    localStorage.setItem('shell-test', kept);
+    const text = JSON.stringify({ left: { view: 'explorer', open: true, size: 1200 }, bottom: { view: 'terminal', open: true, size: 900 } });
+    localStorage.setItem('shell-test', text);
     const shell = await mount(withTerminal(), 'shell-test');
     // Before any layout there is nothing to fit to.
     expect([shell.layout.left.size, shell.layout.bottom.size]).toEqual([1200, 900]);
+    expect(sash(shell, 'left').hasAttribute('aria-valuemax')).toBe(false);
 
     layOut(WINDOW);
-    FakeResizeObserver.resized(shell);
+    resized(shell);
     await settle(shell);
-    // Left: 1000 - 82 - the right side's 240 = 678 shared with the center, so 478. Bottom: 700 -
-    // 28 - 4 = 668 shared with the documents, so 468. The right side's 240 fits as it is.
+    // Left: 1000 - 74 - 8 - the right side's 240 = 678 shared with the center, so 478. Bottom:
+    // 700 - 28 - 4 = 668 shared with the documents, so 468. The right side's 240 fits as it is.
     expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([478, 240, 468]);
     expect(part(shell, 'aside.side.left')!.style.width).toBe('478px');
-    // The window's size is not the person's choice: a larger window gets the kept sizes back.
-    expect(localStorage.getItem('shell-test')).toBe(kept);
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('478');
+    expect(sash(shell, 'bottom').getAttribute('aria-valuemax')).toBe('468');
+    // The window's size is not the person's choice.
+    expect(localStorage.getItem('shell-test')).toBe(text);
+  });
+
+  it('keeps the size chosen, not the size drawn, through a change to another side, and draws it again when there is room', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    localStorage.setItem('shell-test', JSON.stringify({ left: { view: 'explorer', open: true, size: 1200 } }));
+    const shell = await mount(standard(), 'shell-test');
+    layOut(WINDOW);
+    resized(shell);
+    await settle(shell);
+    expect(shell.layout.left.size).toBe(478);
+
+    // Closing the right side gives the left its separator and its 240 px: 1000 - 74 - 4 = 922, so 722.
+    button(shell, 'Properties').click();
+    await settle(shell);
+    expect(shell.layout.left.size).toBe(722);
+    expect(kept().left).toEqual({ view: 'explorer', open: true, size: 1200 });
+    expect(kept().right).toMatchObject({ open: false });
+
+    layOut({ '.main': { width: 2000, height: 700 } });
+    resized(shell);
+    await settle(shell);
+    expect(shell.layout.left.size).toBe(1200);
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('1200px');
+  });
+
+  it("does not make a size kept from a larger window this window's by a step the room does not allow", async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    localStorage.setItem('shell-test', JSON.stringify({ left: { view: 'explorer', open: true, size: 1200 } }));
+    const shell = await mount(standard(), 'shell-test');
+    layOut(WINDOW);
+    resized(shell);
+    await settle(shell);
+    const step = (key: string) => sash(shell, 'left').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    step('ArrowRight');
+    expect(shell.layout.left.size).toBe(478);
+    expect(kept().left.size).toBe(1200);
+    // A step the room allows is the person's size from then on.
+    step('ArrowLeft');
+    expect(shell.layout.left.size).toBe(462);
+    expect(kept().left.size).toBe(462);
   });
 
   it('fits each side against what the one before it left, when both overflow', async () => {
@@ -519,40 +689,36 @@ describe('fitting to the window', () => {
     localStorage.setItem('shell-test', JSON.stringify({ left: { size: 600 }, right: { size: 600 } }));
     const shell = await mount(standard(), 'shell-test');
     layOut(WINDOW);
-    FakeResizeObserver.resized(shell);
+    resized(shell);
     await settle(shell);
-    // Left first: 1000 - 82 - 600 = 318 shared, so its minimum, 140; then the right, beside a
-    // 140 px left side: 1000 - 82 - 140 = 778 shared, so 578. The center keeps its 200 px.
+    // Left first: 1000 - 74 - 8 - 600 = 318 shared, so its minimum, 140; then the right, beside a
+    // 140 px left side: 1000 - 74 - 8 - 140 = 778 shared, so 578. The center keeps its 200 px.
     expect([shell.layout.left.size, shell.layout.right.size]).toEqual([140, 578]);
   });
 
-  it('fits a side opened in a window too small for its size, when the documents are resized', async () => {
-    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  it('fits a side as it opens, before it is drawn and with no report of a size', async () => {
+    // So the opened side never overflows the window for a frame, and the fit does not wait on
+    // the observer (whose report, after the side drew too wide, was a ResizeObserver loop).
     localStorage.setItem('shell-test', JSON.stringify({ left: { view: 'explorer', open: false, size: 1200 } }));
     const shell = await mount(standard(), 'shell-test');
     layOut(WINDOW);
-    FakeResizeObserver.resized(shell);
-    await settle(shell);
-    // Closed, it has nothing to fit.
     expect(shell.layout.left).toEqual({ view: 'explorer', open: false, size: 1200 });
-
-    button(shell, 'Explorer').click();
-    await settle(shell);
-    FakeResizeObserver.resized(part(shell, '.docs')!);
-    await settle(shell);
+    shell.toggleView('explorer');
     expect(shell.layout.left).toEqual({ view: 'explorer', open: true, size: 478 });
+    await settle(shell);
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('478px');
   });
 
-  it('stops watching the size once the shell is removed, and watches again when it is back', async () => {
+  it('watches the main area, stops once the shell is removed, and watches again when it is back', async () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver);
     const shell = await mount();
     const watched = () => FakeResizeObserver.all.flatMap((o) => o.observed);
-    expect(watched()).toEqual([shell, part(shell, '.docs')]);
+    expect(watched()).toEqual([part(shell, '.main')]);
     shell.remove();
     expect(watched()).toEqual([]);
     document.body.append(shell);
     await settle(shell);
-    expect(watched()).toEqual([shell, part(shell, '.docs')]);
+    expect(watched()).toEqual([part(shell, '.main')]);
   });
 });
 
@@ -620,6 +786,20 @@ describe('views added and removed', () => {
     expect(part(shell, 'aside.side.left')).toBeNull();
     // The action keeps the bar: it has nowhere else to be.
     expect(buttonsIn(shell, 'nav.activity.left').map((b) => b.getAttribute('aria-label'))).toEqual(['Settings']);
+  });
+});
+
+describe('a shell taken off the page', () => {
+  it('stops reading its children once removed, and reads them again when it is back', async () => {
+    const shell = await mount();
+    const left = () => buttonsIn(shell, 'nav.activity.left').map((b) => b.getAttribute('aria-label'));
+    shell.remove();
+    shell.append(view('left', 'later', 'Later'));
+    await settle(shell);
+    expect(left()).toEqual(['Explorer', 'Search', 'Settings']);
+    document.body.append(shell);
+    await settle(shell);
+    expect(left()).toEqual(['Explorer', 'Search', 'Later', 'Settings']);
   });
 });
 
