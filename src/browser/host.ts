@@ -1,0 +1,238 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// The browser's ShellHost: what connectShell asks of a page, made of the browser host's pieces.
+// Files are picked, dropped, read, saved and watched through one WebFiles; a picked or dropped
+// folder is served in the page and handed to the shell as an Electron main process hands its page a
+// port, and looked at again when the page is shown or its window focused, since a browser says
+// nothing of a folder's changes. There are no native prompts: with no confirmClose or
+// confirmReload, the shell asks about unsaved edits and changes on disk in its own dialog.
+//
+// Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
+// defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
+// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; and a drop opens
+// through openDropped.
+
+import { isSupportedPath } from 'data-explorer-core';
+import type { ShellHost } from '../widgets/app-shell/connect/types.js';
+import { dropSources, type DroppedItem } from './drop.js';
+import { folderLooks, serveWebFolder, type WebFolderServer } from './folder.js';
+import { WebFiles } from './files.js';
+import type { FilePickers, UserActivation } from './fsAccess.js';
+import { pickDirectory, pickFiles } from './pick.js';
+import { saveFile, saveFileAs } from './save.js';
+import type { WebDir } from './walk.js';
+import { watchOpenFiles, type OpenFileWatch } from './watch.js';
+
+/**
+ * The least time between two looks at a shown folder, in milliseconds. A window shown again is
+ * often focused too, and each look reads every listed file's size and date; a look asked sooner
+ * waits for the rest of the time rather than being dropped, so no change goes untold.
+ */
+export const LOOK_EVERY_MS = 3000;
+
+/** What browserHost runs over. Each is the page's own unless given (a test gives fakes). */
+export interface BrowserHostOptions {
+  /** Where the host keeps the files it has. Default a new one, `host.files`. */
+  files?: WebFiles;
+  /** The pickers, and the window whose `focus` makes the host look at its folder again. Default `window`. */
+  window?: FilePickers & Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+  /** Where file inputs and download links are made, and whose `visibilitychange` and title the host uses. Default `document`. */
+  document?: Document;
+  /** Whether a click or a key press led to a dialog, and the clipboard. Default `navigator`. */
+  navigator?: UserActivation & { clipboard?: Pick<Clipboard, 'writeText'> };
+  /**
+   * Show the folder served on `port` as `root`: the shell's `showFolder`. Absent: the host shows no
+   * folders; it has no `pickFolder` (the shell then offers no Folder button), a dropped folder is
+   * passed over, and `showFolder` does nothing.
+   */
+  onFolder?(root: string, port: MessagePort): void;
+  /** An open file changed on disk: the shell's `fileChanged`. Absent: open files are not watched. */
+  onChanged?(path: string): void;
+}
+
+/** The browser's ShellHost, and what a page drives it by beside connectShell. */
+export interface BrowserHost extends ShellHost {
+  /** The files the host has, by the paths it gave them. */
+  readonly files: WebFiles;
+  /**
+   * Serve `dir` and show it, in place of a folder shown before. Resolves once the folder has been
+   * looked at, for the next look to tell what changed since.
+   */
+  showFolder(dir: WebDir): Promise<void>;
+  /**
+   * Take what was dropped: its files, as one pick, resolve to the paths to open (the shell's
+   * `openPaths`), and its first folder is shown. Call it from the drop's listener, before anything
+   * is awaited (drop.ts says why), as `installFileDrop(window, async (dt) => app.openPaths(await
+   * host.openDropped(dt)))` does.
+   */
+  openDropped(data: DataTransfer): Promise<string[]>;
+  /** Whether a file has unsaved edits, as the shell last said: for `beforeunload` to ask. */
+  readonly edited: boolean;
+  /** Stop watching, looking and serving, and take the host's listeners away. */
+  dispose(): void;
+}
+
+/** The folder shown: how it is served, how it is looked at again, and when it last was. */
+interface Shown {
+  served: WebFolderServer;
+  look: () => Promise<string[]>;
+  looking: boolean;
+  /** A look was asked for while one ran: another follows it. */
+  again: boolean;
+  /** When the last look began (Date.now()). */
+  last: number;
+  /** A look waiting for LOOK_EVERY_MS to pass. */
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
+
+/**
+ * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
+ * inputs, reads and saves through WebFiles (in place where the browser gives a handle, a download
+ * where it does not), open files watched, a folder served in the page, and drops. The shell gets
+ * its folder and its files' changes back through `onFolder` and `onChanged`; docs/browser-host.md
+ * says what works in which browser.
+ */
+export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
+  const files = options.files ?? new WebFiles();
+  // The page's window has the pickers where the browser does (fsAccess.ts types them).
+  const win: NonNullable<BrowserHostOptions['window']> = options.window ?? (window as Window & FilePickers);
+  const doc = options.document ?? document;
+  const nav = options.navigator ?? navigator;
+  const deps = { window: win, document: doc, navigator: nav };
+  const { onFolder, onChanged } = options;
+  const watcher: OpenFileWatch | undefined = onChanged ? watchOpenFiles(files, onChanged, deps) : undefined;
+  let shown: Shown | undefined;
+  let edited = false;
+
+  // A look at the shown folder: the files it touched the page reads again. One at a time; one asked
+  // while another runs follows it.
+  async function lookAt(folder: Shown): Promise<void> {
+    if (folder.looking) {
+      folder.again = true;
+      return;
+    }
+    folder.looking = true;
+    folder.last = Date.now();
+    try {
+      const uris = await folder.look();
+      if (uris.length && folder === shown) folder.served.changed(uris);
+    } finally {
+      folder.looking = false;
+      if (folder.again && folder === shown) {
+        folder.again = false;
+        lookSoon(folder);
+      }
+    }
+  }
+
+  // A look now, or once LOOK_EVERY_MS has passed since the last began, if the page is shown then.
+  function lookSoon(folder: Shown): void {
+    if (folder.timer !== undefined) return;
+    const wait = folder.last + LOOK_EVERY_MS - Date.now();
+    if (wait <= 0) return void lookAt(folder);
+    folder.timer = setTimeout(() => {
+      folder.timer = undefined;
+      if (folder === shown && doc.visibilityState === 'visible') void lookAt(folder);
+    }, wait);
+  }
+
+  const lookAgain = (): void => {
+    if (shown && doc.visibilityState === 'visible') lookSoon(shown);
+  };
+  if (onFolder) {
+    doc.addEventListener('visibilitychange', lookAgain);
+    win.addEventListener('focus', lookAgain);
+  }
+
+  function stopShowing(): void {
+    if (!shown) return;
+    clearTimeout(shown.timer);
+    shown.served.close();
+    shown = undefined;
+  }
+
+  async function showFolder(dir: WebDir): Promise<void> {
+    if (!onFolder) return;
+    const root = await files.folderRoot(dir);
+    stopShowing();
+    const folder: Shown = {
+      served: serveWebFolder(root, dir, files),
+      look: folderLooks(root, dir),
+      looking: false,
+      again: false,
+      last: 0,
+      timer: undefined,
+    };
+    shown = folder;
+    onFolder(root, folder.served.port);
+    await lookAt(folder);
+  }
+
+  // A write of the open file `path`, known by the stamp it leaves when it lands there.
+  async function writing<T>(path: string, write: () => Promise<T>, landed: (result: T) => boolean): Promise<T> {
+    watcher?.saving(path);
+    let stamp: string | null = null;
+    try {
+      const result = await write();
+      if (landed(result)) stamp = await files.stamp(path);
+      return result;
+    } finally {
+      watcher?.ownWrite(path, stamp);
+    }
+  }
+
+  return {
+    files,
+    pickFiles: () => pickFiles(files, deps),
+    ...(onFolder && {
+      async pickFolder() {
+        const dir = await pickDirectory(deps);
+        if (dir) await showFolder(dir);
+      },
+    }),
+    showFolder,
+    async openDropped(data) {
+      // Asked of the drop before anything is awaited.
+      const dropped = await dropSources(data);
+      const picked = dropped.filter((item): item is Extract<DroppedItem, { kind: 'file' }> => item.kind === 'file');
+      const paths = await files.addPick(picked.map(({ name, source }) => ({ name, source })));
+      // The first folder, as a desktop host shows the first of several dropped.
+      const folder = dropped.find((item): item is Extract<DroppedItem, { kind: 'folder' }> => item.kind === 'folder');
+      if (folder) await showFolder(folder.dir);
+      return paths;
+    },
+    async readFile(path) {
+      // Only data files are read, as a desktop host reads only those.
+      if (!isSupportedPath(path)) throw new Error('Not a data file this app opens.');
+      // The stamp before the bytes: a write between the two is a change the next look reports.
+      const stamp = await files.stamp(path);
+      const bytes = await files.bytes(path);
+      watcher?.watch(path, stamp);
+      return bytes;
+    },
+    closeFile: (path) => watcher?.unwatch(path),
+    saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes), () => true),
+    saveFileAs: (path, bytes) => writing(path, () => saveFileAs(files, path, bytes, deps), (to) => to?.path === path),
+    setEdited(value) {
+      edited = value;
+    },
+    get edited() {
+      return edited;
+    },
+    setTitle: (title) => {
+      doc.title = title;
+    },
+    async copyText(text) {
+      if (!nav.clipboard) throw new Error('This browser gives the page no clipboard.');
+      await nav.clipboard.writeText(text);
+    },
+    dispose() {
+      if (onFolder) {
+        doc.removeEventListener('visibilitychange', lookAgain);
+        win.removeEventListener('focus', lookAgain);
+      }
+      watcher?.dispose();
+      stopShowing();
+    },
+  };
+}
