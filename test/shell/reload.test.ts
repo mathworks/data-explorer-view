@@ -5,7 +5,9 @@
 // change; one with unsaved edits asks first, once, and keeps them unless told to reload. Ported
 // from data-explorer-app's page test of the same name; the in-page question, for a host with no
 // prompt of its own, is new, and says what keeping the edits costs over a MAT-file.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import {
   at,
   changedOutside,
@@ -13,6 +15,7 @@ import {
   confirmDialog,
   dirtyTabs,
   edit,
+  fixture,
   open,
   rowOf,
   savedTo,
@@ -283,6 +286,20 @@ describe('a file changed on disk', () => {
     await until(() => page.main.reloadAsked.length === 1);
     await until(() => dirtyTabs().length === 1);
     expect(shown('params.sldd', 'Kp')).toBe('5');
+  });
+
+  it('a change named by another spelling of the path is the tab of that file', async () => {
+    const page = startPage();
+    const opened = 'C:\\work\\params.sldd';
+    const respelled = 'c:\\work\\params.sldd';
+    const bytes = new Uint8Array(readFileSync(fixture('params.sldd')));
+    page.main.files.set(opened, bytes);
+    void page.handle.openPaths([opened]);
+    const table = () => document.querySelector<DexTreeTable>('.doc-panel dex-tree-table');
+    await until(() => (table()?.rows.length ?? 0) > 0);
+    page.main.files.set(opened, await changedOutside(bytes, 'params.sldd', 'Kp', '7'));
+    page.main.changed(respelled);
+    await until(() => textOf(table()!.rows.find((r) => r.Name?.label === 'Kp')) === '7');
   });
 
   it('a file that cannot be read again says so in its banner', async () => {

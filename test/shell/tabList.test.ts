@@ -39,13 +39,15 @@ describe('TabList', () => {
     expect(t.active).toBe('c');
   });
 
-  it('cycles in both directions, wrapping', () => {
+  it('cycles in both directions, wrapping, and says whether the active tab changed', () => {
     const t = list('a', 'b', 'c');
-    t.cycle(1);
+    expect(t.cycle(1)).toBe(true);
     expect(t.active).toBe('a');
     t.cycle(-1);
     expect(t.active).toBe('c');
-    new TabList<string>().cycle(1);
+    expect(new TabList<string>().cycle(1)).toBe(false);
+    // One tab: there is nowhere to go.
+    expect(list('a').cycle(1)).toBe(false);
   });
 });
 

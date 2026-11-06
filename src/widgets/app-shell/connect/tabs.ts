@@ -99,11 +99,16 @@ export class TabList<T> {
     return true;
   }
 
-  /** Move the active tab by `step`, wrapping around; from none active, forward to the first and back to the last. */
-  cycle(step: number): void {
+  /**
+   * Move the active tab by `step`, wrapping around; from none active, forward to the first and back
+   * to the last. Whether the active tab changed: with one tab, active, there is nowhere to go.
+   */
+  cycle(step: number): boolean {
     const n = this.list.length;
-    if (n === 0) return;
+    if (n === 0) return false;
+    const was = this.current;
     if (this.current < 0) this.current = step > 0 ? 0 : n - 1;
     else this.current = (((this.current + step) % n) + n) % n;
+    return this.current !== was;
   }
 }

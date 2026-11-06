@@ -312,6 +312,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (existing) {
       if (!how.preview) pin(existing);
       activate(existing);
+      // Still being read: what the caller does next (select a link's row) needs its table.
+      await existing.ready;
       return existing;
     }
     const replaced = how.preview ? tabs.find((t) => !!t.preview && !t.dirty) : undefined;
@@ -325,30 +327,40 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     docs.append(panel);
     // A project's tab by the name its row in the folder has: every TOML project's file is matlab.toml.
     const name = isProjectFile(path) ? projectFallbackName(path) : basenameOf(path);
-    const tab: OpenTab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], stops: [] };
+    const tab: OpenTab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], stops: [], ready: Promise.resolve() };
     tabs.add(tab);
     if (at >= 0) tabs.move(tab, at);
     shown();
+    tab.ready = load(tab, uri);
+    await tab.ready;
+    return tab;
+  }
+
+  // Read the file of a tab just added and show it: on its page, a project; in a table connected to
+  // its document, any other file; and in the table's banner why it could not be.
+  async function load(tab: OpenTab, uri: string): Promise<void> {
+    const { path } = tab;
     if (isProjectFile(path)) {
       const revealIn = host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
       await paintProject(tab, newProjectPage(tab, revealIn, followProjectLink), folder);
-      return tab;
+      return;
     }
     const storageKey = `${key}:${uri}`;
     try {
       const bytes = await host.readFile(path);
       // The shell was taken down meanwhile, and the host told of every file it had open.
-      if (disposed) return tab;
+      if (disposed) return;
       // Closed while its file was read: nothing to open. The host began watching the file after the
-      // read, past the close it heard, so it is told again, unless a tab opened since holds the file.
+      // read, past the close it heard, so it is told again, unless a tab opened since holds the file
+      // (by its uri: another spelling of the path is the same file).
       if (!tabs.items.includes(tab)) {
-        if (!tabs.find((t) => t.path === path)) host.closeFile?.(path);
-        return tab;
+        if (!tabs.find((t) => sourceUri(t.path) === uri)) host.closeFile?.(path);
+        return;
       }
       const doc = await ws.open(bytes, tab.name, uri);
       if (disposed || !tabs.items.includes(tab)) {
         doc.dispose();
-        return tab;
+        return;
       }
       tab.doc = doc;
       tab.stops.push(
@@ -373,11 +385,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (tab === tabs.active) follow();
       later();
     } catch (err) {
-      if (disposed) return tab;
+      if (disposed) return;
       const table = tab.table ?? newTable(tab, storageKey);
       table.banners = { error: `Failed to open ${tab.name}: ${message(err)}` };
     }
-    return tab;
   }
 
   // A link into another file: open it (or go to its tab) and select the row it names. `uri` is
@@ -452,8 +463,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         break;
       case 'next-tab':
       case 'previous-tab':
-        tabs.cycle(id === 'next-tab' ? 1 : -1);
-        shown();
+        if (tabs.cycle(id === 'next-tab' ? 1 : -1)) shown();
         break;
       case 'focus-filter':
         tab?.table?.focusFilter();
@@ -582,7 +592,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (!disposed) showFolderIn(root, port);
     },
     fileChanged(path) {
-      const tab = disposed ? undefined : tabs.find((t) => t.path === path);
+      // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
+      const uri = sourceUri(path);
+      const tab = disposed ? undefined : tabs.find((t) => sourceUri(t.path) === uri);
       if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
     },
     command,

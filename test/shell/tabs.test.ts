@@ -8,7 +8,7 @@
 // once pinned, once edited, or when it was opened for good (Open, a drop, openPaths).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   activeTab,
   docTabs,
@@ -19,6 +19,7 @@ import {
   previewTabs,
   rowOf,
   serveFolderTo,
+  settled,
   startPage,
   tabIdOf,
   tabNamed,
@@ -32,6 +33,7 @@ import {
 
 let stop: (() => void)[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const s of stop) s();
   stop = [];
 });
@@ -104,6 +106,17 @@ describe('the tab row', () => {
     expect(explorer().files.map((f) => f.label)).toEqual(['b.sldd', 'c.sldd', 'a.sldd']);
     request('dex-tab-move', { id: tabIdOf('a.sldd'), index: 0 });
     await until(() => tabNames().join() === 'a.sldd,b.sldd,c.sldd');
+  });
+
+  it('next tab with one tab goes nowhere, and leaves the variable editor open', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const editor = document.querySelector('dex-variable-editor')!;
+    const close = vi.spyOn(editor, 'close');
+    page.command('next-tab');
+    page.command('previous-tab');
+    await settled();
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('next and previous tab go round the row', async () => {

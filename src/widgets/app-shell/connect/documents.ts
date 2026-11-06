@@ -31,6 +31,12 @@ export interface OpenTab extends ShellTab {
   selection: readonly string[];
   /** What stops its listeners, when it closes. */
   stops: (() => void)[];
+  /**
+   * Settles once the tab is opened: its file read and its table connected, or its banner saying why
+   * not (or its page drawn). A second open of the file waits for it, so a link's or a search's row
+   * is selected in a table that is there.
+   */
+  ready: Promise<void>;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));

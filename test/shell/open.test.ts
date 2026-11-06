@@ -163,6 +163,47 @@ describe('the shell opens files as tabs', () => {
     await until(() => !!activeTab()?.textContent?.includes('params.sldd'));
   });
 
+  it('a tab closed while its file is read, and opened again by another spelling of its path, keeps its file watched', async () => {
+    const page = startPage();
+    const bytes = new Uint8Array(readFileSync(fixture('params.sldd')));
+    const opened = 'C:\\work\\params.sldd';
+    const respelled = uriPath(sourceUri(opened));
+    for (const p of [opened, respelled]) page.main.files.set(p, bytes);
+    const read = page.host.readFile;
+    let release!: () => void;
+    page.host.readFile = (p) => new Promise((resolve) => (release = () => resolve(read(p))));
+    void page.handle.openPaths([opened]);
+    await until(() => tabNames().length === 1);
+    page.command('close-tab');
+    await until(() => tabNames().length === 0);
+    const first = release;
+    void page.handle.openPaths([respelled]);
+    await until(() => tabNames().length === 1);
+    page.host.readFile = read;
+    first();
+    release();
+    await until(() => (document.querySelector<DexTreeTable>('.doc-panel dex-tree-table')?.rows.length ?? 0) > 0);
+    await settled();
+    // The file is the open tab's, by its uri: the late read of the closed tab does not unwatch it.
+    expect(page.main.closedFiles).toEqual([opened]);
+  });
+
+  it('a link into a file whose tab is still reading it selects its row once it is read', async () => {
+    const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
+    await open(page, 'shadow_ws.slx');
+    const read = page.host.readFile;
+    let release!: () => void;
+    page.host.readFile = (p) => new Promise((resolve) => (release = () => resolve(read(p))));
+    void page.handle.openPaths([at('params.sldd')]);
+    await until(() => tabNames().length === 2 && !!release);
+    page.host.readFile = read;
+    tableOf('shadow_ws.slx')!.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: 'Kp@params.sldd' }, bubbles: true, composed: true }));
+    await settled();
+    release();
+    const kp = await rowOf('params.sldd', 'Kp');
+    await until(() => tableOf('params.sldd')!.selectedRowIds.join() === kp.ID);
+  });
+
   it("a model's menu copies a row's name and value through the host's clipboard", async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx' });
     await open(page, 'shadow_ws.slx');
