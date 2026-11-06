@@ -48,6 +48,7 @@ import { buildShell } from './parts.js';
 import { connectGalleryPane } from './galleryPane.js';
 import { connectRawPane } from './rawPane.js';
 import { connectSearchPane } from './searchPane.js';
+import { connectTerminal } from './terminal.js';
 import { rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
@@ -256,7 +257,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // that cannot be made says why.
   const saver = new Saver(host);
   const saved = (name: string) => toasts.show({ level: 'info', message: `Saved ${name}`, ms: 2000 });
-  async function save(tab: OpenTab, as = false): Promise<boolean> {
+  async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
+    // The Terminal's lines before it are the document's first: an edit one made went to the source,
+    // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
+    if (!fromCommand) await terminal.idle();
     // A cell editor still open holds what the user typed: the save takes it.
     await tab.handle?.commitEdit();
     const writes = as || !!tab.doc?.dirty;
@@ -273,6 +277,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       close(tab);
       saved((await open(result.path)).name);
     } else if (result.kind === 'not-saved' && result.error) {
+      // The Terminal says why itself, on its own line.
+      if (fromCommand) throw new Error(result.error);
       popovers.closeAll();
       dialog.show({ title: `Could Not Save ${tab.name}`, reason: result.error });
     }
@@ -583,6 +589,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     },
   });
   stops.push(() => galleryPane.dispose());
+
+  // Terminal: the command window's lines, run one after another over the active document.
+  const terminal = connectTerminal(parts.terminal, {
+    active: () => tabs.active,
+    tabs: () => tabs.items,
+    async save(tab) {
+      if (await save(tab, false, true)) return `Saved ${tab.name}.`;
+      throw new Error(`${tab.name} was not saved.`);
+    },
+  });
+  stops.push(() => terminal.dispose());
 
   // --- The parts' requests -----------------------------------------------------------------------
 
