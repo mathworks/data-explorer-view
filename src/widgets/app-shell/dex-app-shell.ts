@@ -159,7 +159,8 @@ export class DexAppShell extends LitElement {
       flex: 1;
     }
 
-    /* The ink is for a glyph a page draws in place of an icon; the icons are images. */
+    /* The ink is the icons' when the shell is mono, and a glyph's that a page draws in place of
+       an icon; otherwise the icons are drawn in their files' colours. */
     button {
       display: flex;
       align-items: center;
@@ -377,6 +378,14 @@ export class DexAppShell extends LitElement {
    * keeps nothing. Attribute `storage-key`.
    */
   @property({ type: String, attribute: 'storage-key' }) storageKey = '';
+  /**
+   * Draws the icons of the buttons the shell draws (the activity bars' and the status bar's) in
+   * one colour, the buttons' ink (`--dex-activity-fg`, through `<dex-icon mono>`), as the
+   * prototype's bars drew their glyphs; off, the default, draws them in their files' colours. The
+   * page's own children are its own to draw. Attribute `mono`, reflected so a page's stylesheet
+   * can follow it.
+   */
+  @property({ type: Boolean, reflect: true }) mono = false;
 
   // Two layouts. The chosen one is the person's: the views shown, the sides open, and the sizes
   // they set (read back from what was kept, or left by a drag or an arrow key); it is what is
@@ -818,7 +827,7 @@ export class DexAppShell extends LitElement {
             aria-label=${a.label || a.action}
             @click=${() => this._sendAction(a.action)}
           >
-            <dex-icon .iconId=${a.icon} .size=${20}></dex-icon>
+            <dex-icon .iconId=${a.icon} .size=${20} .mono=${this.mono}></dex-icon>
           </button>
         `)}
       </nav>
@@ -837,7 +846,7 @@ export class DexAppShell extends LitElement {
         aria-label=${label}
         @click=${() => this.toggleView(v.view)}
       >
-        <dex-icon .iconId=${v.icon} .size=${side === 'bottom' ? 16 : 20}></dex-icon>
+        <dex-icon .iconId=${v.icon} .size=${side === 'bottom' ? 16 : 20} .mono=${this.mono}></dex-icon>
       </button>
     `;
   }

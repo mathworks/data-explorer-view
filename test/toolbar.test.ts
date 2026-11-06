@@ -280,6 +280,43 @@ describe('the compact layout', () => {
   });
 });
 
+describe('the icons in one colour', () => {
+  // The shell's Minimal icon style: each item's icon a glyph in the label's colour rather than in
+  // its own, as the prototype's toolbar drew them. A toolbar that is not told so draws them as it
+  // always has, in their files' colours.
+  const icons = (el: DexToolbar): DexIcon[] => [...el.shadowRoot!.querySelectorAll('dex-icon')] as DexIcon[];
+
+  it('are off by default: every icon in its own colours', async () => {
+    const el = await toolbar(TS_ROW);
+    expect(el.mono).toBe(false);
+    expect(el.hasAttribute('mono')).toBe(false);
+    expect(icons(el).map((i) => i.mono)).toEqual(TS_ROW.map(() => false));
+  });
+
+  it('draw every icon mono, disabled ones too, and back again, the attribute reflected', async () => {
+    const el = await toolbar(TS_ROW);
+    el.mono = true;
+    await el.updateComplete;
+    expect(el.hasAttribute('mono')).toBe(true);
+    expect(icons(el).map((i) => i.mono)).toEqual(TS_ROW.map(() => true));
+    // Undo is disabled: greyed as the others are, the glyph and its label alike.
+    expect((button(el, 'Undo').querySelector('dex-icon') as DexIcon).mono).toBe(true);
+    el.mono = false;
+    await el.updateComplete;
+    expect(icons(el).map((i) => i.mono)).toEqual(TS_ROW.map(() => false));
+  });
+
+  it('are set by the mono attribute in markup, compact or not', async () => {
+    document.body.innerHTML = '<dex-toolbar mono compact></dex-toolbar>';
+    const el = document.body.querySelector('dex-toolbar')!;
+    el.items = [{ id: 'save', label: 'Save', icon: 'saved' }];
+    await el.updateComplete;
+    expect(el.mono).toBe(true);
+    const icon = button(el, 'Save').querySelector('dex-icon') as DexIcon;
+    expect([icon.mono, icon.size]).toEqual([true, 14]);
+  });
+});
+
 describe('the keyboard', () => {
   it('reaches the toolbar as one tab stop, the first item until another is used', async () => {
     const el = await toolbar(TS_ROW);

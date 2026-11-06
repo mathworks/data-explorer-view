@@ -30,7 +30,7 @@ const PATH: LocationSegment[] = [
   { label: 'Design Data' },
 ];
 
-async function bar(props: Partial<Pick<DexLocationBar, 'segments' | 'canBack' | 'canForward' | 'canUp'>> = {}): Promise<DexLocationBar> {
+async function bar(props: Partial<Pick<DexLocationBar, 'segments' | 'canBack' | 'canForward' | 'canUp' | 'mono'>> = {}): Promise<DexLocationBar> {
   const el = document.createElement('dex-location-bar');
   Object.assign(el, props);
   document.body.append(el);
@@ -163,6 +163,25 @@ describe('Back, Forward and Up', () => {
       expect(navButton(el, name).type).toBe('button');
       expect(navButton(el, name).title).toBe(name);
     }
+  });
+
+  it('draw their icons in their own colours by default, and in one colour with `mono`', async () => {
+    // The shell's Minimal icon style reaches the three buttons alone: a segment's icon is a file's
+    // or an entry's kind, which its colours tell apart.
+    const goIcons = (el: DexLocationBar) => (['Back', 'Forward', 'Up'] as const).map((name) => navButton(el, name).querySelector('dex-icon')!.mono);
+    const segmentIcons = (el: DexLocationBar) => segments(el).flatMap((b) => [...b.querySelectorAll('dex-icon')].map((i) => i.mono));
+    const el = await bar({ segments: PATH });
+    expect(el.mono).toBe(false);
+    expect(goIcons(el)).toEqual([false, false, false]);
+    el.mono = true;
+    await el.updateComplete;
+    expect(el.hasAttribute('mono')).toBe(true);
+    expect(goIcons(el)).toEqual([true, true, true]);
+    expect(segmentIcons(el)).toEqual([false, false]);
+    document.body.insertAdjacentHTML('beforeend', '<dex-location-bar mono></dex-location-bar>');
+    const marked = document.body.lastElementChild as DexLocationBar;
+    await marked.updateComplete;
+    expect(goIcons(marked)).toEqual([true, true, true]);
   });
 
   it('are disabled until the app says each can be used', async () => {

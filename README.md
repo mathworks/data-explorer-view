@@ -720,7 +720,8 @@ defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
 (put the attribute on `<html>`). Each widget falls back to the light value of
 every token it reads, so a widget is readable on a page that loads no theme at
 all. The icons are drawn for a light background, and the dark set turns them
-over with `--dex-icon-filter`. To match your app, declare the `--dex-*` tokens
+over with `--dex-icon-filter`; a `<dex-icon mono>` (the shell's Minimal icons)
+is drawn in its text colour instead, with no filter. To match your app, declare the `--dex-*` tokens
 after this file, or map them onto your own design system's variables.
 
 ```js

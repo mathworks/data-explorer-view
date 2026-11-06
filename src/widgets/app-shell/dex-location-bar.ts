@@ -185,6 +185,13 @@ export class DexLocationBar extends LitElement {
   @property({ type: Boolean, attribute: 'can-forward' }) canForward = false;
   /** Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`. */
   @property({ type: Boolean, attribute: 'can-up' }) canUp = false;
+  /**
+   * Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a
+   * toolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a
+   * file's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute
+   * `mono`, reflected so a page's stylesheet can follow it.
+   */
+  @property({ type: Boolean, reflect: true }) mono = false;
 
   // Each button checks again that it can be used, though a disabled one takes no click. The
   // button is redrawn disabled a microtask after the app says it cannot be used, which is before
@@ -234,7 +241,7 @@ export class DexLocationBar extends LitElement {
             title="Back"
             ?disabled=${!this.canBack}
             @click=${() => this._go('back', this.canBack)}
-          ><dex-icon .iconId=${'arrowNavigationWestUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationWestUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
           <button
             type="button"
             class="go"
@@ -242,7 +249,7 @@ export class DexLocationBar extends LitElement {
             title="Forward"
             ?disabled=${!this.canForward}
             @click=${() => this._go('forward', this.canForward)}
-          ><dex-icon .iconId=${'arrowNavigationEastUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationEastUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
           <button
             type="button"
             class="go"
@@ -250,7 +257,7 @@ export class DexLocationBar extends LitElement {
             title="Up"
             ?disabled=${!this.canUp}
             @click=${() => this._go('up', this.canUp)}
-          ><dex-icon .iconId=${'arrowNavigationNorthUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationNorthUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
         </div>
         <div class="divider"></div>
         <ol class="path">

@@ -195,6 +195,44 @@ describe('the activity buttons', () => {
   });
 });
 
+describe('the icons in one colour', () => {
+  // The shell's Minimal icon style: the buttons the shell draws (the activity bars' views and
+  // actions, and the status bar's views) show their icons as glyphs in the buttons' ink. The
+  // page's own children are its own: a shell that is not told so draws every icon in its colours.
+  const withBottom = (): Element[] => [...standard(), view('bottom', 'terminal', 'Terminal')];
+  const drawn = (shell: DexAppShell): boolean[] => [...shell.shadowRoot!.querySelectorAll('dex-icon')].map((i) => i.mono);
+
+  it('are off by default', async () => {
+    const shell = await mount(withBottom());
+    expect(shell.mono).toBe(false);
+    // Explorer, Search, Settings; Properties, Raw; Terminal.
+    expect(drawn(shell)).toEqual([false, false, false, false, false, false]);
+  });
+
+  it('are on in every button the shell draws with `mono`, reflected, and off again', async () => {
+    const shell = await mount(withBottom());
+    shell.mono = true;
+    await shell.updateComplete;
+    expect(shell.hasAttribute('mono')).toBe(true);
+    expect(drawn(shell)).toEqual([true, true, true, true, true, true]);
+    expect((button(shell, 'Terminal').querySelector('dex-icon') as { mono: boolean }).mono).toBe(true);
+    expect((button(shell, 'Settings').querySelector('dex-icon') as { mono: boolean }).mono).toBe(true);
+    shell.mono = false;
+    await shell.updateComplete;
+    expect(drawn(shell)).toEqual([false, false, false, false, false, false]);
+  });
+
+  it('are set by the mono attribute in markup', async () => {
+    const shell = document.createElement('dex-app-shell');
+    shell.setAttribute('mono', '');
+    shell.append(...standard());
+    document.body.append(shell);
+    await settle(shell);
+    expect(shell.mono).toBe(true);
+    expect(drawn(shell).every(Boolean)).toBe(true);
+  });
+});
+
 describe('which view a side shows', () => {
   it('shows the first view of each side and hides the others', async () => {
     const shell = await mount();
