@@ -26,9 +26,16 @@ export interface ReloadTab {
 export interface ReloadGateOptions<T> {
   /** The file's bytes as the disk holds them now. */
   read(path: string): Promise<Uint8Array>;
-  /** The file `name`, which has unsaved edits, changed on disk: whether to reload it. A rejection is no answer. */
-  confirm(name: string): Promise<boolean>;
-  /** Whether `tab` is still open: a change heard after it closed is not acted on. */
+  /**
+   * The file of `tab`, which has unsaved edits, changed on disk: whether to reload it. A rejection
+   * is no answer. Asked about the tab, not its name, so a question that waits its turn can be
+   * dropped for a tab that closed meanwhile.
+   */
+  confirm(tab: T): Promise<boolean>;
+  /**
+   * Whether `tab` is still open (and its shell up): a change, an answer or a read that lands after
+   * it closed is not acted on, since its document is disposed by then.
+   */
   isOpen(tab: T): boolean;
 }
 
@@ -67,8 +74,8 @@ export class ReloadGate<T extends ReloadTab> {
     if (!tab.doc) return Promise.resolve();
     const run = (
       unsaved
-        ? // No answer (the window went): nothing to act on.
-          this.options.confirm(tab.name).then((reload) => this.takeChange(tab, !reload, true), () => undefined)
+        ? // No answer (the window went), or one for a tab that has closed since: nothing to act on.
+          this.options.confirm(tab).then((reload) => (this.options.isOpen(tab) ? this.takeChange(tab, !reload, true) : undefined), () => undefined)
         : this.takeChange(tab, false, false)
     )
       .finally(() => this.asking.delete(tab))
@@ -100,6 +107,7 @@ export class ReloadGate<T extends ReloadTab> {
     try {
       bytes = await this.options.read(tab.path);
     } catch (err) {
+      if (!this.options.isOpen(tab)) return;
       const what = keep ? `read ${tab.name} again` : `reload ${tab.name}`;
       if (tab.table) tab.table.banners = { error: `Failed to ${what}: ${message(err)}` };
       // The file is gone, or cannot be read: a document that holds what the disk does not stays
@@ -107,6 +115,8 @@ export class ReloadGate<T extends ReloadTab> {
       if (unsaved) await tab.doc?.keepOver(new Uint8Array()).catch(() => undefined);
       return;
     }
+    // Closed while its file was read: its document is gone.
+    if (!this.options.isOpen(tab)) return;
     // Taking the disk's file over a clean document: if it was edited (or saved, and that save written
     // over) while the file was read, it holds what the disk does not now, so it is asked about instead.
     if (!keep && !unsaved && (tab.doc.dirty || this.againUnsaved.has(tab))) {

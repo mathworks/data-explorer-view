@@ -23,6 +23,7 @@ import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import type { DexAppShell } from '../dex-app-shell.js';
+import type { ConfirmOptions } from '../dex-confirm-dialog.js';
 import {
   clearSelection,
   connectDocument,
@@ -115,17 +116,38 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   stops.push(() => popovers.dispose());
 
+  // The shell's confirm dialog, one question at a time: asked another while one is open, it answers
+  // the open one with its cancel, so a reload question would cancel a "Save changes?" under it, and a
+  // close would answer a reload question Keep My Edits. Each waits for the one before it. One that is
+  // no longer worth asking (`still`: its tab closed) is answered with its cancel: unasked by its
+  // turn, or taken down as its tab closes, which the answer before it may have just done.
+  let questions: Promise<unknown> = Promise.resolve();
+  let shownStill: (() => boolean) | null = null;
+  const ask = (question: ConfirmOptions, still: () => boolean = () => true): Promise<string> => {
+    const answer = questions.then(async () => {
+      if (!still()) return question.cancelId;
+      popovers.closeAll();
+      shownStill = still;
+      try {
+        return await confirm.show(question);
+      } finally {
+        shownStill = null;
+      }
+    });
+    questions = answer.catch(() => undefined);
+    return answer;
+  };
+  const askedInVain = (): void => {
+    if (shownStill && !shownStill()) confirm.close();
+  };
   // The host's own questions where it has them; the shell's confirm dialog where it has none.
-  const confirmClose = (names: string[]): Promise<CloseAnswer> => {
-    if (host.confirmClose) return host.confirmClose(names);
-    popovers.closeAll();
-    return confirm.show(closeQuestion(names)).then(closeAnswerOf);
-  };
-  const confirmReload = (name: string): Promise<boolean> => {
-    if (host.confirmReload) return host.confirmReload(name);
-    popovers.closeAll();
-    return confirm.show(reloadQuestion(name)).then((id) => id === 'reload');
-  };
+  const confirmClose = (names: string[]): Promise<CloseAnswer> =>
+    host.confirmClose ? host.confirmClose(names) : ask(closeQuestion(names)).then(closeAnswerOf);
+  const confirmReload = (tab: OpenTab): Promise<boolean> =>
+    host.confirmReload
+      ? host.confirmReload(tab.name)
+      : ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload');
+  const isOpen = (tab: OpenTab): boolean => !disposed && tabs.items.includes(tab);
 
   // --- Painting ----------------------------------------------------------------------------------
 
@@ -289,8 +311,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     tab.panel.remove();
     const wasActive = tab === tabs.active;
     tabs.remove(tab);
-    // Back must not land on a place that went with the tab.
+    // Back must not land on a place that went with the tab, nor a question stay up about it.
     history.prune((place) => place.tabId !== tab.id);
+    askedInVain();
     if (wasActive) shown();
     else paint();
   }
@@ -419,7 +442,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const reloads = new ReloadGate<OpenTab>({
     read: (path) => host.readFile(path),
     confirm: confirmReload,
-    isOpen: (tab) => tabs.items.includes(tab),
+    isOpen,
   });
 
   // --- Commands ----------------------------------------------------------------------------------

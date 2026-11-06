@@ -1,0 +1,98 @@
+// Copyright 2026 The MathWorks, Inc.
+// @vitest-environment happy-dom
+//
+// The shell's questions, asked one at a time. A browser host has no prompts of its own, so the
+// shell asks in its one confirm dialog, whose show() answers a question still open with that
+// question's cancel when it is asked another: a reload question while "Save changes?" is up would
+// cancel the close, and a close while a reload question is up would answer it Keep My Edits, with
+// nobody having pressed anything. Each question waits for the one before it; one that is no longer
+// worth asking by its turn (its tab closed) is not asked.
+//
+// And a question still out about a tab that has closed, or a shell that was taken down, is acted on
+// by nobody: its answer reads no file and touches no document.
+import { describe, expect, it } from 'vitest';
+import { at, changedOutside, confirmButton, confirmDialog, dirtyTabs, edit, open, settled, startPage, tabNames, tableOf, textOf, until, type Page } from './harness.js';
+
+const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
+const asking = () => (confirmDialog().hasAttribute('open') ? (confirmDialog().shadowRoot?.textContent ?? '') : '');
+const shown = (file: string, row: string) => textOf(tableOf(file)?.rows.find((r) => r.Name?.label === row));
+
+/** Write `value` into row `row` of `file` from outside, and tell the shell, as the host's watcher does. */
+async function outside(page: Page, file: string, row: string, value: string): Promise<void> {
+  page.main.files.set(at(file), await changedOutside(page.main.files.get(at(file))!, file, row, value));
+  page.main.changed(at(file));
+}
+
+/** A page with unsaved edits in params.sldd, whose host asks nothing itself. */
+async function editedInBrowser(): Promise<Page> {
+  const page = startPage(FILES, { without: ['confirmClose', 'confirmReload'] });
+  await open(page, 'params.sldd');
+  await edit('params.sldd', 'Kp', '5');
+  await until(() => dirtyTabs().length === 1);
+  return page;
+}
+
+describe('in-page questions', () => {
+  it("a change on disk while \"Save changes?\" is asked waits for its answer, and is not asked for the tab that answer closed", async () => {
+    const page = await editedInBrowser();
+    page.command('close-tab');
+    await until(() => asking().includes('Do you want to save the changes you made to params.sldd?'));
+    await outside(page, 'params.sldd', 'Ki', '30');
+    await settled();
+    expect(asking()).toContain('Do you want to save the changes you made to params.sldd?');
+    (await confirmButton("Don't Save")).click();
+    await until(() => tabNames().length === 0);
+    await settled();
+    expect(asking()).toBe('');
+    expect(page.main.saves).toEqual([]);
+  });
+
+  it('a close asked while a reload question is up waits for its answer, which is acted on, and then asks', async () => {
+    const page = await editedInBrowser();
+    await outside(page, 'params.sldd', 'Ki', '30');
+    await until(() => asking().includes('params.sldd changed on disk.'));
+    page.command('close-tab');
+    await settled();
+    expect(asking()).toContain('params.sldd changed on disk.');
+    (await confirmButton('Reload')).click();
+    await until(() => shown('params.sldd', 'Ki') === '30' && shown('params.sldd', 'Kp') === '1');
+    await until(() => asking().includes('Do you want to save the changes you made to params.sldd?'));
+    (await confirmButton("Don't Save")).click();
+    await until(() => tabNames().length === 0);
+  });
+});
+
+describe('a reload question still out', () => {
+  /** A page whose host is asked about params.sldd's change, and answers when the test says. */
+  async function askedAboutAChange() {
+    const page = startPage(FILES);
+    await open(page, 'ParamMat.mat', 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    let answer!: (reload: boolean) => void;
+    page.host.confirmReload = (name) => (page.main.reloadAsked.push(name), new Promise((resolve) => (answer = resolve)));
+    await outside(page, 'params.sldd', 'Ki', '30');
+    await until(() => page.main.reloadAsked.length === 1);
+    return { page, answer: (reload: boolean) => answer(reload) };
+  }
+
+  it('is acted on by nobody once its tab has closed: the answer reads nothing', async () => {
+    const { page, answer } = await askedAboutAChange();
+    page.main.closeAnswers.push('discard');
+    page.command('close-tab');
+    await until(() => tabNames().join() === 'ParamMat.mat');
+    const reads = page.main.reads.length;
+    answer(false);
+    await settled();
+    expect(page.main.reads.length).toBe(reads);
+  });
+
+  it('is acted on by nobody once the shell is taken down', async () => {
+    const { page, answer } = await askedAboutAChange();
+    page.handle.dispose();
+    const reads = page.main.reads.length;
+    answer(true);
+    await settled();
+    expect(page.main.reads.length).toBe(reads);
+  });
+});

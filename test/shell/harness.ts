@@ -104,6 +104,8 @@ export interface Main {
   closedWindow: boolean[];
   /** The files the host was told to stop watching. */
   closedFiles: string[];
+  /** The files the host was asked to read, in turn (by its own readFile; a test's replacement records nothing). */
+  reads: string[];
   copied: string[];
   revealed: string[];
   /** Make a save fail with this message. */
@@ -154,11 +156,13 @@ export function startPage(files: Record<string, string> = {}, options: PageOptio
     edited: [],
     closedWindow: [],
     closedFiles: [],
+    reads: [],
     copied: [],
     revealed: [],
     changed: (p) => page.handle.fileChanged(p),
   };
   const read = (p: string) => {
+    main.reads.push(p);
     const bytes = main.files.get(p);
     if (!bytes) return Promise.reject(new Error(`ENOENT: no such file, open '${p}'`));
     return Promise.resolve(bytes.slice());
