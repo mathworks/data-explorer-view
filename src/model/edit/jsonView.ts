@@ -146,6 +146,12 @@ export class JsonView implements EditableTableSource {
   private wideEpoch = 0;
   /** How many times this table changed its rows, or put its tree out of step, outside a wide repaint. */
   private rowsTouched = 0;
+  /**
+   * When each entry's rows were last sent (`rowsTouched` then), by the entry's row id, since the last
+   * wide repaint began: what tells a narrow repaint that waited on the Usage column that a newer
+   * paint of its entry went out meanwhile.
+   */
+  private readonly entrySent = new Map<string, number>();
   /** This table has closed: set first in dispose, and asked by everything still running then. */
   private disposed = false;
   /** The table has asked for its rows (`open`). Until then a wide repaint paints nothing. */
@@ -268,6 +274,7 @@ export class JsonView implements EditableTableSource {
   private postRowPatch(change: TableChange): void {
     if (this.disposed) return;
     this.rowsTouched++;
+    if (change.kind === 'updateEntry') this.entrySent.set(change.entryRowId, this.rowsTouched);
     this.emit(change);
     this.changed();
   }
@@ -324,6 +331,8 @@ export class JsonView implements EditableTableSource {
     // Counted before the text is read: a write painted before this point is never again taken for
     // one whose rows are on screen, and a repaint begun before it is no longer the newest.
     const epoch = ++this.wideEpoch;
+    // Every narrow repaint still waiting is older than this one, which drops it (postEntryRows).
+    this.entrySent.clear();
     this.latestPost = this.paintWide(epoch);
     return this.latestPost;
   }
@@ -464,9 +473,15 @@ export class JsonView implements EditableTableSource {
    */
   private postEntryRows(entryRowId: string, entry: any): Promise<void> {
     const rows = this.entryRowsOf(entry);
+    const since = this.rowsTouched;
+    const epoch = this.wideEpoch;
     return this.fillUsage(rows)
       .catch(() => false)
       .then(() => {
+        // Overtaken while the Usage column was filled: a paint of the same entry went out since (an
+        // undo pressed straight after an edit repaints it at once, while the edit's echo waits here),
+        // or a wide one began. Those rows are newer than these, which would put back what they took.
+        if (this.wideEpoch !== epoch || (this.entrySent.get(entryRowId) ?? 0) > since) return;
         this.postRowPatch({ kind: 'updateEntry', entryRowId, rows });
       });
   }
