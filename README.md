@@ -552,8 +552,23 @@ outlined, and a tab says "Opening plant.sldd…" while its file is read.
 `app.command(id)` carries out a command (`'new-file'`, `'save'`, `'undo'`,
 `'show-search'`, …) as its button or its chord does, for a native menu's items,
 and `app.dispose()` takes the app down. The settings, the layout the user left
-and each file's column choices are kept in localStorage under connectShell's
-`storageKey` (`'dex-shell'` by default).
+(the divider between two panes with it) and each file's column choices are kept
+in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+
+The documents split in two panes side by side, as VS Code's editor groups do. A
+tab dragged onto the left or right fifth of the documents makes a pane there
+with it (the area shows where it would land); one dropped on the other pane's
+tab row, or among its documents, moves there; Split Right (Cmd/Ctrl+\\) and
+Move to Other Pane do the same from the keyboard and the command palette. A
+file is open in one tab only, so a tab moves and is never copied. Each pane has
+its own tab row, its own preview tab and the tab it shows. The pane the user is
+in (by a click, the keyboard's focus, or Cmd/Ctrl+1 and Cmd/Ctrl+2) is the one
+everything else follows, the toolbar, the location bar, the Properties, Raw, the
+status bar, a save and a close, and the one a new file opens in; the other
+pane's tab row marks its tab in grey. A pane whose last tab closes or moves out
+goes. The divider is dragged, or moved by the arrow keys, between a fifth and
+four fifths of the width. Which tabs are in which pane is not kept, as the open
+files are not.
 
 ### The host
 
@@ -698,7 +713,9 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Cmd/Ctrl+O, Cmd/Ctrl+Shift+O | Open File…, Open Folder… |
 | Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Alt+S | Save, Save As…, Save All |
 | Cmd/Ctrl+W | close the tab |
-| Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
+| Ctrl+Tab, Ctrl+Shift+Tab | the next tab of the pane, the one before |
+| Cmd/Ctrl+\\ | Split Right: the tab into the pane on the right |
+| Cmd/Ctrl+1, Cmd/Ctrl+2 | the first pane, the second |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
 | + (in a table) | Add Child, on the selected row |
@@ -713,12 +730,12 @@ and leaves Undo and Redo to a table, which undoes its own document.
 
 A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Root's
-graph, Settings, the command palette and the views' chords, and the menu the
-rest. In a browser tab, a few chords are the browser's whatever the page does:
-a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox both do), and
-Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs; there
-the toolbar, the tab row and the command palette do the same. The shell's own
-chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+graph, Settings, the command palette, the panes' and the views' chords, and the
+menu the rest. In a browser tab, a few chords are the browser's whatever the
+page does: a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox
+both do), and Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own
+tabs; there the toolbar, the tab row and the command palette do the same. The
+shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
 there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in
