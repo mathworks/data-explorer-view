@@ -265,11 +265,46 @@ describe('browserHost', () => {
 
   it('gives an app the files it may add to and ask about, and nothing of the rest', async () => {
     const { host } = hostOf();
-    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'get', 'has']);
+    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'addToGroup', 'get', 'has']);
     const path = await host.files.addPicked('a.sldd', { kind: 'bytes', bytes: bytesOf('fetched') });
     expect(host.files.has(path)).toBe(true);
     expect(host.files.get(path)?.name).toBe('a.sldd');
     expect(text(await host.readFile(path))).toBe('fetched');
+  });
+
+  it("adds an app's files to a group it names, one folder whenever each comes, the paths to open", async () => {
+    const { host } = hostOf();
+    const first = await host.files.addToGroup('site', [{ name: 'plant.slx', source: { kind: 'bytes', bytes: bytesOf('model') } }]);
+    const later = await host.files.addToGroup('site', [{ name: 'plant.sldd', source: { kind: 'bytes', bytes: bytesOf('dictionary') } }]);
+    expect([first, later]).toEqual([['/files/1/plant.slx'], ['/files/1/plant.sldd']]);
+    expect(text(await host.readFile(later[0]!))).toBe('dictionary');
+  });
+
+  it("tells a file the group's newer one replaced as a change on disk, if it is open, and once", async () => {
+    vi.useFakeTimers();
+    const { host, changed } = hostOf();
+    const [open] = await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'handle', handle: asFile(new FakeFileHandle('a.sldd', 'one')) } }]);
+    const [shut] = await host.files.addToGroup('site', [{ name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);
+    await host.readFile(open!);
+    await host.files.addToGroup('site', [
+      { name: 'a.sldd', source: { kind: 'handle', handle: asFile(new FakeFileHandle('a.sldd', 'two')) } },
+      { name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } },
+    ]);
+    // The open one is told; the other, which no tab reads, is read anew when it is opened.
+    expect(changed).toEqual([open]);
+    expect(text(await host.readFile(open!))).toBe('two');
+    expect(text(await host.readFile(shut!))).toBe('two');
+    // Known by the new file's stamp: the next look finds no change to tell again.
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    expect(changed).toEqual([open]);
+  });
+
+  it('without onChanged replaces a file in a group and tells nothing', async () => {
+    const { host } = hostOf({}, { onChanged: undefined });
+    const [path] = await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);
+    await host.readFile(path!);
+    expect(await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } }])).toEqual([path]);
+    expect(text(await host.readFile(path!))).toBe('two');
   });
 
   it('passes over a dropped folder without onFolder', async () => {

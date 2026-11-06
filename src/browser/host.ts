@@ -41,6 +41,16 @@ export interface BrowserFiles {
    * by (the shell's `openPaths`). A handle to a file the host has a path for already keeps that path.
    */
   addPicked(name: string, source: BrowserSource): Promise<string>;
+  /**
+   * Add files of the app's own to the group named `group` (any name the app chooses: `'samples'`):
+   * the paths to open them by, in order. A group is one folder, made when its first file comes, and
+   * every file added to it later sits beside the ones it has, so files fetched at different times
+   * still find each other (a model's link to a dictionary, which names it alone). Two groups, and
+   * every pick, are folders apart. A group holds one file of a name: a file of a name it has takes
+   * that file's place, at its path, and a tab open on it takes the new file as it takes a change on
+   * disk (through `onChanged`). A handle to a file the host has a path for already keeps that path.
+   */
+  addToGroup(group: string, files: readonly BrowserFile[]): Promise<string[]>;
   /** The file at `path`, or undefined for a path the host never made. */
   get(path: string): BrowserFile | undefined;
   /** Whether the host made `path`. */
@@ -205,6 +215,17 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     // The registry's few members an app needs, and none of the rest.
     files: {
       addPicked: (name, source) => files.addPicked(name, source),
+      async addToGroup(group, added) {
+        const { paths, replaced } = await files.addToGroup(group, added);
+        // A file replaced under a tab is a change on disk to it, told once: the watcher knows it by
+        // the new file's stamp, so its next look does not tell it again.
+        for (const path of replaced) {
+          if (!watcher?.has(path)) continue;
+          watcher.watch(path, await files.stamp(path));
+          onChanged?.(path);
+        }
+        return paths;
+      },
       get: (path) => files.get(path),
       has: (path) => files.has(path),
     },

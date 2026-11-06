@@ -3,7 +3,9 @@
 // The browser host's registry of files (src/browser/files.ts): the paths it makes up for what a
 // browser hands out, which the shell keeps as its tabs' and links resolve beside, and what each path
 // reads. A path that changed meaning, or two files under one path, would open one file's tab on
-// another's bytes, and save into it. Ported from data-explorer-app test/unit/web/files.test.ts.
+// another's bytes, and save into it. And an app's own files added to a group it names, which share
+// one folder whenever each is added, so a model fetched first finds the dictionary fetched after it
+// beside it. Ported from data-explorer-app test/unit/web/files.test.ts.
 import { describe, expect, it } from 'vitest';
 import { WebFiles } from '../../src/browser/files.js';
 import { asDir, asFile, changedSincePicked, fakeDir, FakeFileHandle, fileOf, listedDir } from './fakeFs.js';
@@ -122,6 +124,63 @@ describe('WebFiles', () => {
     expect(await files.stamp('/files/9/none.sldd')).toBeNull();
     handle.gone = true;
     expect(await files.stamp(h)).toBeNull();
+  });
+
+  it("puts an app's files added under one group in one folder, whenever each comes", async () => {
+    const files = new WebFiles();
+    const added = await files.addToGroup('site', [{ name: 'plant.slx', source: { kind: 'bytes', bytes: bytesOf('model') } }]);
+    // A pick in between takes a folder of its own, and the group keeps its.
+    expect(await files.addPicked('other.sldd', { kind: 'bytes', bytes: bytesOf('picked') })).toBe('/files/2/other.sldd');
+    const later = await files.addToGroup('site', [
+      { name: 'plant.sldd', source: { kind: 'bytes', bytes: bytesOf('dictionary') } },
+      { name: 'base.sldd', source: { kind: 'file', file: fileOf('base.sldd') } },
+    ]);
+    expect(added.paths).toEqual(['/files/1/plant.slx']);
+    expect(later.paths).toEqual(['/files/1/plant.sldd', '/files/1/base.sldd']);
+    expect([added.replaced, later.replaced]).toEqual([[], []]);
+    expect(text(await files.bytes('/files/1/plant.sldd'))).toBe('dictionary');
+    expect(files.get('/files/1/base.sldd')?.name).toBe('base.sldd');
+  });
+
+  it('keeps two groups apart, and apart from the picks', async () => {
+    const files = new WebFiles();
+    const one = await files.addToGroup('samples', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);
+    const two = await files.addToGroup('other', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } }]);
+    const picked = await files.addPick([{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('three') } }]);
+    const again = await files.addToGroup('samples', [{ name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('four') } }]);
+    expect([one.paths, two.paths, picked, again.paths]).toEqual([['/files/1/a.sldd'], ['/files/2/a.sldd'], ['/files/3/a.sldd'], ['/files/1/b.sldd']]);
+  });
+
+  it('takes a name the group has for the same file: its path, read from what was added last, and says so', async () => {
+    const files = new WebFiles();
+    const first = await files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('first') } }]);
+    const second = await files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('second') } }]);
+    expect(second).toEqual({ paths: first.paths, replaced: first.paths });
+    expect(text(await files.bytes(first.paths[0]!))).toBe('second');
+    // Twice in one call: the later one, at the one path.
+    const twice = await files.addToGroup('site', [
+      { name: 'c.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } },
+      { name: 'c.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } },
+    ]);
+    expect(twice).toEqual({ paths: ['/files/1/c.sldd', '/files/1/c.sldd'], replaced: [] });
+    expect(text(await files.bytes('/files/1/c.sldd'))).toBe('two');
+  });
+
+  it('gives a handle to a file the page has a path for that path, as a pick does, and replaces nothing', async () => {
+    const files = new WebFiles();
+    const a = new FakeFileHandle('a.sldd', 'picked');
+    const picked = await files.addPicked('a.sldd', { kind: 'handle', handle: asFile(a) });
+    expect(await files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'handle', handle: asFile(a.again()) } }])).toEqual({ paths: [picked], replaced: [] });
+    // The group's own file again, through another handle: the same path, and nothing replaced.
+    const b = new FakeFileHandle('b.sldd');
+    const [inGroup] = (await files.addToGroup('site', [{ name: 'b.sldd', source: { kind: 'handle', handle: asFile(b) } }])).paths;
+    expect(await files.addToGroup('site', [{ name: 'b.sldd', source: { kind: 'handle', handle: asFile(b.again()) } }])).toEqual({ paths: [inGroup], replaced: [] });
+  });
+
+  it('makes no folder for a group given no files', async () => {
+    const files = new WebFiles();
+    expect(await files.addToGroup('site', [])).toEqual({ paths: [], replaced: [] });
+    expect(await files.addPicked('x.sldd', { kind: 'bytes', bytes: bytesOf('x') })).toBe('/files/1/x.sldd');
   });
 
   it('reads a path from another source once it is replaced, under the name it had', async () => {

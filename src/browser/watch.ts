@@ -20,6 +20,8 @@ export interface OpenFileWatch {
   watch(path: string, stamp?: string | null): void;
   /** Stop watching `path`: its tab closed. */
   unwatch(path: string): void;
+  /** Whether `path` is watched: a tab has it open. */
+  has(path: string): boolean;
   /** The page starts writing `path`: what a look sees until this write's `ownWrite` is no change. */
   saving(path: string): void;
   /** The page's write of `path` left it as `stamp` (null: it failed, or wrote elsewhere), which is no change. */
@@ -80,6 +82,7 @@ export function watchOpenFiles(
       }
     },
     unwatch: (path) => void watched.delete(path),
+    has: (path) => watched.has(path),
     saving(path) {
       const w = watched.get(path);
       if (!w) return;

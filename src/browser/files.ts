@@ -6,7 +6,9 @@
 // for a file of the n-th pick (or drop), and `<root>/<rel>` for a file of a shown folder, whose root
 // is `/<folder name>`. The shell keeps the path a file opened under as its tab's, links resolve
 // beside it, and connectShell hands it back to the host for every read and save; so the registry
-// is where a path turns back into something that reads.
+// is where a path turns back into something that reads. An app's own files (bytes it fetched) may go
+// into a group it names, a pick's folder that later files join, so files fetched one at a time
+// still sit beside each other.
 //
 // Lifted from data-explorer-app src/web/files.ts at b13a860.
 
@@ -66,6 +68,8 @@ export async function stampOf(source: BrowserSource): Promise<string | null> {
 export class WebFiles {
   private readonly entries = new Map<string, BrowserFile>();
   private readonly folders = new Map<string, BrowserDir>();
+  /** The pick folder of each group an app named (addToGroup), by its name. */
+  private readonly groups = new Map<string, number>();
   private picks = 0;
 
   /** A file picked on its own: `/files/<n>/<name>`, so two `a.sldd` from two picks differ. */
@@ -100,6 +104,37 @@ export class WebFiles {
       paths.push(path);
     }
     return paths;
+  }
+
+  /**
+   * Files of the app's own into the group named `group`: a folder `/files/<n>/` made the first time
+   * the name has a file, which every later file of the group joins, so a link from one to another
+   * finds it whenever each was added. A group is one folder, so it holds one file of a name: a file
+   * of a name the group has takes that file's place, its path then reading the new source (as a
+   * file copied into a folder replaces the one of its name there), and its path is in `replaced`.
+   * A handle to a file the page has a path for already keeps that path, wherever it is, as in a pick.
+   */
+  async addToGroup(group: string, added: readonly BrowserFile[]): Promise<{ paths: string[]; replaced: string[] }> {
+    const paths: string[] = [];
+    const replaced: string[] = [];
+    for (const { name, source } of added) {
+      const known = source.kind === 'handle' ? await this.pathOf(source.handle) : undefined;
+      if (known) {
+        paths.push(known);
+        continue;
+      }
+      let n = this.groups.get(group);
+      if (n === undefined) {
+        n = ++this.picks;
+        this.groups.set(group, n);
+      }
+      const path = `/files/${n}/${name}`;
+      // A path this call gave already is the call's own file, given twice: the later one stands.
+      if (this.entries.has(path) && !paths.includes(path) && !replaced.includes(path)) replaced.push(path);
+      this.entries.set(path, { name, source });
+      paths.push(path);
+    }
+    return { paths, replaced };
   }
 
   /** The path of a file read through a handle to the file `handle` is to, if the page has one. */

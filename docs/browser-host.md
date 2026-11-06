@@ -74,7 +74,24 @@ has, so it opens in the tab it has.
 
 `host.files` answers what a path holds (`get`, `has`), and takes a file of the app's own: bytes it
 fetched, say, `await host.files.addPicked('a.sldd', { kind: 'bytes', bytes })`, whose path the app
-then opens.
+then opens. Each file added that way is in a folder of its own, as a file picked on its own is.
+
+Files of the app's own that link to each other go in a group it names, with
+`host.files.addToGroup(group, files)`: the group is one folder, made when its first file comes, and
+every file added to it later sits beside those it has. So files fetched at different times still
+find each other: the samples a page fetches when they are asked for, after a file its address
+named, and a model's link to a dictionary fetched after it. Two groups, and every pick, are folders
+apart. A group holds one file of a name: one added under a name the group has takes its place, at
+its path, and a tab open on it takes the new file as it takes a change on disk. Files of one name
+from two places on a site go in two groups (a group per site folder, say).
+
+```js
+const fetched = await Promise.all(urls.map(async (url) => ({
+  name: url.slice(url.lastIndexOf('/') + 1),
+  source: { kind: 'bytes', bytes: new Uint8Array(await (await fetch(url)).arrayBuffer()) },
+})));
+app.openPaths(await host.files.addToGroup('samples', fetched));
+```
 
 A shown folder is listed by core's listing rules (the same files, skips, order and limit as
 `listFolder` from `data-explorer-core/node/folder`), served in the page over a `MessageChannel`, so
