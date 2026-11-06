@@ -14,6 +14,7 @@ import {
   SIDE_MIN,
   initialLayout,
   keepLayout,
+  keepLayoutOver,
   resizeSide,
   showView,
   toggleView,
@@ -131,5 +132,40 @@ describe('keepLayout', () => {
     const text = keepLayout(state);
     expect(typeof text).toBe('string');
     expect(initialLayout(VIEWS, text)).toEqual(state);
+  });
+});
+
+describe('keepLayoutOver', () => {
+  // A side with no views has nothing a person chose on it: writing its empty state over what was
+  // kept would make a view that arrives there later open closed instead of as it was left.
+  const EARLIER = keepLayout(toggleView(resizeSide(FIRST, 'left', 300, 1000), 'bottom', 'log'));
+
+  it('writes the sides named, and for the others what was kept before', () => {
+    const now = toggleView(FIRST, 'right', 'properties');
+    const text = keepLayoutOver(now, EARLIER, ['right']);
+    expect(JSON.parse(text)).toEqual({
+      left: { view: 'explorer', open: true, size: 300 },
+      right: { view: 'properties', open: false, size: SIDE_DEFAULTS.right },
+      bottom: { view: 'log', open: false, size: SIDE_DEFAULTS.bottom },
+    });
+    // The same from what was kept already parsed.
+    expect(keepLayoutOver(now, JSON.parse(EARLIER), ['right'])).toBe(text);
+  });
+
+  it('leaves out a side neither named nor kept before, whatever was kept', () => {
+    expect(JSON.parse(keepLayoutOver(FIRST, null, ['left']))).toEqual({ left: FIRST.left });
+    expect(JSON.parse(keepLayoutOver(FIRST, 'not json', ['left']))).toEqual({ left: FIRST.left });
+    expect(JSON.parse(keepLayoutOver(FIRST, '[1, 2]', ['left']))).toEqual({ left: FIRST.left });
+    expect(JSON.parse(keepLayoutOver(FIRST, '{"constructor": 1}', ['left']))).toEqual({ left: FIRST.left });
+  });
+
+  it("copies what was kept as it is, for initialLayout to read past what does not fit", () => {
+    const text = keepLayoutOver(FIRST, '{"bottom": {"view": 7, "open": "yes", "size": 90}}', ['left', 'right']);
+    expect(JSON.parse(text).bottom).toEqual({ view: 7, open: 'yes', size: 90 });
+    expect(initialLayout(VIEWS, text).bottom).toEqual({ view: 'log', open: true, size: 90 });
+  });
+
+  it("is keepLayout's text with every side named", () => {
+    expect(keepLayoutOver(FIRST, EARLIER, ['left', 'right', 'bottom'])).toBe(keepLayout(FIRST));
   });
 });

@@ -128,6 +128,32 @@ export function keepLayout(state: ShellLayoutState): string {
   return JSON.stringify(kept);
 }
 
+/**
+ * What is kept when the shell writes only some of the sides: `state`'s three fields for each side
+ * in `sides`, and for every other side what `before` holds for it (what was kept last, as the
+ * store hands it back or already parsed), or nothing when it holds none. With every side named it
+ * is `keepLayout`'s text.
+ *
+ * The shell names the sides that have views. Nothing a person chose is on a side with none, and
+ * writing its empty state over what was kept for it would close the side for good: a view that
+ * arrives there later, in this page or in a later version of the app, would open closed rather
+ * than as it was left. What `before` holds is copied as it is, junk included, for the next
+ * initialLayout to read field by field as it reads anything kept.
+ */
+export function keepLayoutOver(state: ShellLayoutState, before: unknown, sides: readonly ShellSide[]): string {
+  const was = asRecord(typeof before === 'string' ? parseJson(before) : before);
+  const kept: Record<string, unknown> = {};
+  for (const side of SIDES) {
+    if (sides.includes(side)) {
+      const { view, open, size } = state[side];
+      kept[side] = { view, open, size };
+    } else if (was && Object.hasOwn(was, side)) {
+      kept[side] = was[side];
+    }
+  }
+  return JSON.stringify(kept);
+}
+
 /** JSON text parsed, or `undefined` for text that is not JSON. */
 function parseJson(text: string): unknown {
   try {
