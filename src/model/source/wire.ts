@@ -407,14 +407,20 @@ export type TableEditHostMessage =
 // one: nothing is decoded, resolved or normalised) is refused, and nothing is read for it. A
 // project store is answered only for a listed file, from beside it, by the host's reader.
 //
-// A FOLDER'S ENTRIES ARE THE HOST'S TO REFUSE. An `entries` ask names a folder by its path, which
-// no listing holds (the index lists files, and the folders it would name are any the user opens),
-// so it is matched against nothing here: the host's `entries` (FolderReads.entries) is what lists
-// only the folders it serves, and throws for any other, the error the page's call rejects with.
-// What it answers is names and kinds, never a file's bytes: those are still only a listed file's.
+// A FOLDER'S ENTRIES ARE THE HOST'S TO REFUSE. A `list` with a `dir` names a folder by its path,
+// which no listing holds (the index lists files, and the folders it would name are any the user
+// opens), so it is matched against nothing here: the host's `entries` (FolderReads.entries) is
+// what lists only the folders it serves, and throws for any other, the error the page's call
+// rejects with. What it answers is names and kinds, never a file's bytes: those are still only a
+// listed file's, and a folder's entries are not the listing the host keeps.
+//
+// Why a `list` with a `dir` and not an ask of its own: a host older than the entries ignores the
+// `dir` and answers its listing of files, with no `entries` field, which tells the page it lists
+// none; it would leave an ask it does not know refused, but the page could not tell a host that
+// lists no entries from one that will not answer, and a message of a new type it would ignore.
 
-/** What a `folderRequest` asks: the folder's files, a version, the bytes or the project store of one of them, or one level of a folder. */
-export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore' | 'entries';
+/** What a `folderRequest` asks: the folder's files (or with a `dir`, one level of that folder), or a version, the bytes or the project store of one of them. */
+export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
 
 /**
  * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
@@ -422,22 +428,24 @@ export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore' | 'entries
  *
  * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
  *   host keeps this listing, and the questions below are about its files.
+ * - `list` with a `dir`: one level of the folder `dir`, answered in `entries` (the host's
+ *   FolderReads.entries), asked whether or not the folder is listed, and kept as no listing.
+ *   `refused` when the host lists no entries, or when `dir` is not a string; an error when the
+ *   host cannot list that folder, or will not. A host older than the field answers its listing of
+ *   files instead, with no `entries`: the page reads that as a host that lists none.
  * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
  *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
  *   and nothing is read: a page can have the host read only the files the host listed. So is a
  *   question asked before the host has listed the folder, and an `ask` of no other name.
- * - `entries`: one level of the folder `dir`, as the host's `entries` lists it (FolderEntry[]),
- *   asked whether or not the folder is listed. `refused` when the host lists no entries, or when
- *   `dir` is not a string; an error when the host cannot list that folder, or will not.
  */
 export interface FolderRequestMessage {
   type: 'folderRequest';
   /** Which answer is this question's: no other question of the same reader waiting has it. */
   id: number;
   ask: FolderAsk;
-  /** The file asked about, by its uriString. Not on a `list` or an `entries`. */
+  /** The file asked about, by its uriString. Not on a `list`. */
   uri?: string;
-  /** The folder asked about, on an `entries` ask (its path, as the entries' paths are). */
+  /** On a `list`, the folder whose entries are asked for (its path, as the entries' paths are). Absent: the folder's files. */
   dir?: string;
 }
 
@@ -446,13 +454,12 @@ export interface FolderRequestMessage {
  *
  * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
  * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
- * `projectStore`, a ProjectStore or null; of `entries`, the folder's entries (`FolderEntry[]`,
- * each its name, path and kind alone, in the host's order: the page sorts them).
+ * `projectStore`, a ProjectStore or null. A `list` with a `dir` is answered in `entries`.
  */
 export interface FolderAnswerMessage {
   type: 'folderAnswer';
   id: number;
-  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | FolderEntry[] | null;
+  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
   /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
   error?: string;
   /**
@@ -461,6 +468,12 @@ export interface FolderAnswerMessage {
    * answers null, as a reader does for a file it was not given.
    */
   refused?: string;
+  /**
+   * On the answer to a `list` with a `dir`: the folder's entries, each its name, path and kind
+   * alone, in the host's order (the page sorts them). Absent from the answer of a host older than
+   * the field, which answered its listing of files instead: the page reads that as no entries.
+   */
+  entries?: FolderEntry[];
   /**
    * On the answer to a `list`: true when the listing was cut short, the folder holding more
    * supported files than `value` (FolderFileList.truncated, which a structured clone of the array

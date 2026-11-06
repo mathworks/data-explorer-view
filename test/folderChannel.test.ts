@@ -289,7 +289,9 @@ describe('a listing cut short', () => {
 
 describe('one level of a folder', () => {
   // The Folder view's listing, beside the index's: a folder's entries, asked as a folder row
-  // opens. The host lists them however it reads a folder; the page has them in one order.
+  // opens. On the wire a `list` that names a `dir`, answered in `entries`, so a host older than
+  // the field (which ignores the `dir` and answers its listing) tells the page it lists none. The
+  // host lists them however it reads a folder; the page has them in one order.
   const listing = (dir: string): FolderEntry[] => [
     { name: 'b.sldd', path: `${dir}/b.sldd`, kind: 'data' },
     { name: 'notes.md', path: `${dir}/notes.md`, kind: 'other' },
@@ -297,16 +299,22 @@ describe('one level of a folder', () => {
     { name: 'A.slx', path: `${dir}/A.slx`, kind: 'data' },
   ];
 
-  it("answers the host's entries of the folder asked, sorted, and asks with the folder as the page names it", async () => {
-    const asked: string[] = [];
-    const folder: FolderReads = { ...memoryFolder({}), entries: async (dir) => (asked.push(dir), listing(dir)) };
+  /** A host whose answers are recorded, and a reader whose questions are, over one channel. */
+  function recorded(folder: FolderReads) {
     const [host, page] = channel();
     const server = serveFolder(folder, host);
-    // The page's end, recording what it sends: the request as the host's end receives it.
     const sent: Record<string, unknown>[] = [];
+    const answered: Record<string, unknown>[] = [];
     const recording: TablePort = { postMessage: (m) => (sent.push(m as Record<string, unknown>), page.postMessage(m)), onMessage: (l) => page.onMessage(l) };
+    const unlisten = page.onMessage((m) => void answered.push(m as Record<string, unknown>));
     const reader = folderReader(recording);
-    stops.push(() => (server.dispose(), reader.dispose()));
+    stops.push(() => (server.dispose(), reader.dispose(), unlisten()));
+    return { reader, sent, answered };
+  }
+
+  it("answers the host's entries of the folder asked, sorted, the folder named as the page names it", async () => {
+    const asked: string[] = [];
+    const { reader, sent, answered } = recorded({ ...memoryFolder({}), entries: async (dir) => (asked.push(dir), listing(dir)) });
     // Before any listing: a folder's entries are not the index's files.
     expect(await reader.entries('/w')).toEqual([
       { name: 'models', path: '/w/models', kind: 'folder' },
@@ -318,57 +326,73 @@ describe('one level of a folder', () => {
     const odd = 'C:\\work\\my plant@corp #2';
     expect((await reader.entries(odd))?.map((e) => e.path)).toEqual([`${odd}/models`, `${odd}/A.slx`, `${odd}/b.sldd`, `${odd}/notes.md`]);
     expect(asked).toEqual(['/w', odd]);
+    // A `list` that names its folder, answered in `entries` and with no `value`, in the host's order.
     expect(sent).toEqual([
-      { type: 'folderRequest', id: 1, ask: 'entries', dir: '/w' },
-      { type: 'folderRequest', id: 2, ask: 'entries', dir: odd },
+      { type: 'folderRequest', id: 1, ask: 'list', dir: '/w' },
+      { type: 'folderRequest', id: 2, ask: 'list', dir: odd },
     ]);
+    expect(answered[0]).toEqual({ type: 'folderAnswer', id: 1, entries: listing('/w') });
+  });
+
+  it('keeps a folder of entries as no listing: the files it lists are no more readable, and the listing kept stays', async () => {
+    listed = [A];
+    const { reader } = recorded({ ...memoryFolder({ '/w/a.sldd': bytes('A'), '/w/b.sldd': bytes('B') }), entries: async (dir) => listing(dir) });
+    await reader.entries('/w');
+    // Asked before any listing of files: still refused, nothing read.
+    expect(await reader.bytes(A)).toBeNull();
+    await reader.list();
+    await reader.entries('/w');
+    expect(text(await reader.bytes(A))).toBe('A');
+    expect(await reader.bytes(B)).toBeNull();
+    expect(read).toEqual(['bytes /w/a.sldd']);
   });
 
   it("carries only an entry's name, path and kind", async () => {
     const extra = () => 'not cloneable';
-    const folder: FolderReads = {
+    const { reader } = recorded({
       ...memoryFolder({}),
       entries: async () => [{ name: 'a.sldd', path: '/w/a.sldd', kind: 'data', stat: extra } as FolderEntry],
-    };
-    const { reader } = across(folder);
+    });
     expect(await reader.entries('/w')).toEqual([{ name: 'a.sldd', path: '/w/a.sldd', kind: 'data' }]);
   });
 
-  it('answers null from a host that lists no entries, which refuses the ask and reads nothing', async () => {
-    const { reader, page } = across(memoryFolder({}));
-    const raw: Record<string, unknown>[] = [];
-    stops.push(page.onMessage((m) => void raw.push(m as Record<string, unknown>)));
+  it('answers null from a host that lists no entries, which refuses them and reads nothing', async () => {
+    const { reader, answered } = recorded(memoryFolder({}));
     expect(await reader.entries('/w')).toBeNull();
-    expect(raw).toEqual([{ type: 'folderAnswer', id: 1, refused: 'This folder lists no entries.' }]);
+    expect(answered).toEqual([{ type: 'folderAnswer', id: 1, refused: 'This folder lists no entries.' }]);
     expect(read).toEqual([]);
   });
 
-  it('answers null from a host that has no `entries` ask at all, as one older than it refuses any', async () => {
-    // A host from before the ask: every ask it does not know is refused (wire.ts).
+  it('answers null from a host older than the entries, which ignores the folder and answers its listing', async () => {
+    // A host from before the field: a `list` is a list, whatever else the question holds.
     const [host, page] = channel();
+    const asks: unknown[] = [];
     const unlisten = host.onMessage((m) => {
-      const { id } = m as { id: number };
-      host.postMessage({ type: 'folderAnswer', id, refused: 'Not a file of the folder.' });
+      const { id, ...rest } = m as { id: number };
+      asks.push(rest);
+      host.postMessage({ type: 'folderAnswer', id, value: [A, B] });
     });
     const reader = folderReader(page);
     stops.push(() => (unlisten(), reader.dispose()));
     expect(await reader.entries('/w')).toBeNull();
+    expect(asks).toEqual([{ type: 'folderRequest', ask: 'list', dir: '/w' }]);
+    // The same host's listing, asked as a listing, is still the listing.
+    expect(await reader.list()).toEqual([A, B]);
   });
 
   it("rejects with the host's message when its listing of the folder throws", async () => {
-    const folder: FolderReads = {
+    const { reader } = recorded({
       ...memoryFolder({}),
       entries: async () => {
         throw new Error("EACCES: permission denied, scandir '/w/locked'");
       },
-    };
-    const { reader } = across(folder);
+    });
     await expect(reader.entries('/w/locked')).rejects.toThrow("EACCES: permission denied, scandir '/w/locked'");
   });
 
-  it('reads an answer in the shape it can use: entries of another shape are dropped, no list is a failure', async () => {
+  it('reads an answer in the shape it can use: entries of another shape are dropped, entries that are no list a failure', async () => {
     const [host, page] = channel();
-    let value: unknown = [
+    let entries: unknown = [
       { name: 'b.sldd', path: '/w/b.sldd', kind: 'data' },
       { name: 7, path: '/w/7', kind: 'data' },
       { name: 'x', path: '/w/x', kind: 'symlink' },
@@ -378,7 +402,7 @@ describe('one level of a folder', () => {
     ];
     const unlisten = host.onMessage((m) => {
       const { id } = m as { id: number };
-      host.postMessage({ type: 'folderAnswer', id, value });
+      host.postMessage({ type: 'folderAnswer', id, entries });
     });
     const reader = folderReader(page);
     stops.push(() => (unlisten(), reader.dispose()));
@@ -386,17 +410,22 @@ describe('one level of a folder', () => {
       { name: 'a', path: '/w/a', kind: 'folder' },
       { name: 'b.sldd', path: '/w/b.sldd', kind: 'data' },
     ]);
-    value = { name: 'a' };
+    entries = { name: 'a' };
     await expect(reader.entries('/w')).rejects.toThrow("The folder's host sent no entries of the folder.");
   });
 
   it.each([
-    ['no folder', {}],
-    ['a number', { dir: 42 }],
-    ['an object', { dir: { path: '/w' } }],
-  ])('refuses a raw request with %s for the folder, and lists nothing', async (_why, dir) => {
+    ['a number', 42],
+    ['an object', { path: '/w' }],
+    ['null', null],
+  ])('refuses a raw list that names %s for its folder, and lists nothing', async (_why, dir) => {
     const asked: unknown[] = [];
-    const folder: FolderReads = { ...memoryFolder({}), entries: async (d) => (asked.push(d), []) };
+    let lists = 0;
+    const folder: FolderReads = {
+      files: { list: async () => (lists++, [A]) },
+      reader: memoryFolder({}).reader,
+      entries: async (d) => (asked.push(d), []),
+    };
     const [host, page] = channel();
     const server = serveFolder(folder, host);
     const answers = new Map<number, Record<string, unknown>>();
@@ -405,11 +434,13 @@ describe('one level of a folder', () => {
       if (a?.type === 'folderAnswer' && typeof a.id === 'number') answers.set(a.id, a);
     });
     stops.push(() => (server.dispose(), unlisten()));
-    page.postMessage({ type: 'folderRequest', id: 1, ask: 'entries', ...dir });
-    page.postMessage({ type: 'folderRequest', id: 2, ask: 'entries', dir: '/w' });
+    page.postMessage({ type: 'folderRequest', id: 1, ask: 'list', dir });
+    page.postMessage({ type: 'folderRequest', id: 2, ask: 'list', dir: '/w' });
     await until(() => answers.has(2));
     expect(answers.get(1)).toEqual({ type: 'folderAnswer', id: 1, refused: 'No folder named.' });
+    expect(answers.get(2)).toEqual({ type: 'folderAnswer', id: 2, entries: [] });
     expect(asked).toEqual(['/w']);
+    expect(lists).toBe(0);
   });
 });
 

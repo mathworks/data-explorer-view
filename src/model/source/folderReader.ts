@@ -10,7 +10,8 @@
 // a question the host refused (a file it did not list) is answered null, as a reader answers for
 // a file it was not given. A listing the host says was cut short answers a FolderFileList that
 // says so (`truncated`). A folder's entries come sorted, whatever order the host sent them in, and
-// a host that lists none (one older than the ask, or one with no `entries`) answers them null.
+// a host that lists none answers them null: one with no `entries` refuses them, and one older than
+// them answers its listing of files, with no `entries` field, which is dropped.
 //
 // DOM-free: a port is anything that posts and listens (wire.ts TablePort).
 import type { SourceFile } from 'data-explorer-core';
@@ -35,8 +36,11 @@ export interface FolderReader extends FolderFiles, GraphReader {
   dispose(): void;
 }
 
-/** An answer, as a question's promise has it: its value, whether a listing was cut short, and whether the host refused. */
-type Answer = { value: unknown; truncated: boolean; refused: boolean };
+/**
+ * An answer, as a question's promise has it: its value, whether a listing was cut short, whether
+ * the host refused, and a folder's entries, when the answer has the field.
+ */
+type Answer = { value: unknown; truncated: boolean; refused: boolean; entries?: { of: unknown } };
 type Pending = { resolve: (answer: Answer) => void; reject: (err: Error) => void };
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -115,7 +119,12 @@ export function folderReader(port: TablePort): FolderReader {
     if (typeof m.error === 'string') pending.reject(new Error(m.error));
     else {
       const refused = typeof m.refused === 'string';
-      pending.resolve({ value: refused ? null : m.value, truncated: m.truncated === true, refused });
+      pending.resolve({
+        value: refused ? null : m.value,
+        truncated: m.truncated === true,
+        refused,
+        ...(!refused && 'entries' in m ? { entries: { of: m.entries } } : {}),
+      });
     }
   });
 
@@ -148,10 +157,11 @@ export function folderReader(port: TablePort): FolderReader {
     bytes: async (file) => bytesOf((await ask('bytes', { file })).value),
     projectStore: async (file) => storeOf((await ask('projectStore', { file })).value),
     entries: async (dir) => {
-      // Refused: the host lists no entries (a host older than the ask refuses every ask it does
-      // not know), which is no failure, but a tree of the index's files alone.
-      const { value, refused } = await ask('entries', { dir });
-      return refused ? null : entriesOf(value);
+      // No `entries` (a host older than the field answered its listing of files), or refused (a
+      // host with no `entries`): the host lists none, which is no failure, but a tree of the
+      // index's files alone.
+      const { entries } = await ask('list', { dir });
+      return entries ? entriesOf(entries.of) : null;
     },
     onChange(listener) {
       listeners.add(listener);

@@ -25,7 +25,7 @@ import type { FolderHostMessage, TablePort } from './wire.js';
  */
 export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'> & {
   /**
-   * One level of `dir`. Absent: the served folder answers an `entries` ask with `refused`.
+   * One level of `dir`. Absent: the served folder answers a `list` with a `dir` with `refused`.
    *
    * `dir` is the page's, not trusted: list only a folder this host serves (its root, or a folder
    * inside it, by a path as these entries name them), and throw for any other, with the reason the
@@ -67,9 +67,9 @@ const messageOf = (err: unknown): string => (err instanceof Error ? err.message 
 
 /** The reason a question about a file is refused: it names nothing the host listed. */
 const NOT_LISTED = 'Not a file of the folder.';
-/** The reason an `entries` ask is refused by a host that lists no entries (FolderReads.entries absent). */
+/** The reason a `list` with a `dir` is refused by a host that lists no entries (FolderReads.entries absent). */
 const NO_ENTRIES = 'This folder lists no entries.';
-/** The reason an `entries` ask is refused when its folder is not a path. */
+/** The reason a `list` with a `dir` is refused when its folder is not a path. */
 const NO_DIR = 'No folder named.';
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -86,10 +86,11 @@ interface TransferPort {
  *
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
  *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
+ * - `list` with a `dir` with what `folder.entries` lists of that folder, in `entries`, each
+ *   entry's name, path and kind alone, and kept as no listing; or `refused` when the folder lists
+ *   no entries or `dir` is not a string;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
- * - `entries` with what `folder.entries` lists of the question's `dir`, each entry's name, path
- *   and kind alone, or `refused` when the folder lists no entries or `dir` is not a string;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
  *   hold (outside the folder, with `..`, a look-alike prefix, another scheme or spelling), none,
  *   one asked before any listing, an `ask` the wire does not have;
@@ -129,13 +130,14 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
     if (bytes && options.transfer) (port as unknown as TransferPort).postMessage(message, [bytes]);
     else port.postMessage(message);
   };
-  // The fields a question's answer carries: its value, and for a listing cut short `truncated`.
-  const answer = (id: number, question: () => Promise<{ value: unknown; truncated?: true }>): void => {
+  // The fields a question's answer carries: its value, for a listing cut short `truncated`, and
+  // for a folder's entries those alone.
+  const answer = (id: number, question: () => Promise<{ value?: unknown; truncated?: true; entries?: FolderEntry[] }>): void => {
     Promise.resolve()
       .then(question)
       .then(
         ({ value, ...more }) => {
-          const message = { type: 'folderAnswer', id, value: value ?? null, ...more } as FolderHostMessage;
+          const message = { type: 'folderAnswer', id, ...('entries' in more ? {} : { value: value ?? null }), ...more } as FolderHostMessage;
           post(message, value instanceof ArrayBuffer ? value : undefined);
         },
         (err) => post({ type: 'folderAnswer', id, error: messageOf(err) }),
@@ -163,18 +165,20 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
     if (!isRecord(m) || m.type !== 'folderRequest' || typeof m.id !== 'number') return;
     const { id, ask } = m;
     switch (ask) {
-      case 'list':
-        return answer(id, async () => {
-          const { files, truncated } = await list();
-          return truncated ? { value: files, truncated: true } : { value: files };
-        });
-      case 'entries': {
+      case 'list': {
+        if (m.dir === undefined) {
+          return answer(id, async () => {
+            const { files, truncated } = await list();
+            return truncated ? { value: files, truncated: true } : { value: files };
+          });
+        }
+        // A folder's entries: no listing of the files, so nothing they make readable.
         if (!folder.entries) return post({ type: 'folderAnswer', id, refused: NO_ENTRIES });
         if (typeof m.dir !== 'string') return post({ type: 'folderAnswer', id, refused: NO_DIR });
         const entries = folder.entries.bind(folder);
         const dir = m.dir;
         // Just what the wire carries, as a listing's files are: a host's entries may hold more.
-        return answer(id, async () => ({ value: (await entries(dir)).map(({ name, path, kind }) => ({ name, path, kind })) }));
+        return answer(id, async () => ({ entries: (await entries(dir)).map(({ name, path, kind }) => ({ name, path, kind })) }));
       }
       case 'version':
       case 'bytes':
