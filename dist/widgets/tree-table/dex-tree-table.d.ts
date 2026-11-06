@@ -29,6 +29,12 @@ export interface TableContextMenuDetail {
     y: number;
     rowId: string | null;
     graphTarget?: string;
+    /**
+     * A key opened it (`keyboardMenu`), not a right-click: the menu is to take the keyboard at once,
+     * and give it back to the grid when it closes (the context menu's `focusFirst`). Absent for a
+     * right-click.
+     */
+    keyboard?: true;
 }
 /**
  * What `dex-row-drag-start` carries: the rows dragged — the selection when the row grabbed is in
@@ -167,19 +173,46 @@ export declare class DexTreeTable extends LitElement {
      */
     rowDrag: boolean;
     /**
+     * Whether rows are dragged out of the table, onto another part of the page that takes them (the
+     * app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+     * (`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+     * drag allows no move, so the document never loses an entry by it, and no row of this table takes
+     * a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+     * icon and name) follows the pointer over the rest of the page too, until the drag is let go
+     * anywhere, saying there what the part under the pointer says a drop would do: the words of the
+     * nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+     * as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+     * false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+     * `drag-out`.
+     */
+    dragOut: boolean;
+    /**
      * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
      * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
      * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-     * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-     * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-     * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+     * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+     * `dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+     * (dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+     * sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
      * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
      * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
      * to the attribute `readonly`.
      */
     readonly: boolean;
+    /**
+     * Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+     * `dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+     * the selection's last, whichever the table shows), placed under that row as a right-click on it
+     * is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+     * the space under the rows. Both keys are spent, so the browser's own menu event for them does
+     * not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+     * cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+     * they always were. Attribute `keyboard-menu`.
+     */
+    keyboardMenu: boolean;
     private get _addsEntries();
     private get _dragsRows();
+    private get _dragsOut();
     /**
      * Where the user's column choices (which are shown, and their order) are kept: the page's
      * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
@@ -402,11 +435,19 @@ export declare class DexTreeTable extends LitElement {
     private _expandAncestors;
     private _onContainerContextMenu;
     private _onRowContextMenu;
+    private _openMenu;
+    private _onMenuKey;
+    private _keyboardRow;
     private _onCellClick;
     private _onRowClick;
     private _dragModeFrom;
     private _onRowDragStart;
     private _setDragImage;
+    private _boundFollow;
+    private _hintFrame;
+    private _followDrag;
+    private _cancelHint;
+    private _stopFollowingDrag;
     private _onRowDragEnd;
     private _onRowDragOver;
     private _isRowOrHeaderEvent;
@@ -546,8 +587,9 @@ export interface TreeTableEventMap {
      */
     'dex-request-children': CustomEvent<RequestChildrenDetail>;
     /**
-     * A right-click on a row (after selecting it) or on the space under the rows: open a context
-     * menu there.
+     * A right-click on a row (after selecting it) or on the space under the rows, or with
+     * `keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a
+     * context menu there.
      */
     'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
     /** The user started dragging rows. */

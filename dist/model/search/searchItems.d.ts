@@ -19,6 +19,12 @@ export interface SearchItem {
     revealName: string;
     /** The record it shows. */
     entry: NameRecord;
+    /**
+     * What the entry is, where its record says (an open document's): its class, else its data type
+     * (`Simulink.Parameter`, `double`, a block's `Gain`). Absent for a record with neither, which a
+     * folder's index gives.
+     */
+    type?: string;
 }
 /** A record as a result row. */
 export declare function searchItem(rec: NameRecord): SearchItem;

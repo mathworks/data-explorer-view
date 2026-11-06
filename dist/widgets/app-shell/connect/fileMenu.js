@@ -1,9 +1,18 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A file's menu in the Explorer: a right-click on an open file's row shows the shared context menu
-// with Save, Save As and Close for that file, whichever tab is active. The menu is the tables' too:
-// it is acted on by its next choice only, and a dismissal, or the menu shown again by a table (which
-// says the Explorer's closed first), ends it, so a table's Copy is never taken for a file's Close.
+// with Save, Save As and Close for that file, whichever tab is active, each labelled with the chord
+// that does the same to the active tab (keys.ts, as the toolbar's tooltips name them). The menu is
+// the tables' too: it is acted on by its next choice only, and a dismissal, or the menu shown again
+// by a table (which says the Explorer's closed first), ends it, so a table's Copy is never taken for
+// a file's Close.
+import { chordLabel, parseChord } from '../../../model/shell/chords.js';
+import { chordOf, onMac } from './keys.js';
+/** The menu's label of the chord of `command`, read at each menu as the platform says it. */
+const shortcutOf = (command) => {
+    const chord = chordOf(command);
+    return chord ? { shortcut: chordLabel(parseChord(chord), onMac()) } : {};
+};
 /** Answer `explorer`'s file menus with `menu`; returns what stops it. */
 export function connectFileMenu(explorer, menu, actions) {
     let menuFor = null;
@@ -14,10 +23,10 @@ export function connectFileMenu(explorer, menu, actions) {
         const editable = !!tab.doc?.editable;
         // As the toolbar's buttons: Save for a file with edits to write, Save As for one the page edits.
         menu.show(e.detail.x, e.detail.y, [
-            { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty) },
-            { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable },
+            { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty), ...shortcutOf('save') },
+            { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable, ...shortcutOf('save-as') },
             { id: '', label: '', separator: true },
-            { id: 'close-tab', label: 'Close', icon: 'close' },
+            { id: 'close-tab', label: 'Close', icon: 'close', ...shortcutOf('close-tab') },
         ]);
         // After show(): a menu it replaced said it closed, which ends the menu before this one.
         menuFor = tab;

@@ -16,7 +16,7 @@ export declare function buildShell(shell: DexAppShell, options: {
     graph: import("../index.js").DexRelationshipGraph;
     inspectorEmpty: import("./dex-shell-note.js").DexShellNote;
     inspector: import("../../property-inspector/dex-property-inspector.js").DexPropertyInspector;
-    status: HTMLSpanElement;
+    status: import("./dex-shell-status.js").DexShellStatus;
     gallery: import("../index.js").DexGalleryPanel;
     search: import("../index.js").DexSearchPanel;
     raw: import("../index.js").DexRawViewer;

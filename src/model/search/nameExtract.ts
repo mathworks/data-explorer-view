@@ -29,6 +29,13 @@ export interface NameRecord {
   // hold four blocks named `Gain`, so the label alone does not say which hit is which.
   selectName?: string;
   blockPath?: string;
+  // What an OPEN document's table shows of the entry beside its name, for a search that ranks on
+  // them and shows what each match is (namesOfRows with `cells`): its Value, its Data Type and its
+  // Class, as the cells' text. A folder's index never has them: core's scans read names alone, and
+  // reading a value means parsing the file.
+  value?: string;
+  dataType?: string;
+  className?: string;
 }
 
 // One record per named item, all sharing a source and kind. Items with an

@@ -11,14 +11,23 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   activeTab,
+  choose,
+  docsArea,
   docTabs,
   dirtyTabs,
   edit,
   explorer,
-  folderPart,
+  graph,
+  graphShown,
+  locationBar,
+  menuOn,
   open,
   previewTabs,
   rowOf,
+  searchPanel,
+  sectionOf,
+  selectRow,
+  selectTab,
   serveFolderTo,
   settled,
   startPage,
@@ -26,6 +35,8 @@ import {
   tabNamed,
   tabNames,
   tableOf,
+  toolbar,
+  toolbarButton,
   tempFolder,
   treeLabels,
   until,
@@ -75,6 +86,16 @@ describe('the tab row', () => {
     await edit('ParamMat.mat', 'ParamMat', '[1 2 3; 4 5 7]');
     await until(() => dirtyTabs().length === 1);
     expect(docTabs().tabs.find((t) => t.label === 'ParamMat.mat')!.dirty).toBe(true);
+  });
+
+  it("names each file in its tooltips as a host that makes its paths up says, the tab's, the Explorer's and the location bar's", async () => {
+    // A browser page's paths are its own (`/files/1/plant.sldd`): its host says what they mean.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    page.host.pathTitle = (p) => `plant: ${p.slice(p.lastIndexOf('/') + 1)}`;
+    await open(page, 'params.sldd');
+    await until(() => docTabs().tabs[0]?.title === 'plant: params.sldd');
+    expect(explorer().files[0]!.title).toBe('plant: params.sldd');
+    expect(locationBar().segments[1]).toMatchObject({ label: 'params.sldd', title: 'plant: params.sldd' });
   });
 
   it('a select request shows that tab, a close request closes it, asking first about unsaved edits', async () => {
@@ -127,6 +148,177 @@ describe('the tab row', () => {
     await until(() => docTabs().active === tabIdOf('a.sldd'));
     page.command('previous-tab');
     await until(() => docTabs().active === tabIdOf('c.sldd'));
+  });
+
+  it('reads the section its selection is in, with its icon and the file as the subtitle, and the file again with no row selected', async () => {
+    // As the Explorer marks the section a selection is in, and the prototype's tab named the section
+    // it showed: "params.sldd ▸ Design Data". Each tab by its own selection.
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    const design = await sectionOf('params.sldd', 'Design Data');
+    await selectTab('params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const tabOf = (id: string) => docTabs().tabs.find((t) => t.id === id)!;
+    const params = tabIdOf('params.sldd');
+    await until(() => tabOf(params).subtitle === 'params.sldd');
+    expect(tabOf(params)).toEqual({ id: params, label: 'Design Data', subtitle: 'params.sldd', icon: design.Name.iconId, title: '/work/params.sldd', dirty: false, preview: false });
+    // A MAT-file's variables are under no section: its tab reads its name, and the other keeps its section.
+    await selectTab('ParamMat.mat');
+    await selectRow('ParamMat.mat', 'ParamMat');
+    await settled();
+    expect(tabOf(tabIdOf('ParamMat.mat'))).toMatchObject({ label: 'ParamMat.mat', icon: 'matlabWorkspaceFile' });
+    expect(tabOf(tabIdOf('ParamMat.mat')).subtitle).toBeUndefined();
+    expect(tabOf(params).label).toBe('Design Data');
+    // The file itself, from the location bar's segment: no row, the file's name.
+    await selectTab('params.sldd');
+    locationBar().dispatchEvent(new CustomEvent('dex-location-go', { detail: { to: 1 }, bubbles: true, composed: true }));
+    await until(() => tabOf(params).subtitle === undefined);
+    expect(tabOf(params)).toMatchObject({ label: 'params.sldd', icon: 'simulinkDataDictionary_FT' });
+  });
+
+  it('is hidden at Root and while no file is open, the graph or the welcome filling the center', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    expect(docTabs().hidden).toBe(true);
+    await open(page, 'params.sldd');
+    await until(() => !docTabs().hidden);
+    explorer().dispatchEvent(new CustomEvent('dex-explorer-open', { detail: { fileId: null, pin: false }, bubbles: true, composed: true }));
+    await until(() => docTabs().hidden);
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+  });
+
+  it("hidden with the focus on a tab, gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // Alt+Up from a focused tab goes to Root, which hides the row the focus was in: it fell to the
+    // page's body. A focus elsewhere is left where it is.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    await until(() => !docTabs().hidden && !!tabNamed('params.sldd'));
+    tabNamed('params.sldd')!.focus();
+    expect(docTabs().shadowRoot!.activeElement).toBe(tabNamed('params.sldd'));
+    page.command('up');
+    await until(() => docTabs().hidden);
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.getAttribute('role')).toBe('treeitem');
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center where the row was.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    tabNamed('params.sldd')!.focus();
+    page.command('up');
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the row (on the toolbar's Open, say): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    toolbarButton('Open')!.focus();
+    page.command('up');
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
+  });
+
+  it("hidden as the last tab closes with the focus on it, gives the keyboard to the welcome's Open File…, and the graph drawn later none", async () => {
+    // With the Explorer off screen the keyboard went to the graph, which with no file open has
+    // nothing to draw: its request waited, and took the keyboard from the page's body once files
+    // were opened and Root drawn. The welcome is what fills the center then, and Open File… is
+    // what there is to do.
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd');
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    await until(() => !!tabNamed('params.sldd'));
+    tabNamed('params.sldd')!.focus();
+    page.command('close-tab');
+    await until(() => docTabs().hidden && tabNames().length === 0);
+    const welcomeOpen = () => docsArea().shadowRoot!.querySelector<HTMLButtonElement>('.welcome button');
+    await until(() => docsArea().shadowRoot!.activeElement === welcomeOpen());
+    expect(welcomeOpen()!.textContent!.trim()).toBe('Open File…');
+    expect(document.activeElement).toBe(docsArea());
+
+    // The user moves on (the focus back on the body), opens two files and goes to Root: the graph
+    // is drawn there and leaves the keyboard where it is.
+    welcomeOpen()!.blur();
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    page.command('show-graph');
+    await until(() => graphShown() && !!graph().shadowRoot?.querySelector('.canvas[tabindex]'));
+    await settled();
+    expect(graph().shadowRoot!.activeElement ?? null).toBeNull();
+  });
+
+  it("Show Graph pressed in a table gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // The table's panel hides as Root shows: a browser drops the focus inside it to the page's
+    // body. Its chord pressed there, the keyboard goes where the tab row's does as Root shows.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const grid = () => tableOf('params.sldd')!.shadowRoot!.querySelector<HTMLElement>('.table-container')!;
+    const chord = (el: HTMLElement) => {
+      // Mod is Cmd on macOS and Ctrl elsewhere: the one the page's platform reads.
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'H', shiftKey: true, ...(mac ? { metaKey: true } : { ctrlKey: true }), bubbles: true, composed: true, cancelable: true }));
+    };
+    grid().focus();
+    expect(document.activeElement).toBe(tableOf('params.sldd'));
+    chord(grid());
+    await until(() => docTabs().hidden && graphShown());
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    grid().focus();
+    chord(grid());
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the panel (on the toolbar's Open): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    toolbarButton('Open')!.focus();
+    page.command('show-graph');
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
+  });
+
+  it("Show in Graph chosen in a table's menu gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // As Show Graph's chord: the table's panel hides as Root shows. The menu gives the keyboard
+    // back to the table before it says what was chosen, so the table holds it then.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const grid = () => tableOf('params.sldd')!.shadowRoot!.querySelector<HTMLElement>('.table-container')!;
+    const showInGraph = async (from: HTMLElement) => {
+      await menuOn('params.sldd', 'Uo');
+      from.focus();
+      choose('showInGraph');
+    };
+    await showInGraph(grid());
+    await until(() => docTabs().hidden && graphShown());
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    await showInGraph(grid());
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the panel (on the toolbar's Open): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    await showInGraph(toolbarButton('Open')!);
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
   });
 });
 
@@ -194,15 +386,13 @@ describe('preview tabs', () => {
     expect(previewTabs()).toEqual([]);
   });
 
-  it('a search pick opens its file in a preview tab', async () => {
+  it("a search pick opens its file in a preview tab", async () => {
     const { dir } = folderPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'shared_gain.slx': 'shared_gain.slx' });
-    await until(() => treeLabels().includes('shadow_ws.slx'));
-    const box = folderPart().searchInput;
-    box.value = 'WsGain';
-    box.dispatchEvent(new Event('input', { bubbles: true }));
-    const results = () => [...(folderPart().shadowRoot?.querySelectorAll<HTMLElement>('.search-result') ?? [])];
-    await until(() => results().length === 1);
-    results()[0]!.click();
+    await until(() => treeLabels().includes('shadow_ws.slx') && searchPanel().scope === 'Open files and plant');
+    searchPanel().dispatchEvent(new CustomEvent('dex-search-query', { detail: { query: 'WsGain' }, bubbles: true, composed: true }));
+    await until(() => searchPanel().results.length === 1);
+    const hit = searchPanel().results[0]!;
+    searchPanel().dispatchEvent(new CustomEvent('dex-search-open', { detail: { sourceUri: hit.entry.sourceUri, revealName: hit.revealName }, bubbles: true, composed: true }));
     await until(() => previewTabs().join() === 'shadow_ws.slx');
     expect(document.querySelector<HTMLElement>('.doc-panel:not([hidden])')!.dataset.path).toBe(path.join(dir, 'shadow_ws.slx'));
   });
@@ -250,10 +440,11 @@ describe('preview tabs', () => {
   it("a link opens its file in a preview tab", async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
     await open(page, 'shadow_ws.slx');
-    const block = await rowOf('shadow_ws.slx', 'WsGain');
-    tableOf('shadow_ws.slx')!.dispatchEvent(
-      new CustomEvent('dex-link-clicked', { detail: { target: (block.UsedBy as { linkTarget: string }).linkTarget }, bubbles: true, composed: true }),
-    );
+    // The DictOnly block's Usage: Uo in the dictionary the model names, by its name, beside it.
+    const block = await rowOf('shadow_ws.slx', 'DictOnly');
+    const link = (block.UsedBy as { paramLinks: { linkTarget: string }[] }).paramLinks[0]!.linkTarget;
+    expect(link).toBe('Uo@params.sldd');
+    tableOf('shadow_ws.slx')!.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: link }, bubbles: true, composed: true }));
     await until(() => tabNames().includes('params.sldd'));
     expect(previewTabs()).toEqual(['params.sldd']);
   });

@@ -11,15 +11,22 @@
 // API, less what the app's own wiring does (its IPC channels, the menu's and the theme's events,
 // the folder's port message), which a host now does through the handle.
 
+import type { AboutLine } from '../../../model/shell/about.js';
 import type { Theme } from '../../../model/shell/settings.js';
 
 /**
  * A command the shell carries out: a toolbar button's id, a chord's, an explorer menu item's, a
- * command palette row's, and what a native menu asks for through `ShellHandle.command`. `palette`
- * opens the command palette; each `show-<view>` brings that view of the shell forward, and
- * `show-graph` goes to the Explorer's Root, where the relationship graph is.
+ * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
+ * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
+ * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
+ * goes to the Explorer's Root, where the relationship graph is. The documents split in two panes
+ * side by side: `split-right` moves the active tab into a pane on the right (a new one, or the
+ * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
+ * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
+ * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
  */
 export type ShellCommand =
+  | 'new-file'
   | 'open-file'
   | 'open-folder'
   | 'save'
@@ -35,6 +42,10 @@ export type ShellCommand =
   | 'delete'
   | 'next-tab'
   | 'previous-tab'
+  | 'split-right'
+  | 'move-to-other-pane'
+  | 'focus-pane-1'
+  | 'focus-pane-2'
   | 'focus-filter'
   | 'back'
   | 'forward'
@@ -61,6 +72,20 @@ export type CloseAnswer = 'save' | 'discard' | 'cancel';
  * clipboard at each copy), so a host, or a test, may replace one while the shell runs.
  */
 export interface ShellHost {
+  /**
+   * Ask where a new data dictionary is to go, `suggestedName` offered (`untitled.sldd`): resolves to
+   * its path, which may hold no file yet, or null when cancelled. The shell opens the path in a tab of
+   * its own as a new, empty dictionary with unsaved edits (Workspace.create), and writes it there
+   * when the user saves it, through `saveFile`; it does not read it, so a file that is there already
+   * is written over by that save. A path the host cannot write may still be answered: its save says
+   * why. A host that watches files starts on this path here or at its first `saveFile`: a new file is
+   * never read. Absent: the shell offers no New (no button, chord or command).
+   *
+   * A browser may make the file, or empty the one there, as it is picked (Chromium's save picker
+   * does): the browser host then writes a new dictionary there at once. A path a tab has open is not
+   * made a new file: the shell reads it, and where the dialog emptied it, writes the tab's copy back.
+   */
+  newFile?(suggestedName: string): Promise<string | null>;
   /** Show the host's Open File dialog; resolves to the chosen paths (empty when cancelled). */
   pickFiles(): Promise<string[]>;
   /**
@@ -73,20 +98,26 @@ export interface ShellHost {
   /**
    * Stop watching a file whose tab closed, by the path it was opened with. May be called twice for
    * one path: a tab closed while its file was read is told again once the read lands, since a
-   * watcher starts on the read, past the close it heard.
+   * watcher starts on the read, past the close it heard. A new file's tab (newFile) is told too,
+   * though the file was never read, and so is a path newFile answered that the shell does not open
+   * (one that is not a dictionary's).
    */
   closeFile?(path: string): void;
   /**
    * Write `bytes` over the open file `path`. `overwritten`: another program wrote the file after
-   * the save, so the disk holds its file rather than the one saved.
+   * the save, so the disk holds its file rather than the one saved. `downloaded`: the bytes were
+   * handed to the user as a download rather than written over the file (a browser page with no way
+   * to write it): the document is saved all the same, and the shell says the file was downloaded
+   * rather than saved. Absent, false.
    */
-  saveFile(path: string, bytes: Uint8Array): Promise<{ overwritten: boolean }>;
+  saveFile(path: string, bytes: Uint8Array): Promise<{ overwritten: boolean; downloaded?: boolean }>;
   /**
    * Ask where to save the open file `path`, and write `bytes` there. Resolves to the path written
    * (`path` itself, for a Save As onto it), or null when cancelled. `overwritten`, for a Save As onto
    * the file itself, as for saveFile: another program wrote it after the save. Elsewhere, false.
+   * `downloaded`, as for saveFile: the bytes went to a download (`path` itself the answer).
    */
-  saveFileAs(path: string, bytes: Uint8Array): Promise<{ path: string; overwritten: boolean } | null>;
+  saveFileAs(path: string, bytes: Uint8Array): Promise<{ path: string; overwritten: boolean; downloaded?: boolean } | null>;
   /** Ask whether to save the unsaved edits of the files `names` before they close. Absent: the in-page confirm dialog. */
   confirmClose?(names: string[]): Promise<CloseAnswer>;
   /**
@@ -106,6 +137,13 @@ export interface ShellHost {
   reveal?(path: string): Promise<void>;
   /** What a project page calls the file manager `reveal` shows things in ('Finder'). Default by platform. */
   revealIn?: string;
+  /**
+   * What a tooltip says of the file at `path` (its tab's, its Explorer row's, its location bar
+   * segment's): what the path means to the user, for a host whose paths are of its own making (the
+   * browser host's: a file's name, or its place in the folder it was shown from); '' for none.
+   * Absent: the path itself.
+   */
+  pathTitle?(path: string): string;
 }
 
 /** How connectShell builds the app. */
@@ -114,21 +152,40 @@ export interface ConnectShellOptions {
   host: ShellHost;
   /** The app's name: the toolbar's label, the window title's end, and the About panel's heading. Default 'Data Explorer'. */
   appName?: string;
-  /** The About panel's lines, under its heading. Default none. */
-  about?: { label: string; value: string }[];
+  /**
+   * The About panel's lines, under its heading: each a label and its value, and the heading of the
+   * section it is in, if any (`{ label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' }`).
+   * Default none.
+   */
+  about?: AboutLine[];
   /**
    * The prefix of what the shell keeps in localStorage. Default 'dex-shell': the settings under
    * `${key}:settings`, each file's column choices under `${key}:<its uri>`, and the layout under
    * the shell's own `storage-key`, which is set to `${key}:layout` when the shell has none.
    */
   storageKey?: string;
-  /** The system's theme, for the Auto setting. Default the page's media queries (`systemThemeFromMedia`). */
+  /**
+   * The system's theme, for the Auto setting, for a host that can be asked it now and told of its
+   * changes. Default the page's media queries (`systemThemeFromMedia`). A host that hears it only
+   * after connecting tells it with `ShellHandle.setSystemTheme`.
+   */
   systemTheme?: { now(): Theme; on(listener: (theme: Theme) => void): () => void };
   /**
    * The host has a native menu that owns the File and Edit chords (Electron's): the shell then
    * answers only those a native menu cannot (Back, Forward, Up, Save All and Settings).
    */
   nativeMenu?: boolean;
+}
+
+/** What a page tells the user through the shell (ShellHandle.notify): a toast, and its line in the Log. */
+export interface ShellNotice {
+  /**
+   * How much it matters, as the Log's levels: 'info' goes by itself after a few seconds; a
+   * 'warning' or an 'error' stays until its × is pressed, since it has to be read. Default 'info'.
+   */
+  level?: 'info' | 'warning' | 'error';
+  /** What it says, as text (a line break in it starts a new line). Empty, it says nothing, and nothing is shown. */
+  text: string;
 }
 
 /** A connected shell: what a host drives it by. */
@@ -141,6 +198,20 @@ export interface ShellHandle {
   fileChanged(path: string): void;
   /** Carry out a command, as its toolbar button or chord does. */
   command(id: ShellCommand): void;
+  /**
+   * Tell the user something of the page's own (a file it fetched that could not be, a drop it could
+   * not read): a toast in the window's corner, and the same line in the Log, which keeps what a
+   * toast lets go by.
+   */
+  notify(notice: ShellNotice): void;
+  /**
+   * The system's theme is `theme`, for the Settings' Auto: for a host that hears the theme rather
+   * than asks for it (Electron's nativeTheme, told to the page over IPC once the page is up, then on
+   * each change). Auto draws the page in it at once; a theme the user chose stays. From the first
+   * call the shell follows what the host tells, and no longer the `systemTheme` source it was
+   * connected with (the page's media queries by default), so the two never take turns.
+   */
+  setSystemTheme(theme: Theme): void;
   /**
    * The window is to close: settle every unsaved edit (ask, then save or discard), and resolve to
    * whether it may close. Nothing closes here; the host closes the window on true.

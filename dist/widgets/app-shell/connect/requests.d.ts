@@ -15,8 +15,16 @@ export interface ShellRequests {
     close(tab: OpenTab): void;
     save(tab: OpenTab, as: boolean): void;
     pin(tab: OpenTab): void;
-    /** Move `tab` to `index`, its place once moved. */
-    move(tab: OpenTab, index: number): void;
+    /** Move `tab` to `index` of the pane `pane`, its place once moved: along its row, or into the other pane's. */
+    move(tab: OpenTab, index: number, pane: number): void;
+    /** The pane of a tab row (0 the left), or -1 for none of the panes' rows. */
+    paneOfRow(row: EventTarget | null): number;
+    /** The user is in the pane `pane` now: a press, or the keyboard's focus, came into it. */
+    focusPane(pane: number): void;
+    /** `tab` was dropped on the documents of the pane `pane`: move it there, or with `side`, into a new pane on that side. */
+    drop(tab: OpenTab, pane: number, side?: 'left' | 'right'): void;
+    /** The divider between the panes was moved: the left pane takes `ratio` of the width. */
+    resized(ratio: number): void;
     /** Show the Explorer's Root: no document. */
     showRoot(): void;
     /** Go to the location bar's segment `index`. */

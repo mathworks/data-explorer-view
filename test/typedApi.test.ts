@@ -91,9 +91,9 @@ const own = (file: string, m: ModuleEvents): string[] => [...m.dispatched.keys()
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 47 events from 34 widgets: a parse that found none would pass everything below.
+    // 51 events from 34 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(47);
+    expect(new Set(names).size).toBe(51);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -108,7 +108,9 @@ describe('every dispatched event is declared, in its own module, with its detail
     expect(html?.length).toBe(1);
     expect(m.extended.get('DocumentEventMap')).toEqual(html);
     expect(m.extended.get('WindowEventMap')).toEqual(html);
+    // Its own: a part's event it sends for the part (the documents' area's welcome) is the next test's.
     for (const [name, typeArgs] of m.dispatched) {
+      if (resent(file, m).includes(name)) continue;
       for (const t of typeArgs) expect(m.declared.get(name), name).toBe(`CustomEvent<${t}>`);
     }
   });

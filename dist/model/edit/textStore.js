@@ -20,6 +20,8 @@
 //   an older text than the store's, and which one is not tracked. That errs on the side of a save.
 // - A listener that throws is reported (`report`: the host's notice, or the console), as VS Code's
 //   emitter logs it; never thrown again, which a Node or Electron host would take for a crash.
+// - It says where its undo stack stands (`history`), which a TextDocument does not, for the table to
+//   offer Undo and Redo only where there is something to undo or redo.
 import { minimalReplacement } from 'data-explorer-core';
 /**
  * A store of `text`, as read from its file: clean, at version 1. A listener's throw goes to
@@ -37,6 +39,9 @@ export function createTextStore(text, report = (err) => console.error(err)) {
     let reported = false;
     const changeListeners = new Set();
     const saveListeners = new Set();
+    const historyListeners = new Set();
+    // What the undo stack could do as last told: `canUndo` and `canRedo`, spelled as one.
+    let could = 'false false';
     // Changes are heard one at a time, in the order they landed.
     let queue = Promise.resolve();
     const actualDirty = () => savedAt !== undoable.length;
@@ -66,6 +71,15 @@ export function createTextStore(text, report = (err) => console.error(err)) {
             return;
         reported = dirty;
         hear({ changes: [] });
+    };
+    // Tell the history's listeners, if what the undo stack can do moved: after the change is heard and
+    // its dirty state settled, so a table told reads a text that already holds it.
+    const settleHistory = () => {
+        const can = `${undoable.length > 0} ${redoable.length > 0}`;
+        if (can === could)
+            return;
+        could = can;
+        each(historyListeners);
     };
     // Apply `patches` (in the text as it stands, from the start forwards) and answer them as a step.
     const replace = (patches, label) => {
@@ -130,6 +144,7 @@ export function createTextStore(text, report = (err) => console.error(err)) {
                     savedAt = null;
                 hear({ changes: asChanges(ordered) });
                 settleDirty();
+                settleHistory();
                 return true;
             });
         },
@@ -143,6 +158,7 @@ export function createTextStore(text, report = (err) => console.error(err)) {
                 redoable.push(step);
                 hear({ changes: asChanges(back), reason: 'undo' });
                 settleDirty();
+                settleHistory();
             });
         },
         redo() {
@@ -154,6 +170,7 @@ export function createTextStore(text, report = (err) => console.error(err)) {
                 undoable.push(step);
                 hear({ changes: asChanges(step.patches), reason: 'redo' });
                 settleDirty();
+                settleHistory();
             });
         },
         onChange(listener) {
@@ -193,7 +210,20 @@ export function createTextStore(text, report = (err) => console.error(err)) {
                 if (changes.length > 0)
                     hear({ changes: asChanges(changes) });
                 settleDirty();
+                settleHistory();
             });
+        },
+        history: {
+            get canUndo() {
+                return undoable.length > 0;
+            },
+            get canRedo() {
+                return redoable.length > 0;
+            },
+            onChange(listener) {
+                historyListeners.add(listener);
+                return () => void historyListeners.delete(listener);
+            },
         },
     };
 }

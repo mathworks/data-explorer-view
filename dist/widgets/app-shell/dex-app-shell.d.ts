@@ -49,6 +49,14 @@ export declare class DexAppShell extends LitElement {
      * keeps nothing. Attribute `storage-key`.
      */
     storageKey: string;
+    /**
+     * Draws the icons of the buttons the shell draws (the activity bars' and the status bar's) in
+     * one colour, the buttons' ink (`--dex-activity-fg`, through `<dex-icon mono>`), as the
+     * prototype's bars drew their glyphs; off, the default, draws them in their files' colours. The
+     * page's own children are its own to draw. Attribute `mono`, reflected so a page's stylesheet
+     * can follow it.
+     */
+    mono: boolean;
     private _chosen;
     private _layout;
     private _views;

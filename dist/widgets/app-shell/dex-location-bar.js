@@ -33,6 +33,13 @@ export class DexLocationBar extends LitElement {
         this.canForward = false;
         /** Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`. */
         this.canUp = false;
+        /**
+         * Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a
+         * toolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a
+         * file's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute
+         * `mono`, reflected so a page's stylesheet can follow it.
+         */
+        this.mono = false;
     }
     static { this.styles = [hiddenStyles, buttonFocusRingStyles, highContrastStyles, css `
     :host {
@@ -71,6 +78,8 @@ export class DexLocationBar extends LitElement {
       cursor: pointer;
     }
 
+    /* Filled, a step darker than the bar, so the three read as buttons beside the path's box; a
+       step more under the pointer. In forced colours the shared sheet draws their border. */
     .go {
       display: flex;
       align-items: center;
@@ -79,12 +88,10 @@ export class DexLocationBar extends LitElement {
       height: 24px;
       padding: 0;
       border-radius: 4px;
-    }
-
-    .go:hover:not(:disabled) {
       background: var(--dex-bg-hover, #e8e8e8);
     }
 
+    .go:hover:not(:disabled),
     .go:active:not(:disabled) {
       background: var(--dex-bg-active, #e0e0e0);
     }
@@ -141,6 +148,7 @@ export class DexLocationBar extends LitElement {
       padding: 0 4px;
       border-radius: 2px;
       white-space: nowrap;
+      font-weight: 500;
     }
 
     .segment:hover {
@@ -163,6 +171,11 @@ export class DexLocationBar extends LitElement {
 
     .segment dex-icon {
       flex-shrink: 0;
+    }
+
+    /* Dimmed, and still legible: the text keeps a 4.5:1 contrast at this opacity, light and dark. */
+    .segment.preview {
+      opacity: 0.7;
     }
 
     .label {
@@ -188,17 +201,19 @@ export class DexLocationBar extends LitElement {
     }
     // A segment, behind a separator unless it is the first. The separator sits inside the item,
     // since a list holds only items; it is hidden from a screen reader, which hears the list.
-    // The last one is the current place, and asks to go there all the same: what a press on it
-    // does (back up to the list from an entry, say) is the app's call.
-    _segment(segment, index, last) {
+    // The last one but a preview is the current place, and asks to go there all the same: what a
+    // press on it does (back up to the list from an entry, say) is the app's call.
+    _segment(segment, index, current) {
         return html `
       <li>
         ${index > 0 ? html `<span class="separator" aria-hidden="true">›</span>` : nothing}
         <button
           type="button"
-          class="segment"
+          class=${segment.preview ? 'segment preview' : 'segment'}
           title=${segment.title ?? nothing}
-          aria-current=${last ? 'location' : nothing}
+          aria-label=${segment.ariaLabel ?? nothing}
+          aria-description=${segment.description ?? nothing}
+          aria-current=${current ? 'location' : nothing}
           @click=${() => this._go(index)}
         >
           ${segment.icon ? html `<dex-icon .iconId=${segment.icon} .size=${14}></dex-icon>` : nothing}
@@ -208,7 +223,9 @@ export class DexLocationBar extends LitElement {
     `;
     }
     render() {
-        const last = this.segments.length - 1;
+        let last = this.segments.length - 1;
+        while (last > 0 && this.segments[last].preview)
+            last--;
         return html `
       <nav aria-label="Location">
         <div class="history">
@@ -219,7 +236,7 @@ export class DexLocationBar extends LitElement {
             title="Back"
             ?disabled=${!this.canBack}
             @click=${() => this._go('back', this.canBack)}
-          ><dex-icon .iconId=${'arrowNavigationWestUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationWestUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
           <button
             type="button"
             class="go"
@@ -227,7 +244,7 @@ export class DexLocationBar extends LitElement {
             title="Forward"
             ?disabled=${!this.canForward}
             @click=${() => this._go('forward', this.canForward)}
-          ><dex-icon .iconId=${'arrowNavigationEastUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationEastUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
           <button
             type="button"
             class="go"
@@ -235,7 +252,7 @@ export class DexLocationBar extends LitElement {
             title="Up"
             ?disabled=${!this.canUp}
             @click=${() => this._go('up', this.canUp)}
-          ><dex-icon .iconId=${'arrowNavigationNorthUI'} .size=${16}></dex-icon></button>
+          ><dex-icon .iconId=${'arrowNavigationNorthUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
         </div>
         <div class="divider"></div>
         <ol class="path">
@@ -257,6 +274,9 @@ __decorate([
 __decorate([
     property({ type: Boolean, attribute: 'can-up' })
 ], DexLocationBar.prototype, "canUp", void 0);
+__decorate([
+    property({ type: Boolean, reflect: true })
+], DexLocationBar.prototype, "mono", void 0);
 /** Registers the widget as `<dex-location-bar>`, or under `tag`, and the `<dex-icon>` its buttons and segments draw. */
 export function defineLocationBar(tag = 'dex-location-bar') {
     defineIcon();

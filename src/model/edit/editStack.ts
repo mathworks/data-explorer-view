@@ -6,7 +6,9 @@
 // The index is copied from data-explorer-vscode src/host/diskConflict.ts at c73da3c (its
 // EditStackMirror, which copies VS Code's own dirty flag). The extension keeps its own copy until
 // its editors move onto view's sources; keep the two alike (view's CI reports a vscode commit to
-// that file). The stack around it is this package's: what VS Code's edit list is to the extension.
+// that file). The stack around it is this package's: what VS Code's edit list is to the extension,
+// and the history a table offers Undo and Redo by, which VS Code's says nothing of to a webview.
+import type { EditHistory } from '../source/tableSource.js';
 import type { Edit, EditIndex, EditSink } from './hooks.js';
 
 /**
@@ -137,28 +139,46 @@ export class EditStackIndex implements EditIndex {
  * An undo stack in the page: each pushed edit is a step, undone and redone in stack order, and a
  * push drops the steps undone after the last one, as an editor's stack does. Its `undo()` and
  * `redo()` do nothing at either end of it.
+ *
+ * It is the history its document's table offers Undo and Redo by (EditHistory): what it can do, and
+ * when that changes. A listener's throw goes to `report` (by default the console), never back into
+ * the gesture that moved the stack.
  */
-export class EditStack implements EditSink {
+export class EditStack implements EditSink, EditHistory {
   private readonly edits: Edit[] = [];
   /** How many of `edits` are applied. */
   private applied = 0;
+  private readonly listeners = new Set<() => void>();
+
+  constructor(private readonly report: (err: unknown) => void = (err) => console.error(err)) {}
 
   push(edit: Edit): void {
+    const was = this.can();
     this.edits.length = this.applied;
     this.edits.push(edit);
     this.applied++;
+    this.moved(was);
   }
 
   undo(): void {
     if (this.applied === 0) return;
+    const was = this.can();
     this.applied--;
-    this.edits[this.applied].undo();
+    // Told even where the step throws: the stack moved past it all the same.
+    try {
+      this.edits[this.applied].undo();
+    } finally {
+      this.moved(was);
+    }
   }
 
   redo(): void {
     if (this.applied === this.edits.length) return;
+    const was = this.can();
+    // A step that throws is not made again, and the stack stays where it was.
     this.edits[this.applied].redo();
     this.applied++;
+    this.moved(was);
   }
 
   /** Whether there is a step to undo, and one to redo. */
@@ -179,7 +199,36 @@ export class EditStack implements EditSink {
 
   /** Forget every step: the document now holds something no step was made on (a reload). */
   clear(): void {
+    const was = this.can();
     this.edits.length = 0;
     this.applied = 0;
+    this.moved(was);
+  }
+
+  /** Hear `canUndo` or `canRedo` change, once the push, undo, redo or clear that changed it is done. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  /** What the stack can do now, as `moved` compares it. */
+  private can(): string {
+    return `${this.canUndo} ${this.canRedo}`;
+  }
+
+  /** Tell each listener, each on its own terms, if what the stack can do is not what it `was`. */
+  private moved(was: string): void {
+    if (this.can() === was) return;
+    for (const listener of [...this.listeners]) {
+      try {
+        listener();
+      } catch (err) {
+        try {
+          this.report(err);
+        } catch {
+          // A report that fails has nowhere left to go.
+        }
+      }
+    }
   }
 }

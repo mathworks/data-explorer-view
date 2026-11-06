@@ -30,6 +30,18 @@ bar.addEventListener('dex-location-go', (e) => {
 Back and Forward send nothing while their `can-back` and `can-forward` are off, and Up nothing
 while `can-up` is. A press of the last segment, the current place, is sent all the same.
 
+A segment with `preview` is a place only looked at, not gone to (a file selected in a graph): it
+is drawn dimmed after the current place, which is then the segment before it, and a press on it
+is sent as on any other. A segment's `description` is what a screen reader hears of it past its
+label, such as why it is dimmed.
+
+```js
+bar.segments = [
+  { label: 'Root' },
+  { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', preview: true, description: 'selected in the graph' },
+];
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance
@@ -63,6 +75,15 @@ Forward can be used: the user went back, and can go forward again. Off, the defa
 type `boolean` · default `false` · attribute `can-up`
 
 Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.
+
+### `mono`
+
+type `boolean` · default `false` · attribute `mono`, reflected
+
+Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a
+toolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a
+file's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute
+`mono`, reflected so a page's stylesheet can follow it.
 
 ## Methods
 

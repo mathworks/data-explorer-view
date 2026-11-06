@@ -6,7 +6,7 @@
 // (views.ts: the Explorer, with the open files and the folder under them, the Gallery and Search
 // on the left; the Properties and Raw on the right; the Terminal and the Log in the bottom panel),
 // the Settings and About actions on the left, the documents' area in the center (the open files'
-// panels, and Root's relationship graph), and the status text. In the body, once, the overlays
+// panels, and Root's relationship graph), and the status. In the body, once, the overlays
 // every part shares: the variable editor, the context menu, the error and confirm dialogs, the
 // toasts, the two popovers and the command palette.
 //
@@ -51,8 +51,11 @@ export function buildShell(shell, options) {
     terminal.heading = options.appName;
     const log = document.createElement('dex-log-panel');
     const docs = document.createElement('dex-shell-docs');
+    // The first pane's row of tabs; a second pane's is made beside it as one comes (panes.ts).
     const strip = document.createElement('dex-doc-tabs');
     strip.slot = 'tabs';
+    // Shown with the first file: with none, the welcome fills the center, and at Root the graph.
+    strip.hidden = true;
     // The relationship graph: Root's, while files are open, in a panel of its own under the files'.
     const graphPanel = document.createElement('section');
     graphPanel.className = 'graph-panel';
@@ -65,7 +68,8 @@ export function buildShell(shell, options) {
     inspectorEmpty.className = 'dex-inspector-empty';
     inspectorEmpty.textContent = 'Select an entry to view its properties.';
     const inspector = document.createElement('dex-property-inspector');
-    const status = document.createElement('span');
+    // What the status bar says of the active file: its format's pill, and Modified.
+    const status = document.createElement('dex-shell-status');
     status.slot = 'status';
     const children = [
         toolbar,

@@ -8,7 +8,11 @@ rows, so a dictionary of a hundred thousand entries scrolls as a small one does.
 It holds no document. The app gives it rows and answers what it asks for; every user action
 goes out as a `dex-*` event, and the table never changes the document itself. Its defaults are a
 full editor: `readonly` makes it a viewer, `canAdd` and `rowDrag` turn the `+ Add` button and
-dragging on and off.
+dragging on and off. `keyboardMenu` gives the keyboard the row menu: Shift+F10 and the ContextMenu
+key on the grid send `dex-table-context-menu` for the keyboard's row, placed under it, with
+`keyboard: true`, and `connectTable` shows that menu with the keyboard on its first item, given
+back to the grid as it closes (off by default, which leaves both keys to the browser, whose own
+event names no row).
 
 `connectTable` feeds it from a table source: a document opened in the page
 (`createWorkspace().open(bytes, name)`), or a host across a channel (`messageSource(port)`). It
@@ -70,6 +74,10 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
 - **The menu and its chords:** the right-click menu is the editing one (Copy, Cut, Paste, Add
   Child, Delete, Undo, Redo), with its chords (Cmd/Ctrl+C, X and V, Delete), each enabled as its
   item is.
+- **Undo and Redo:** a source that says where its undo stack stands (its `history`, which a
+  workspace's documents have) gets each only where there is a step to take back or make again. A
+  source that does not (a host's across a channel, whose stack is its editor's) gets both wherever
+  the document may be edited.
 - **What the source sends back:** a selection, a rename to begin, and the clipboard, drag and
   drop rules the menu and the drop predictor are built from. A refused edit opens the error
   dialog (`errorDialog`, or one connectTable makes).
@@ -83,13 +91,35 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
   with the row's reason (`_setActiveWhy`) where the set is not made active; a reference's row says
   what making it active cannot check (`_setActiveCaution`), as the item's tooltip.
 - **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
-  and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
+  and `menuFor(anchorRowId)` is the editing menu a right-click there would show. `ran` says each
+  of the menu's gestures the source took, from the menu, a chord or `run()`: which item, the rows
+  it carried and how many it acted on, a task later, and not where the source refused it, for an
+  app's "Copied to clipboard" or "2 entries deleted".
 
 ```js
 const handle = connectTable(table, messageSource(port), {
   editing: true,
   textView: { available: () => hasText, locate: (rowId) => revealInText(rowId) },
 });
+```
+
+`inspectorPages` and `inspectorEditing` decide what an inspector following the handle
+(connectInspector) is sent. Both are off by default, and the inspector shows the first selected
+row's properties, read-only, and nothing for no row or a section heading.
+- **`inspectorPages`:** the file's own page while no row is selected, a section heading's, "3
+  selected" for several rows, and a row's Usage links as a group of their own.
+- **`inspectorEditing`, with `editing`:** rows are editable where the document may be edited and
+  takes an edit of the property. A change of one comes back through `handle.edit()`, which writes
+  it as a cell edit is: a refusal opens the error dialog, and the page is sent again so the field
+  shows what the document holds. `commitEdit()` waits for it.
+- **`handle.refreshInspector()`:** asks for the page again, for a change the table does not hear
+  of. The file's page says whether the document holds edits: call it whenever that changes (the
+  document's `onDirty`, a save among them). A page that is the one last sent is not sent again.
+
+```js
+const handle = connectTable(table, doc.table, { editing: true, inspectorPages: true, inspectorEditing: true });
+connectInspector(inspector, handle);
+doc.onDirty(() => handle.refreshInspector());
 ```
 
 See also the [context menu](context-menu.md) (its items for a selection come from
@@ -199,6 +229,22 @@ Whether a row can be dragged, or a dragged row let go over one. Set it false whe
 document cannot be changed: no row is draggable, and a drag from another table draws no drop
 target here, on a row or on the empty body. Default true. Attribute `row-drag`.
 
+### `dragOut`
+
+type `boolean` · default `false` · attribute `drag-out`
+
+Whether rows are dragged out of the table, onto another part of the page that takes them (the
+app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+drag allows no move, so the document never loses an entry by it, and no row of this table takes
+a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+icon and name) follows the pointer over the rest of the page too, until the drag is let go
+anywhere, saying there what the part under the pointer says a drop would do: the words of the
+nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+`drag-out`.
+
 ### `readonly`
 
 type `boolean` · default `false` · attribute `readonly`, reflected
@@ -206,12 +252,26 @@ type `boolean` · default `false` · attribute `readonly`, reflected
 A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
 No cell editor opens — not on a double-click, not on Enter, not for beginRename or
 openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
 what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
 False, the default, is the table as it always was, each cell's own flags deciding. Reflected
 to the attribute `readonly`.
+
+### `keyboardMenu`
+
+type `boolean` · default `false` · attribute `keyboard-menu`
+
+Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+`dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+the selection's last, whichever the table shows), placed under that row as a right-click on it
+is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+the space under the rows. Both keys are spent, so the browser's own menu event for them does
+not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+they always were. Attribute `keyboard-menu`.
 
 ### `storageKey`
 
@@ -364,8 +424,9 @@ export interface RequestChildrenDetail {
 
 ### `dex-table-context-menu`
 
-A right-click on a row (after selecting it) or on the space under the rows: open a context
-menu there.
+A right-click on a row (after selecting it) or on the space under the rows, or with
+`keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a
+context menu there.
 
 `detail` is a `TableContextMenuDetail`:
 
@@ -380,6 +441,12 @@ export interface TableContextMenuDetail {
   y: number;
   rowId: string | null;
   graphTarget?: string;
+  /**
+   * A key opened it (`keyboardMenu`), not a right-click: the menu is to take the keyboard at once,
+   * and give it back to the grid when it closes (the context menu's `focusFirst`). Absent for a
+   * right-click.
+   */
+  keyboard?: true;
 }
 ```
 

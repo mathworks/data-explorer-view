@@ -14,6 +14,7 @@ import {
   type LocationGoDetail,
   type LocationSegment,
 } from '../src/widgets/app-shell/dex-location-bar.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineLocationBar());
 
@@ -30,7 +31,7 @@ const PATH: LocationSegment[] = [
   { label: 'Design Data' },
 ];
 
-async function bar(props: Partial<Pick<DexLocationBar, 'segments' | 'canBack' | 'canForward' | 'canUp'>> = {}): Promise<DexLocationBar> {
+async function bar(props: Partial<Pick<DexLocationBar, 'segments' | 'canBack' | 'canForward' | 'canUp' | 'mono'>> = {}): Promise<DexLocationBar> {
   const el = document.createElement('dex-location-bar');
   Object.assign(el, props);
   document.body.append(el);
@@ -82,6 +83,28 @@ describe('the breadcrumb', () => {
   it('marks the last segment as the current place, and only that one', async () => {
     const el = await bar({ segments: PATH });
     expect(segments(el).map((b) => b.getAttribute('aria-current'))).toEqual([null, null, 'location']);
+  });
+
+  it('dims a previewed segment, and marks the place before it as the current one', async () => {
+    // A file selected in the graph at Root is a place previewed, not gone to: Root is where the
+    // user is, and the file is drawn after it, dimmed, for a press to go to.
+    const el = await bar({ segments: [{ label: 'Root' }, { label: 'plant.sldd', preview: true }] });
+    expect(segments(el).map((b) => b.classList.contains('preview'))).toEqual([false, true]);
+    expect(segments(el).map((b) => b.getAttribute('aria-current'))).toEqual(['location', null]);
+    expect(getComputedStyle(segments(el)[1]!).opacity).toBe('0.7');
+  });
+
+  it("tells a screen reader a segment's description, where it has one", async () => {
+    const el = await bar({ segments: [{ label: 'Root' }, { label: 'plant.sldd', preview: true, description: 'selected in the graph' }] });
+    expect(segments(el).map((b) => b.getAttribute('aria-description'))).toEqual([null, 'selected in the graph']);
+  });
+
+  it("names a segment to a screen reader as its ariaLabel says, where its label reads badly aloud", async () => {
+    // "<3 selected>" is heard as "less than 3 selected greater than": the segment says "3 rows selected".
+    const el = await bar({ segments: [...PATH, { label: '<3 selected>', ariaLabel: '3 rows selected' }] });
+    expect(segments(el)[3]!.getAttribute('aria-label')).toBe('3 rows selected');
+    expect(labels(el)[3]).toBe('<3 selected>');
+    expect(segments(el)[1]!.hasAttribute('aria-label')).toBe(false);
   });
 
   it('gives a segment its title as a tooltip, and one without none', async () => {
@@ -165,6 +188,25 @@ describe('Back, Forward and Up', () => {
     }
   });
 
+  it('draw their icons in their own colours by default, and in one colour with `mono`', async () => {
+    // The shell's Minimal icon style reaches the three buttons alone: a segment's icon is a file's
+    // or an entry's kind, which its colours tell apart.
+    const goIcons = (el: DexLocationBar) => (['Back', 'Forward', 'Up'] as const).map((name) => navButton(el, name).querySelector('dex-icon')!.mono);
+    const segmentIcons = (el: DexLocationBar) => segments(el).flatMap((b) => [...b.querySelectorAll('dex-icon')].map((i) => i.mono));
+    const el = await bar({ segments: PATH });
+    expect(el.mono).toBe(false);
+    expect(goIcons(el)).toEqual([false, false, false]);
+    el.mono = true;
+    await el.updateComplete;
+    expect(el.hasAttribute('mono')).toBe(true);
+    expect(goIcons(el)).toEqual([true, true, true]);
+    expect(segmentIcons(el)).toEqual([false, false]);
+    document.body.insertAdjacentHTML('beforeend', '<dex-location-bar mono></dex-location-bar>');
+    const marked = document.body.lastElementChild as DexLocationBar;
+    await marked.updateComplete;
+    expect(goIcons(marked)).toEqual([true, true, true]);
+  });
+
   it('are disabled until the app says each can be used', async () => {
     const el = await bar({ segments: PATH });
     for (const name of ['Back', 'Forward', 'Up'] as const) expect(navButton(el, name).disabled, name).toBe(true);
@@ -243,6 +285,44 @@ describe('the look a long path needs', () => {
   it('dims a button that cannot be used', async () => {
     const el = await bar();
     expect(getComputedStyle(navButton(el, 'Back')).opacity).toBe('0.35');
+  });
+});
+
+describe('the look', () => {
+  // The rules as text (happy-dom matches no :hover), comments taken out: a declaration a comment
+  // quotes is no rule.
+  const sheet = (): string =>
+    [DexLocationBar.styles]
+      .flat(Infinity)
+      .map((s) => (s as { cssText: string }).cssText)
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\s+/g, ' ');
+  // The declarations of the rule `selector` is one of the selectors of.
+  const rule = (selector: string): string => {
+    for (const [, selectors, body] of sheet().matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (selectors!.split(',').some((one) => one.trim() === selector)) return body!;
+    }
+    throw new Error(`no rule for ${selector}`);
+  };
+
+  it('fills Back, Forward and Up grey, darker under the pointer, so they read as buttons beside the path', async () => {
+    // The bar is --dex-bg-secondary; the buttons a step darker, and a step more when hovered or
+    // pressed, in each theme's own greys.
+    const el = await bar({ canBack: true });
+    expect(getComputedStyle(navButton(el, 'Back')).backgroundColor).toMatch(/^(#e8e8e8|rgb\(232, 232, 232\))$/);
+    expect(rule('.go')).toContain('background: var(--dex-bg-hover, #e8e8e8)');
+    expect(rule('.go:hover:not(:disabled)')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    expect(rule('.go:active:not(:disabled)')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      const fills = ['--dex-bg-secondary', '--dex-bg-hover', '--dex-bg-active'].map((t) => tokens.get(t));
+      expect(new Set(fills).size, set).toBe(3);
+    }
+  });
+
+  it('sets the segments in a medium weight', async () => {
+    const el = await bar({ segments: PATH });
+    expect(getComputedStyle(segments(el)[1]!).fontWeight).toBe('500');
   });
 });
 

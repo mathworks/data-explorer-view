@@ -68,6 +68,16 @@ The localStorage key the layout is kept under (which view each side shows, which
 open, and their sizes), read back as each side's views first arrive. Empty, the default,
 keeps nothing. Attribute `storage-key`.
 
+### `mono`
+
+type `boolean` · default `false` · attribute `mono`, reflected
+
+Draws the icons of the buttons the shell draws (the activity bars' and the status bar's) in
+one colour, the buttons' ink (`--dex-activity-fg`, through `<dex-icon mono>`), as the
+prototype's bars drew their glyphs; off, the default, draws them in their files' colours. The
+page's own children are its own to draw. Attribute `mono`, reflected so a page's stylesheet
+can follow it.
+
 ### `layout`
 
 type `ShellLayoutState` · read-only

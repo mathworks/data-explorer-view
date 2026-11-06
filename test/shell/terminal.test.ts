@@ -52,6 +52,19 @@ describe('the Terminal view', () => {
     expect(output()).toEqual(['Kp = 5', 'Created "Kz" (Simulink.Parameter).', 'Removed "Kz".']);
   });
 
+  it("takes a class by its short name, and prints a model workspace variable's value for json, not a count of its bytes", async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd', 'slxcases.slx': 'slxcases.slx' });
+    await open(page, 'params.sldd');
+    run('add Parameter Kz');
+    await until(() => names().includes('Kz'));
+    await open(page, 'slxcases.slx');
+    run('json tau');
+    await until(() => output().length >= 2);
+    expect(output()[0]).toBe('Created "Kz" (Simulink.Parameter).');
+    const record = JSON.parse(output().slice(1).join('\n'));
+    expect(record).toMatchObject({ name: 'tau', value: 0.25 });
+  });
+
   it('answers each line in the order it was run, an edit after an add landing on the new entry', async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd');
@@ -101,6 +114,20 @@ describe('the Terminal view', () => {
     await until(() => output().length >= 2);
     expect(output()).toEqual(['Kp = 5', 'Saved params.sldd.']);
     expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Kp')).toBe('5');
+  });
+
+  it('says a save the host made a download of was downloaded, as the toast does', async () => {
+    // A browser page with no handle to the file hands its bytes over as a download: the file on disk
+    // is as it was, so the line does not say it was saved.
+    const page = startPage(FILES);
+    const write = page.host.saveFile;
+    page.host.saveFile = async (path, bytes) => ({ ...(await write(path, bytes)), downloaded: true });
+    await open(page, 'params.sldd');
+    run('Kp = 5');
+    run('save');
+    await until(() => output().length >= 2);
+    expect(output()).toEqual(['Kp = 5', 'Downloaded params.sldd.']);
+    expect(dirtyTabs()).toEqual([]);
   });
 
   it('says a file the page does not edit is read-only, and has no save', async () => {

@@ -15,10 +15,9 @@
 // through the Doc's save half (`serialize`, `saved`).
 import { createSession, exceedsTextSyncLimit, extOf, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
-import { rawOfRow } from '../raw/rawOfRow.js';
+import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
@@ -36,9 +35,11 @@ import { createTextStore, type PageTextStore } from '../edit/textStore.js';
 import { MatEngine, type MatSave } from '../edit/matEngine.js';
 import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
+import { dragEntries } from '../edit/clipboardAction.js';
+import { newDictionaryBytes } from './newDictionary.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
-import type { ChildRows, EditableTableSource, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
+import type { ChildRows, EditableTableSource, InspectOptions, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 
 export type { DocKind } from './readDocument.js';
@@ -73,7 +74,9 @@ export interface WorkspaceOptions {
    * limit the extension's table editor has) or compressed. Its table is then an
    * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
    * stack of its own (a JSON dictionary's text's), and it saves through the Doc's `serialize` and
-   * `saved`. Default false: every document is read-only, as before.
+   * `saved`. A document it keeps read-only (a `.mdl`, a dictionary past the text limit) still lets
+   * its rows be dragged out, to be copied into one it edits: its table has `dragStart` and `dragEnd`.
+   * Default false: every document is read-only, as before.
    */
   editing?: boolean;
   /**
@@ -102,7 +105,8 @@ export interface UsageReposts {
  * Over a folder, the graph for a document is core's `planSummaries(cache, reader, files, uri)` —
  * the summaries of just the files that can reach it — through `buildUsageGraphFromSummaries`.
  * The document must be open under the uri the folder lists it by (`sourceUri(path)`), since that
- * is the uri the graph's answers name it by.
+ * is the uri the graph's answers name it by. Over the files a page has open, with no folder, the
+ * same graphs over their bytes (usage/openFilesUsage.ts).
  */
 export interface UsageSource {
   /** The graph that answers for the document opened under `uri`. A rejection leaves the cells as the file has them. */
@@ -206,6 +210,16 @@ export interface Workspace {
    * with what the table's error banner says.
    */
   open(bytes: ArrayBuffer | Uint8Array, name: string, uri?: string): Promise<Doc>;
+  /**
+   * Open a new data dictionary `name` (a `.sldd`), empty, which no file holds yet: the shell's New.
+   * It is what MATLAB writes for a new dictionary, a text one, edited as any JSON dictionary is, and
+   * unsaved from the start: dirty, whatever is undone, until a save of it lands (`saved`), which
+   * writes the file. `uri` is as for `open`.
+   *
+   * Rejects for a workspace not made with `editing`, a name that is not a dictionary's, and as `open`
+   * does: a uri already open here, or a workspace that is closed.
+   */
+  create(name: string, uri?: string): Promise<Doc>;
   /** The open document of `uri`, if there is one. */
   get(uri: string): Doc | undefined;
   /**
@@ -256,6 +270,8 @@ interface Shared {
   usage: UsageSource | undefined;
   usageReposts: UsageReposts | undefined;
   registers: Registers;
+  /** Whether the workspace edits (WorkspaceOptions.editing): what its registers are there for. */
+  editing: boolean;
   notify: Notify | undefined;
   closed(doc: Doc): void;
 }
@@ -294,13 +310,53 @@ class InPageDoc implements HeldDoc {
       open: async () => this.open(),
       children: (rowId) => this.children(rowId),
       matrix: async (nodeId) => this.matrix(nodeId),
-      inspect: async (selection) => this.inspect(selection),
-      raw: async (rowId) => this.raw(rowId),
+      inspect: async (selection, options) => this.inspect(selection, options),
+      raw: async (rowId, options) => this.raw(rowId, options),
       subscribe: (listener) => {
         this.listeners.add(listener);
         return () => void this.listeners.delete(listener);
       },
+      // Its rows dragged out of its table, to be copied into a document the page edits: only where
+      // the workspace edits, since only then does a document take a drop.
+      ...(shared.editing ? { dragStart: (rowIds: readonly string[]) => this.dragStart(rowIds), dragEnd: () => this.dragEnd() } : {}),
     };
+  }
+
+  /**
+   * Take the entries of the rows dragged out of its table into the drag register the editable
+   * documents share, as theirs do (dragEntries), for a copy: no deleter is registered for this
+   * document, and its table allows no move. A drag that cannot start says why in its table.
+   */
+  private dragStart(rowIds: readonly string[]): void {
+    const registers = this.shared.registers;
+    if (this.disposed || !this.reading) return;
+    dragEntries(rowIds, this.uri, {
+      session: this.shared.registry.session,
+      registers,
+      // Its tree is the file as read, which nothing changes.
+      refresh: () => {},
+      findNode: (rowId) => this.find(rowId),
+      post: (message) => this.tell({ kind: 'error', message: message.message }),
+      broadcast: () => registers.broadcastDragState(),
+    });
+  }
+
+  private dragEnd(): void {
+    if (this.disposed) return;
+    this.shared.registers.clearDrag();
+    this.shared.registers.broadcastDragState();
+  }
+
+  /** Tell every subscriber `change`, each on its own terms. */
+  private tell(change: TableChange): void {
+    const report = listenerFailure(this.shared.notify, this.name);
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(change);
+      } catch (err) {
+        report(err);
+      }
+    }
   }
 
   onDirty(): () => void {
@@ -366,21 +422,20 @@ class InPageDoc implements HeldDoc {
       change = { kind: 'error', message: messageOf(err) };
     }
     if (this.disposed) return;
-    const report = listenerFailure(this.shared.notify, this.name);
-    for (const listener of [...this.listeners]) {
-      try {
-        listener(change);
-      } catch (err) {
-        // One listener's failure is its own: the others still hear the change.
-        report(err);
-      }
-    }
+    // One listener's failure is its own: the others still hear the change.
+    this.tell(change);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.reposts?.dispose();
+    // A drag of its rows still on goes with it, so the register holds no entries of a closed file.
+    const registers = this.shared.registers;
+    if (registers.getDrag()?.sourceDocUri === this.uri) {
+      registers.clearDrag();
+      registers.broadcastDragState();
+    }
     this.unload();
     this.listeners.clear();
     this.shared.closed(this);
@@ -481,14 +536,16 @@ class InPageDoc implements HeldDoc {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  private inspect(selection: string | readonly string[]): InspectorView {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    // The inspector's own rule for which row a selection shows (the first, unless it is a section
-    // heading), with this document's lookup.
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.find(id)).show(this.uri, rowIds);
-    return view;
+  /**
+   * The inspector's page for a selection (inspectTree), off the current read: the file itself named
+   * by its uri or by the srcId its tree is under, as the Raw pane's is. It never holds edits, and
+   * takes none, so it has no row to edit whatever `options` asks.
+   */
+  private inspect(selection: string | readonly string[], options?: InspectOptions): InspectorView {
+    const r = this.reading;
+    if (!r) return { groups: [] };
+    const tree = { root: () => r.node, fileIds: [this.uri, r.srcId], find: (id: string) => this.find(id), name: this.name, sources: this.shared.registry.session };
+    return inspectTree(tree, selection, { ...options, editable: false });
   }
 
   /**
@@ -496,10 +553,10 @@ class InPageDoc implements HeldDoc {
    * uri or by the srcId its tree is under. Nothing to show for a document that did not read, a
    * project, or one that is closed.
    */
-  private raw(rowId: string): RawView {
+  private raw(rowId: string, options?: RawOptions): RawView {
     const r = this.reading;
     if (!r) return noRaw();
-    return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
+    return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId, options);
   }
 }
 
@@ -552,7 +609,8 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   readonly editable = true;
   protected abstract readonly engine: SavingEngine<S>;
   protected view!: EditableTableSource & { dispose(): void; repaintAll(): Promise<void> };
-  protected readonly stack = new EditStack();
+  /** Where its edits go: the history its table offers Undo and Redo by, too (the engine's `history`). */
+  protected readonly stack: EditStack;
   protected readonly index = new EditStackIndex();
   /**
    * The stack's position, as the engine moves it. Whoever listens for `dirty` is told once the
@@ -572,6 +630,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
     readonly name: string,
   ) {
     this.bell = new DirtyBell(listenerFailure(shared.notify, name));
+    this.stack = new EditStack(listenerFailure(shared.notify, name));
     const index = this.index;
     this.watched = {
       get dirty() {
@@ -695,6 +754,7 @@ class EditableMatDoc extends EditableDoc<MatSave> {
       bytes,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -773,6 +833,7 @@ class EditableBinaryDoc extends EditableDoc<BinarySave> {
       bytes,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -858,6 +919,7 @@ class EditableJsonDoc implements HeldDoc {
       uri,
       name,
       text: this.text,
+      history: this.text.history,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -929,6 +991,15 @@ class EditableJsonDoc implements HeldDoc {
 
   notSaved(_at: SaveToken): void {
     // Nothing moved for a save until its bytes were written.
+  }
+
+  /**
+   * No file holds the document yet (Workspace.create): no state of its text's undo stack is a file,
+   * so it is dirty until a save of it lands. Its Status column is measured from the text it was
+   * made with, as from a file it had been read from.
+   */
+  untitled(): void {
+    this.text.diverged();
   }
 
   async keepOver(bytes: ArrayBuffer | Uint8Array): Promise<void> {
@@ -1014,6 +1085,7 @@ class EditableModelDoc extends EditableDoc<MatSave> {
       file: MODEL_FILE,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -1045,6 +1117,18 @@ class EditableModelDoc extends EditableDoc<MatSave> {
     this.tellDirty();
     this.graph = undefined;
     await this.engine.replace(arrayBufferOf(bytes));
+  }
+
+  async repaint(): Promise<void> {
+    if (this.disposed) return;
+    this.graph = undefined;
+    await super.repaint();
+  }
+
+  // A usage source that came later (setUsage) answers its blocks' parameters and its variables'
+  // users afresh: painted again, as the read-only model is, though no repost reaches it.
+  async refillUsage(): Promise<void> {
+    await this.repaint();
   }
 }
 
@@ -1089,25 +1173,40 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
     usage: options.usage,
     usageReposts: options.usageReposts,
     registers: options.registers ?? createRegisters(),
+    editing: !!options.editing,
     notify: options.notify,
     closed: (doc) => {
       if (docs.get(doc.uri) === doc) docs.delete(doc.uri);
     },
   };
   let disposed = false;
+  // The uri a document of `name` opens under, unless another document holds it.
+  const freeUri = (name: string, uri: string | undefined): string => {
+    const id = uri ?? sourceUri(`/${name}`);
+    if (docs.has(id)) throw new Error(`${id} is already open in this workspace.`);
+    return id;
+  };
   return {
     async open(bytes, name, uri) {
       if (disposed) throw new Error('This workspace is closed.');
-      const id = uri ?? sourceUri(`/${name}`);
       const kind = docKindOf(name);
       if (!kind) {
         throw new Error(
           `${name} is not a file this workspace opens: it opens data dictionaries (.sldd), models (.slx, .mdl), MAT-files (.mat) and projects.`,
         );
       }
-      if (docs.has(id)) throw new Error(`${id} is already open in this workspace.`);
+      const id = freeUri(name, uri);
       const doc: HeldDoc = (options.editing && editableDoc(shared, id, name, kind, bytes)) || new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
       docs.set(id, doc);
+      return doc;
+    },
+    async create(name, uri) {
+      if (disposed) throw new Error('This workspace is closed.');
+      if (!options.editing) throw new Error('A workspace that does not edit makes no new file: create it with createWorkspace({ editing: true }).');
+      if (docKindOf(name) !== 'dictionary') throw new Error(`${name} is not a data dictionary (.sldd), which is what a new file is.`);
+      const doc = new EditableJsonDoc(shared, freeUri(name, uri), name, newDictionaryBytes());
+      doc.untitled();
+      docs.set(doc.uri, doc);
       return doc;
     },
     get: (uri) => docs.get(uri),

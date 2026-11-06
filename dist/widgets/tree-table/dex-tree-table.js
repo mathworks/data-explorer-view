@@ -28,6 +28,12 @@ import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
 // draws (the two disagreed, 26 against 28, until 0.2).
 const DEFAULT_ROW_HEIGHT = 28;
 const BUFFER_ROWS = 10;
+// The keys that open the row menu with `keyboardMenu`, as aria-keyshortcuts names them.
+const MENU_KEYS = 'Shift+F10 ContextMenu';
+// What a part of the page says a drop of the table's rows on it would do, on the element under the
+// pointer, for the box at the pointer to say over it (dragOut): the words, and that it refuses one.
+const DROP_HINT = 'data-drop-hint';
+const DROP_REFUSED = 'data-drop-refused';
 // Default column widths as RELATIVE weights: only their ratio matters, because
 // _getColWidth renders each one as its share of the weights of the columns
 // actually visible. So the numbers stay meaningful whatever subset of columns the
@@ -321,17 +327,46 @@ export class DexTreeTable extends LitElement {
          */
         this.rowDrag = true;
         /**
+         * Whether rows are dragged out of the table, onto another part of the page that takes them (the
+         * app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+         * (`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+         * drag allows no move, so the document never loses an entry by it, and no row of this table takes
+         * a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+         * icon and name) follows the pointer over the rest of the page too, until the drag is let go
+         * anywhere, saying there what the part under the pointer says a drop would do: the words of the
+         * nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+         * as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+         * false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+         * `drag-out`.
+         */
+        this.dragOut = false;
+        /**
          * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
          * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
          * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-         * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-         * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-         * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+         * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+         * `dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+         * (dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+         * sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
          * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
          * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
          * to the attribute `readonly`.
          */
         this.readonly = false;
+        // Rows take no focus (the grid does, and the arrows move a cursor over its rows), so the browser's
+        // own menu event for Shift+F10 and the ContextMenu key reaches the grid as a right-click on no row,
+        // and Chromium on macOS sends none at all: without this a keyboard user has no row menu.
+        /**
+         * Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+         * `dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+         * the selection's last, whichever the table shows), placed under that row as a right-click on it
+         * is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+         * the space under the rows. Both keys are spent, so the browser's own menu event for them does
+         * not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+         * cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+         * they always were. Attribute `keyboard-menu`.
+         */
+        this.keyboardMenu = false;
         /**
          * Where the user's column choices (which are shown, and their order) are kept: the page's
          * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
@@ -475,6 +510,24 @@ export class DexTreeTable extends LitElement {
         // slice. The observer (re)measures once rows render and on every panel resize.
         this._resizeObserver = null;
         this._lastStartIdx = -1;
+        // While a drag of this table's rows is over the rest of the page (dragOut), the box at the pointer
+        // goes with it: the native drag image is hidden (_setDragImage), so it is the only thing there that
+        // says what is being dragged, and the browser shows no tooltip during a drag. A dragover anywhere in
+        // the document reaches this listener, captured on the document so a part that stops the event (a
+        // drop zone) still lets the box move; one over a table that takes row drags is the table's own to
+        // answer (_onRowDragOver, _onBodyDragOver), which say an action. Elsewhere, and over a table that
+        // takes no drop, whose rows answer nothing, the action is the part under the pointer's to say, by
+        // the attributes its element under the pointer carries (dragOut): read off the event's path, so
+        // the table knows nothing of what that part is. The box moves at once; the words are read a frame
+        // later, off the same path, since this listener hears the dragover before the part does, and the
+        // part writes its answer to that dragover (the Explorer's row, once drawn) after it: read at once,
+        // they were the last dragover's, the row before's words or none, and blinked between rows.
+        //
+        // A drop anywhere ends the following, and the box: the dragend that clears it is sent to the row the
+        // drag started on, which a move may have taken out of the table by then. A frame still to come is
+        // let go then too, and as the drag comes back over this table's own rows, which say their own words.
+        this._boundFollow = null;
+        this._hintFrame = 0;
         // The keys of every editor: Enter (with or without Ctrl/Cmd) commits and Escape cancels, as in
         // VS Code's own inline inputs; Tab and a click away commit too, through the blur. An Enter
         // that confirms an IME candidate is the input method's, not a commit, as VS Code treats it.
@@ -1656,6 +1709,10 @@ export class DexTreeTable extends LitElement {
     get _dragsRows() {
         return this.rowDrag && !this.readonly;
     }
+    // Whether a row can be dragged at all: in the table, or only out of it (dragOut, above).
+    get _dragsOut() {
+        return this._dragsRows || this.dragOut;
+    }
     /**
      * The last of `selectedRowIds`, or '' when nothing is selected; set, it selects that row alone
      * ('' selects nothing). Sends nothing.
@@ -1750,6 +1807,7 @@ export class DexTreeTable extends LitElement {
         if (this._boundOnWindowBlur) {
             window.removeEventListener('blur', this._boundOnWindowBlur);
         }
+        this._stopFollowingDrag();
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
             this._resizeObserver = null;
@@ -2827,15 +2885,21 @@ export class DexTreeTable extends LitElement {
     // answers a right-click on a row a second time.
     _onContainerContextMenu(e) {
         e.preventDefault();
-        this.dispatchEvent(new CustomEvent('dex-table-context-menu', {
-            detail: { x: e.clientX, y: e.clientY, rowId: null },
-            bubbles: true,
-            composed: true,
-        }));
+        this._openMenu(null, e.clientX, e.clientY);
     }
     _onRowContextMenu(rowId, e) {
         e.preventDefault();
         e.stopPropagation();
+        this._openMenu(rowId, e.clientX, e.clientY);
+    }
+    // The menu for `rowId` (null: the space under the rows) at (x, y), a right-click's or the
+    // keyboard's (`keyboard`). A row is selected first where it is not, since a menu is the selection's.
+    _openMenu(rowId, x, y, keyboard = false) {
+        const by = keyboard ? { keyboard: true } : {};
+        if (rowId === null) {
+            this.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x, y, rowId: null, ...by }, bubbles: true, composed: true }));
+            return;
+        }
         if (!this.selectedRowIds.includes(rowId)) {
             this.selectedRowIds = [rowId];
             this._lastClickedId = rowId;
@@ -2848,10 +2912,47 @@ export class DexTreeTable extends LitElement {
         const row = this._getVisibleRows().find((r) => r.ID === rowId);
         const graphTarget = row ? row._graphTarget : undefined;
         this.dispatchEvent(new CustomEvent('dex-table-context-menu', {
-            detail: { x: e.clientX, y: e.clientY, rowId, graphTarget },
+            detail: { x, y, rowId, graphTarget, ...by },
             bubbles: true,
             composed: true,
         }));
+    }
+    // Shift+F10 or the ContextMenu key on the grid, or on an empty table's "No data" (keyboardMenu):
+    // the menu a right-click on the keyboard's row opens, or on no row. As Chromium tells them: the
+    // ContextMenu key alone, Shift+F10 with Shift alone. Pressed on what the grid holds that takes keys
+    // of its own (a cell editor, a header's filter button), they are left to it. Returns whether the
+    // key was one of them; its keyup is spent too, which is when Windows sends the browser's own event.
+    _onMenuKey(e) {
+        if (!this.keyboardMenu || e.ctrlKey || e.metaKey || e.altKey)
+            return false;
+        const menuKey = (e.key === 'ContextMenu' && !e.shiftKey) || (e.key === 'F10' && e.shiftKey);
+        if (!menuKey || e.composedPath()[0] !== e.currentTarget)
+            return false;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type !== 'keydown')
+            return true;
+        const box = e.currentTarget.getBoundingClientRect();
+        const rowId = this._keyboardRow();
+        const tr = [...(this.shadowRoot?.querySelectorAll('tr[data-row-id]') ?? [])].find((r) => r.getAttribute('data-row-id') === rowId);
+        // Under the row, as a menu a key opens is placed, and inside the grid: a row half scrolled out
+        // has its menu at the grid's edge, beside what is left of it. No row, or one drawn nowhere now
+        // (scrolled away): at the top of the grid.
+        const at = tr?.getBoundingClientRect();
+        if (!at)
+            this._openMenu(rowId, box.left, box.top, true);
+        else
+            this._openMenu(rowId, Math.max(at.left, box.left), Math.min(Math.max(at.bottom, box.top), box.bottom), true);
+        return true;
+    }
+    // The keyboard's row, for its menu: the row the arrows last moved to, else the selection's last,
+    // either only while the table shows it. Neither is cleared as the rows change (a delete takes the
+    // arrows' row away), and a menu for a row that is gone would select it.
+    _keyboardRow() {
+        const shown = new Set(this._getVisibleRows().map((r) => r.ID));
+        if (this._focusedRowId && shown.has(this._focusedRowId))
+            return this._focusedRowId;
+        return [...this.selectedRowIds].reverse().find((id) => shown.has(id)) ?? null;
     }
     _onCellClick(rowId, colIdx, e) {
         this._focusedCol = colIdx;
@@ -2905,7 +3006,7 @@ export class DexTreeTable extends LitElement {
         return dragModeFromModifiers(navigator.platform, { altKey: e.altKey, ctrlKey: e.ctrlKey });
     }
     _onRowDragStart(rowId, e) {
-        if (!this._dragsRows) {
+        if (!this._dragsOut) {
             e.preventDefault();
             return;
         }
@@ -2920,13 +3021,17 @@ export class DexTreeTable extends LitElement {
         this._lastDragMode = 'move';
         const rowIds = (this.selectedRowIds.length > 1 && this.selectedRowIds.includes(rowId) ? this.selectedRowIds : [rowId]).filter((id) => id.indexOf('section:') !== 0);
         if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = 'copyMove';
+            // Dragged out of a table that takes no row drag (dragOut): a copy alone, so that no drop
+            // anywhere can take the entries out of a document that may not be changed.
+            e.dataTransfer.effectAllowed = this._dragsRows ? 'copyMove' : 'copy';
             // A payload is still set so the browser treats this as a real drag across
             // the webview boundary, but the authoritative source lives in the host
             // drag register (dataTransfer doesn't reliably survive the boundary).
             e.dataTransfer.setData('application/dex-rows', JSON.stringify({ rowIds }));
             this._setDragImage(e, rowId, rowIds.length);
         }
+        if (this.dragOut)
+            this._followDrag();
         this.dispatchEvent(new CustomEvent('dex-row-drag-start', {
             detail: { rowIds },
             bubbles: true,
@@ -2951,7 +3056,52 @@ export class DexTreeTable extends LitElement {
             'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
         e.dataTransfer.setDragImage(blank, -10, -10);
     }
+    _followDrag() {
+        this._stopFollowingDrag();
+        const over = (e) => {
+            const path = e.composedPath();
+            if (this._dragsRows && path.includes(this))
+                return this._cancelHint();
+            const drag = e;
+            this._dropTooltipX = drag.clientX;
+            this._dropTooltipY = drag.clientY;
+            // The latest dragover's path alone: a frame reads once, however many dragovers came in it.
+            this._cancelHint();
+            this._hintFrame = requestAnimationFrame(() => {
+                this._hintFrame = 0;
+                const hinted = path.find((node) => typeof node.hasAttribute === 'function' && node.hasAttribute(DROP_HINT));
+                this._dropTooltip = hinted?.getAttribute(DROP_HINT) ?? '';
+                this._dropForbidden = !!hinted?.hasAttribute(DROP_REFUSED);
+            });
+        };
+        const drop = () => {
+            this._stopFollowingDrag();
+            this._dropTooltip = '';
+            this._dropForbidden = false;
+            this._dragIconId = '';
+            this._dragLabel = '';
+            this._dragCount = 0;
+        };
+        this._boundFollow = { over, drop };
+        document.addEventListener('dragover', over, true);
+        document.addEventListener('drop', drop, true);
+    }
+    _cancelHint() {
+        if (this._hintFrame === 0)
+            return;
+        cancelAnimationFrame(this._hintFrame);
+        this._hintFrame = 0;
+    }
+    _stopFollowingDrag() {
+        this._cancelHint();
+        if (!this._boundFollow)
+            return;
+        document.removeEventListener('dragover', this._boundFollow.over, true);
+        document.removeEventListener('drop', this._boundFollow.drop, true);
+        this._boundFollow = null;
+    }
     _onRowDragEnd(_e) {
+        this._stopFollowingDrag();
         this._dragSourceId = null;
         this._dropTargetId = null;
         this._dropPosition = null;
@@ -3248,6 +3398,8 @@ export class DexTreeTable extends LitElement {
         this._onCellDblClick(rowId, 'Value', text, undefined, undefined, true);
     }
     _onTableKeyDown(e) {
+        if (this._onMenuKey(e))
+            return;
         if (this._editingCell)
             return;
         const visibleRows = this._getVisibleRows();
@@ -4050,6 +4202,9 @@ export class DexTreeTable extends LitElement {
         return html `<div
       class="empty-state"
       tabindex="-1"
+      aria-keyshortcuts=${this.keyboardMenu ? MENU_KEYS : nothing}
+      @keydown=${this._onMenuKey}
+      @keyup=${this._onMenuKey}
       @contextmenu=${this._onContainerContextMenu}
       @dragover=${this._onBodyDragOver}
       @drop=${this._onBodyDrop}
@@ -4080,10 +4235,12 @@ export class DexTreeTable extends LitElement {
         aria-colcount=${visibleCols.length}
         aria-label="Data entries"
         aria-readonly=${this.readonly ? 'true' : nothing}
+        aria-keyshortcuts=${this.keyboardMenu ? MENU_KEYS : nothing}
         tabindex="0"
         ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
         @keydown=${this._onTableKeyDown}
+        @keyup=${this._onMenuKey}
         @contextmenu=${this._onContainerContextMenu}
         @dragover=${this._onBodyDragOver}
         @drop=${this._onBodyDrop}
@@ -4163,7 +4320,7 @@ export class DexTreeTable extends LitElement {
                     : 'drop-target-on'
                 : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''}"
                     data-row-id="${row.ID}"
-                    draggable=${this._dragsRows ? 'true' : 'false'}
+                    draggable=${this._dragsOut ? 'true' : 'false'}
                     @contextmenu=${(e) => this._onRowContextMenu(row.ID, e)}
                     @dragstart=${(e) => this._onRowDragStart(row.ID, e)}
                     @dragend=${(e) => this._onRowDragEnd(e)}
@@ -4409,8 +4566,14 @@ __decorate([
     property({ type: Boolean, attribute: 'row-drag' })
 ], DexTreeTable.prototype, "rowDrag", void 0);
 __decorate([
+    property({ type: Boolean, attribute: 'drag-out' })
+], DexTreeTable.prototype, "dragOut", void 0);
+__decorate([
     property({ type: Boolean, reflect: true })
 ], DexTreeTable.prototype, "readonly", void 0);
+__decorate([
+    property({ type: Boolean, attribute: 'keyboard-menu' })
+], DexTreeTable.prototype, "keyboardMenu", void 0);
 __decorate([
     property({ type: String, attribute: 'storage-key' })
 ], DexTreeTable.prototype, "storageKey", void 0);

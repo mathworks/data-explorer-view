@@ -71,7 +71,7 @@ export function commandTarget(tab, tabs, save) {
         classes: () => (view ? addChoicesOf(view) : []),
     };
     if (source?.raw)
-        target.raw = (rowId) => source.raw(rowId);
+        target.raw = (rowId, options) => source.raw(rowId, options);
     if (tab && doc?.editable && view?.editable && source && isEditable(source)) {
         target.edit = (edit) => source.edit(edit);
         target.addEntry = (entry) => settleAfter(source, () => source.addEntry(entry));

@@ -3,21 +3,21 @@
 // Where the relationship graph's boxes, items and edges are drawn (src/model/graph/layout.ts), a
 // port of the prototype's two-column layout: models on the left as a tree of their references,
 // dictionaries on the right as a tree of theirs, MAT-files under them, and orthogonal edges through
-// the gap between the two.
+// the gap between the two; and the same columns as indented trees, the 'indented' layout.
 //
 // What is pinned is what a reader relies on, as invariants rather than pixels: no box over another
 // (the prototype placed rows by a collapsed box's height, so an open box covered the row under it),
 // every item inside its box and clear of the others, every edge starting
 // on the thing it leaves and ending on the thing it reaches, every segment horizontal or vertical,
-// and the same graph laid out the same way twice. They are checked over the fixtures' graphs and
-// over generated ones big enough to have every shape: reference trees with shared children and
-// cycles, ghosts, open and closed boxes.
+// and the same graph laid out the same way twice. They are checked, in both layouts, over the
+// fixtures' graphs and over generated ones big enough to have every shape: reference trees with
+// shared children and cycles, ghosts, open and closed boxes.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildRelationshipGraph } from '../src/model/graph/relationshipGraph.js';
 import type { GraphBox, GraphEdge, GraphEdgeKind, GraphItem, RelationshipGraph } from '../src/model/graph/graphTypes.js';
-import { BOX_HEADER, layoutGraph, type GraphLayout, type GraphRect } from '../src/model/graph/layout.js';
+import { BOX_HEADER, layoutGraph, type GraphLayout, type GraphLayoutStyle, type GraphRect } from '../src/model/graph/layout.js';
 import type { RawSource } from '../src/model/usage/usageCells.js';
 
 const ROOT = process.cwd();
@@ -33,6 +33,7 @@ const caseRefs = (): RelationshipGraph =>
 const shadowWs = (): RelationshipGraph =>
   buildRelationshipGraph([file(FIXTURES, 'shadow_ws.slx'), file(FIXTURES, 'params.sldd'), file(FIXTURES, 'model_with_refs.slx')]);
 
+const STYLES: readonly GraphLayoutStyle[] = ['tree', 'indented'];
 const withItems = (g: RelationshipGraph): Set<string> => new Set(g.boxes.filter((b) => b.items.length > 0).map((b) => b.id));
 const right = (r: GraphRect): number => r.x + r.width;
 const bottom = (r: GraphRect): number => r.y + r.height;
@@ -108,9 +109,11 @@ function checkInvariants(g: RelationshipGraph, expanded: ReadonlySet<string>, la
 
 describe('the fixtures', () => {
   for (const [name, graph] of [['caserefs', caseRefs], ['shadow_ws', shadowWs]] as const) {
-    it(`${name}: holds every invariant, open and closed`, () => {
+    it(`${name}: holds every invariant, open and closed, in both layouts`, () => {
       const g = graph();
-      for (const expanded of [withItems(g), new Set<string>()]) checkInvariants(g, expanded, layoutGraph(g, expanded));
+      for (const style of STYLES) {
+        for (const expanded of [withItems(g), new Set<string>()]) checkInvariants(g, expanded, layoutGraph(g, expanded, style));
+      }
     });
   }
 
@@ -190,9 +193,11 @@ describe('the fixtures', () => {
     expect(layoutGraph({ boxes: [], edges: [] }, new Set())).toEqual({ boxes: [], edges: [], width: 0, height: 0 });
   });
 
-  it('lays the same graph out the same way', () => {
+  it('lays the same graph out the same way, and the tree layout when none is named', () => {
     const g = caseRefs();
-    expect(layoutGraph(g, withItems(g))).toEqual(layoutGraph(caseRefs(), withItems(g)));
+    for (const style of STYLES) expect(layoutGraph(g, withItems(g), style)).toEqual(layoutGraph(caseRefs(), withItems(g), style));
+    expect(layoutGraph(g, withItems(g))).toEqual(layoutGraph(g, withItems(g), 'tree'));
+    expect(layoutGraph(g, withItems(g), 'indented')).not.toEqual(layoutGraph(g, withItems(g)));
   });
 });
 
@@ -290,6 +295,15 @@ describe('the reference trees', () => {
     expect(cycle.get('B')!.y).toBeGreaterThan(bottom(cycle.get('A')!));
   });
 
+  it('gives each file the width it needs, its children side by side a sibling gap apart, not slots of the widest box', () => {
+    // The prototype gave every file a slot as wide as the column's widest box: one long name
+    // spread every other file of the column out.
+    const g = tree('model', [['A', 'B'], ['A', 'C']], ['A', 'B', 'C', 'AModelWithAVeryLongNameIndeed.slx']);
+    const r = rects(g);
+    expect(r.get('C')!.x - right(r.get('B')!)).toBeCloseTo(30, 6);
+    expect(r.get('AModelWithAVeryLongNameIndeed.slx')!.width).toBeGreaterThan(2 * r.get('B')!.width);
+  });
+
   it('starts the dictionaries at the left edge when there are no models', () => {
     const r = layoutGraph(tree('sldd', [], ['A']), new Set());
     expect(r.boxes[0]!.x).toBeLessThan(100);
@@ -300,6 +314,209 @@ describe('the reference trees', () => {
     const g = tree('model', [['A', 'B']], ['A', 'B']);
     g.boxes[0]!.items = Array.from({ length: 6 }, (_, i) => ({ id: `A${i}`, boxId: 'A', name: `b${i}`, revealName: `${i}`, iconId: 'block', group: 'data' as const }));
     const r = new Map(layoutGraph(g, new Set(['A'])).boxes.map((b) => [b.id, b]));
+    expect(r.get('B')!.y).toBeGreaterThan(bottom(r.get('A')!));
+  });
+});
+
+describe('the gap between the columns', () => {
+  // As wide as the data links' lanes need, 8px apart over 60% of it, between 120 and 300: the
+  // prototype's 300 was room for 22 links, and with fifteen files it pushed the data files off a
+  // 1440 by 900 window's graph.
+  const linked = (links: number): RelationshipGraph => ({
+    boxes: [
+      { id: 'm', uri: 'm', kind: 'model', label: 'm.slx', ghost: false, items: [] },
+      ...Array.from({ length: links }, (_, i) => ({ id: `d${i}`, uri: `d${i}`, kind: 'sldd' as const, label: `d${i}.sldd`, ghost: false, items: [] })),
+    ],
+    edges: Array.from({ length: links }, (_, i) => ({ id: `m>d${i}`, kind: 'data-link' as const, from: 'm', to: `d${i}` })),
+  });
+  const gapOf = (g: RelationshipGraph, expanded = new Set<string>(), style: GraphLayoutStyle = 'tree'): number => {
+    const l = layoutGraph(g, expanded, style);
+    const model = l.boxes.find((b) => b.id === 'm')!;
+    return Math.min(...l.boxes.filter((b) => b.id !== 'm').map((b) => b.x)) - right(model);
+  };
+
+  it('is as wide as the lanes of its data links need, within bounds, in both layouts', () => {
+    for (const style of STYLES) {
+      expect(gapOf(linked(2), new Set(), style)).toBe(120);
+      expect(gapOf(linked(13), new Set(), style)).toBe(Math.ceil((13 * 8) / 0.6));
+      expect(gapOf(linked(40), new Set(), style)).toBe(300);
+    }
+  });
+
+  it('stays as wide whichever boxes are open, so opening one never moves the data files sideways', () => {
+    const g = caseRefs();
+    for (const style of STYLES) {
+      const closed = layoutGraph(g, new Set(), style);
+      const open = layoutGraph(g, withItems(g), style);
+      expect(open.boxes.map((b) => b.x)).toEqual(closed.boxes.map((b) => b.x));
+    }
+  });
+});
+
+describe('the indented layout: many files', () => {
+  // The gallery's page of open files that reference nothing, and a folder of sixty: every file a
+  // tree of its own. A column that fits a window at full size is one column, top to bottom in the
+  // order given; a column too long for that is dealt into columns of its own, side by side, whole
+  // trees each.
+  const box = (kind: GraphBox['kind'], n: number, label = `${kind}${n}.${kind === 'model' ? 'slx' : kind}`): GraphBox => ({
+    id: `mem:///g/${label}`,
+    uri: `mem:///g/${label}`,
+    kind,
+    label,
+    ghost: false,
+    items: [],
+  });
+  const lonely = (models = 10, sldds = 7, mats = 3): RelationshipGraph => ({
+    boxes: [
+      ...Array.from({ length: models }, (_, i) => box('model', i)),
+      ...Array.from({ length: sldds }, (_, i) => box('sldd', i)),
+      ...Array.from({ length: mats }, (_, i) => box('mat', i)),
+    ],
+    edges: [],
+  });
+  // The boxes of some kinds, column by column (left to right), each top to bottom.
+  const columns = (g: RelationshipGraph, l: GraphLayout, kinds: GraphBox['kind'][]): string[][] => {
+    const of = l.boxes.filter((b) => kinds.includes(g.boxes.find((x) => x.id === b.id)!.kind));
+    const xs = [...new Set(of.map((b) => b.x))].sort((a, b) => a - b);
+    return xs.map((x) => of.filter((b) => b.x === x).sort((a, b) => a.y - b.y).map((b) => g.boxes.find((x) => x.id === b.id)!.label));
+  };
+  const kindOf = (g: RelationshipGraph) => new Map(g.boxes.map((b) => [b.id, b.kind]));
+
+  it('draws as many as fit a window at full size in one column of each kind, in the order given, the MAT-files under the dictionaries', () => {
+    const g = lonely(6, 4, 2);
+    const l = layoutGraph(g, new Set(), 'indented');
+    expect(columns(g, l, ['model'])).toEqual([Array.from({ length: 6 }, (_, i) => `model${i}.slx`)]);
+    expect(columns(g, l, ['sldd', 'mat'])).toEqual([['sldd0.sldd', 'sldd1.sldd', 'sldd2.sldd', 'sldd3.sldd', 'mat0.mat', 'mat1.mat']]);
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('deals a long column into columns side by side, in the order given, as near the shape of a window as it can', () => {
+    const g = lonely(30, 25, 5);
+    const l = layoutGraph(g, new Set(), 'indented');
+    const models = columns(g, l, ['model']);
+    expect(models.length).toBeGreaterThan(1);
+    expect(models.flat()).toEqual(Array.from({ length: 30 }, (_, i) => `model${i}.slx`));
+    expect(columns(g, l, ['sldd', 'mat']).length).toBeGreaterThan(1);
+    // Neither a tall strip nor a wide one.
+    expect(l.width).toBeGreaterThan(l.height);
+    expect(l.width).toBeLessThan(l.height * 3);
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('keeps the two columns: every model left of every data file', () => {
+    for (const g of [lonely(), lonely(30, 25, 5)]) {
+      const l = layoutGraph(g, new Set(), 'indented');
+      const kind = kindOf(g);
+      const of = (k: string) => l.boxes.filter((b) => kind.get(b.id) === k);
+      const modelsRight = Math.max(...of('model').map(right));
+      for (const d of [...of('sldd'), ...of('mat')]) expect(d.x).toBeGreaterThan(modelsRight);
+    }
+  });
+
+  it('deals whole trees, never the files of one: a model referencing five keeps them under it', () => {
+    const g = lonely(30, 25, 5);
+    const [a, b, c, d, e, f] = g.boxes.map((x) => x.id);
+    g.edges = [b, c, d, e, f].map((to) => ({ id: `${a}>${to}`, kind: 'model-ref' as const, from: a!, to: to! }));
+    const l = layoutGraph(g, new Set(), 'indented');
+    const at = (id: string) => l.boxes.find((x) => x.id === id)!;
+    for (const id of [b, c, d, e, f]) {
+      expect(at(id!).x).toBe(at(a!).x + 24);
+      expect(at(id!).y).toBeGreaterThan(bottom(at(a!)));
+    }
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('wraps by the boxes closed, so a box opened moves no box sideways, only the rows under it down', () => {
+    const g = lonely(30, 25, 5);
+    for (const b of g.boxes.filter((x) => x.kind === 'model').slice(0, 6)) {
+      b.items = Array.from({ length: 12 }, (_, i) => ({ id: `${b.id}#${i}`, boxId: b.id, name: `Block${i}`, revealName: `${i}`, iconId: 'block', group: 'data' as const }));
+    }
+    const open = new Set(g.boxes.filter((b) => b.items.length > 0).map((b) => b.id));
+    const closed = layoutGraph(g, new Set(), 'indented');
+    const opened = layoutGraph(g, open, 'indented');
+    expect(opened.boxes.map((b) => b.x)).toEqual(closed.boxes.map((b) => b.x));
+    for (let i = 0; i < closed.boxes.length; i++) expect(opened.boxes[i]!.y).toBeGreaterThanOrEqual(closed.boxes[i]!.y);
+    checkInvariants(g, open, opened);
+  });
+});
+
+describe('the indented layout: the reference trees', () => {
+  it('draws caserefs\' dictionary a dictionary references under it, a step right, as a tree', () => {
+    const g = caseRefs();
+    const layout = layoutGraph(g, new Set(), 'indented');
+    const at = (label: string) => layout.boxes.find((b) => b.id === g.boxes.find((x) => x.label === label)!.id)!;
+    expect(at('chained.sldd').y).toBeGreaterThan(bottom(at('CaseParams.sldd')));
+    expect(at('chained.sldd').x).toBeGreaterThan(at('CaseParams.sldd').x);
+    // The edge between them leaves the bottom of one, near its left edge, and reaches the left side
+    // of the other, as a file tree's line does.
+    const ref = layout.edges.find((e) => g.edges.find((x) => x.id === e.id)!.kind === 'sldd-ref')!;
+    expect(ref.points[0]!.y).toBe(bottom(at('CaseParams.sldd')));
+    expect(ref.points[0]!.x).toBeLessThan(at('chained.sldd').x);
+    expect(ref.points[ref.points.length - 1]!.x).toBe(at('chained.sldd').x);
+  });
+
+  // Boxes and reference edges by hand: `tree('model', [['A', 'B'], ...])`.
+  const tree = (kind: 'model' | 'sldd', refs: [string, string][], names: string[]): RelationshipGraph => ({
+    boxes: names.map((n) => ({ id: n, uri: n, kind, label: n, ghost: false, items: [] })),
+    edges: refs.map(([from, to]) => ({ id: `${from}>${to}`, kind: kind === 'model' ? 'model-ref' : 'sldd-ref', from, to })),
+  });
+  const rects = (g: RelationshipGraph) => new Map(layoutGraph(g, new Set(), 'indented').boxes.map((b) => [b.id, b]));
+
+  it('puts what a file references in the rows under it, a step right of it, its own references under each', () => {
+    const g = tree('model', [['A', 'B'], ['A', 'C'], ['B', 'D']], ['A', 'B', 'C', 'D']);
+    const r = rects(g);
+    // A, then B and what B references, then C: a file tree's order.
+    const order = ['A', 'B', 'D', 'C'];
+    for (let i = 1; i < order.length; i++) expect(r.get(order[i]!)!.y).toBeGreaterThan(bottom(r.get(order[i - 1]!)!));
+    expect(r.get('B')!.x).toBe(r.get('A')!.x + 24);
+    expect(r.get('C')!.x).toBe(r.get('B')!.x);
+    expect(r.get('D')!.x).toBe(r.get('B')!.x + 24);
+    // Each edge down the left of its referrer, into the left side of what it references.
+    const l = layoutGraph(g, new Set(), 'indented');
+    const ac = l.edges.find((e) => e.id === 'A>C')!;
+    expect(ac.points[0]).toEqual({ x: r.get('A')!.x + 12, y: bottom(r.get('A')!) });
+    expect(ac.points.at(-1)!.x).toBe(r.get('C')!.x);
+    expect(ac.points.at(-1)!.y).toBe(r.get('C')!.y + r.get('C')!.height / 2);
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('draws a file two files reference once, under the first, and the other reference round the column', () => {
+    const g = tree('sldd', [['A', 'C'], ['B', 'C']], ['A', 'B', 'C']);
+    const shared = rects(g);
+    expect(shared.get('C')!.y).toBeGreaterThan(bottom(shared.get('A')!));
+    expect(shared.get('B')!.y).toBeGreaterThan(bottom(shared.get('C')!));
+    // A dictionary's, round its right, past every box.
+    const l = layoutGraph(g, new Set(), 'indented');
+    const bc = l.edges.find((e) => e.id === 'B>C')!;
+    const outside = Math.max(...l.boxes.map(right));
+    expect(Math.max(...bc.points.map((p) => p.x))).toBeGreaterThan(outside);
+    expect(bc.points[0]!.x).toBe(right(shared.get('B')!));
+    expect(bc.points.at(-1)!.x).toBe(right(shared.get('C')!));
+    checkInvariants(g, new Set(), l);
+  });
+
+  it("draws a cycle from the first file given, and a model's reference back up it round the left of the models", () => {
+    const g = tree('model', [['A', 'B'], ['B', 'A']], ['A', 'B']);
+    const cycle = rects(g);
+    expect(cycle.get('B')!.y).toBeGreaterThan(bottom(cycle.get('A')!));
+    const l = layoutGraph(g, new Set(), 'indented');
+    const ba = l.edges.find((e) => e.id === 'B>A')!;
+    const inside = Math.min(...l.boxes.map((b) => b.x));
+    expect(Math.min(...ba.points.map((p) => p.x))).toBeLessThan(inside);
+    expect(Math.min(...ba.points.map((p) => p.x))).toBeGreaterThan(0);
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('starts the dictionaries at the left edge when there are no models', () => {
+    const r = layoutGraph(tree('sldd', [], ['A']), new Set(), 'indented');
+    expect(r.boxes[0]!.x).toBeLessThan(100);
+  });
+
+  it('gives an open box the row it needs, so the row under it starts below it', () => {
+    // The prototype placed rows at a closed box's height, and an open box covered the row under it.
+    const g = tree('model', [['A', 'B']], ['A', 'B']);
+    g.boxes[0]!.items = Array.from({ length: 6 }, (_, i) => ({ id: `A${i}`, boxId: 'A', name: `b${i}`, revealName: `${i}`, iconId: 'block', group: 'data' as const }));
+    const r = new Map(layoutGraph(g, new Set(['A']), 'indented').boxes.map((b) => [b.id, b]));
     expect(r.get('B')!.y).toBeGreaterThan(bottom(r.get('A')!));
   });
 });
@@ -368,10 +585,12 @@ function generated(seed: number): RelationshipGraph {
 describe('generated graphs', () => {
   const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
 
-  it.each(seeds)('seed %i holds every invariant, open and closed', (seed) => {
+  it.each(seeds)('seed %i holds every invariant, open and closed, in both layouts', (seed) => {
     const g = generated(seed);
-    for (const expanded of [withItems(g), new Set<string>(), new Set(g.boxes.filter((_, i) => i % 2 === 0).map((b) => b.id))]) {
-      checkInvariants(g, expanded, layoutGraph(g, expanded));
+    for (const style of STYLES) {
+      for (const expanded of [withItems(g), new Set<string>(), new Set(g.boxes.filter((_, i) => i % 2 === 0).map((b) => b.id))]) {
+        checkInvariants(g, expanded, layoutGraph(g, expanded, style));
+      }
     }
   });
 
@@ -394,7 +613,7 @@ describe('generated graphs', () => {
   it('is deterministic', () => {
     for (const seed of [3, 17, 42]) {
       const g = generated(seed);
-      expect(layoutGraph(generated(seed), withItems(g))).toEqual(layoutGraph(g, withItems(g)));
+      for (const style of STYLES) expect(layoutGraph(generated(seed), withItems(g), style)).toEqual(layoutGraph(g, withItems(g), style));
     }
   });
 });

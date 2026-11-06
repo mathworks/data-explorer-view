@@ -20,7 +20,7 @@ import { createSession, type SourceFile, type SourceReader } from 'data-explorer
 import { nodeSourceReader } from 'data-explorer-core/node';
 import { strToU8, zipSync } from 'fflate';
 import { describe, it } from 'vitest';
-import { createRegisters, createUsageRepostHub, UsageGraphs } from '../../src/model/index.js';
+import { createRegisters, createUsageRepostHub, createWorkspace, isEditable, UsageGraphs } from '../../src/model/index.js';
 import { JsonEngine, type JsonUsageFill } from '../../src/model/edit/jsonEngine.js';
 import { createTextStore } from '../../src/model/edit/textStore.js';
 import { DocumentRegistry } from '../../src/model/workspace/SlddModel.js';
@@ -244,5 +244,80 @@ describe('Usage follows a model created or deleted beside an open data file', ()
       if (!closed) view.close();
       folder.hub.dispose();
     }
+  });
+});
+
+// An edit's echo (the text it wrote, read back) repaints its entry once the Usage column is filled,
+// which with a graph takes an await; an undo pressed in the meantime repaints the same entry at once.
+// The echo is older than the undo, and must not land over it: the table would show the edited value
+// while the text, and every save, holds the undone one. Through a workspace, as the app shell edits.
+describe('an undo straight after an edit, with the Usage column filled', () => {
+  it('shows what the text holds, not the edit the undo took back', async () => {
+    const ws = createWorkspace({ editing: true, usage: { graphFor: async () => ({ blocksUsing: () => [], paramLinks: () => [] }) } });
+    try {
+      // A dictionary of plain values: Kp is 1.
+      const doc = await ws.open(file('test/fixtures/params.sldd'), 'params.sldd');
+      const source = doc.table;
+      if (!isEditable(source)) throw new Error('params.sldd takes no edits');
+      let rows = (await source.open()).rows;
+      source.opened?.();
+      // The rows as a table holds them: an entry's run replaced by the rows each repaint of it sends.
+      source.subscribe((change) => {
+        if (change.kind === 'replaceAll') rows = change.view.rows;
+        if (change.kind !== 'updateEntry') return;
+        const at = rows.findIndex((r) => r.ID === change.entryRowId);
+        let end = at + 1;
+        while (end < rows.length && !isEntryRow(rows[end]) && !String(rows[end]!.ID).startsWith('section:')) end++;
+        rows = [...rows.slice(0, at), ...change.rows, ...rows.slice(end)];
+      });
+      const kp = () => rows.find((r) => isEntryRow(r) && nameOf(r) === 'Kp')!;
+      const value = () => String((kp().Value as { text?: string }).text ?? kp().Value);
+      const edit = (to: string) => source.edit({ rowId: kp().ID, columnId: 'Value', oldValue: value(), newValue: to });
+      edit('5');
+      await waitFor('the first edit on screen', () => value() === '5');
+      edit('6');
+      await waitFor('the second edit on screen', () => value() === '6');
+      source.undo();
+      await settle(20);
+      const saved = new TextDecoder().decode(doc.serialize().bytes);
+      assert.match(saved, /"name": "Kp",[\s\S]*?"value": 5\b/, 'the text holds the first edit');
+      assert.strictEqual(value(), '5', 'the table shows what the text holds');
+    } finally {
+      ws.dispose();
+    }
+  });
+});
+
+// The same race the other way round, with the Usage graph cold (fillNow cannot fill, which the
+// extension's is after any editor opens or closes): an edit paints at once and starts a repaint to
+// fill its Usage; its write is refused, and the take-back starts a repaint of the old value. The
+// edit's repaint, begun first, may land first: it must not be the one that stays. Each narrow
+// repaint holds its entry's turn from when it began, and lands only if no repaint of the entry
+// began, nor any paint of it went out, after it.
+describe('a refused edit taken back while the Usage graph is cold', () => {
+  it('shows the value the text still holds, not the edit it refused', async () => {
+    const usage: JsonUsageFill = { fill: () => new Promise<void>((r) => setTimeout(r, 0)), fillNow: () => false };
+    const o = await open('test/fixtures/params.sldd', undefined, { usage });
+    const source = o.view.source as any;
+    let rows: any[] = (o.view.posts.filter((p: any) => p.type === 'setRows').pop() as any).rows;
+    source.subscribe((change: any) => {
+      if (change.kind === 'replaceAll') rows = change.view.rows;
+      if (change.kind !== 'updateEntry') return;
+      const at = rows.findIndex((r) => r.ID === change.entryRowId);
+      if (at < 0) return;
+      let end = at + 1;
+      while (end < rows.length && !isEntryRow(rows[end]) && !String(rows[end].ID).startsWith('section:')) end++;
+      rows = [...rows.slice(0, at), ...change.rows, ...rows.slice(end)];
+    });
+    const kp = () => rows.find((r) => isEntryRow(r) && nameOf(r) === 'Kp');
+    const value = () => String(kp().Value?.text ?? kp().Value);
+    const before = value();
+    const textBefore = o.text.text;
+    // The text refuses every write, as it does one made against a text that moved meanwhile.
+    (o.text as any).apply = async () => false;
+    void source.edit({ rowId: kp().ID, columnId: 'Value', oldValue: before, newValue: '99' });
+    await settle(20);
+    assert.strictEqual(o.text.text, textBefore, 'the text holds what it held');
+    assert.strictEqual(value(), before, 'the table shows it');
   });
 });

@@ -6,7 +6,9 @@
 // for a file of the n-th pick (or drop), and `<root>/<rel>` for a file of a shown folder, whose root
 // is `/<folder name>`. The shell keeps the path a file opened under as its tab's, links resolve
 // beside it, and connectShell hands it back to the host for every read and save; so the registry
-// is where a path turns back into something that reads.
+// is where a path turns back into something that reads. An app's own files (bytes it fetched) may go
+// into a group it names, a pick's folder that later files join, so files fetched one at a time
+// still sit beside each other.
 //
 // Lifted from data-explorer-app src/web/files.ts at b13a860.
 
@@ -31,6 +33,16 @@ export interface BrowserFile {
 }
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+
+/**
+ * What a tooltip says of the file at `path`: what the path means to the user rather than the path
+ * made up for it. A pick's folder, `/files/<n>/`, is the page's own, so a pick's file is its name; a
+ * shown folder's file is its place in the folder (`plant/models/ctrlA.slx`), the root's slash being
+ * the page's too.
+ */
+export function titleOfPath(path: string): string {
+  return /^\/files\/\d+\/(.+)$/.exec(path)?.[1] ?? path.replace(/^\//, '');
+}
 
 /** The two folders are one: two handles to one directory. Two lists of Files are never told to be. */
 async function sameDir(a: BrowserDir, b: BrowserDir): Promise<boolean> {
@@ -59,6 +71,21 @@ export async function stampOf(source: BrowserSource): Promise<string | null> {
 }
 
 /**
+ * Whether `next` is the file `held` reads already, as far as can be told without reading it: bytes
+ * equal to the bytes held, or a File of the same size and date (a File is a reference to a file on
+ * disk, which these say the version of). Any other pair is another file, a handle among them (one
+ * to the same file is told by pathOf, before this is asked).
+ */
+function sameFile(held: BrowserSource, next: BrowserSource): boolean {
+  if (held.kind === 'bytes' && next.kind === 'bytes') {
+    const [a, b] = [held.bytes, next.bytes];
+    return a.length === b.length && a.every((byte, i) => byte === b[i]);
+  }
+  if (held.kind === 'file' && next.kind === 'file') return held.file.size === next.file.size && held.file.lastModified === next.file.lastModified;
+  return false;
+}
+
+/**
  * The browser host's registry of the files a page has, by the paths the page made for them. One per
  * host, inside it: an app sees only `host.files` (BrowserFiles: addPicked, get and has), so the path
  * scheme, the folder roots and the reads stay the host's to change.
@@ -66,6 +93,8 @@ export async function stampOf(source: BrowserSource): Promise<string | null> {
 export class WebFiles {
   private readonly entries = new Map<string, BrowserFile>();
   private readonly folders = new Map<string, BrowserDir>();
+  /** The pick folder of each group an app named (addToGroup), by its name. */
+  private readonly groups = new Map<string, number>();
   private picks = 0;
 
   /** A file picked on its own: `/files/<n>/<name>`, so two `a.sldd` from two picks differ. */
@@ -102,11 +131,65 @@ export class WebFiles {
     return paths;
   }
 
-  /** The path of a file read through a handle to the file `handle` is to, if the page has one. */
+  /**
+   * Files of the app's own into the group named `group`: a folder `/files/<n>/` made the first time
+   * the name has a file, which every later file of the group joins, so a link from one to another
+   * finds it whenever each was added. A group is one folder, so it holds one file of a name: a file
+   * of a name the group has takes that file's place, its path then reading the new source (as a
+   * file copied into a folder replaces the one of its name there), and its path is in `replaced`.
+   * The same file again (sameFile) replaces nothing: a page that fetches its samples again has
+   * changed none of them. A handle to a file the page has a path for already keeps that path,
+   * wherever it is, as in a pick.
+   */
+  async addToGroup(group: string, added: readonly BrowserFile[]): Promise<{ paths: string[]; replaced: string[] }> {
+    const paths: string[] = [];
+    const replaced: string[] = [];
+    // The paths this call wrote: one given twice in it is the call's own file, the later standing.
+    const written = new Set<string>();
+    for (const { name, source } of added) {
+      const known = source.kind === 'handle' ? await this.pathOf(source.handle) : undefined;
+      if (known) {
+        paths.push(known);
+        continue;
+      }
+      let n = this.groups.get(group);
+      if (n === undefined) {
+        n = ++this.picks;
+        this.groups.set(group, n);
+      }
+      const path = `/files/${n}/${name}`;
+      const held = this.entries.get(path);
+      if (held && sameFile(held.source, source)) {
+        paths.push(path);
+        continue;
+      }
+      // A file the group held before the call (a handle's kept path among them) is replaced.
+      if (held && !written.has(path)) replaced.push(path);
+      this.entries.set(path, { name, source });
+      written.add(path);
+      paths.push(path);
+    }
+    return { paths, replaced };
+  }
+
+  /**
+   * The path of a file read through a handle to the file `handle` is to, if the page has one; else,
+   * for a file inside a folder shown through a handle (the latest shown first), its place there,
+   * which the page then reads through `handle` as the folder's listing would. Chromium's New and
+   * Save As may write a file into the folder the Explorer shows, one it has not listed yet: under a
+   * pick's path, the folder's next look listed it a second time, and opening it there opened it in
+   * a second tab.
+   */
   async pathOf(handle: FileSystemFileHandle): Promise<string | undefined> {
     // One file has one name: only the files of that name are asked about.
     for (const [path, { name, source }] of this.entries) {
       if (name === handle.name && source.kind === 'handle' && (await source.handle.isSameEntry(handle))) return path;
+    }
+    for (const [root, dir] of [...this.folders].reverse()) {
+      if (dir.kind !== 'handle') continue;
+      // A browser that cannot say (no resolve, or a refusal) has the file in none of them.
+      const parts = await Promise.resolve(dir.handle.resolve?.(handle)).catch(() => null);
+      if (parts && parts.length > 0) return this.addInFolder(root, parts.join('/'), { kind: 'handle', handle });
     }
     return undefined;
   }
@@ -124,6 +207,8 @@ export class WebFiles {
       if (root === '/files') continue;
       const taken = this.folders.get(root);
       if (!taken || (await sameDir(taken, dir))) {
+        // Last in the map: the latest shown, which pathOf asks first.
+        this.folders.delete(root);
         this.folders.set(root, dir);
         return root;
       }

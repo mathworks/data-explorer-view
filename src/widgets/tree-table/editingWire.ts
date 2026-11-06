@@ -10,13 +10,21 @@
 // its keyboard chords, the drop predictor, the dialogs a refusal is shown in, and every gesture as
 // the source's command of the same name. Each rule is table-main's, in table-main's order, so that
 // the extension, once its webview is wired with this, sends exactly what it sends today.
+//
+// Three things are view's own, and leave the extension as it was: Undo and Redo follow the source's
+// undo stack, for a source that says where it stands (its `history`; the extension's does not); each
+// menu item's gesture handed to the source is told (`ran`), for an app's "Copied to clipboard"; and a
+// row drag that leaves the table for another part of the page (`dragOut`: an app's list of its open
+// files), which a document that may not be edited lets go too, as a copy, and which that part drops
+// onto this table's document by the table's own prediction and drop (`dropDecision`, `drop`).
 import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
-import { dropDecision, type DragMode, type DropTarget } from '../../model/actions/dropDecision.js';
-import { sectionRowIdOf } from '../../model/actions/operands.js';
+import { documentDrop } from '../../model/actions/documentDrop.js';
+import { dropDecision, type DragMode, type DropDecision, type DropTarget } from '../../model/actions/dropDecision.js';
+import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import type { SectionRule } from '../../model/actions/sectionRules.js';
-import { sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
-import type { EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
+import { buildSectionRowId, sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
+import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DragDescriptor } from '../../model/source/wire.js';
 import type { DexTreeTable } from './dex-tree-table.js';
 import {
@@ -40,14 +48,78 @@ export interface TableTextView {
   locate(rowId: string): void;
 }
 
+/**
+ * One editing gesture the table handed its source (the handle's `ran`): which of the editing menu's
+ * items it was, the rows it carried, and how many it acted on.
+ */
+export interface EditingRun {
+  /** The editing menu's item: 'copy', 'cut', 'paste', 'delete', 'addChild', 'undo', 'redo', 'locateInText', 'setActiveConfigSet'. */
+  actionId: string;
+  /**
+   * The rows it was handed: the selection, for Copy, Cut and Delete; the row it was anchored at, for
+   * the rest (none for a paste into the document itself, and for Undo and Redo).
+   */
+  rowIds: string[];
+  /**
+   * How many it acted on, as its item's label counts them: the entries Copy or Cut carried, the
+   * items Delete took, the entries the clipboard held for Paste; one for a gesture on one row; none
+   * for Undo and Redo.
+   */
+  count: number;
+}
+
+/**
+ * What a drop of the drag in flight would do on a row of the table's document (TableHandle's
+ * `dropDecision`): the table's own prediction for that row, and the row it lands on.
+ */
+export interface TableDropDecision extends DropDecision {
+  /**
+   * The row the drop lands on: the one asked about; for the document as a whole, the row of the
+   * section it lands in, or '' for the document itself where it is one target (a MAT-file).
+   */
+  rowId: string;
+}
+
+/** How a drop handed over by TableHandle's `drop` ended, once the source had the chance to refuse it. */
+export interface DropResult {
+  /** It was handed to the source, which refused nothing by the end of the task: the entries are going in. */
+  dropped: boolean;
+  /** How many entries the drag carried: none where the document takes no drop, or no drag is in flight. */
+  count: number;
+  /** Why it was not dropped, where something said: the prediction's reason, or the source's refusal. */
+  reason?: string;
+}
+
+/** Where a table's rows go as they are dragged out of it (EditingHost.dragOutSource). */
+export interface DragOutSource {
+  /** These rows are being dragged out: take their entries into the drag register. */
+  dragStart(rowIds: readonly string[]): void;
+  /** That drag ended, dropped or not. */
+  dragEnd(): void;
+}
+
 /** What the editing half needs of the connected table it is part of. */
 export interface EditingHost {
   table: DexTreeTable;
   /** The source's commands, or null for a source that takes none (every gesture is then refused). */
   source: EditableTableSource | null;
+  /**
+   * Whether rows are dragged out of the table onto other parts of the page
+   * (ConnectTableOptions.dragOut): the table's `dragOut`, and a document that may not be edited
+   * letting its rows go too, as a copy, through `dragOutSource`.
+   */
+  dragOut?: boolean;
+  /**
+   * Who takes the rows dragged out of a document that may not be edited into the drag register: the
+   * source, where it can (an editable one, or a read-only one that has dragStart and dragEnd), else
+   * null, and none are dragged out of it.
+   */
+  dragOutSource?: DragOutSource | null;
   textView?: TableTextView;
   /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
   undoChords?: boolean;
+  /** Whether the table answers '+' with Add Child (ConnectTableOptions.addChildChord). */
+  addChildChord?: boolean;
   errorDialog: DexErrorDialog;
   /** Listen on the table until the connection is disposed. */
   listen(type: string, listener: (e: Event) => void, capture?: boolean): void;
@@ -58,6 +130,8 @@ export interface EditingHost {
   view(): TableView | undefined;
   select(rowIds: readonly string[]): void;
   beginRename(rowId: string): void;
+  /** A gesture handed to the source was not refused by the end of the task it was handed in. */
+  ran(run: EditingRun): void;
 }
 
 /** What connectTable asks of the editing half. */
@@ -83,8 +157,35 @@ export interface EditingWire {
   run(actionId: string): boolean;
   /** Settled once every cell edit handed to the source so far is the document's, or refused. */
   editsSettled(): Promise<void>;
-  /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
+  /**
+   * A committed edit made outside the table (an inspector's row), written back as a cell edit is:
+   * settled once the source has it, or refused, which the table shows as it shows a cell's. It is
+   * one of the edits `editsSettled` waits for.
+   */
+  edit(edit: CellEdit): Promise<void>;
+  /**
+   * Undo or Redo, as its menu item does, where the document may be edited and its source does not
+   * say there is nothing to undo (or redo); false where not.
+   */
   history(action: 'undo' | 'redo'): boolean;
+  /**
+   * With the drag in flight: what a drop onto `rowId` would do, as the table predicts a drop on its
+   * own row there, or, for `rowId` null, a drop onto the document as a whole (documentDrop: the
+   * section the entries came from, else the first that takes them); null where no drop can be
+   * predicted (no drag, a document that may not be edited, a row whose section has no rule).
+   */
+  dropDecision(rowId: string | null, mode: DragMode): TableDropDecision | null;
+  /**
+   * Drop the drag in flight onto `rowId` as a drop on that row does, where `dropDecision` allows it;
+   * settled once the source is done with it (a task after its promise, or after the call for a source
+   * that returns none), with whether the source refused it.
+   */
+  drop(rowId: string, mode: DragMode): Promise<DropResult>;
+  /**
+   * The source said an error (the banner's, `reason`): no gesture handed to it this task is told as
+   * done.
+   */
+  failed(reason?: string): void;
 }
 
 // Whether a value read off a change is an object — the one shape every list element below
@@ -194,18 +295,72 @@ export function wireEditing(host: EditingHost): EditingWire {
         ? { sectionName: rule.sectionName, sectionLabel: rule.sectionLabel, isDerived: rule.isDerived, allowedTypes: rule.allowedTypes }
         : null,
       docUri: host.docUri(),
+      // Where the document's undo stack stands, when the source says: Undo and Redo only where
+      // there is a step. A source whose stack is an editor's says nothing, and offers both.
+      ...(source?.history ? { history: source.history } : {}),
+      // Add Child names the '+' that does the same, where the table answers it.
+      ...(host.addChildChord ? { addChildChord: true } : {}),
     });
+  };
+
+  // The gestures handed to the source in this task, each told (`ran`) once the task ends unless the
+  // source refused or failed one meanwhile. A source in the page refuses as it is called, or a few
+  // promise turns later (a JSON dictionary's structural edits wait their turn on its text), so before
+  // the task ends; one across a channel answers later than that, and its gesture is told before. A
+  // refusal marks every gesture still waiting, as which one it was is not said: none is told rather
+  // than the wrong one. So a refusal that comes late for an earlier gesture (one queued behind a slow
+  // edit) silences an unrelated gesture handed in the task it lands in: that one is then not said.
+  // Each keeps the first reason said with a refusal, for a drop from outside the table to say.
+  interface Refusable {
+    refused: boolean;
+    reason?: string;
+  }
+  let waiting: (Refusable & { run: EditingRun })[] = [];
+  // The drops from outside the table (dropFromOutside) the source has not yet said are done: they
+  // hear a refusal as the gestures above do, for as long as the source takes, not one task.
+  const dropping = new Set<Refusable>();
+  let telling: ReturnType<typeof setTimeout> | null = null;
+  // Hand the gesture over (`give`), waiting before it is given, so that a refusal said while the
+  // source takes it is its own; one the source throws for is not told, and the throw goes on.
+  const hand = (actionId: string, rowIds: string[], count: number, give: () => void): void => {
+    const w = { run: { actionId, rowIds, count }, refused: false };
+    waiting.push(w);
+    telling ??= setTimeout(() => {
+      telling = null;
+      const done = waiting;
+      waiting = [];
+      for (const d of done) if (!d.refused) host.ran(d.run);
+    }, 0);
+    try {
+      give();
+    } catch (err) {
+      w.refused = true;
+      throw err;
+    }
+  };
+  const refused = (reason?: string): void => {
+    for (const w of [...waiting, ...dropping]) {
+      w.refused = true;
+      if (w.reason === undefined && typeof reason === 'string' && reason) w.reason = reason;
+    }
+  };
+  // How many a selection's gesture acts on, as its item's label counts them (buildContextMenuItems).
+  const countOf = (actionId: string, rowIds: string[]): number => {
+    const ops = resolveOperands(rowIds, host.rowsNow());
+    return (actionId === 'delete' ? ops.deleteIds : ops.entryIds).length;
   };
 
   // An action, as the source's command with the operand shape that action takes.
   const act = (actionId: string, anchorRowId: string | null): boolean => {
     if (!EDITING_ACTIONS.has(actionId)) return false;
     if (actionId === 'undo' || actionId === 'redo') {
-      source?.[actionId]();
+      if (source) hand(actionId, [], 0, () => source[actionId as 'undo' | 'redo']());
       return true;
     }
     if (SELECTION_ACTIONS.has(actionId)) {
-      source?.[actionId as 'copy' | 'cut' | 'delete'](host.selectedRowIds());
+      if (!source) return true;
+      const rowIds = host.selectedRowIds();
+      hand(actionId, rowIds, countOf(actionId, rowIds), () => source[actionId as 'copy' | 'cut' | 'delete'](rowIds));
       return true;
     }
     if (!anchorRowId) {
@@ -214,12 +369,18 @@ export function wireEditing(host: EditingHost): EditingWire {
       // only one that offers it, and this says so again here rather than trusting every
       // path that reaches act to have asked: a dictionary has no section to put a row-less
       // paste in.
-      if (actionId === 'paste' && wholeFileRule()) source?.paste('');
+      if (actionId === 'paste' && wholeFileRule() && source) hand('paste', [], clipboardState.items.length, () => source.paste(''));
       return true;
     }
-    if (actionId === 'locateInText') host.textView?.locate(anchorRowId);
-    else if (actionId === 'setActiveConfigSet') source?.setActiveConfigSet?.(anchorRowId);
-    else source?.[actionId as 'paste' | 'addChild'](anchorRowId);
+    const count = actionId === 'paste' ? clipboardState.items.length : 1;
+    const textView = host.textView;
+    if (actionId === 'locateInText') {
+      if (textView) hand(actionId, [anchorRowId], count, () => textView.locate(anchorRowId));
+    } else if (actionId === 'setActiveConfigSet') {
+      if (source?.setActiveConfigSet) hand(actionId, [anchorRowId], count, () => source.setActiveConfigSet?.(anchorRowId));
+    } else if (source) {
+      hand(actionId, [anchorRowId], count, () => source[actionId as 'paste' | 'addChild'](anchorRowId));
+    }
     return true;
   };
 
@@ -265,6 +426,57 @@ export function wireEditing(host: EditingHost): EditingWire {
     };
     // The descriptor IS a DragSource (the source document, and each item's own section).
     return dropDecision(dragDescriptor, target, mode);
+  };
+
+  // The prediction for a part of the page outside the table that drops onto this document (an app's
+  // list of its open files), with the row the drop lands on: a row as the table's own is predicted;
+  // the document as a whole (null) in the section documentDrop picks, over the same rules.
+  const dropDecisionFor = (rowId: string | null, mode: DragMode): TableDropDecision | null => {
+    if (!editable || !dragDescriptor) return null;
+    if (rowId !== null) {
+      const decision = predictDrop(rowId, mode);
+      return decision && { rowId, ...decision };
+    }
+    const at = documentDrop(dragDescriptor, host.docUri(), sectionRulesList, mode);
+    if (!at) return null;
+    return { rowId: at.sectionName === WHOLE_FILE_SECTION ? '' : buildSectionRowId(at.sectionName), ...at.decision };
+  };
+
+  // That part's drop: the drop the row sends (the dex-row-drop listener below, on the same terms),
+  // where the prediction allows it, handed over at once. A drop is followed straight away by the drag's
+  // end, which clears the register the source reads the entries from (Registers.dragRegister).
+  //
+  // It is settled once the source says it is done (its `drop` returns a promise: a JSON dictionary's
+  // waits its turn behind the edits queued before it), else at the end of the task, by when a source
+  // in the page has refused it; then a task more, for what the source said as it ended to reach the
+  // table. Refused if the source refused anything meanwhile, as `ran` is not told: a refusal does not
+  // say which gesture it was about.
+  const dropFromOutside = (rowId: string, mode: DragMode): Promise<DropResult> => {
+    const count = editable && dragDescriptor ? dragDescriptor.items.length : 0;
+    const decision = dropDecisionFor(rowId, mode);
+    if (!source || !decision?.canDrop || (rowId === '' && !wholeFileRule())) {
+      const reason = decision && !decision.canDrop && decision.tooltip ? { reason: decision.tooltip } : {};
+      return Promise.resolve({ dropped: false, count, ...reason });
+    }
+    const w: Refusable = { refused: false };
+    dropping.add(w);
+    let answer: void | Promise<void>;
+    try {
+      answer = source.drop(rowId, mode);
+    } catch (err) {
+      dropping.delete(w);
+      return Promise.resolve({ dropped: false, count, reason: err instanceof Error ? err.message : String(err) });
+    }
+    const done = Promise.resolve(answer).then(
+      () => undefined,
+      () => undefined,
+    );
+    return done
+      .then(() => new Promise((next) => setTimeout(next, 0)))
+      .then(() => {
+        dropping.delete(w);
+        return w.refused ? { dropped: false, count, ...(w.reason ? { reason: w.reason } : {}) } : { dropped: true, count };
+      });
   };
 
   // Read-only documents never open the inline cell editor. The table opens it on double-click
@@ -339,10 +551,12 @@ export function wireEditing(host: EditingHost): EditingWire {
     true,
   );
 
-  // Undo and Redo, as their menu items do, where the document may be edited (their items are
-  // disabled where it may not).
+  // Undo and Redo, as their menu items do, where the document may be edited and the source does not
+  // say there is nothing to take back or make again (their items are disabled there).
   const history = (action: 'undo' | 'redo'): boolean => {
     if (!editable) return false;
+    const stack = source?.history;
+    if (stack && !(action === 'undo' ? stack.canUndo : stack.canRedo)) return false;
     act(action, null);
     return true;
   };
@@ -365,6 +579,28 @@ export function wireEditing(host: EditingHost): EditingWire {
     );
   }
 
+  // '+' adds a child to the selected row, as Add Child does, only where the table is asked to answer
+  // it: the prototype's chord, which the VS Code extension's table never had. The '+' itself, Shift
+  // or no Shift, since which a layout needs for it differs (a US keyboard's is Shift+=, a German
+  // one's and the keypad's are not); with Cmd, Ctrl or Alt it is another chord (a browser's zoom).
+  // Outside the fields, where a '+' is typed, and only where the menu offers Add Child, through the
+  // gesture its item is; a key held adds one child, its repeats spent.
+  if (host.addChildChord) {
+    host.listen(
+      'keydown',
+      (e) => {
+        const ev = e as KeyboardEvent;
+        if (ev.key !== '+' || ev.metaKey || ev.ctrlKey || ev.altKey || isTypingInField(ev)) return;
+        const gesture = gestureFor('addChild');
+        if (!gesture) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!ev.repeat) gesture();
+      },
+      true,
+    );
+  }
+
   // The drop predictor, so the table can render live cursor + tooltip feedback on dragover.
   table.dropPredictor = predictDrop as DexTreeTable['dropPredictor'];
 
@@ -372,13 +608,17 @@ export function wireEditing(host: EditingHost): EditingWire {
   // and broadcasts the descriptor; on end it clears and rebroadcasts; on drop it completes the
   // move or copy as a paste (and a source delete). Gated on an editable document, the fact
   // table.rowDrag is set from, so a read-only document never starts or takes one.
+  //
+  // Dragged out of the table (dragOut) from a document that may not be edited, the rows still go into
+  // the register, through the source that can take them there, for a copy: the table allows no move.
   host.listen('dex-row-drag-start', (e) => {
-    if (!editable) return;
     const rowIds = (e as CustomEvent).detail?.rowIds ?? [];
-    source?.dragStart(rowIds);
+    if (editable) source?.dragStart(rowIds);
+    else if (host.dragOut) host.dragOutSource?.dragStart(rowIds);
   });
   host.listen('dex-row-drag-end', () => {
-    source?.dragEnd();
+    if (source) source.dragEnd();
+    else if (host.dragOut) host.dragOutSource?.dragEnd();
   });
   host.listen('dex-row-drop', (e) => {
     if (!editable) return;
@@ -414,17 +654,18 @@ export function wireEditing(host: EditingHost): EditingWire {
   // The cell edits the source is still writing (a source whose write finishes later returns its
   // promise), for commitEdit to wait on. A refusal is the source's to show: here it only settles.
   const writing = new Set<Promise<void>>();
-  host.listen('dex-edit-completed', (e) => {
-    const detail = (e as CustomEvent).detail;
-    const written = source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
-    if (!written) return;
+  const write = (edit: CellEdit): Promise<void> => {
+    const written = source?.edit({ rowId: edit.rowId, columnId: edit.columnId, oldValue: edit.oldValue, newValue: edit.newValue });
+    if (!written) return Promise.resolve();
     const settled = Promise.resolve(written).then(
       () => undefined,
       () => undefined,
     );
     writing.add(settled);
     void settled.then(() => writing.delete(settled));
-  });
+    return settled;
+  };
+  host.listen('dex-edit-completed', (e) => void write((e as CustomEvent).detail));
 
   return {
     painting(view) {
@@ -432,6 +673,10 @@ export function wireEditing(host: EditingHost): EditingWire {
       editable = !!view.editable && source !== null;
       // A row drag is a structural edit, so it needs an editable document.
       table.rowDrag = editable;
+      // Dragged out of the table (dragOut): an editable document's rows, as they are dragged in it,
+      // and the rows of one that may not be edited, as a copy, where its source can put them in the
+      // drag register.
+      table.dragOut = !!host.dragOut && (editable || !!host.dragOutSource);
       // The `+ Add` button exists only where entries can be created, which is the same
       // condition the context menu is gated on — the editable documents.
       table.canAdd = editable;
@@ -484,6 +729,7 @@ export function wireEditing(host: EditingHost): EditingWire {
           if (typeof change.rowId === 'string') host.beginRename(change.rowId);
           return true;
         case 'invalid':
+          refused(change.reason);
           // An invalid cell edit: the dialog scoped to this table. The source follows it with a
           // repaint of the rejected row's entry, so the cell is back to its previous value by
           // the time the dialog is dismissed.
@@ -495,6 +741,7 @@ export function wireEditing(host: EditingHost): EditingWire {
           });
           return true;
         case 'refused':
+          refused(change.reason);
           // A refused Add Child, Delete or Add: the same dialog, titled by the gesture, which
           // stays until it is closed. A banner would be cleared by the next repaint.
           errorDialog.show({ title: change.title, reason: change.reason });
@@ -524,6 +771,10 @@ export function wireEditing(host: EditingHost): EditingWire {
     can,
     run,
     editsSettled: () => Promise.all([...writing]).then(() => undefined),
+    edit: write,
     history,
+    dropDecision: dropDecisionFor,
+    drop: dropFromOutside,
+    failed: refused,
   };
 }

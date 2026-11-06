@@ -2,26 +2,30 @@
 
 The shell's About popover, opened from the (i) button on an activity bar: a heading (the app's
 name) and the lines the app hands it, each a label and its value (the app's version, the
-versions of what it is built on). What the app gives is drawn as text, never as markup. show()
+versions of what it is built on). A line may name the section it is in (`section`): the lines
+with none come first, under the app's name, then each section once, under its heading, in the
+order its first line comes. What the app gives is drawn as text, never as markup. show()
 opens it beside the button that opened it, as the [Settings popover](settings-panel.md) opens;
 Escape, a press outside it or close() closes it, and the focus goes back to the button. It sends
 nothing.
 
 ```js
 import { defineAboutPanel } from 'data-explorer-view/app-shell';
+import { VIEW_VERSION } from 'data-explorer-view/model';
 
 defineAboutPanel();
 const about = document.body.appendChild(document.createElement('dex-about-panel'));
 about.heading = 'My app';
 about.lines = [
   { label: 'Version', value: '1.0.0' },
-  { label: 'data-explorer-view', value: '1.8.0' },
+  { label: 'Build date', value: '2026-11-06' },
+  { label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' },
 ];
 aboutButton.addEventListener('click', () => about.show(aboutButton.getBoundingClientRect()));
 ```
 
-connectShell fills it from its `appName` and `about` options, and opens it from the shell's About
-button.
+`VIEW_VERSION` is this package's version, as its package.json says. connectShell fills the
+popover from its `appName` and `about` options, and opens it from the shell's About button.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -41,9 +45,11 @@ The heading, the app's name, drawn in capitals as the Settings title is; also th
 
 ### `lines`
 
-type `{ label: string; value: string }[]` · default `[]` · property only
+type `AboutLine[]` · default `[]` · property only
 
-The lines under the heading, in order: a label (Version) and its value (1.0.0).
+The lines under the heading, in order: a label (Version) and its value (1.0.0), and the heading
+of the section the line is in (`section`), if any. The lines with no section are drawn first;
+each section follows, once, where its first line is.
 
 ### `open`
 
@@ -82,6 +88,7 @@ Each falls back to the light default when the page sets none (see `data-explorer
 |---|---|---|
 | `--dex-bg-primary` | `#fff` |  |
 | `--dex-border-color` | `#d0d0d0` |  |
+| `--dex-border-color-light` | `#e0e0e0` |  |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-secondary` | `#555` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |

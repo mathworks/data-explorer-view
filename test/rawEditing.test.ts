@@ -162,3 +162,28 @@ describe('a closed document', () => {
     expect(await raw(doc, id)).toEqual({ format: 'none', reason: NO_RAW_DATA });
   });
 });
+
+describe('a record asked for in place of the bytes (`raw(rowId, { record: true })`, the command window\'s json)', () => {
+  it("answers a MAT-file's variable as read, and a model's workspace variable, with its record; the Raw pane's answer stays the dump", async () => {
+    const mat = await open(matFixture('cases.mat'), 'cases.mat');
+    const id = 'binedit:file:///cases.mat/scalarD';
+    expect((await raw(mat, id)).format).toBe('hex');
+    const record = await mat.table.raw!(id, { record: true });
+    expect(record.format).toBe('json');
+    expect(JSON.parse((record as { text: string }).text)).toMatchObject({ name: 'scalarD' });
+    // Read-only, the same.
+    const viewing = await open(matFixture('cases.mat'), 'cases.mat', false);
+    expect(await viewing.table.raw!(id, { record: true })).toEqual(record);
+
+    const model = await open(modelFixture('slxcases.slx'), 'slxcases.slx');
+    const tau = 'binedit:file:///slxcases.slx/workspace/tau';
+    expect((await raw(model, tau)).format).toBe('hex');
+    expect(JSON.parse(((await model.table.raw!(tau, { record: true })) as { text: string }).text)).toMatchObject({ name: 'tau' });
+  });
+
+  it('answers a dictionary entry as it always does: its record is its raw form already', async () => {
+    const doc = await open(fixture('params.sldd'), 'params.sldd');
+    const id = 'file:///params.sldd/design/Kp';
+    expect(await doc.table.raw!(id, { record: true })).toEqual(await raw(doc, id));
+  });
+});

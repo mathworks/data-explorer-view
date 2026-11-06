@@ -143,7 +143,7 @@ describe('the relationship graph', () => {
   it("is where a table's Show in Graph goes, on the row's item", async () => {
     const page = startPage(FILES);
     await open(page, 'shadow_ws.slx', 'params.sldd');
-    const reveal = vi.spyOn(graph(), 'reveal');
+    const reveal = vi.spyOn(graph(), 'zoomToReach');
     expect((await menuOn('params.sldd', 'Uo')).map((i) => i.id)).toContain('showInGraph');
     choose('showInGraph');
     await until(() => graphShown() && reveal.mock.calls.length === 1);
@@ -158,7 +158,7 @@ describe('the relationship graph', () => {
   it("is where a model's External Data row's Show in Graph goes, on the file it names", async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'shadow_ws.slx');
-    const reveal = vi.spyOn(graph(), 'reveal');
+    const reveal = vi.spyOn(graph(), 'zoomToReach');
     await menuOn('shadow_ws.slx', 'params.sldd');
     choose('showInGraph');
     await until(() => graphShown() && reveal.mock.calls.length === 1);

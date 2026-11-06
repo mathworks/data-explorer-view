@@ -24,6 +24,20 @@ shell.addEventListener('dex-shell-action', (e) => {
 no press of the button. An action without an `action` id, or with one another action has, is not
 drawn.
 
+Under connectShell, `settings` and `about` are the shell's own actions, and the only ones it
+answers. An action a page adds once connectShell has filled the shell (the Samples button of a web
+page, say) is drawn after them on its bar, and its `dex-shell-action` is the page's to answer; one
+with the id `settings` or `about` is not drawn, since the shell's came first. connectShell's
+`dispose()` takes the shell's actions away and leaves the page's.
+
+```js
+const app = connectShell(shell, { host });
+shell.insertAdjacentHTML('beforeend', '<dex-shell-action side="left" action="samples" label="Samples" icon="documentList"></dex-shell-action>');
+shell.addEventListener('dex-shell-action', (e) => {
+  if (e.detail.actionId === 'samples') openSamples();
+});
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance

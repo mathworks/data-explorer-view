@@ -3,7 +3,8 @@
 // The theme the page is drawn in, as view's theme stylesheet reads it: `data-theme` on the root
 // element. And the system's theme, for the Settings popover's Auto, from the page's own media
 // queries: a host that knows better (Electron's nativeTheme, which also follows Windows' contrast
-// themes) passes its own to connectShell instead.
+// themes) passes its own to connectShell instead, or tells it through the handle as it hears it
+// (settableSystemTheme), when it hears it only after the shell is up.
 //
 // applyTheme is lifted from data-explorer-app src/renderer/ui/theme.ts at 0983920.
 /** Draw the page in `theme`: view's theme stylesheet reads it from the root element's `data-theme`. */
@@ -36,6 +37,42 @@ export function systemThemeFromMedia() {
                 for (const list of lists)
                     list.removeEventListener('change', changed);
             };
+        },
+    };
+}
+const THEMES = ['light', 'dark', 'high-contrast'];
+/**
+ * The system's theme as `source` has it, until a host tells one (`set`): from then on the theme
+ * told, and the source is no longer heeded, so a host that hears the theme (an Electron page,
+ * told over IPC) and the page's media queries never take turns. A listener hears each change of
+ * the theme, from either, and nothing when the theme it already is is told again.
+ */
+export function settableSystemTheme(source) {
+    let told;
+    const listeners = new Set();
+    const now = () => told ?? source.now();
+    return {
+        now,
+        on(listener) {
+            listeners.add(listener);
+            const stop = source.on((theme) => {
+                if (told === undefined)
+                    listener(theme);
+            });
+            return () => {
+                listeners.delete(listener);
+                stop();
+            };
+        },
+        set(theme) {
+            if (!THEMES.includes(theme))
+                return;
+            const was = now();
+            told = theme;
+            if (theme === was)
+                return;
+            for (const listener of [...listeners])
+                listener(theme);
         },
     };
 }

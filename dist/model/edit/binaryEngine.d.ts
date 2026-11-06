@@ -1,5 +1,5 @@
 import { type AppliedOp, type EntryPatch, type ScPartPatch, type Session } from 'data-explorer-core';
-import type { EditableTableSource, TableView } from '../source/tableSource.js';
+import type { EditableTableSource, EditHistory, TableView } from '../source/tableSource.js';
 import { BinaryView } from './binaryView.js';
 import type { EditIndex, EditSink, Notify } from './hooks.js';
 import type { Registers } from './registers.js';
@@ -18,6 +18,13 @@ export interface BinaryEngineOptions {
     sink: EditSink;
     /** Where the stack stands, and its save point. */
     index: EditIndex;
+    /**
+     * Where the stack the edits go on (`sink`) stands, which its tables hand on as their `history`
+     * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+     * to undo or redo: in the page, the stack itself (EditStack). Default: none, and Undo and Redo are
+     * offered wherever the document may be edited (in the VS Code extension the stack is VS Code's).
+     */
+    history?: EditHistory;
     /** The registers the window's documents share. */
     registers: Registers;
     /** Where a notice the table does not show goes. Default: nowhere. */

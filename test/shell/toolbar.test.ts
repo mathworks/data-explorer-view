@@ -7,6 +7,7 @@
 // no focus, so a cell editor still open is still open: every command first commits it, as Save
 // always did. toolbarItems.test.ts pins the rule; this, that the shell follows it.
 import { describe, expect, it, vi } from 'vitest';
+import type { DexIcon } from '../../src/widgets/shared/dex-icon.js';
 import {
   at,
   dirtyTabs,
@@ -71,6 +72,21 @@ describe('the toolbar', () => {
     await open(page, 'legacy_ctrl.mdl');
     await until(lacks('save', 'save-as', 'undo'));
     expect(enabledItems()).toEqual(expect.arrayContaining(['save-all', 'close-tab']));
+  });
+
+  it('draws an unsaved Save in its colours on the Minimal toolbar, where every other icon is one colour', async () => {
+    // The blue floppy and the grey one are one shape: in one colour they would be the same glyph.
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const saveIcon = () => toolbarButton('Save')!.querySelector<DexIcon>('dex-icon')!;
+    await until(() => toolbarButton('Save')?.querySelector('dex-icon') != null);
+    expect([toolbar().mono, saveIcon().iconId, saveIcon().mono]).toEqual([true, 'saved', true]);
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => saveIcon().iconId === 'unsaved');
+    expect(saveIcon().mono).toBe(false);
+    const others = [...toolbar().shadowRoot!.querySelectorAll<DexIcon>('dex-icon')].filter((i) => i !== saveIcon());
+    expect(others.length).toBeGreaterThan(5);
+    expect(others.every((i) => i.mono)).toBe(true);
   });
 
   it("is drawn, with the Explorer and the Gallery, from a table's first paint, before any selection or change", async () => {
@@ -259,6 +275,9 @@ describe('the toolbar', () => {
     it('Undo, with the focus not in the editor, takes back what it held', async () => {
       const page = startPage(FILES);
       await open(page, 'params.sldd');
+      // An edit before it, so that Undo is offered at all: a file just opened has nothing to undo.
+      await edit('params.sldd', 'Uo', '7');
+      await until(has('undo'));
       // An editor open without the focus, as one is after the focus moved on in a browser that
       // sends no blur (a press on the toolbar takes none).
       const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {});
@@ -267,7 +286,9 @@ describe('the toolbar', () => {
       toolbarButton('Undo')!.click();
       await until(() => !tableOf('params.sldd')!.shadowRoot!.querySelector('.edit-input'));
       await until(has('redo'));
+      // The rename the editor held is taken back, and the edit before it stays.
       expect(names('params.sldd')).toContain('Kp');
+      expect(textOf(await rowOf('params.sldd', 'Uo'))).toBe('7');
       page.command('redo');
       await until(() => names('params.sldd').includes('Kd'));
     });

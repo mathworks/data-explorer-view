@@ -71,7 +71,9 @@ export const relationshipGraphStyles = css `
     pointer-events: none;
   }
 
-  path.edge {
+  /* Two classes, so no colour rule of a kind (which fills the markers too, and a data link's has two
+     classes of its own) fills a route. */
+  .edges path.edge {
     fill: none;
     stroke-width: 1.5;
     transition: opacity 0.15s ease, stroke-width 0.15s ease;
@@ -90,12 +92,20 @@ export const relationshipGraphStyles = css `
     opacity: 1;
   }
 
+  /* While an edge is under the pointer the others fade, as the prototype faded them, so the one
+     picked out can be followed across the graph: every other edge under the boxes, and what is
+     drawn over them. One dimmed already stays as dim. */
+  .world.edge-hover .under path.edge:not(:hover):not(.dim),
+  .world.edge-hover .over > :not(.dim) {
+    opacity: 0.3;
+  }
+
   .over path.edge,
   path.stub {
     stroke-width: 1.8;
   }
 
-  path.stub {
+  .edges path.stub {
     fill: none;
   }
 
@@ -117,6 +127,18 @@ export const relationshipGraphStyles = css `
   .data-link {
     stroke: var(--dex-graph-edge-data-link, #7c8a60);
     fill: var(--dex-graph-edge-data-link, #7c8a60);
+  }
+
+  /* A data link in the colour of the file it links, as the prototype drew them: no token of its
+     own, the border's of a box of that kind, which is 3:1 against the canvas in every theme. */
+  .data-link.to-sldd {
+    stroke: var(--dex-graph-sldd-border, #6a8c7a);
+    fill: var(--dex-graph-sldd-border, #6a8c7a);
+  }
+
+  .data-link.to-mat {
+    stroke: var(--dex-graph-mat-border, #918267);
+    fill: var(--dex-graph-mat-border, #918267);
   }
 
   .param-usage {
@@ -267,6 +289,12 @@ export const relationshipGraphStyles = css `
     border-color: var(--dex-graph-ws-item-border, rgba(107, 155, 139, 0.25));
   }
 
+  /* The item under the pointer, whose connections are traced: an accent border, without the ring
+     a selection has. */
+  .item:hover {
+    border-color: var(--dex-color-accent, #0078d4);
+  }
+
   .item.selected {
     border-color: var(--dex-color-accent, #0078d4);
     box-shadow: 0 0 0 1px var(--dex-color-accent, #0078d4);
@@ -404,8 +432,12 @@ export const relationshipGraphStyles = css `
     border-color: var(--dex-graph-edge-sldd-ref, #658d72);
   }
 
-  .swatch.line.data-link {
-    border-color: var(--dex-graph-edge-data-link, #7c8a60);
+  .swatch.line.data-link.to-sldd {
+    border-color: var(--dex-graph-sldd-border, #6a8c7a);
+  }
+
+  .swatch.line.data-link.to-mat {
+    border-color: var(--dex-graph-mat-border, #918267);
   }
 
   .swatch.line.param-usage {
@@ -470,19 +502,24 @@ export const relationshipGraphStyles = css `
       border-color: CanvasText;
     }
 
-    path.edge,
+    .edges path.edge,
     marker * {
       stroke: CanvasText;
       fill: CanvasText;
     }
 
-    path.edge {
+    .edges path.edge {
       fill: none;
     }
 
     .box.selected,
     .item.selected {
       outline: 2px solid Highlight;
+    }
+
+    /* The item whose connections are traced, which no border colour of its own picks out here. */
+    .item:hover {
+      outline: 1px solid Highlight;
     }
 
     .canvas:focus-visible {

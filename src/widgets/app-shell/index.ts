@@ -24,6 +24,9 @@ export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
 export type {
+  ExplorerDropDetail,
+  ExplorerDropTarget,
+  ExplorerDropVerdict,
   ExplorerEventMap,
   ExplorerFile,
   ExplorerGroup,
@@ -62,4 +65,4 @@ export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from '.
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from './connect/types.js';
+export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost, ShellNotice } from './connect/types.js';

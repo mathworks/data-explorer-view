@@ -68,10 +68,13 @@ export class ShellNavigation {
         if (this.upTo)
             this.goTo(this.upTo);
     }
-    /** Go to the location bar's segment `index`. */
+    /**
+     * Go to the location bar's segment `index`. The one counting a selection of several rows is where
+     * the user is, which a press leaves as it is: going to its place would select the first row alone.
+     */
     toStep(index) {
         const step = this.steps[index];
-        if (step)
+        if (step && !step.selection)
             this.goTo(step.place);
     }
     /** Forget the places of the tab `tabId`, which closed: Back must not land on one. */

@@ -19,6 +19,18 @@ export interface BrowserFiles {
      * by (the shell's `openPaths`). A handle to a file the host has a path for already keeps that path.
      */
     addPicked(name: string, source: BrowserSource): Promise<string>;
+    /**
+     * Add files of the app's own to the group named `group` (any name the app chooses: `'samples'`):
+     * the paths to open them by, in order. A group is one folder, made when its first file comes, and
+     * every file added to it later sits beside the ones it has, so files fetched at different times
+     * still find each other (a model's link to a dictionary, which names it alone). Two groups, and
+     * every pick, are folders apart. A group holds one file of a name: a file of a name it has takes
+     * that file's place, at its path, and a tab open on it takes the new file as it takes a change on
+     * disk (through `onChanged`). The same file again (equal bytes, or a File of the same size and
+     * date) changes nothing; still, a page adds a file once and keeps the paths it is answered, to
+     * open again. A handle to a file the host has a path for already keeps that path.
+     */
+    addToGroup(group: string, files: readonly BrowserFile[]): Promise<string[]>;
     /** The file at `path`, or undefined for a path the host never made. */
     get(path: string): BrowserFile | undefined;
     /** Whether the host made `path`. */
@@ -66,9 +78,9 @@ export interface BrowserHost extends ShellHost {
 }
 /**
  * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
- * inputs, reads and saves through WebFiles (in place where the browser gives a handle, a download
- * where it does not), open files watched, a folder served in the page, and drops. The shell gets
- * its folder and its files' changes back through `onFolder` and `onChanged`; docs/browser-host.md
- * says what works in which browser.
+ * inputs, New through its save picker or as a file the page keeps, reads and saves through WebFiles
+ * (in place where the browser gives a handle, a download where it does not), open files watched, a
+ * folder served in the page, and drops. The shell gets its folder and its files' changes back
+ * through `onFolder` and `onChanged`; docs/browser-host.md says what works in which browser.
  */
 export declare function browserHost(options?: BrowserHostOptions): BrowserHost;

@@ -21,7 +21,8 @@ export declare function setIconUrls(urls: Readonly<Record<string, string>> | nul
 /**
  * One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see
  * setIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is
- * drawn as the icon that stands for it. Decorative: hidden from assistive technology, so the
+ * drawn as the icon that stands for it. With `mono` it is drawn in one colour, the element's own
+ * (`color`), as a glyph of a toolbar is. Decorative: hidden from assistive technology, so the
  * element beside it carries the name.
  *
  * @tagname dex-icon
@@ -35,6 +36,16 @@ export declare class DexIcon extends LitElement {
     iconId: string;
     /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
     size: number;
+    /**
+     * Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an
+     * activity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so
+     * the button's own background shows through them. The dark set's `--dex-icon-filter` is not
+     * applied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so
+     * it is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id
+     * with no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the
+     * icon in the colours its file has. Attribute `mono`.
+     */
+    mono: boolean;
     render(): import("lit-html").TemplateResult<1>;
 }
 /** Registers the widget as `<dex-icon>`, or under `tag`. */

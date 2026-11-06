@@ -5,8 +5,8 @@
 // editor, the context menu, the error dialog, the folder's tree, a project's page); the shell's
 // parts (the toolbar, the location bar, the Explorer, the tab row, the two popovers, the toasts,
 // the confirm dialog); the modules' views (Raw, Search, the Gallery, the Terminal, the Log, the
-// command palette, the relationship graph); the three internal elements connectShell builds the
-// center, the folder and the empty inspector from; and last the shell itself, with its views and
+// command palette, the relationship graph); the four internal elements connectShell builds the
+// center, the folder, the empty inspector and the status from; and last the shell itself, with its views and
 // actions (defineAppShell, which stays the layout's own and defines only those).
 //
 // Each under its default name, as connectShell makes them by those names. Calling it again does
@@ -22,6 +22,7 @@ import { defineVariableEditor } from '../variable-editor/dex-variable-editor.js'
 import { defineShellDocs } from './connect/dex-shell-docs.js';
 import { defineShellFolder } from './connect/dex-shell-folder.js';
 import { defineShellNote } from './connect/dex-shell-note.js';
+import { defineShellStatus } from './connect/dex-shell-status.js';
 import { defineAboutPanel } from './dex-about-panel.js';
 import { defineAppShell } from './dex-app-shell.js';
 import { defineConfirmDialog } from './dex-confirm-dialog.js';
@@ -71,6 +72,7 @@ export function defineShellWidgets(): void {
   defineShellDocs();
   defineShellFolder();
   defineShellNote();
+  defineShellStatus();
   // Last, its views and actions first within it: a page's markup is upgraded before the shell reads it.
   defineAppShell();
 }

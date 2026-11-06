@@ -123,7 +123,9 @@
   /* The relationship graph (dex-relationship-graph): each kind of box's surface, border and
      selected border, each kind of edge (the legend's swatches too), the items inside a box (a
      model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues
-     darkened until every line and border is 3:1 against the canvas. */
+     darkened until every line and border is 3:1 against the canvas. A data link is drawn in the
+     border colour of the file it links (a dictionary's, a MAT-file's), so the data-link edge token
+     colours only a link to a file of neither kind, which core's extraction never names. */
   --dex-graph-model-bg: #e8f0f7;
   --dex-graph-model-border: #6c8899;
   --dex-graph-model-selected: #436e8a;

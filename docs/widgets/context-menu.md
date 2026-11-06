@@ -5,6 +5,10 @@ separators and disabled items that say why (their `reason`, as a tooltip and to 
 reader). A choice sends `dex-action` with the item's id and closes the menu; Escape, a click
 elsewhere or a scroll close it. However it closes, it sends `dex-menu-closed`, so whoever filled
 it knows its items are gone. The keyboard moves along every item, disabled ones included.
+A menu a key opened is shown with `{ focusFirst: true }`: the keyboard is on its first item at
+once, so the arrows move along the menu and not along what is under it, and it goes back where it
+was (inside a shadow root too) whenever the menu closes holding it; the browser's own menu for the
+key that opened it is spent (Chromium on Windows opens one on the ContextMenu key's keyup).
 
 The tree table asks for a menu with `dex-table-context-menu`; the items for its selection come
 from `buildContextMenuItems` (`data-explorer-view/tree-table`):
@@ -16,12 +20,12 @@ defineContextMenu();
 const menu = document.body.appendChild(document.createElement('dex-context-menu'));
 
 table.addEventListener('dex-table-context-menu', (e) => {
-  const { x, y, rowId } = e.detail;
+  const { x, y, rowId, keyboard } = e.detail; // keyboard: Shift+F10 opened it (keyboardMenu)
   menu.show(x, y, [
     { id: 'copy', label: 'Copy', shortcut: 'Ctrl+C' },
     { id: 'sep', label: '', separator: true },
     { id: 'delete', label: 'Delete', disabled: true, reason: 'This file is read-only' },
-  ]);
+  ], { focusFirst: !!keyboard });
 });
 menu.addEventListener('dex-action', (e) => run(e.detail.actionId));
 ```
@@ -40,15 +44,18 @@ None.
 
 ## Methods
 
-### `show(x: number, y: number, items: ContextMenuItem[]): void`
+### `show(x: number, y: number, items: ContextMenuItem[], options?: ContextMenuShowOptions): void`
 
 Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
 (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-open is replaced: it closes first, and says so (`dex-menu-closed`).
+open is replaced: it closes first, and says so (`dex-menu-closed`). With `focusFirst`, the
+keyboard is on the first item at once, and goes back where it was as the menu closes.
 
 ### `close(): void`
 
-Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`).
+Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). A menu opened with
+`focusFirst` that holds the keyboard as it closes (Escape, a scroll, a right-click outside,
+close()) gives it back where it was.
 
 ## Events
 

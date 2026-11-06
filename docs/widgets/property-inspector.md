@@ -34,8 +34,39 @@ const inspector = connectInspector(element, null, { empty: placeholder, variable
 inspector.follow(activeTab ? activeTab.handle : null);
 ```
 
+Beside a table connected with `inspectorPages` (see the [tree table](tree-table.md)), it shows
+more than one row's properties: the file's own page while no row is selected (what the file is,
+where it is, whether it holds edits, and the open files it references and is referenced by, each
+a link), a section heading's (its entries counted by type), "3 selected" for several rows, and a
+row's Usage links as a group of their own.
+
+With `editing` and `inspectorEditing` too, a row is editable where the document takes an edit of
+it. Such a row carries its property's `key`, and is drawn as a field: a list where it has
+`options`, a field of several lines where it is `multiline`, a text field otherwise. A change of
+one is `dex-property-changed`, with the row's `key`, and connectInspector hands it to the feed's
+`edit` (a table's handle has one), which writes it as a cell edit of the page's row: a refusal
+opens the table's error dialog, and the field is put back. A field the user is typing in keeps
+what they typed while a page is pushed again. `connected.commit()` (the inspector's `commit()`)
+sends what is typed in the field the focus is in, as leaving it would, for an app's Save to call
+before the table's `commitEdit()`, which then waits for it.
+
+```js
+const handle = connectTable(table, doc.table, { editing: true, inspectorPages: true, inspectorEditing: true });
+const connected = connectInspector(inspector, handle, { empty: placeholder });
+// The file's page says whether the document holds edits, which the table does not hear of.
+doc.onDirty(() => handle.refreshInspector());
+
+async function save() {
+  connected.commit(); // a field the focus is still in, on a Save chord
+  await handle.commitEdit();
+  write(doc.serialize());
+}
+```
+
 Without connectInspector, set `groups` yourself: `(await source.inspect(rowIds)).groups`, or the
-model's buildPropertyGroups of a node.
+model's buildPropertyGroups of a node. `source.inspect(rowIds, { pages: true, editable: true })`
+asks a document opened in the page for the same pages and editable rows; a source across a
+channel answers as it would without them.
 
 The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which opens the same
 [variable editor](variable-editor.md) as the table's.
@@ -58,7 +89,11 @@ The groups shown, in order; none, the default, draws an empty panel. Property on
 
 ## Methods
 
-None.
+### `commit(): void`
+
+Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
+is not its row's value. For an app's Save, which a chord gives with the focus still in the field,
+to take what was typed there. Nothing when the focus is in no field.
 
 ## Events
 
@@ -76,6 +111,11 @@ An editable row's field was changed and committed (its change event).
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
   propName: string;
+  /**
+   * The property's key (its row's `key`), which an edit of it names as its column; absent for a
+   * row that has none.
+   */
+  key?: string;
   newValue: string;
   oldValue: string;
 }

@@ -262,3 +262,107 @@ describe('no icon to show', () => {
     expect(src(el)).toBe('./icons/typeBus.svg');
   });
 });
+
+describe('in one colour (mono)', () => {
+  // The shell's Minimal icon style: a toolbar's or an activity bar's glyph in the colour of the
+  // text beside it rather than in the icon's own, as the prototype drew them. It is drawn from the
+  // same file, so no second set of icons ships: an SVG <image> of the file, through a filter that
+  // keeps the icon's strokes and dark shapes, in the element's currentColor, and drops its light
+  // fills. Not a CSS mask, the other way to paint an image in currentColor: a mask image is
+  // fetched in CORS mode, which a page on file:// (the Electron app's) is refused, so every icon
+  // would vanish there; and an alpha mask fills each white tile solid, so Delete, Cut or Code
+  // became a dark square.
+  beforeEach(() => setIconBase('./icons/'));
+
+  const image = (el: DexIcon): SVGImageElement | null => el.shadowRoot!.querySelector('svg image');
+
+  async function mono(iconId: string, size?: number): Promise<DexIcon> {
+    const el = await make(iconId, size);
+    el.mono = true;
+    await el.updateComplete;
+    return el;
+  }
+
+  // The filter's alpha out of a colour, as feColorMatrix computes it (its fourth row, on the
+  // colour's own sRGB values: color-interpolation-filters="sRGB"), clamped as a filter clamps it.
+  function alphaOf(el: DexIcon, hex: string): number {
+    const values = el.shadowRoot!.querySelector('feColorMatrix, fecolormatrix')!.getAttribute('values')!.trim().split(/\s+/).map(Number);
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const [kr, kg, kb, ka, k] = values.slice(15, 20);
+    return Math.min(1, Math.max(0, kr! * r! + kg! * g! + kb! * b! + ka! * 1 + k!));
+  }
+
+  it('is off by default, and draws the <img> as before', async () => {
+    const el = await make('undo');
+    expect(el.mono).toBe(false);
+    expect(img(el)).not.toBeNull();
+    expect(image(el)).toBeNull();
+  });
+
+  it('draws the same file as an SVG image, at its size, and no <img>', async () => {
+    const el = await mono('undo', 18);
+    expect(img(el)).toBeNull();
+    expect(image(el)!.getAttribute('href')).toBe('./icons/undo.svg');
+    const svg = el.shadowRoot!.querySelector('svg')!;
+    expect([svg.getAttribute('width'), svg.getAttribute('height')]).toEqual(['18', '18']);
+    expect([image(el)!.getAttribute('width'), image(el)!.getAttribute('height')]).toEqual(['18', '18']);
+  });
+
+  it('through a filter of its own shadow root that floods the shape with currentColor', async () => {
+    const el = await mono('undo');
+    const ref = /^url\(#([\w-]+)\)$/.exec(image(el)!.getAttribute('filter') ?? '')?.[1];
+    expect(ref).toBeDefined();
+    const filter = el.shadowRoot!.querySelector(`#${ref}`)!;
+    expect(filter.localName).toBe('filter');
+    expect(filter.getAttribute('color-interpolation-filters')).toBe('sRGB');
+    expect(filter.querySelector('[flood-color]')!.getAttribute('flood-color')).toBe('currentColor');
+  });
+
+  it("keeps the icons' strokes and dark shapes whole, and drops their light fills", async () => {
+    // The colours the icons are drawn in (icons/*.svg): every stroke and glyph, grey or coloured,
+    // is ink; every tile and pastel fill is left out, so a white page shows through it.
+    const el = await mono('undo');
+    const strokes = ['#616161', '#616160', '#888888', '#008013', '#1656A7', '#104280', '#902622', '#610908', '#674C06', '#278CDD'];
+    const fills = ['#FFFFFF', '#F5F5F5', '#D9D9D9', '#FFF5BC', '#B4DEFF', '#CBFFBE'];
+    for (const c of strokes) expect(alphaOf(el, c), c).toBe(1);
+    for (const c of fills) expect(alphaOf(el, c), c).toBe(0);
+    // The two drawn between, part ink: the gear's middle disc (settings.svg), half, which reads
+    // as a ring; Delete's red tile, a faint fill.
+    expect(alphaOf(el, '#A6A6A6')).toBeCloseTo(0.5, 1);
+    expect(alphaOf(el, '#FF9D9A')).toBeCloseTo(0.27, 1);
+  });
+
+  it('is decorative, as the <img> is', async () => {
+    const el = await mono('undo');
+    expect(el.shadowRoot!.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it("takes no dark set's filter: the ink is the theme's own text colour already", () => {
+    // The token turns an <img> over; on the mono glyph it would turn a light ink dark again.
+    const text = String(DexIcon.styles);
+    expect(text).not.toMatch(/svg[^{]*\{[^}]*--dex-icon-filter/);
+    // Nor on the host, which would filter the glyph with everything else in it.
+    expect(text).not.toMatch(/:host[^{]*\{[^}]*--dex-icon-filter/);
+  });
+
+  it('maps a data-model kind, and draws nothing for no id', async () => {
+    expect(image(await mono('bus'))!.getAttribute('href')).toBe('./icons/typeBus.svg');
+    const none = await mono('');
+    expect(none.shadowRoot!.querySelector('svg')).toBeNull();
+    expect(img(none)).toBeNull();
+  });
+
+  it('goes back to the <img> when it is turned off, and is set by the attribute in markup', async () => {
+    const el = await mono('undo');
+    el.mono = false;
+    await el.updateComplete;
+    expect(image(el)).toBeNull();
+    expect(src(el)).toBe('./icons/undo.svg');
+    document.body.insertAdjacentHTML('beforeend', '<dex-icon icon-id="redo" mono></dex-icon>');
+    const marked = document.body.lastElementChild as DexIcon;
+    icons.push(marked);
+    await marked.updateComplete;
+    expect(marked.mono).toBe(true);
+    expect(image(marked)!.getAttribute('href')).toBe('./icons/redo.svg');
+  });
+});

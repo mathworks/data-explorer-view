@@ -62,8 +62,14 @@ export interface CommandTarget {
     rows(): TreeTableRow[];
     /** The property inspector's page for a row (`TableSource.inspect`). */
     inspect(rowId: string): Promise<InspectorView>;
-    /** A row's raw data. Absent: `json` says there is none for this document. */
-    raw?(rowId: string): Promise<CommandRaw>;
+    /**
+     * A row's raw data (`TableSource.raw`). `json` asks with `record`: the record a save writes, as
+     * JSON, in place of the bytes a MAT-file's variable was read from. Absent: `json` says there is
+     * none for this document.
+     */
+    raw?(rowId: string, options?: {
+        record?: boolean;
+    }): Promise<CommandRaw>;
     /** Write a cell edit back (`EditableTableSource.edit`). Absent: the document is read-only. */
     edit?(edit: CellEdit): void | Promise<void>;
     /** Create a new default entry (`EditableTableSource.addEntry`). */

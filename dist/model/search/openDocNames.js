@@ -32,24 +32,46 @@
 // name.
 import { uriBasename } from '../ids/pathUtil.js';
 import { sectionNameFromRowId } from '../ids/sectionRowId.js';
+/** A cell's text, as the table shows it: a string, or an object's `text`. */
+function cellText(cell) {
+    if (typeof cell === 'string')
+        return cell;
+    return typeof cell === 'object' && cell !== null && typeof cell.text === 'string' ? cell.text : '';
+}
 /**
  * The name records of an open document, from the rows its table shows (a TableView's `rows`):
  * the records the folder's index gives the same file (namesFromSldd, namesFromMat, namesFromSlx),
  * each named after `sourceUri`. `kind` is the document's (`Doc.kind`); a project has none. A row
  * with no name gives none, as the index drops an entry with none, and so does a block row with no
- * key, which a search could not reveal.
+ * key, which a search could not reveal. With `cells`, each also carries its row's cells.
  */
-export function namesOfRows(rows, sourceUri, kind) {
+export function namesOfRows(rows, sourceUri, kind, options = {}) {
     // The file's name by the index's own rule (nameExtract.ts's nameRecords), so a hit from either
     // list is grouped under the same heading.
     const sourceLabel = uriBasename(sourceUri);
-    const record = (name, entryKind) => ({ name, sourceUri, sourceLabel, kind: entryKind });
+    // A cell is carried only where it says something: a section's entries and a block have no Value.
+    const cellsOf = (row) => {
+        if (!options.cells)
+            return {};
+        const out = {};
+        const value = cellText(row.Value);
+        const dataType = cellText(row.DataType);
+        const className = cellText(row.Class);
+        if (value)
+            out.value = value;
+        if (dataType)
+            out.dataType = dataType;
+        if (className)
+            out.className = className;
+        return out;
+    };
+    const record = (name, entryKind, row) => ({ name, sourceUri, sourceLabel, kind: entryKind, ...cellsOf(row) });
     const sectionOf = (row) => (row.parent === null ? null : sectionNameFromRowId(row.parent));
     if (kind === 'mat') {
-        return rows.filter((row) => row.parent === null && row.Name.label).map((row) => record(row.Name.label, 'mat'));
+        return rows.filter((row) => row.parent === null && row.Name.label).map((row) => record(row.Name.label, 'mat', row));
     }
     if (kind === 'dictionary') {
-        return rows.filter((row) => sectionOf(row) !== null && row.Name.label).map((row) => record(row.Name.label, 'sldd'));
+        return rows.filter((row) => sectionOf(row) !== null && row.Name.label).map((row) => record(row.Name.label, 'sldd', row));
     }
     if (kind !== 'model')
         return [];
@@ -60,14 +82,14 @@ export function namesOfRows(rows, sourceUri, kind) {
     for (const row of rows) {
         const section = sectionOf(row);
         if (section === 'workspace' && row.Name.label)
-            workspace.push(record(row.Name.label, 'workspace'));
+            workspace.push(record(row.Name.label, 'workspace', row));
         if (section !== 'blocks')
             continue;
         // The label is core's blockLabel (`<SID: 65>` for a block with no name), as the index's.
         const key = typeof row._blockKey === 'string' ? row._blockKey : '';
         if (!key)
             continue;
-        blocks.push({ ...record(row.Name.label, 'block'), selectName: key, blockPath: row._blockPath || row.Name.label });
+        blocks.push({ ...record(row.Name.label, 'block', row), selectName: key, blockPath: row._blockPath || row.Name.label });
     }
     return [...workspace, ...blocks];
 }

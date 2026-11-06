@@ -34,7 +34,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's\nname) and the lines the app hands it, each a label and its value (the app's version, the\nversions it is built on). The app's words are drawn as text, never as markup.\n\nshow() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a\npress outside it, or close() closes it, and focus goes back to the button. It sends nothing.",
+          "description": "The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's\nname) and the lines the app hands it, each a label and its value (the app's version, the\nversions it is built on). A line may name a section (`section: 'Built on'`): the lines with none\ncome first, under the app's name, then each section under its own heading, in the order its\nfirst line has. The app's words are drawn as text, never as markup.\n\nshow() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a\npress outside it, or close() closes it, and focus goes back to the button. It sends nothing.",
           "name": "DexAboutPanel",
           "members": [
             {
@@ -51,10 +51,10 @@
               "kind": "field",
               "name": "lines",
               "type": {
-                "text": "{ label: string; value: string }[]"
+                "text": "AboutLine[]"
               },
               "default": "[]",
-              "description": "The lines under the heading, in order: a label (Version) and its value (1.0.0)."
+              "description": "The lines under the heading, in order: a label (Version) and its value (1.0.0), and the heading\nof the section the line is in (`section`), if any. The lines with no section are drawn first;\neach section follows, once, where its first line is."
             },
             {
               "kind": "field",
@@ -119,6 +119,10 @@
             {
               "name": "--dex-border-color",
               "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
             },
             {
               "name": "--dex-color-text",
@@ -188,6 +192,17 @@
               "default": "''",
               "description": "The localStorage key the layout is kept under (which view each side shows, which sides are\nopen, and their sizes), read back as each side's views first arrive. Empty, the default,\nkeeps nothing. Attribute `storage-key`.",
               "attribute": "storage-key"
+            },
+            {
+              "kind": "field",
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of the buttons the shell draws (the activity bars' and the status bar's) in\none colour, the buttons' ink (`--dex-activity-fg`, through `<dex-icon mono>`), as the\nprototype's bars drew their glyphs; off, the default, draws them in their files' colours. The\npage's own children are its own to draw. Attribute `mono`, reflected so a page's stylesheet\ncan follow it.",
+              "attribute": "mono",
+              "reflects": true
             },
             {
               "kind": "field",
@@ -278,6 +293,15 @@
               "default": "''",
               "description": "The localStorage key the layout is kept under (which view each side shows, which sides are\nopen, and their sizes), read back as each side's views first arrive. Empty, the default,\nkeeps nothing. Attribute `storage-key`.",
               "fieldName": "storageKey"
+            },
+            {
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of the buttons the shell draws (the activity bars' and the status bar's) in\none colour, the buttons' ink (`--dex-activity-fg`, through `<dex-icon mono>`), as the\nprototype's bars drew their glyphs; off, the default, draws them in their files' colours. The\npage's own children are its own to draw. Attribute `mono`, reflected so a page's stylesheet\ncan follow it.",
+              "fieldName": "mono"
             }
           ],
           "superclass": {
@@ -522,8 +546,17 @@
       "path": "dist/widgets/app-shell/dex-doc-tabs.js",
       "declarations": [
         {
+          "kind": "variable",
+          "name": "TAB_DRAG_TYPE",
+          "type": {
+            "text": "string"
+          },
+          "default": "'application/x-dex-tab'",
+          "description": "The type a tab's drag carries its id under. One of the app's own, so a drag of anything else (a\nfile from the desktop, text from another page) never reads as a tab. Exported for the part of an\napp that takes a tab dropped elsewhere (the documents' area of the shell, to split it)."
+        },
+        {
           "kind": "class",
-          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`.\n\nA preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the\nkeyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),\nkeeps the active tab in view, and offers a … button listing every tab. The arrow keys move the\nfocus along the tabs, and Home and End to either end.",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
           "name": "DexDocTabs",
           "members": [
             {
@@ -545,6 +578,38 @@
               "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
               "attribute": "active",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "group",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Rows of one page with the same group take each other's tabs (an app's two panes, side by\nside): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id\nnot in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.",
+              "attribute": "group",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "unfocused",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the\naccent kept for the focused pane's row. Default false. Attribute `unfocused`.",
+              "attribute": "unfocused",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "focusActive",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Puts the keyboard on the active tab, once it is drawn: an app's chord that takes the user to\nthis row's pane. Nothing for a row with no active tab."
             }
           ],
           "events": [
@@ -574,7 +639,7 @@
               "type": {
                 "text": "CustomEvent<TabMoveDetail>"
               },
-              "description": "Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`."
+              "description": "Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from\n`tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert."
             }
           ],
           "attributes": [
@@ -586,6 +651,24 @@
               "default": "''",
               "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
               "fieldName": "active"
+            },
+            {
+              "name": "group",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Rows of one page with the same group take each other's tabs (an app's two panes, side by\nside): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id\nnot in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.",
+              "fieldName": "group"
+            },
+            {
+              "name": "unfocused",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the\naccent kept for the focused pane's row. Default false. Attribute `unfocused`.",
+              "fieldName": "unfocused"
             }
           ],
           "superclass": {
@@ -637,6 +720,10 @@
               "default": "#666"
             },
             {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
               "name": "--dex-focus-ring",
               "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
             },
@@ -666,6 +753,14 @@
       "exports": [
         {
           "kind": "js",
+          "name": "TAB_DRAG_TYPE",
+          "declaration": {
+            "name": "TAB_DRAG_TYPE",
+            "module": "dist/widgets/app-shell/dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "DexDocTabs",
           "declaration": {
             "name": "DexDocTabs",
@@ -688,7 +783,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The open files, as the app shell's Explorer lists them: Root first, then each kind of file\nunder a heading of its own (Simulink Models, Data Dictionaries, MAT-Files, Projects, Other,\nalways in that order, and a heading only over files), each file with a twisty that opens it\nonto its sections.\n\nIt draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open`\nfor it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends\n`dex-explorer-menu`. Which file a row is, what opening it means and which row is the current\none are the app's: the row `selected` names is highlighted, and a click changes nothing of it.\nWhich files are open in the tree (their twisty) is the element's own, but for one thing: a\n`selected` that moves to a section of a closed file opens that file, at once or as soon as the\nfile lists the section, and the row `selected` moves to is scrolled into view. A file that\nleaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the\nfocus to the next row.\n\nThe arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,\nLeft closes it or goes from a section to its file, Home and End go to the first and the last.",
+          "description": "The open files, as the app shell's Explorer lists them: Root first, then each kind of file\nunder a heading of its own (Simulink Models, Data Dictionaries, MAT-Files, Projects, Other,\nalways in that order, and a heading only over files), each file with a twisty that opens it\nonto its sections.\n\nIt draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open`\nfor it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends\n`dex-explorer-menu`. Which file a row is, what opening it means and which row is the current\none are the app's: the row `selected` names is highlighted, and a click changes nothing of it.\nWhich files are open in the tree (their twisty) is the element's own, but for one thing: a\n`selected` that moves to a section of a closed file opens that file, at once or as soon as the\nfile lists the section, and the row `selected` moves to is scrolled into view. A file that\nleaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the\nfocus to the next row.\n\nThe arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,\nLeft closes it or goes from a section to its file, Home and End go to the first and the last.\n\nTable rows dragged onto a file's row or a section's (a drag that carries `application/dex-rows`)\nare the app's to judge too: on each dragover the element asks `dropPredictor` about the row under\nthe pointer, with the mode the keys held ask (a move; a copy with Option on macOS and Ctrl\nelsewhere, as a drag in a table asks), and outlines the row in the accent for a drop it takes, in\nthe error colour for one it refuses, the answer's words its tooltip and said to a screen reader;\nno answer draws nothing and takes no drop. The row carries the words in `data-drop-hint` too, and\n`data-drop-refused` for a refusal, which the dragged table's box at the pointer says (the tree\ntable's `dragOut`): the browser shows no tooltip during a drag. A drop it still takes sends\n`dex-explorer-drop`, in the mode of the last dragover. Root, a heading and a drag of anything else\nare no drop target.",
           "name": "DexExplorer",
           "members": [
             {
@@ -718,6 +813,33 @@
               "default": "'Root'",
               "description": "What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`.",
               "attribute": "root-label"
+            },
+            {
+              "kind": "field",
+              "name": "dropPredictor",
+              "type": {
+                "text": "((target: ExplorerDropTarget, mode: DragMode) => ExplorerDropVerdict | null) | null"
+              },
+              "default": "null",
+              "description": "What a drag of table rows let go over a file's row or a section's would do: asked on each\ndragover of such a drag, with the row and the mode the keys held ask, and again as it is let go.\nIts answer is drawn on the row (an outline, a tooltip, words for a screen reader) and decides\nwhether the row takes the drop; null takes none there and draws nothing (a drop that would do\nnothing, a file that takes none). Null, the default: the explorer takes no drop. Property only."
+            },
+            {
+              "kind": "method",
+              "name": "focusRow",
+              "return": {
+                "type": {
+                  "text": "boolean"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "at",
+                  "type": {
+                    "text": "ExplorerSelection"
+                  }
+                }
+              ],
+              "description": "Give the keyboard to the row `at` names: Root for `{ fileId: null }`, a file, or a section of an\nopen file, as the arrow keys would land on it. Whether the row took it: false for one not drawn\n(a file not listed, a section of a closed file, an Explorer not drawn yet)."
             }
           ],
           "events": [
@@ -734,6 +856,13 @@
                 "text": "CustomEvent<ExplorerMenuDetail>"
               },
               "description": "Show this file's menu at this point of the viewport: a file's row was right-clicked. A request."
+            },
+            {
+              "name": "dex-explorer-drop",
+              "type": {
+                "text": "CustomEvent<ExplorerDropDetail>"
+              },
+              "description": "Table rows were let go over this file's row, or this section's, and `dropPredictor` takes the\ndrop: move or copy them there. A request: the explorer changes nothing itself."
             }
           ],
           "attributes": [
@@ -759,8 +888,21 @@
               "default": "#e8e8e8"
             },
             {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
               "name": "--dex-color-accent-bg",
               "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-modified",
+              "description": "The Status column's \"Modified\".",
+              "default": "#b45309"
             },
             {
               "name": "--dex-color-text",
@@ -876,6 +1018,17 @@
               "default": "false",
               "description": "Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.",
               "attribute": "can-up"
+            },
+            {
+              "kind": "field",
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a\ntoolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a\nfile's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
+              "attribute": "mono",
+              "reflects": true
             }
           ],
           "events": [
@@ -914,6 +1067,15 @@
               "default": "false",
               "description": "Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.",
               "fieldName": "canUp"
+            },
+            {
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a\ntoolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a\nfile's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
+              "fieldName": "mono"
             }
           ],
           "superclass": {
@@ -1007,7 +1169,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The shell's Settings popover, opened from the gear of an activity bar: the theme (Light, Dark,\nHi-Con, Auto) and the toolbar's density (Normal, Compact), each a row of segments that is a\nradio group. It shows `settings` and asks for a change: a click, or an arrow key inside a\ngroup, sends `dex-settings-change` with the whole new record and changes nothing by itself. The\napp applies the settings, keeps them, and sets `settings` back; the popover stays open, so the\nthemes can be tried one after another.\n\nshow() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),\nfocused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes\nback to the button.",
+          "description": "The shell's Settings popover, opened from the gear of an activity bar: the theme (Auto, Light,\nDark, Hi-Con), the toolbar's density (Normal, Compact: smaller icons with the labels beside\nthem), the icons of the shell's buttons (Minimal, in one colour, or Colorful), the tables' rules\n(Grid or Rows) and the layout of Root's relationship graph (Tree or Indented), each a row of\nsegments that is a radio group. It shows `settings` and asks for a change: a click, or an arrow\nkey inside a group, sends `dex-settings-change` with the whole new record and changes nothing by\nitself. The app applies the settings, keeps them, and sets `settings` back; the popover stays\nopen, so the themes can be tried one after another.\n\nshow() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),\nfocused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes\nback to the button.",
           "name": "DexSettingsPanel",
           "members": [
             {
@@ -1590,7 +1752,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A row of buttons, the items an app hands it: each an icon over a small label (beside it with\n`compact`), the items of a group together with a separator between groups, and the `end` items\npushed to the right. A click on an item that is not disabled sends `dex-toolbar-action` with its\nid; a disabled item is greyed and sends nothing. Each item's tooltip is its `title`, or its label\nand shortcut.\n\nThe toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and\nwrap at either end; Home and End go to the first and the last; Enter and Space press the one the\nkeyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit\nopen in a table's cell stays open too (the table commits one as its editor loses the focus), and\nthe app commits it, with connectTable's `handle.commitEdit()`, before it acts on\n`dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`\nas what they can do changes, and does what `dex-toolbar-action` asks.",
+          "description": "A row of buttons, the items an app hands it: each an icon over a small label (beside it with\n`compact`, and in the label's colour with `mono`, but for an item that is `colorful`), the items\nof a group together with a separator between groups, and the `end` items pushed to the right. A\nclick on an item that is not disabled sends `dex-toolbar-action` with its id; a disabled item is\ngreyed and sends nothing. Each item's tooltip is its `title`, or its label and shortcut.\n\nThe toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and\nwrap at either end; Home and End go to the first and the last; Enter and Space press the one the\nkeyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit\nopen in a table's cell stays open too (the table commits one as its editor loses the focus), and\nthe app commits it, with connectTable's `handle.commitEdit()`, before it acts on\n`dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`\nas what they can do changes, and does what `dex-toolbar-action` asks.",
           "name": "DexToolbar",
           "members": [
             {
@@ -1611,6 +1773,17 @@
               "default": "false",
               "description": "The compact layout: each icon (14px rather than 18) beside its label, in a lower row.\nAttribute `compact`, reflected so a page's stylesheet can follow it.",
               "attribute": "compact",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in\ntheir files' colours. A disabled item's icon is greyed with its label either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
+              "attribute": "mono",
               "reflects": true
             },
             {
@@ -1642,6 +1815,15 @@
               "default": "false",
               "description": "The compact layout: each icon (14px rather than 18) beside its label, in a lower row.\nAttribute `compact`, reflected so a page's stylesheet can follow it.",
               "fieldName": "compact"
+            },
+            {
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in\ntheir files' colours. A disabled item's icon is greyed with its label either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
+              "fieldName": "mono"
             },
             {
               "name": "label",
@@ -1960,6 +2142,30 @@
           "name": "defineExplorer",
           "declaration": {
             "name": "defineExplorer",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerDropDetail",
+          "declaration": {
+            "name": "ExplorerDropDetail",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerDropTarget",
+          "declaration": {
+            "name": "ExplorerDropTarget",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerDropVerdict",
+          "declaration": {
+            "name": "ExplorerDropVerdict",
             "module": "./dex-explorer.js"
           }
         },
@@ -2464,6 +2670,14 @@
           "name": "ShellHost",
           "declaration": {
             "name": "ShellHost",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellNotice",
+          "declaration": {
+            "name": "ShellNotice",
             "module": "./connect/types.js"
           }
         }
@@ -3371,7 +3585,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,\neach a box of its kind's colour, a file referenced and not open dashed, and the edges between\nthem. Every box starts closed. An open box lists the blocks and variables that take\npart, a model's workspace variables under a divider, and every other box the items of its own\nthose reach (a model open shows, in a dictionary, the variables its blocks read), with an edge\nfrom each block to each variable it reads, labelled with the block parameter. The edges run under\nthe boxes; what the selection reaches is drawn over them. The graph comes from\n`buildRelationshipGraph`; where it is drawn, from `layoutGraph`.\n\nA click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges\nreach, dimming the rest; a click on the background clears it. A double-click asks to open the\nfile (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names\nit, for the app to look for. A box's − or + asks to hide or show its\nitems (`dex-graph-expand`); the app answers by setting `expanded`. The wheel, the + and − buttons\nand a drag of the background zoom and pan; the fit button and fit() show the whole graph, and\nreveal() brings one box or item to the middle. A Legend, closed at first, names the kinds.\n\nThe keyboard: the canvas is one stop of the tab order; the arrows move the selection to the\nnearest box that way, Enter opens the selected box or item, Space shows or hides the selected\nbox's items, + and − zoom and 0 fits.",
+          "description": "How the open models, dictionaries and MAT-files connect: the models on the left as a tree of\ntheir references, the data files on the right, each a box of its kind's colour, a file referenced\nand not open dashed, and the edges between them. Every box starts closed. An open box lists the\nblocks and variables that take part, a model's workspace variables under a divider, and every\nother box the items of its own those reach (a model open shows, in a dictionary, the variables\nits blocks read), with an edge from each block to each variable it reads, labelled with the block\nparameter. The edges run under the boxes; what the selection reaches is drawn over them. The\ngraph comes from `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.\n\nA click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges\nreach, dimming the rest; a click on the background clears it. A double-click asks to open the\nfile (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names\nit, for the app to look for. A box's − or + asks to hide or show its\nitems (`dex-graph-expand`); the app answers by setting `expanded`. A box so opened is zoomed to\nwith the files it reaches, the rest dimmed, as the prototype's expand did, until it is closed,\nEscape is pressed or the background clicked; a double-click on the background asks to close\nevery box and fits the graph. The pointer on an item traces what it is joined to, as a selection\nof it would; on an edge, it fades the others. The wheel, the + and − buttons and a drag of the\nbackground zoom and pan; the fit button and fit() show the whole graph, reveal() brings one box\nor item to the middle, and zoomToReach() one and what it reaches. A Legend, closed at first,\nnames the kinds.\n\nThe keyboard: the canvas is one stop of the tab order; the arrows move the selection to the\nnearest box that way, Enter opens the selected box or item, Space shows or hides the selected\nbox's items, Escape clears the selection and the dimming of a box opened, + and − zoom and 0\nfits.",
           "name": "DexRelationshipGraph",
           "members": [
             {
@@ -3403,6 +3617,16 @@
               "description": "The ids of the boxes that are open. An open box shows all its items, and each other box the\nitems of its own an open box's edges reach: a model open shows its blocks and, in each data file\nthey read, only the variables they read. None, the default, the graph starts with: the files\nand the links between them. The app sets it, in answer to `dex-graph-expand`; the element never\nchanges it."
             },
             {
+              "kind": "field",
+              "name": "layout",
+              "type": {
+                "text": "GraphLayoutStyle"
+              },
+              "default": "'tree'",
+              "description": "How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down\ntrees, what a file references side by side in the row under it. 'indented' draws each column\nas a file tree, one box a row, what a file references in the rows under it a step to the right,\nwhich draws a large set of files narrower and so at a larger scale: fifteen files that fit a\n1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is\ndealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A\nchange fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A\nvalue it does not know is 'tree'. Attribute `layout`.",
+              "attribute": "layout"
+            },
+            {
               "kind": "method",
               "name": "fit",
               "return": {
@@ -3410,7 +3634,26 @@
                   "text": "void"
                 }
               },
-              "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size and\nno less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
+              "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size and\nno less than 0.7 of it: a graph bigger than that shows from its top left, to pan from.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
+            },
+            {
+              "kind": "method",
+              "name": "focus",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ],
+              "description": "Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while\nthere is no graph to draw yet (`graph` null: an app still building it), once there is. Not if\nthe focus has gone anywhere in the page meanwhile, even if it is back on the body by then, nor\nif the graph comes with nothing to draw: then the request is forgotten."
             },
             {
               "kind": "method",
@@ -3429,9 +3672,34 @@
                 }
               ],
               "description": "Moves the view so the box or item `id` is at the middle of the canvas, at the scale it has; an\nitem of a closed box brings its box. Changes neither the selection nor which boxes are open:\nan app revealing a row sets `selected` (and `expanded`) too, and may call this straight after,\nsince with a draw to come it reveals where that draw puts the row. An id the graph does not\nhold moves nothing."
+            },
+            {
+              "kind": "method",
+              "name": "zoomToReach",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Zooms the view onto the box or item `id` and what a selection of it lights (it, what its edges\nreach, and their boxes), centred, at no more than their own size and no less than the least a\nfit shrinks to; where they do not fit at that, the box or item itself is kept in view, its top\nleft first. For an app's \"Show in Graph\", which sets `selected` (and `expanded`) too and may call\nthis straight after: with a draw to come, it zooms onto where that draw puts them. Changes\nneither the selection nor which boxes are open; an id the graph does not hold moves nothing."
             }
           ],
           "events": [
+            {
+              "name": "dex-graph-expand",
+              "type": {
+                "text": "CustomEvent<GraphExpandDetail>"
+              },
+              "description": "Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`\nto include the box, or to leave it out. The graph changes nothing itself."
+            },
             {
               "name": "dex-graph-selected",
               "type": {
@@ -3445,13 +3713,6 @@
                 "text": "CustomEvent<GraphOpenDetail>"
               },
               "description": "Open this file, at this row: a box or an item was double-clicked, or Enter pressed on it. For a\nghost, `uri` is empty and `ref` names the file to look for. A request."
-            },
-            {
-              "name": "dex-graph-expand",
-              "type": {
-                "text": "CustomEvent<GraphExpandDetail>"
-              },
-              "description": "Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`\nto include the box, or to leave it out. The graph changes nothing itself."
             }
           ],
           "attributes": [
@@ -3463,6 +3724,15 @@
               "default": "null",
               "description": "The id of the box or item to select: a box's id (a file's uri, for a file given) or an item's,\nas `graphIdOf` gives it. It is lit with what its edges reach, and the rest is dimmed. Null, the\ndefault, selects nothing. A click changes it and sends `dex-graph-selected`; setting it sends\nnothing. Attribute `selected`.",
               "fieldName": "selected"
+            },
+            {
+              "name": "layout",
+              "type": {
+                "text": "GraphLayoutStyle"
+              },
+              "default": "'tree'",
+              "description": "How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down\ntrees, what a file references side by side in the row under it. 'indented' draws each column\nas a file tree, one box a row, what a file references in the rows under it a step to the right,\nwhich draws a large set of files narrower and so at a larger scale: fifteen files that fit a\n1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is\ndealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A\nchange fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A\nvalue it does not know is 'tree'. Attribute `layout`.",
+              "fieldName": "layout"
             }
           ],
           "superclass": {
@@ -3574,7 +3844,7 @@
             },
             {
               "name": "--dex-graph-model-bg",
-              "description": "The relationship graph (dex-relationship-graph): each kind of box's surface, border and selected border, each kind of edge (the legend's swatches too), the items inside a box (a model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues darkened until every line and border is 3:1 against the canvas.",
+              "description": "The relationship graph (dex-relationship-graph): each kind of box's surface, border and selected border, each kind of edge (the legend's swatches too), the items inside a box (a model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues darkened until every line and border is 3:1 against the canvas. A data link is drawn in the border colour of the file it links (a dictionary's, a MAT-file's), so the data-link edge token colours only a link to a file of neither kind, which core's extraction never names.",
               "default": "#e8f0f7"
             },
             {
@@ -3653,7 +3923,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The app shell's Search panel: a search box, the scope it searches under it, and the matches\ngrouped by file (each group headed by the file's name and how many it holds, each row an\nentry's icon, its name with the match marked, and where it is in the file). It asks and\ndraws: a pause in the typing sends `dex-search-query`, the app sets `results` in answer, and\nEnter or a click on a result sends `dex-search-open`.\n\nThe focus stays in the box: Down and Up move the active result through the rows as drawn,\nstopping at the ends, and the results are a listbox the box names its active row of. Each new\n`results` makes the first row the active one, scrolled into view. Enter opens nothing while\n`searching`, nor before the pause (it asks at once instead). Escape empties the box and asks\nfor the empty query at once; on an empty box it is the page's. A count says how many results\nthere are, and when the list stopped at its cap (MAX_SEARCH_RESULTS); \"No matches\" when a query\nhas none, and \"Searching…\" while `searching`.",
+          "description": "The app shell's Search panel: a search box, the scope it searches under it, and the matches\ngrouped by file (each group headed by the file's name and how many it holds, each row an\nentry's icon, its name with the match marked, where it is in the file, and what it is where its\nresult says: SearchItem's `type`). It asks and\ndraws: a pause in the typing sends `dex-search-query`, the app sets `results` in answer, and\nEnter or a click on a result sends `dex-search-open`.\n\nThe focus stays in the box: Down and Up move the active result through the rows as drawn,\nstopping at the ends, and the results are a listbox the box names its active row of. Each new\n`results` makes the first row the active one, scrolled into view. Enter opens nothing while\n`searching`, nor before the pause (it asks at once instead). Escape empties the box and asks\nfor the empty query at once; on an empty box it is the page's. A count says how many results\nthere are, and when the list stopped at its cap (MAX_SEARCH_RESULTS); \"No matches\" when a query\nhas none, and \"Searching…\" while `searching`.",
           "name": "DexSearchPanel",
           "members": [
             {
@@ -3663,7 +3933,7 @@
                 "text": "SearchItem[]"
               },
               "default": "[]",
-              "description": "The matches to show for the query in the box, in the order the app gives them (searchEntries'\nitems: by name, then by file). They are drawn grouped by file, each file where its first\nresult is. Shown only while the box holds a query. Default none. Property only."
+              "description": "The matches to show for the query in the box, in the order the app gives them (searchRanked's\nitems: the best match first). They are drawn grouped by file, each file where its first\nresult is. Shown only while the box holds a query. Default none. Property only."
             },
             {
               "kind": "field",
@@ -3861,7 +4131,7 @@
         {
           "kind": "variable",
           "name": "relationshipGraphStyles",
-          "default": "css` :host { display: block; position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 120px; background: var(--dex-bg-tertiary, #f5f5f5); font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); color: var(--dex-color-text, #333); } /* The canvas is the whole host; the world inside it is the graph at its own size, moved and scaled by the view. */ .canvas { position: absolute; inset: 0; overflow: hidden; outline: none; cursor: grab; touch-action: none; } .canvas.panning { cursor: grabbing; } .canvas:focus-visible { box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); } .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: var(--dex-font-size, 13px); color: var(--dex-color-text-muted, #666); cursor: default; } .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } svg.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; } path.edge { fill: none; stroke-width: 1.5; transition: opacity 0.15s ease, stroke-width 0.15s ease; } /* The edges under the boxes take the pointer, so one can be picked out by hovering it. The ones over the boxes never do: they would take the clicks meant for the items under them. */ .under path.edge { stroke-width: 1.2; opacity: 0.8; pointer-events: stroke; } .under path.edge:hover { stroke-width: 2.5; opacity: 1; } .over path.edge, path.stub { stroke-width: 1.8; } path.stub { fill: none; } path.edge.dim, path.stub.dim { opacity: 0.2; } .model-ref { stroke: var(--dex-graph-edge-model-ref, #6788a4); fill: var(--dex-graph-edge-model-ref, #6788a4); } .sldd-ref { stroke: var(--dex-graph-edge-sldd-ref, #658d72); fill: var(--dex-graph-edge-sldd-ref, #658d72); } .data-link { stroke: var(--dex-graph-edge-data-link, #7c8a60); fill: var(--dex-graph-edge-data-link, #7c8a60); } .param-usage { stroke: var(--dex-graph-edge-param-usage, #8d7ea4); fill: var(--dex-graph-edge-param-usage, #8d7ea4); } .ws-usage { stroke: var(--dex-graph-edge-ws-usage, #618d7e); fill: var(--dex-graph-edge-ws-usage, #618d7e); } /* The markers' shapes are filled, not stroked. */ marker * { stroke-width: 0; } /* A label is read as text, so it is inked as text, not in its edge's colour: an 8px word in a mid-tone purple on the canvas could not be read. */ text.edge-label { font-size: 8px; fill: var(--dex-color-text-secondary, #555); } .box { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 6px; cursor: pointer; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12)); transition: opacity 0.15s ease; } .box:hover { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18)); } .box.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .box.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .box.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } /* Selected: a darker border, a pixel wider by a ring outside it, so nothing inside moves. */ .box.model.selected { border-color: var(--dex-graph-model-selected, #436e8a); box-shadow: 0 0 0 1px var(--dex-graph-model-selected, #436e8a); } .box.sldd.selected { border-color: var(--dex-graph-sldd-selected, #3e7456); box-shadow: 0 0 0 1px var(--dex-graph-sldd-selected, #3e7456); } .box.mat.selected { border-color: var(--dex-graph-mat-selected, #7d653e); box-shadow: 0 0 0 1px var(--dex-graph-mat-selected, #7d653e); } .box.ghost { border-style: dashed; } .box.ghost .label { color: var(--dex-graph-ghost-fg, #666); } .box.dim { opacity: 0.2; } .head { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 8px; font-size: 11px; } .box.open .head, .box.partial .head { height: 28px; } .label, .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } dex-icon { flex-shrink: 0; } button.toggle { flex-shrink: 0; width: 16px; height: 16px; padding: 0; border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 3px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); font: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; opacity: 0.6; } .box:hover button.toggle, .box.selected button.toggle, button.toggle:hover { opacity: 1; } .item { position: absolute; box-sizing: border-box; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--dex-graph-item-border, rgba(0, 0, 0, 0.1)); border-radius: 3px; background: var(--dex-graph-item-bg, rgba(0, 0, 0, 0.04)); font-size: 10px; transition: opacity 0.15s ease; } .item.workspace { background: var(--dex-graph-ws-item-bg, rgba(107, 155, 139, 0.08)); border-color: var(--dex-graph-ws-item-border, rgba(107, 155, 139, 0.25)); } .item.selected { border-color: var(--dex-color-accent, #0078d4); box-shadow: 0 0 0 1px var(--dex-color-accent, #0078d4); } .item.dim { opacity: 0.25; } /* The line between a model's blocks and its workspace variables, named on its left. */ .divider { position: absolute; left: 8px; right: 8px; height: 0; border-top: 1px dashed var(--dex-border-color, #d0d0d0); } .divider span { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); font-size: 8px; color: var(--dex-color-text-muted, #666); white-space: nowrap; } .zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; } .zoom button, .legend-toggle { border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 4px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); cursor: pointer; font-family: inherit; } .zoom button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; font-size: 14px; font-weight: 600; } .zoom button:hover, .legend-toggle:hover { background: var(--dex-bg-hover, #e8e8e8); } .zoom button:active { background: var(--dex-bg-active, #e0e0e0); } .legend { position: absolute; left: 8px; bottom: 8px; max-height: calc(100% - 16px); overflow: auto; font-size: 10px; color: var(--dex-color-text-secondary, #555); } .legend-toggle { display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 10px; font-weight: 600; } .legend-toggle::before { content: '\\\\25B6'; font-size: 8px; } .legend-toggle[aria-expanded='true']::before { content: '\\\\25BC'; } .legend-content { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 0; padding: 6px 10px; list-style: none; background: var(--dex-bg-primary, #fff); border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); } /* Hidden while the legend is closed, and still there for the toggle's aria-controls to name. */ .legend-content[hidden] { display: none; } .legend-content li { display: flex; align-items: center; gap: 6px; } .swatch { flex-shrink: 0; } .swatch.line { width: 20px; height: 0; border-top: 2px solid; } .swatch.line.model-ref { border-color: var(--dex-graph-edge-model-ref, #6788a4); } .swatch.line.sldd-ref { border-color: var(--dex-graph-edge-sldd-ref, #658d72); } .swatch.line.data-link { border-color: var(--dex-graph-edge-data-link, #7c8a60); } .swatch.line.param-usage { border-color: var(--dex-graph-edge-param-usage, #8d7ea4); } .swatch.line.ws-usage { border-color: var(--dex-graph-edge-ws-usage, #618d7e); } .swatch.file { width: 14px; height: 10px; box-sizing: border-box; border: 1.5px solid; border-radius: 2px; } .swatch.file.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .swatch.file.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .swatch.file.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } .swatch.file.ghost { background: var(--dex-bg-secondary, #f8f8f8); border-color: var(--dex-color-text-disabled, #999); border-style: dashed; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } @media (prefers-reduced-motion: reduce) { path.edge, .box, .item { transition: none; } } /* Forced colours paint no SVG stroke and no background of their own: the boxes take the system's ink for a border, the edges its text colour, and a selection its highlight. */ @media (forced-colors: active) { .box, .item { border-color: CanvasText; } path.edge, marker * { stroke: CanvasText; fill: CanvasText; } path.edge { fill: none; } .box.selected, .item.selected { outline: 2px solid Highlight; } .canvas:focus-visible { outline: 2px solid CanvasText; outline-offset: -2px; } } `",
+          "default": "css` :host { display: block; position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 120px; background: var(--dex-bg-tertiary, #f5f5f5); font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); color: var(--dex-color-text, #333); } /* The canvas is the whole host; the world inside it is the graph at its own size, moved and scaled by the view. */ .canvas { position: absolute; inset: 0; overflow: hidden; outline: none; cursor: grab; touch-action: none; } .canvas.panning { cursor: grabbing; } .canvas:focus-visible { box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); } .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: var(--dex-font-size, 13px); color: var(--dex-color-text-muted, #666); cursor: default; } .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } svg.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; } /* Two classes, so no colour rule of a kind (which fills the markers too, and a data link's has two classes of its own) fills a route. */ .edges path.edge { fill: none; stroke-width: 1.5; transition: opacity 0.15s ease, stroke-width 0.15s ease; } /* The edges under the boxes take the pointer, so one can be picked out by hovering it. The ones over the boxes never do: they would take the clicks meant for the items under them. */ .under path.edge { stroke-width: 1.2; opacity: 0.8; pointer-events: stroke; } .under path.edge:hover { stroke-width: 2.5; opacity: 1; } /* While an edge is under the pointer the others fade, as the prototype faded them, so the one picked out can be followed across the graph: every other edge under the boxes, and what is drawn over them. One dimmed already stays as dim. */ .world.edge-hover .under path.edge:not(:hover):not(.dim), .world.edge-hover .over > :not(.dim) { opacity: 0.3; } .over path.edge, path.stub { stroke-width: 1.8; } .edges path.stub { fill: none; } path.edge.dim, path.stub.dim { opacity: 0.2; } .model-ref { stroke: var(--dex-graph-edge-model-ref, #6788a4); fill: var(--dex-graph-edge-model-ref, #6788a4); } .sldd-ref { stroke: var(--dex-graph-edge-sldd-ref, #658d72); fill: var(--dex-graph-edge-sldd-ref, #658d72); } .data-link { stroke: var(--dex-graph-edge-data-link, #7c8a60); fill: var(--dex-graph-edge-data-link, #7c8a60); } /* A data link in the colour of the file it links, as the prototype drew them: no token of its own, the border's of a box of that kind, which is 3:1 against the canvas in every theme. */ .data-link.to-sldd { stroke: var(--dex-graph-sldd-border, #6a8c7a); fill: var(--dex-graph-sldd-border, #6a8c7a); } .data-link.to-mat { stroke: var(--dex-graph-mat-border, #918267); fill: var(--dex-graph-mat-border, #918267); } .param-usage { stroke: var(--dex-graph-edge-param-usage, #8d7ea4); fill: var(--dex-graph-edge-param-usage, #8d7ea4); } .ws-usage { stroke: var(--dex-graph-edge-ws-usage, #618d7e); fill: var(--dex-graph-edge-ws-usage, #618d7e); } /* The markers' shapes are filled, not stroked. */ marker * { stroke-width: 0; } /* A label is read as text, so it is inked as text, not in its edge's colour: an 8px word in a mid-tone purple on the canvas could not be read. */ text.edge-label { font-size: 8px; fill: var(--dex-color-text-secondary, #555); } .box { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 6px; cursor: pointer; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12)); transition: opacity 0.15s ease; } .box:hover { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18)); } .box.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .box.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .box.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } /* Selected: a darker border, a pixel wider by a ring outside it, so nothing inside moves. */ .box.model.selected { border-color: var(--dex-graph-model-selected, #436e8a); box-shadow: 0 0 0 1px var(--dex-graph-model-selected, #436e8a); } .box.sldd.selected { border-color: var(--dex-graph-sldd-selected, #3e7456); box-shadow: 0 0 0 1px var(--dex-graph-sldd-selected, #3e7456); } .box.mat.selected { border-color: var(--dex-graph-mat-selected, #7d653e); box-shadow: 0 0 0 1px var(--dex-graph-mat-selected, #7d653e); } .box.ghost { border-style: dashed; } .box.ghost .label { color: var(--dex-graph-ghost-fg, #666); } .box.dim { opacity: 0.2; } .head { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 8px; font-size: 11px; } .box.open .head, .box.partial .head { height: 28px; } .label, .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } dex-icon { flex-shrink: 0; } button.toggle { flex-shrink: 0; width: 16px; height: 16px; padding: 0; border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 3px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); font: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; opacity: 0.6; } .box:hover button.toggle, .box.selected button.toggle, button.toggle:hover { opacity: 1; } .item { position: absolute; box-sizing: border-box; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--dex-graph-item-border, rgba(0, 0, 0, 0.1)); border-radius: 3px; background: var(--dex-graph-item-bg, rgba(0, 0, 0, 0.04)); font-size: 10px; transition: opacity 0.15s ease; } .item.workspace { background: var(--dex-graph-ws-item-bg, rgba(107, 155, 139, 0.08)); border-color: var(--dex-graph-ws-item-border, rgba(107, 155, 139, 0.25)); } /* The item under the pointer, whose connections are traced: an accent border, without the ring a selection has. */ .item:hover { border-color: var(--dex-color-accent, #0078d4); } .item.selected { border-color: var(--dex-color-accent, #0078d4); box-shadow: 0 0 0 1px var(--dex-color-accent, #0078d4); } .item.dim { opacity: 0.25; } /* The line between a model's blocks and its workspace variables, named on its left. */ .divider { position: absolute; left: 8px; right: 8px; height: 0; border-top: 1px dashed var(--dex-border-color, #d0d0d0); } .divider span { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); font-size: 8px; color: var(--dex-color-text-muted, #666); white-space: nowrap; } .zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; } .zoom button, .legend-toggle { border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 4px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); cursor: pointer; font-family: inherit; } .zoom button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; font-size: 14px; font-weight: 600; } .zoom button:hover, .legend-toggle:hover { background: var(--dex-bg-hover, #e8e8e8); } .zoom button:active { background: var(--dex-bg-active, #e0e0e0); } .legend { position: absolute; left: 8px; bottom: 8px; max-height: calc(100% - 16px); overflow: auto; font-size: 10px; color: var(--dex-color-text-secondary, #555); } .legend-toggle { display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 10px; font-weight: 600; } .legend-toggle::before { content: '\\\\25B6'; font-size: 8px; } .legend-toggle[aria-expanded='true']::before { content: '\\\\25BC'; } .legend-content { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 0; padding: 6px 10px; list-style: none; background: var(--dex-bg-primary, #fff); border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); } /* Hidden while the legend is closed, and still there for the toggle's aria-controls to name. */ .legend-content[hidden] { display: none; } .legend-content li { display: flex; align-items: center; gap: 6px; } .swatch { flex-shrink: 0; } .swatch.line { width: 20px; height: 0; border-top: 2px solid; } .swatch.line.model-ref { border-color: var(--dex-graph-edge-model-ref, #6788a4); } .swatch.line.sldd-ref { border-color: var(--dex-graph-edge-sldd-ref, #658d72); } .swatch.line.data-link.to-sldd { border-color: var(--dex-graph-sldd-border, #6a8c7a); } .swatch.line.data-link.to-mat { border-color: var(--dex-graph-mat-border, #918267); } .swatch.line.param-usage { border-color: var(--dex-graph-edge-param-usage, #8d7ea4); } .swatch.line.ws-usage { border-color: var(--dex-graph-edge-ws-usage, #618d7e); } .swatch.file { width: 14px; height: 10px; box-sizing: border-box; border: 1.5px solid; border-radius: 2px; } .swatch.file.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .swatch.file.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .swatch.file.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } .swatch.file.ghost { background: var(--dex-bg-secondary, #f8f8f8); border-color: var(--dex-color-text-disabled, #999); border-style: dashed; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } @media (prefers-reduced-motion: reduce) { path.edge, .box, .item { transition: none; } } /* Forced colours paint no SVG stroke and no background of their own: the boxes take the system's ink for a border, the edges its text colour, and a selection its highlight. */ @media (forced-colors: active) { .box, .item { border-color: CanvasText; } .edges path.edge, marker * { stroke: CanvasText; fill: CanvasText; } .edges path.edge { fill: none; } .box.selected, .item.selected { outline: 2px solid Highlight; } /* The item whose connections are traced, which no border colour of its own picks out here. */ .item:hover { outline: 1px solid Highlight; } .canvas:focus-visible { outline: 2px solid CanvasText; outline-offset: -2px; } } `",
           "description": "The look of `<dex-relationship-graph>`: a grey canvas, a box per file in its kind's colour (a\nmodel blue, a dictionary green, a MAT-file sand) with a soft shadow, a file not open dashed, the\nitems of an open box in pale rows, a model's workspace variables under a dashed divider, edges in\ntheir kind's colour with a dot where they leave and an arrowhead where they arrive, and the zoom\nbuttons and the Legend floating over the corners.\n\nEvery colour is a `--dex-graph-*` token (or a shared one) so each theme sets its own; SVG takes a\nstroke and a fill from CSS as any element takes a colour, so the edges and markers are themed by\nclass rather than by attribute."
         }
       ],
@@ -4048,7 +4318,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A context menu of the items an app hands it, at a point of the viewport: show() opens it,\na choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,\nor a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move\nalong the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.\nThe tree table's items for a selection are buildContextMenuItems'\n(`data-explorer-view/tree-table`).",
+          "description": "A context menu of the items an app hands it, at a point of the viewport: show() opens it,\na choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,\nor a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move\nalong the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.\nA menu a key opened is shown with `focusFirst`: the keyboard is on its first item at once, and\ngoes back where it was when the menu closes holding it.\nThe tree table's items for a selection are buildContextMenuItems'\n(`data-explorer-view/tree-table`).",
           "name": "DexContextMenu",
           "members": [
             {
@@ -4077,9 +4347,16 @@
                   "type": {
                     "text": "ContextMenuItem[]"
                   }
+                },
+                {
+                  "name": "options",
+                  "default": "{}",
+                  "type": {
+                    "text": "ContextMenuShowOptions"
+                  }
                 }
               ],
-              "description": "Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels\n(a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already\nopen is replaced: it closes first, and says so (`dex-menu-closed`)."
+              "description": "Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels\n(a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already\nopen is replaced: it closes first, and says so (`dex-menu-closed`). With `focusFirst`, the\nkeyboard is on the first item at once, and goes back where it was as the menu closes."
             },
             {
               "kind": "method",
@@ -4089,7 +4366,7 @@
                   "text": "void"
                 }
               },
-              "description": "Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`)."
+              "description": "Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). A menu opened with\n`focusFirst` that holds the keyboard as it closes (Escape, a scroll, a right-click outside,\nclose()) gives it back where it was."
             }
           ],
           "events": [
@@ -4235,6 +4512,14 @@
           "name": "ContextMenuItem",
           "declaration": {
             "name": "ContextMenuItem",
+            "module": "./dex-context-menu.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ContextMenuShowOptions",
+          "declaration": {
+            "name": "ContextMenuShowOptions",
             "module": "./dex-context-menu.js"
           }
         }
@@ -5321,7 +5606,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a change sends `dex-property-changed`), a link (on its name, or on its value; a click\nsends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
+          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a text, a choice from its `options`, or a text of several lines; a change sends\n`dex-property-changed`), a link (on its name, or on its value; a click sends\n`dex-property-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
           "name": "DexPropertyInspector",
           "members": [
             {
@@ -5332,6 +5617,16 @@
               },
               "default": "[]",
               "description": "The groups shown, in order; none, the default, draws an empty panel. Property only."
+            },
+            {
+              "kind": "method",
+              "name": "commit",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds\nis not its row's value. For an app's Save, which a chord gives with the focus still in the field,\nto take what was typed there. Nothing when the focus is in no field."
             }
           ],
           "events": [
@@ -5643,7 +5938,7 @@
         },
         {
           "kind": "class",
-          "description": "One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see\nsetIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is\ndrawn as the icon that stands for it. Decorative: hidden from assistive technology, so the\nelement beside it carries the name.",
+          "description": "One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see\nsetIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is\ndrawn as the icon that stands for it. With `mono` it is drawn in one colour, the element's own\n(`color`), as a glyph of a toolbar is. Decorative: hidden from assistive technology, so the\nelement beside it carries the name.",
           "name": "DexIcon",
           "members": [
             {
@@ -5665,6 +5960,16 @@
               "default": "16",
               "description": "Its width and height in CSS pixels. Default 16. Attribute `size`.",
               "attribute": "size"
+            },
+            {
+              "kind": "field",
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an\nactivity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so\nthe button's own background shows through them. The dark set's `--dex-icon-filter` is not\napplied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so\nit is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id\nwith no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the\nicon in the colours its file has. Attribute `mono`.",
+              "attribute": "mono"
             }
           ],
           "attributes": [
@@ -5685,6 +5990,15 @@
               "default": "16",
               "description": "Its width and height in CSS pixels. Default 16. Attribute `size`.",
               "fieldName": "size"
+            },
+            {
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an\nactivity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so\nthe button's own background shows through them. The dark set's `--dex-icon-filter` is not\napplied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so\nit is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id\nwith no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the\nicon in the colours its file has. Attribute `mono`.",
+              "fieldName": "mono"
             }
           ],
           "superclass": {
@@ -6304,6 +6618,17 @@
             },
             {
               "kind": "field",
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app\nshell's sidebar), with no frame until one is pointed at or focused, and each badge under its\nlabel: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole\npalette is on screen. Default false: the popover's 96px tiles, as the table draws them.\nAttribute `compact`, reflected, which the layout's rules select on.",
+              "attribute": "compact",
+              "reflects": true
+            },
+            {
+              "kind": "field",
               "name": "classes",
               "type": {
                 "text": "readonly string[] | null"
@@ -6362,6 +6687,15 @@
               "default": "false",
               "description": "Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather\nthan as the table's `+ Add` popover. Default false: the popover.\n\nInline, it is open for as long as it is shown, so it draws no header row and no Keep open\nbox, which could change nothing; takes no focus when it first draws, since it is drawn beside\nthe table the user is working in, and taking the keyboard from them is the opposite of what a\npopover's first focus is for; leaves Escape to the page, as there is nothing to close; and is\na group rather than a dialog. Attribute `inline`.",
               "fieldName": "inline"
+            },
+            {
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app\nshell's sidebar), with no frame until one is pointed at or focused, and each badge under its\nlabel: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole\npalette is on screen. Default false: the popover's 96px tiles, as the table draws them.\nAttribute `compact`, reflected, which the layout's rules select on.",
+              "fieldName": "compact"
             }
           ],
           "superclass": {
@@ -6419,6 +6753,10 @@
             {
               "name": "--dex-color-text-secondary",
               "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
             },
             {
               "name": "--dex-font-family",
@@ -6978,14 +7316,34 @@
             },
             {
               "kind": "field",
+              "name": "dragOut",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether rows are dragged out of the table, onto another part of the page that takes them (the\napp shell's Explorer, onto an open file). Where the table takes no row drag of its own\n(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the\ndrag allows no move, so the document never loses an entry by it, and no row of this table takes\na drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's\nicon and name) follows the pointer over the rest of the page too, until the drag is let go\nanywhere, saying there what the part under the pointer says a drop would do: the words of the\nnearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),\nas a refusal where that element has `data-drop-refused` too; nothing where none has. Default\nfalse: a table that takes no row drag drags none, and the box stays over the table. Attribute\n`drag-out`.",
+              "attribute": "drag-out"
+            },
+            {
+              "kind": "field",
               "name": "readonly",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with\n`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send\n(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is\nsent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
               "attribute": "readonly",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "keyboardMenu",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send\n`dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else\nthe selection's last, whichever the table shows), placed under that row as a right-click on it\nis, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for\nthe space under the rows. Both keys are spent, so the browser's own menu event for them does\nnot follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a\ncell editor, a header's filter button). False, the default, leaves both keys to the browser, as\nthey always were. Attribute `keyboard-menu`.",
+              "attribute": "keyboard-menu"
             },
             {
               "kind": "field",
@@ -7180,7 +7538,7 @@
               "type": {
                 "text": "CustomEvent<TableContextMenuDetail>"
               },
-              "description": "A right-click on a row (after selecting it) or on the space under the rows: open a context\nmenu there."
+              "description": "A right-click on a row (after selecting it) or on the space under the rows, or with\n`keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a\ncontext menu there."
             },
             {
               "name": "dex-row-selected",
@@ -7270,13 +7628,31 @@
               "fieldName": "rowDrag"
             },
             {
+              "name": "drag-out",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether rows are dragged out of the table, onto another part of the page that takes them (the\napp shell's Explorer, onto an open file). Where the table takes no row drag of its own\n(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the\ndrag allows no move, so the document never loses an entry by it, and no row of this table takes\na drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's\nicon and name) follows the pointer over the rest of the page too, until the drag is let go\nanywhere, saying there what the part under the pointer says a drop would do: the words of the\nnearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),\nas a refusal where that element has `data-drop-refused` too; nothing where none has. Default\nfalse: a table that takes no row drag drags none, and the box stays over the table. Attribute\n`drag-out`.",
+              "fieldName": "dragOut"
+            },
+            {
               "name": "readonly",
               "type": {
                 "text": "boolean"
               },
               "default": "false",
-              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of\nthe events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,\ndex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
+              "description": "A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.\nNo cell editor opens — not on a double-click, not on Enter, not for beginRename or\nopenWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn\nwhatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with\n`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send\n(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is\nsent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:\nwhat a read-only menu offers is the app's to say (buildContextMenuItems with editable false).\nFalse, the default, is the table as it always was, each cell's own flags deciding. Reflected\nto the attribute `readonly`.",
               "fieldName": "readonly"
+            },
+            {
+              "name": "keyboard-menu",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send\n`dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else\nthe selection's last, whichever the table shows), placed under that row as a right-click on it\nis, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for\nthe space under the rows. Both keys are spent, so the browser's own menu event for them does\nnot follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a\ncell editor, a header's filter button). False, the default, leaves both keys to the browser, as\nthey always were. Attribute `keyboard-menu`.",
+              "fieldName": "keyboardMenu"
             },
             {
               "name": "storage-key",
@@ -7517,6 +7893,14 @@
             }
           ],
           "description": "Wire the editing half: the listeners go on through `host.listen`, the state stays in here."
+        },
+        {
+          "kind": "variable",
+          "name": "rowIds"
+        },
+        {
+          "kind": "variable",
+          "name": "count"
         }
       ],
       "exports": [
@@ -7628,6 +8012,30 @@
           "name": "isTypingInField",
           "declaration": {
             "name": "isTypingInField",
+            "module": "./editingWire.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DropResult",
+          "declaration": {
+            "name": "DropResult",
+            "module": "./editingWire.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "EditingRun",
+          "declaration": {
+            "name": "EditingRun",
+            "module": "./editingWire.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableDropDecision",
+          "declaration": {
+            "name": "TableDropDecision",
             "module": "./editingWire.js"
           }
         },
@@ -7959,6 +8367,24 @@
       "declarations": [
         {
           "kind": "function",
+          "name": "deleteKeyLabel",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "mac",
+              "type": {
+                "text": "boolean"
+              }
+            }
+          ],
+          "description": "Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is\nBackspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace\nalike. Exported so that an app's toolbar names the key the menu does."
+        },
+        {
+          "kind": "function",
           "name": "resolveShortcutAction",
           "return": {
             "type": {
@@ -8026,7 +8452,7 @@
               }
             }
           ],
-          "description": "Build the right-click context menu for the CURRENT SELECTION.\n\nPure and synchronous: enablement comes from the host-computed row flags, the cached\nclipboard state, the target section's rules, and whether the document is editable —\nno round-trip. Two things it deliberately does NOT decide: which rows are operands\n(resolveOperands does, so the keyboard cannot diverge) and whether a payload may land\nin a section (dropDecision.rejectReason does, so a Paste offered here is a drop the\nhover feedback would allow).\n\nGROUPS, THEN JOIN. The items are built as groups and the separators are put between\nwhatever groups survive. A section header's menu — Paste, then Undo/Redo — then falls\nout of dropping the two empty groups, with no case of its own; so does the binary\nformat's missing \"Location in Text\". Managing separators by hand is how a menu ends\nup with two in a row or one at the bottom, and that is exactly what this shape makes\nimpossible."
+          "description": "Build the right-click context menu for the CURRENT SELECTION.\n\nPure and synchronous: enablement comes from the host-computed row flags, the cached\nclipboard state, the target section's rules, whether the document is editable, and where its\nundo stack stands when the source says — no round-trip. Two things it deliberately does NOT decide: which rows are operands\n(resolveOperands does, so the keyboard cannot diverge) and whether a payload may land\nin a section (dropDecision.rejectReason does, so a Paste offered here is a drop the\nhover feedback would allow).\n\nGROUPS, THEN JOIN. The items are built as groups and the separators are put between\nwhatever groups survive. A section header's menu — Paste, then Undo/Redo — then falls\nout of dropping the two empty groups, with no case of its own; so does the binary\nformat's missing \"Location in Text\". Managing separators by hand is how a menu ends\nup with two in a row or one at the bottom, and that is exactly what this shape makes\nimpossible."
         },
         {
           "kind": "variable",
@@ -8034,6 +8460,14 @@
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "deleteKeyLabel",
+          "declaration": {
+            "name": "deleteKeyLabel",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        },
         {
           "kind": "js",
           "name": "resolveShortcutAction",

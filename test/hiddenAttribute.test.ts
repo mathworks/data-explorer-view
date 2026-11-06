@@ -65,6 +65,7 @@ describe('the hidden attribute', () => {
       'DexShellDocs',
       'DexShellFolder',
       'DexShellNote',
+      'DexShellStatus',
       'DexShellView',
       'DexToastHost',
       'DexToolbar',

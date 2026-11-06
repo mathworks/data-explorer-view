@@ -39,12 +39,11 @@
 // gesture's (its refusal, its selection) only the view it was made in.
 import { cloneForPaste, toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
 import { matCatalog } from '../ids/addCatalog.js';
-import { uriPathBasename } from '../ids/pathUtil.js';
+import { basename, uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
-import { rawOfRow } from '../raw/rawOfRow.js';
+import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
@@ -58,6 +57,8 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -103,6 +104,13 @@ export interface MatEngineOptions {
   sink: EditSink;
   /** Where the stack stands, and its save point. */
   index: EditIndex;
+  /**
+   * Where the stack the edits go on (`sink`) stands, which its tables hand on as their `history`
+   * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+   * to undo or redo: in the page, the stack itself (EditStack). Default: none, and Undo and Redo are
+   * offered wherever the document may be edited (in the VS Code extension the stack is VS Code's).
+   */
+  history?: EditHistory;
   /** The registers the window's documents share. */
   registers: Registers;
   /** Where a notice the table does not show goes. Default: nowhere. */
@@ -1188,19 +1196,22 @@ class MatView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the tree as edited, as the Raw pane's: the MAT-file, or the
+  // model whose Model Workspace this edits. The file's page says it holds edits while its undo stack
+  // is off the save point.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.closed || this.doc.disposed) return { groups: [] };
+    const doc = this.doc;
+    const tree = { root: () => doc.root(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: doc.session, dirty: () => doc.options.index.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree as edited: the MAT-file, or the
-  // model whose Model Workspace this edits. Nothing once closed.
-  async raw(rowId: string): Promise<RawView> {
+  // model whose Model Workspace this edits; with `record`, a variable's record for its bytes.
+  // Nothing once closed.
+  async raw(rowId: string, options?: RawOptions): Promise<RawView> {
     if (this.closed || this.doc.disposed) return noRaw();
-    return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId);
+    return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId, options);
   }
 
   subscribe(listener: (change: TableChange) => void): () => void {
@@ -1501,14 +1512,26 @@ class MatView implements EditableTableSource {
     });
   }
 
-  drop(rowId: string, mode: 'copy' | 'move'): void {
+  // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
+  drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void {
+    let run: Promise<unknown> | undefined;
     this.handle('drop', () => {
       const registers = this.doc.options.registers;
-      this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()));
+      run = runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+      this.transferred(run);
     });
+    return run?.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   // --- Undo, redo, and the whole text of a Value --------------------------------------------------
+
+  /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   undo(): void {
     this.handle('undo', () => this.doc.options.sink.undo());

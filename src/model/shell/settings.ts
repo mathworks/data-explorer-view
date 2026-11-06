@@ -1,8 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The app shell's settings: the theme, and how dense the toolbar is. The Settings popover changes
-// them; the shell keeps them in a key-value store (an app passes its localStorage) and reads them
-// back when it starts.
+// The app shell's settings: the theme, how dense the toolbar is, whether the shell's own buttons
+// draw their icons in one colour, how the tables are ruled, and how Root's relationship graph is
+// laid out. The Settings popover changes them;
+// the shell keeps them in a key-value store (an app passes its localStorage) and reads them back
+// when it starts.
 //
 // The prototype kept each setting under a key of its own (dex-theme, dex-toolbar-layout) and
 // took whatever string was there. Here they are one JSON record under a key the app chooses, so two
@@ -24,12 +26,37 @@ export type Theme = 'light' | 'dark' | 'high-contrast';
 export interface ShellSettings {
   /** The theme, or `'auto'` to follow the system's (see `effectiveTheme`). */
   theme: Theme | 'auto';
-  /** The toolbar's density: labelled buttons, or icons alone. */
+  /** The toolbar's density: each label under its icon, or a lower row with smaller icons and the labels beside them. */
   toolbar: 'normal' | 'compact';
+  /**
+   * The icons of the shell's own buttons (the toolbar's, the location bar's Back, Forward and Up,
+   * the activity bars' and the status bar's): `minimal` draws each in one colour, the text's, and
+   * `colorful` as its file has it. A file's or an entry's icon keeps its colours either way: there
+   * the colour tells kinds apart.
+   */
+  iconStyle: 'minimal' | 'colorful';
+  /** How the tables are ruled: `grid`, a line round every cell, or `rows`, a faint line between rows alone. */
+  tableStyle: 'grid' | 'rows';
+  /**
+   * How Root's relationship graph is laid out, in the graph's own words (GraphLayoutStyle): `tree`,
+   * two columns of top-down trees, or `indented`, each column a file tree, one box a row, which
+   * draws a large set of files narrower and so at a larger scale.
+   */
+  graphLayout: 'tree' | 'indented';
 }
 
-/** The settings before anyone changes them: the system's theme, and the labelled toolbar. */
-export const DEFAULT_SETTINGS: ShellSettings = Object.freeze({ theme: 'auto', toolbar: 'normal' });
+/**
+ * The settings before anyone changes them: the system's theme, the labelled toolbar, the icons in
+ * one colour (the prototype's default), the tables in a grid (the table's own), and the graph in
+ * top-down trees (the graph's own).
+ */
+export const DEFAULT_SETTINGS: ShellSettings = Object.freeze({
+  theme: 'auto',
+  toolbar: 'normal',
+  iconStyle: 'minimal',
+  tableStyle: 'grid',
+  graphLayout: 'tree',
+});
 
 /** The part of the Web Storage API the settings use: `localStorage` is one. */
 export interface KeyValueStore {
@@ -41,6 +68,15 @@ export interface KeyValueStore {
 
 const THEMES: readonly string[] = ['auto', 'light', 'dark', 'high-contrast'] satisfies readonly ShellSettings['theme'][];
 const TOOLBARS: readonly string[] = ['normal', 'compact'] satisfies readonly ShellSettings['toolbar'][];
+const ICON_STYLES: readonly string[] = ['minimal', 'colorful'] satisfies readonly ShellSettings['iconStyle'][];
+const TABLE_STYLES: readonly string[] = ['grid', 'rows'] satisfies readonly ShellSettings['tableStyle'][];
+const GRAPH_LAYOUTS: readonly string[] = ['tree', 'indented'] satisfies readonly ShellSettings['graphLayout'][];
+
+/** The field `name` of `record` when it is one of `known`, else its default. */
+function field<K extends keyof ShellSettings>(record: Record<string, unknown>, name: K, known: readonly string[]): ShellSettings[K] {
+  const value = record[name];
+  return typeof value === 'string' && known.includes(value) ? (value as ShellSettings[K]) : DEFAULT_SETTINGS[name];
+}
 
 /**
  * The settings kept under `key` in `store`. Junk becomes the defaults, field by field: no store,
@@ -58,21 +94,27 @@ export function readSettings(store: KeyValueStore | null, key: string): ShellSet
     kept = undefined;
   }
   const record = typeof kept === 'object' && kept !== null && !Array.isArray(kept) ? (kept as Record<string, unknown>) : {};
+  // A record an earlier version kept has no icon or table style, or no graph layout: those come to
+  // their defaults.
   return {
-    theme: typeof record.theme === 'string' && THEMES.includes(record.theme) ? (record.theme as ShellSettings['theme']) : DEFAULT_SETTINGS.theme,
-    toolbar: typeof record.toolbar === 'string' && TOOLBARS.includes(record.toolbar) ? (record.toolbar as ShellSettings['toolbar']) : DEFAULT_SETTINGS.toolbar,
+    theme: field(record, 'theme', THEMES),
+    toolbar: field(record, 'toolbar', TOOLBARS),
+    iconStyle: field(record, 'iconStyle', ICON_STYLES),
+    tableStyle: field(record, 'tableStyle', TABLE_STYLES),
+    graphLayout: field(record, 'graphLayout', GRAPH_LAYOUTS),
   };
 }
 
 /**
- * Keep `settings` under `key` in `store`, as the JSON `readSettings` reads. Only the two fields go
- * in, whatever else the object carries. No store, or one that throws (a full quota, a refused
- * store), keeps nothing and says nothing: the settings still apply to this session, they just do
- * not outlive it.
+ * Keep `settings` under `key` in `store`, as the JSON `readSettings` reads. Only the settings' own
+ * fields go in, whatever else the object carries. No store, or one that throws (a full quota, a
+ * refused store), keeps nothing and says nothing: the settings still apply to this session, they
+ * just do not outlive it.
  */
 export function writeSettings(store: KeyValueStore | null, key: string, settings: ShellSettings): void {
   try {
-    store?.setItem(key, JSON.stringify({ theme: settings.theme, toolbar: settings.toolbar }));
+    const { theme, toolbar, iconStyle, tableStyle, graphLayout } = settings;
+    store?.setItem(key, JSON.stringify({ theme, toolbar, iconStyle, tableStyle, graphLayout }));
   } catch {
     // A refused write: see above.
   }

@@ -18,6 +18,12 @@ export declare const SIDE_DEFAULTS: Record<ShellSide, number>;
  * and a panel's lines are cut to nothing, and the sash is all that is left of the side.
  */
 export declare const SIDE_MIN: Record<ShellSide, number>;
+/** The share of the documents' width the first of two panes takes at least: a fifth, so the second is never more than four fifths. */
+export declare const SPLIT_MIN = 0.2;
+/** The share the first of two panes takes at most: four fifths, so the second keeps a fifth. */
+export declare const SPLIT_MAX = 0.8;
+/** The share the first of two panes takes before anyone drags the divider between them: half. */
+export declare const SPLIT_DEFAULT = 0.5;
 /**
  * The layout for these views (by side, in order), from what was kept (may be null or junk).
  *
@@ -73,3 +79,19 @@ export declare function keepLayout(state: ShellLayoutState): string;
  * initialLayout to read field by field as it reads anything kept.
  */
 export declare function keepLayoutOver(state: ShellLayoutState, before: unknown, sides: readonly ShellSide[]): string;
+/**
+ * The split `ratio` held to [SPLIT_MIN, SPLIT_MAX], in thousandths (a drag's pointer gives any
+ * fraction, and what is kept stays short); a ratio that is not a number is SPLIT_DEFAULT.
+ */
+export declare function clampSplit(ratio: number): number;
+/**
+ * The documents' split from what was kept (the layout's entry, as the store hands it back, or
+ * already parsed): its `split`, held to the bounds, or SPLIT_DEFAULT for none or junk.
+ */
+export declare function initialSplit(kept: unknown): number;
+/**
+ * What is kept with the documents' split at `ratio` (held to the bounds): `before` (what the
+ * layout's entry holds, as the store hands it back or already parsed) with its `split` written,
+ * and every side copied as it was, for initialLayout to read field by field.
+ */
+export declare function keepSplitOver(ratio: number, before: unknown): string;

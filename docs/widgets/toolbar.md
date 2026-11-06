@@ -58,6 +58,15 @@ type `boolean` · default `false` · attribute `compact`, reflected
 The compact layout: each icon (14px rather than 18) beside its label, in a lower row.
 Attribute `compact`, reflected so a page's stylesheet can follow it.
 
+### `mono`
+
+type `boolean` · default `false` · attribute `mono`, reflected
+
+Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's
+toolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in
+their files' colours. A disabled item's icon is greyed with its label either way. Attribute
+`mono`, reflected so a page's stylesheet can follow it.
+
 ### `label`
 
 type `string` · default `'Toolbar'` · attribute `label`

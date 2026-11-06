@@ -4,7 +4,8 @@
 // element: what the page tests cannot time. The graph is built REBUILD_MS after the first change
 // since the last build, once for every change in that time, and only while it is shown; an
 // open file's bytes are drawn over the folder's of the same file; a reveal waits for the build it
-// needs; a ghost is looked for from the file that references it; a box gone is open no more.
+// needs, and zooms onto what it reveals and what that reaches; a ghost is looked for from the file
+// that references it; a box gone is open no more.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,12 +20,12 @@ const bytesOf = (name: string) => new Uint8Array(readFileSync(path.join(import.m
 const tabOf = (name: string): GraphTab => ({ path: `/w/${name}`, bytes: bytesOf(name) });
 const sourceOf = (name: string, bytes = bytesOf(name)): RawSource => ({ uriString: `file:///w/${name}`, path: `/w/${name}`, bytes: bytes.slice().buffer });
 
-/** The element, as the pane drives it: its properties, its reveal, the events it sends, and how many graphs it was given. */
+/** The element, as the pane drives it: its properties, its zoom, the events it sends, and how many graphs it was given. */
 function stubGraph() {
   let graph: unknown = null;
-  const el = Object.assign(new EventTarget(), { expanded: [] as string[], selected: null as string | null, reveal: vi.fn(), builds: 0 });
+  const el = Object.assign(new EventTarget(), { expanded: [] as string[], selected: null as string | null, layout: 'tree', zoomToReach: vi.fn(), builds: 0 });
   Object.defineProperty(el, 'graph', { get: () => graph, set: (g: unknown) => ((graph = g), el.builds++) });
-  return el as unknown as DexRelationshipGraph & { reveal: ReturnType<typeof vi.fn>; builds: number };
+  return el as unknown as DexRelationshipGraph & { zoomToReach: ReturnType<typeof vi.fn>; builds: number };
 }
 
 /** A pane over `tabs`, shown while `on.shown`, and what it was asked to do. */
@@ -102,27 +103,29 @@ describe('the graph pane', () => {
     expect(labels(el)).toEqual(['params.sldd']);
   });
 
-  it('reveals once the graph holds what it names, its box opened for an item', async () => {
+  it('reveals once the graph holds what it names, zoomed onto it and what it reaches, its box opened', async () => {
     const tabs = [tabOf('params.sldd'), tabOf('shadow_ws.slx')];
     const { el, pane: p } = pane(tabs);
     p.reveal('file:///w/params.sldd', 'Uo');
-    expect(el.reveal).not.toHaveBeenCalled();
+    expect(el.zoomToReach).not.toHaveBeenCalled();
     await pause();
     const params = el.graph!.boxes.find((b) => b.label === 'params.sldd')!;
     const uo = params.items.find((i) => i.name === 'Uo')!;
-    expect(el.reveal).toHaveBeenCalledWith(uo.id);
+    expect(el.zoomToReach).toHaveBeenCalledWith(uo.id);
     expect(el.selected).toBe(uo.id);
     expect(el.expanded).toEqual([params.id]);
-    // Up to date: at once; a box, as it is.
+    // Up to date: at once. A file's own box is opened onto its items, as the prototype's Show in
+    // Graph opened a model onto its blocks.
     p.reveal('file:///w/shadow_ws.slx');
-    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
-    expect(el.expanded).toEqual([params.id]);
+    expect(el.zoomToReach).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
+    expect(el.selected).toBe('file:///w/shadow_ws.slx');
+    expect(el.expanded).toEqual([params.id, 'file:///w/shadow_ws.slx']);
     // A file opened just now, before any refresh: the reveal waits for the graph that draws it.
     tabs.push(tabOf('shared_gain.slx'));
     p.reveal('file:///w/shared_gain.slx');
-    expect(el.reveal).toHaveBeenCalledTimes(2);
+    expect(el.zoomToReach).toHaveBeenCalledTimes(2);
     await pause();
-    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/shared_gain.slx');
+    expect(el.zoomToReach).toHaveBeenLastCalledWith('file:///w/shared_gain.slx');
   });
 
   it("shows a model's reference row as the file it names, or its ghost, and any other row as its item", async () => {
@@ -136,18 +139,21 @@ describe('the graph pane', () => {
     const { el, pane: p } = pane(tabs);
     p.showRow('file:///w/shadow_ws.slx', rows, 'ds/params');
     await pause();
-    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/params.sldd');
+    expect(el.zoomToReach).toHaveBeenLastCalledWith('file:///w/params.sldd');
+    // The file a reference row names is shown as it is: it is where the reference leads, not the
+    // file the user asked about.
+    expect(el.expanded).toEqual([]);
     p.showRow('file:///w/shadow_ws.slx', rows, 'b/2');
-    expect(el.reveal).toHaveBeenLastCalledWith(el.graph!.boxes[0]!.items.find((i) => i.name === 'DictOnly')!.id);
+    expect(el.zoomToReach).toHaveBeenLastCalledWith(el.graph!.boxes[0]!.items.find((i) => i.name === 'DictOnly')!.id);
     p.showRow('file:///w/shadow_ws.slx', rows, null);
-    expect(el.reveal).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
+    expect(el.zoomToReach).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
     // The dictionary closed: the model's reference is its ghost, named as the model spells it.
     tabs.pop();
     p.showRow('file:///w/shadow_ws.slx', rows, 'ds/params');
     await pause();
     const ghost = el.graph!.boxes.find((b) => b.ghost)!;
     expect(ghost.label.toLowerCase()).toBe('params.sldd');
-    expect(el.reveal).toHaveBeenLastCalledWith(ghost.id);
+    expect(el.zoomToReach).toHaveBeenLastCalledWith(ghost.id);
   });
 
   it("reveals a reference row's file by its section's kind of link, and its name before its stem", () => {
@@ -185,6 +191,15 @@ describe('the graph pane', () => {
     resolveLink.mockResolvedValueOnce(null);
     open({ uri: '', ref: 'params.sldd' });
     await vi.waitFor(() => expect(context.notOpen).toHaveBeenCalledWith('params.sldd'));
+  });
+
+  it('draws the graph in the layout it is given, for a setting to choose', () => {
+    const { el, pane: p } = pane([tabOf('params.sldd')]);
+    expect(el.layout).toBe('tree');
+    p.setLayout('indented');
+    expect(el.layout).toBe('indented');
+    p.setLayout('tree');
+    expect(el.layout).toBe('tree');
   });
 
   it("shows and hides a box's items as it asks, and a box gone is open no more", async () => {
@@ -255,11 +270,11 @@ describe('the graph pane', () => {
     p.reveal('file:///w/shared_gain.slx');
     asked[0]!([]);
     await vi.advanceTimersByTimeAsync(0);
-    expect(el.reveal).not.toHaveBeenCalled();
+    expect(el.zoomToReach).not.toHaveBeenCalled();
     expect(asked).toHaveLength(2);
     asked[1]!([sourceOf('shared_gain.slx')]);
     await vi.advanceTimersByTimeAsync(0);
-    expect(el.reveal).toHaveBeenCalledWith('file:///w/shared_gain.slx');
+    expect(el.zoomToReach).toHaveBeenCalledWith('file:///w/shared_gain.slx');
   });
 
   it('builds once for a folder shown in place of another mid-build, not again from the pause the change armed', async () => {
@@ -290,7 +305,7 @@ describe('the graph pane', () => {
     p.stale();
     await pause();
     expect(el.graph).not.toBeNull();
-    expect(el.reveal).not.toHaveBeenCalled();
+    expect(el.zoomToReach).not.toHaveBeenCalled();
   });
 
   it('says a graph that could not be built, and builds nothing after dispose', async () => {
@@ -305,5 +320,72 @@ describe('the graph pane', () => {
     await pause();
     expect(after.el.graph).toBeNull();
     expect(el.graph).toBeNull();
+  });
+});
+
+describe("the selected box's file", () => {
+  // At Root, a box clicked in the graph shows its file's page in the inspector and a dimmed segment
+  // in the location bar, which the shell draws from what the pane says of the selection.
+  const select = (el: DexRelationshipGraph, id: string | null) => {
+    el.selected = id;
+    el.dispatchEvent(new CustomEvent('dex-graph-selected', { detail: { id } }));
+  };
+
+  it("is the selected box's, or the box of the selected item's, with its page, the same while nothing changes", async () => {
+    const tabs = [tabOf('shadow_ws.slx'), { ...tabOf('params.sldd'), dirty: true }];
+    const selected = vi.fn();
+    const { el, pane: p } = pane(tabs, { selected });
+    p.refresh();
+    await pause();
+    expect(p.selectedFile()).toBeNull();
+    select(el, 'file:///w/params.sldd');
+    expect(selected).toHaveBeenCalledTimes(1);
+    const file = p.selectedFile()!;
+    expect(file.box.label).toBe('params.sldd');
+    expect(file.groups[0]!.properties.map((r) => `${r.name}: ${r.value}`)).toContain('Modified: Yes');
+    expect(p.selectedFile()).toBe(file);
+    // Another state of the file is another page.
+    tabs[1] = { ...tabs[1]!, dirty: false };
+    expect(p.selectedFile()).not.toBe(file);
+    const item = el.graph!.boxes.find((b) => b.label === 'shadow_ws.slx')!.items[0]!;
+    select(el, item.id);
+    expect(p.selectedFile()!.box.label).toBe('shadow_ws.slx');
+    select(el, null);
+    expect(selected).toHaveBeenCalledTimes(3);
+    expect(p.selectedFile()).toBeNull();
+  });
+
+  it('says the selection changed when a reveal selects, and when a build redraws what is selected', async () => {
+    const selected = vi.fn();
+    const tabs = [tabOf('shadow_ws.slx')];
+    const { el, pane: p } = pane(tabs, { selected });
+    p.reveal('file:///w/shadow_ws.slx');
+    await pause();
+    expect(el.selected).toBe('file:///w/shadow_ws.slx');
+    expect(selected).toHaveBeenCalledTimes(1);
+    tabs.push(tabOf('params.sldd'));
+    p.refresh();
+    await pause();
+    expect(selected).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the selected file, and a file its page links, as a double-click on its box would', async () => {
+    const { el, context, pane: p } = pane([tabOf('shadow_ws.slx')]);
+    p.refresh();
+    await pause();
+    select(el, 'file:///w/shadow_ws.slx');
+    p.openSelected();
+    expect(context.open).toHaveBeenCalledWith('file:///w/shadow_ws.slx');
+    // Its reference to params.sldd is a ghost, looked for from the model: not open, with no folder.
+    p.openLink('params.sldd');
+    await pause();
+    expect(context.notOpen).toHaveBeenCalledWith('params.sldd');
+    const ghost = el.graph!.boxes.find((b) => b.ghost)!;
+    select(el, ghost.id);
+    p.openSelected();
+    await pause();
+    expect(context.notOpen).toHaveBeenCalledTimes(2);
+    p.openLink('file:///w/shadow_ws.slx');
+    expect(context.open).toHaveBeenLastCalledWith('file:///w/shadow_ws.slx');
   });
 });

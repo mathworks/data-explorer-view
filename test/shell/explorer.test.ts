@@ -7,6 +7,8 @@
 // and Root shows no document at all. Its row marked selected follows the active tab and the
 // section the table's selection is in; a file's right-click menu saves or closes that file.
 import { describe, expect, it } from 'vitest';
+import { chordLabel, parseChord } from '../../src/model/shell/chords.js';
+import { chordOf, onMac } from '../../src/widgets/app-shell/connect/keys.js';
 import {
   activeTab,
   choose,
@@ -160,5 +162,24 @@ describe('the Explorer', () => {
     choose('close-tab');
     await settled();
     expect(tabNames()).toEqual(['ParamMat.mat']);
+  });
+
+  it("labels a file's menu items with their chords, as the toolbar's tooltips name them", async () => {
+    // The prototype's menu showed them; the shell's had none, though the chords work.
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const menu = document.querySelector('dex-context-menu')!;
+    let shown: [string, string | undefined][] = [];
+    const show = menu.show.bind(menu);
+    menu.show = (x, y, items) => ((shown = items.filter((i) => !i.separator).map((i) => [i.id, i.shortcut])), show(x, y, items));
+    explorer().dispatchEvent(new CustomEvent('dex-explorer-menu', { detail: { fileId: tabIdOf('params.sldd'), x: 10, y: 20 }, bubbles: true, composed: true }));
+    const label = (command: 'save' | 'save-as' | 'close-tab') => chordLabel(parseChord(chordOf(command)!), onMac());
+    expect(shown).toEqual([
+      ['save', label('save')],
+      ['save-as', label('save-as')],
+      ['close-tab', label('close-tab')],
+    ]);
+    expect(shown.map(([, chord]) => chord)).toEqual(onMac() ? ['⌘S', '⇧⌘S', '⌘W'] : ['Ctrl+S', 'Ctrl+Shift+S', 'Ctrl+W']);
+    menu.close();
   });
 });

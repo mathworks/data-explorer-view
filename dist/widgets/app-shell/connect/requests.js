@@ -2,15 +2,16 @@
 //
 // What the shell's parts ask, and what connectShell does for each: the toolbar's buttons, the
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
-// the Settings and About buttons; the tab row's select, close, pin and move; the location bar's
-// Back, Forward, Up and segments; the Explorer's rows and its files' menus. Each part names a tab by
-// its id, and a request about a tab that has closed since does nothing.
+// the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
+// area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
+// segments; the Explorer's rows and its files' menus. Each part names a tab by its id, and a
+// request about a tab that has closed since does nothing.
 import { connectFileMenu } from './fileMenu.js';
 import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
-    'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-    'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
-    'show-graph', ...SHELL_VIEWS.map((v) => v.command),
+    'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
+    'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
+    'palette', 'show-graph', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {
@@ -37,16 +38,27 @@ export function connectRequests(shell, parts, on) {
         if (actionId === 'settings' || actionId === 'about')
             on.toggle(actionId, anchor);
     });
-    // The tab row's requests, each about a tab by its id; a move's index is the tab's place once moved.
-    const onTab = (type, act) => listen(parts.strip, type, (e) => {
+    // The panes' tab rows' requests, heard on the documents' area they are in (a second pane's row
+    // comes and goes), each about a tab by its id, from the row of a pane; a move's index is the
+    // tab's place once moved, in the row it was dropped on.
+    const onTab = (type, act) => listen(parts.docs, type, (e) => {
+        const pane = on.paneOfRow(e.target);
         const tab = on.tabOf(e.detail.id);
-        if (tab)
-            act(tab, e);
+        if (tab && pane >= 0)
+            act(tab, e, pane);
     });
     onTab('dex-tab-select', (tab) => on.activate(tab));
     onTab('dex-tab-close', (tab) => on.close(tab));
     onTab('dex-tab-pin', (tab) => on.pin(tab));
-    onTab('dex-tab-move', (tab, e) => on.move(tab, e.detail.index));
+    onTab('dex-tab-move', (tab, e, pane) => on.move(tab, e.detail.index, pane));
+    // The documents' area: the pane the user is in, a tab dropped on a pane's documents, the divider.
+    listen(parts.docs, 'dex-pane-focus', (e) => on.focusPane(e.detail.pane));
+    listen(parts.docs, 'dex-pane-drop', (e) => {
+        const tab = on.tabOf(e.detail.id);
+        if (tab)
+            on.drop(tab, e.detail.pane, e.detail.side);
+    });
+    listen(parts.docs, 'dex-panes-resized', (e) => on.resized(e.detail.ratio));
     listen(parts.location, 'dex-location-go', (e) => {
         const { to } = e.detail;
         if (typeof to === 'number')

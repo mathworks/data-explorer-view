@@ -1,3 +1,4 @@
+import type { EditHistory } from '../source/tableSource.js';
 import type { Edit, EditIndex, EditSink } from './hooks.js';
 /**
  * A copy of the dirty flag VS Code computes for a custom document from its own edit stack: a
@@ -75,11 +76,18 @@ export declare class EditStackIndex implements EditIndex {
  * An undo stack in the page: each pushed edit is a step, undone and redone in stack order, and a
  * push drops the steps undone after the last one, as an editor's stack does. Its `undo()` and
  * `redo()` do nothing at either end of it.
+ *
+ * It is the history its document's table offers Undo and Redo by (EditHistory): what it can do, and
+ * when that changes. A listener's throw goes to `report` (by default the console), never back into
+ * the gesture that moved the stack.
  */
-export declare class EditStack implements EditSink {
+export declare class EditStack implements EditSink, EditHistory {
+    private readonly report;
     private readonly edits;
     /** How many of `edits` are applied. */
     private applied;
+    private readonly listeners;
+    constructor(report?: (err: unknown) => void);
     push(edit: Edit): void;
     undo(): void;
     redo(): void;
@@ -91,4 +99,10 @@ export declare class EditStack implements EditSink {
     get redoLabel(): string | undefined;
     /** Forget every step: the document now holds something no step was made on (a reload). */
     clear(): void;
+    /** Hear `canUndo` or `canRedo` change, once the push, undo, redo or clear that changed it is done. */
+    onChange(listener: () => void): () => void;
+    /** What the stack can do now, as `moved` compares it. */
+    private can;
+    /** Tell each listener, each on its own terms, if what the stack can do is not what it `was`. */
+    private moved;
 }

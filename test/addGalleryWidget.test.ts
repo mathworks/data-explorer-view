@@ -455,7 +455,9 @@ describe('the table and the gallery together', () => {
   // long and looks like a tidy-up: an `auto-fill` grid with a `1fr`, or a `flex: 1`, draws a
   // gallery right at one width and stretches the tiles at every other.
   it('sizes every tile from one token and wraps the row instead of stretching them', async () => {
-    const cssText = galleryCss();
+    // The popover's rules: the compact layout's, which a sidebar draws the gallery in and the table
+    // never does, are a grid of their own (addGalleryCompact.test.ts).
+    const cssText = galleryCss().replace(/:host\(\[compact\]\)[^{}]*\{[^{}]*\}/g, '');
 
     // A wrapping flex row, and not a grid whose tracks would share out the remainder.
     expect(cssText).toContain('flex-wrap: wrap');

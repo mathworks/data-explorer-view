@@ -32,6 +32,7 @@ import type { DexAboutPanel } from '../../src/widgets/app-shell/dex-about-panel.
 import type { DexToastHost } from '../../src/widgets/app-shell/dex-toast-host.js';
 import type { DexConfirmDialog } from '../../src/widgets/app-shell/dex-confirm-dialog.js';
 import type { DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
+import type { DexShellStatus } from '../../src/widgets/app-shell/connect/dex-shell-status.js';
 import type { DexShellFolder } from '../../src/widgets/app-shell/connect/dex-shell-folder.js';
 import type { DexRawViewer } from '../../src/widgets/app-shell/modules/dex-raw-viewer.js';
 import type { DexSearchPanel } from '../../src/widgets/app-shell/modules/dex-search-panel.js';
@@ -242,19 +243,24 @@ export const enabledItems = () => toolbar().items.filter((i) => !i.disabled).map
 export const errorDialog = () => document.querySelector('dex-error-dialog')!;
 export const variableEditor = () => document.querySelector('dex-variable-editor')!;
 export const inspectorNote = () => document.querySelector<HTMLElement>('.dex-inspector-empty')!;
-export const statusText = () => document.querySelector<HTMLElement>('[slot="status"]')?.textContent ?? '';
+/** What the status bar says: the file's kind, and `· Modified` while it holds edits (its format's pill is statusBar.test.ts's). */
+export const statusText = () => {
+  const status = document.querySelector<DexShellStatus>('[slot="status"]');
+  return status?.format ? `${status.kind}${status.modified ? ' · Modified' : ''}` : '';
+};
 
 const tabEls = () => [...(docTabs()?.shadowRoot?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-const labelOf = (el: Element) => el.querySelector('.label')?.textContent ?? '';
+// A tab by its file's name: its subtitle, while its label names the section its selection is in.
+const labelOf = (el: Element) => (el.querySelector('.subtitle') ?? el.querySelector('.label'))?.textContent ?? '';
 
-/** The tab row's tabs, by name. */
+/** The tab row's tabs, by their files' names. */
 export const tabNames = () => tabEls().map(labelOf);
 export const activeTab = () => tabEls().find((t) => t.getAttribute('aria-selected') === 'true') ?? null;
 export const tabNamed = (name: string) => tabEls().find((t) => labelOf(t) === name);
 export const dirtyTabs = () => tabEls().filter((t) => t.classList.contains('dirty')).map(labelOf);
 export const previewTabs = () => tabEls().filter((t) => t.classList.contains('preview')).map(labelOf);
 /** The id of the tab drawn for `name`: what the tab row's and the Explorer's requests name it by. */
-export const tabIdOf = (name: string) => docTabs().tabs.find((t) => t.label === name)!.id;
+export const tabIdOf = (name: string) => docTabs().tabs.find((t) => (t.subtitle ?? t.label) === name)!.id;
 
 /** The welcome in the documents' area is on screen. */
 export const welcomeShown = () => docsArea().shadowRoot?.querySelector<HTMLElement>('.welcome')?.hidden === false;

@@ -220,6 +220,18 @@ async function save() {
   `handle.redo()` do what the items do, for an app's Edit menu, and
   `isTypingInField(event)` tells a key typed in one of the table's fields (its
   search box, a column filter, a cell editor), which the table leaves alone.
+  With `addChildChord: true` it answers `+` too, with Add Child on the selected
+  row, which the menu then labels; off, as the VS Code extension leaves it, `+`
+  does nothing on the grid.
+- A document's table says where its undo stack stands (`doc.table.history`:
+  `canUndo`, `canRedo`, and `onChange` when either moves), so Undo and Redo
+  are offered only where there is a step: in the menu, by `handle.can('undo')`
+  for an app's toolbar, and by `handle.undo()`. A source that does not say (a
+  host's across a channel) has both offered wherever the document may be edited.
+- The handle's `ran` says each editing menu gesture the source took, from the
+  menu, a chord or `handle.run()`: its `actionId`, the `rowIds` it carried and
+  how many it acted on (`count`), a task later and not where the source refused
+  it, for an app's "Copied to clipboard" or "2 entries deleted".
 - A host that watches the file hears its own saves too. `writeAndStamp`
   answers the file's mtime+size as its write left them, read off the written
   file, so no other program's write can pass for it. On a change, stat the
@@ -237,6 +249,11 @@ async function save() {
   document over the file. **In a MAT-file, a variable changed only on disk is
   not marked, and the next save writes the kept value over it.** A document the
   page does not edit reads `bytes`, as `reload` does.
+- `ws.create(name, uri)` opens a new, empty data dictionary that no file holds
+  yet (the app shell's New): what MATLAB writes for a new dictionary, a text
+  one, edited as any JSON dictionary is (checked with MATLAB R2027a; older
+  releases are unverified). It is dirty from the start, whatever is undone,
+  until a save of it lands; that save writes the file.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only
@@ -246,6 +263,18 @@ async function save() {
 - The documents of a workspace share one clipboard and drag register
   (`registers`, `createRegisters()` by default), so a cut in one pastes into
   another and the original goes.
+- `dragOut: true` lets a table's rows be dragged out of it, onto another part of
+  the page that takes them (the app shell's Explorer, onto an open file): the
+  box at the pointer goes with them, saying what the element under it says a
+  drop would do (its `data-drop-hint`, a refusal with `data-drop-refused`), and
+  a document that may not be edited lets its rows go too, as a copy (a
+  workspace's read-only documents can). What takes
+  them drops them through the target document's handle, as its own rows would:
+  `handle.dropDecision(rowId, mode)` predicts the drop there (`rowId` null is
+  the document as a whole: the section the entries came from, else the first
+  that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
+  document, settling once the document is done with it, with whether it was
+  refused and why.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own
@@ -485,7 +514,12 @@ command palette opens over it all. `connectShell` builds all of it in an empty
 `<dex-app-shell>` and runs it over one editing workspace: it opens files in
 tabs, saves them, asks before unsaved edits are lost, reloads a file that
 changed on disk, follows links from file to file, and shows a folder with its
-Usage and search, each as the sections above describe.
+Usage and search, each as the sections above describe. With no folder shown,
+the Usage column is answered over the files open. Search ranks what it finds
+by name, value and type, best first, and says what each entry is. Rows dragged
+from a table onto a file in the Explorer, or onto one of its sections, move
+there, whichever tab is on screen; they are copied with Ctrl (Option on macOS),
+and always from a file that is not edited.
 
 ```js
 import 'data-explorer-view/theme.css';
@@ -512,11 +546,29 @@ onWindowClose(async () => {
 ```
 
 Nothing opens until the host says so: the window starts on a welcome with Open
-File… and Open Folder… buttons. `app.command(id)` carries out a command
-(`'save'`, `'undo'`, `'show-search'`, …) as its button or its chord does, for a
-native menu's items, and `app.dispose()` takes the app down. The settings, the
-layout the user left and each file's column choices are kept in localStorage
-under connectShell's `storageKey` (`'dex-shell'` by default).
+File… and Open Folder… buttons. While files dragged from the desktop are over a
+page that takes them with `installFileDrop` (below), the documents' area is
+outlined, and a tab says "Opening plant.sldd…" while its file is read.
+`app.command(id)` carries out a command (`'new-file'`, `'save'`, `'undo'`,
+`'show-search'`, …) as its button or its chord does, for a native menu's items,
+and `app.dispose()` takes the app down. The settings, the layout the user left
+(the divider between two panes with it) and each file's column choices are kept
+in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+
+The documents split in two panes side by side, as VS Code's editor groups do. A
+tab dragged onto the left or right fifth of the documents makes a pane there
+with it (the area shows where it would land); one dropped on the other pane's
+tab row, or among its documents, moves there; Split Right (Cmd/Ctrl+\\) and
+Move to Other Pane do the same from the keyboard and the command palette. A
+file is open in one tab only, so a tab moves and is never copied. Each pane has
+its own tab row, its own preview tab and the tab it shows. The pane the user is
+in (by a click, the keyboard's focus, or Cmd/Ctrl+1 and Cmd/Ctrl+2) is the one
+everything else follows, the toolbar, the location bar, the Properties, Raw, the
+status bar, a save and a close, and the one a new file opens in; the other
+pane's tab row marks its tab in grey. A pane whose last tab closes or moves out
+goes. The divider is dragged, or moved by the arrow keys, between a fifth and
+four fifths of the width. Which tabs are in which pane is not kept, as the open
+files are not.
 
 ### The host
 
@@ -528,9 +580,10 @@ shell runs.
 | Member | When the shell calls it | Without it |
 |---|---|---|
 | `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
+| `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` (MATLAB R2027a opens what it writes; older releases are unverified) | no New: the host makes no files |
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
-| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
-| `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
+| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close; an answer with `downloaded` (a browser's download, for a file it cannot write) is said "Downloaded NAME" | needed |
+| `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place; an answer of `path` itself with `downloaded` is said "Downloaded NAME", as for `saveFile` | needed |
 | `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's Open Folder…; the folder comes back by `app.showFolder` | no Folder button: the host shows no folders |
 | `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |
 | `confirmClose(names)` | a tab, or the window, is to close with unsaved edits: save, discard or cancel | the shell's own dialog in the page |
@@ -540,6 +593,7 @@ shell runs.
 | `copyText(text)` | Copy Name, Copy Value | `navigator.clipboard` |
 | `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
 | `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
+| `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -551,6 +605,7 @@ each item calls `app.command(id)`:
 ```js
 // The page; window.api is the preload's bridge to main.
 const host = {
+  newFile: (name) => window.api.newFile(name), // a native Save dialog: the path, or null; main writes nothing yet
   pickFiles: () => window.api.openFile(),
   pickFolder: () => window.api.openFolder(), // main serves it, and posts its port for app.showFolder
   readFile: (path) => window.api.readFile(path),
@@ -588,21 +643,85 @@ addEventListener('beforeunload', (e) => {
 });
 ```
 
+### What a page adds
+
+A page tells the user something of its own with `app.notify`: a toast in the
+window's corner, and the same line in the Log. An `'info'` notice (the
+default) goes by itself; a `'warning'` or an `'error'` stays until it is closed.
+
+```js
+app.notify({ level: 'warning', text: 'samples/plant.slx could not be fetched: 404 Not Found' });
+```
+
+A button of its own goes on an activity bar as a `<dex-shell-action>` the page
+adds to the shell after `connectShell`. The shell draws it after Settings and
+About (on the right bar with `side="right"`), and a press of it, or of its
+`shortcut`, sends `dex-shell-action` from the shell with the action's id and
+the button's box, for the page to answer; the shell answers only its own.
+`settings` and `about` are the shell's ids: an action of the page's with one
+of them is not drawn. The page's actions stay its own, and `app.dispose()`
+leaves them in the shell.
+
+```js
+shell.insertAdjacentHTML('beforeend', '<dex-shell-action side="left" action="samples" label="Samples" icon="documentList"></dex-shell-action>');
+shell.addEventListener('dex-shell-action', (e) => {
+  if (e.detail.actionId === 'samples') openSamples(); // e.detail.anchor: the button's box, for a popover
+});
+```
+
+The Settings' Auto follows the system's theme: the page's media queries
+(`prefers-color-scheme`, `prefers-contrast`, `forced-colors`), or the
+`systemTheme` source the host passes (`{ now(), on(listener) }`). A host that
+hears the theme only once the page is up, as an Electron page hears
+`nativeTheme` over IPC, tells it with `app.setSystemTheme(theme)` (`'light'`,
+`'dark'` or `'high-contrast'`), at once and on each change: from its first
+call the shell follows what the host tells, and no longer the source.
+
+```js
+window.api.ready().then(({ theme }) => app.setSystemTheme(theme));
+window.api.onTheme((theme) => app.setSystemTheme(theme));
+```
+
+About's lines can go under a heading, by `section`: the lines with none come
+first, under the app's name, then each section under its heading. This
+package's version is `VIEW_VERSION`, from `data-explorer-view/model`. Core
+exports no version of its own: an app that shows it reads it at its build,
+as it reads its own.
+
+```js
+import { VIEW_VERSION } from 'data-explorer-view/model';
+
+const app = connectShell(shell, {
+  host,
+  appName: 'My app',
+  about: [
+    { label: 'Version', value: '1.0.0' },
+    { label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' },
+  ],
+});
+```
+
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus
-is, but leaves it to a text field that has the focus, except Open and Save,
+is, but leaves it to a text field that has the focus, except New, Open and Save,
 and leaves Undo and Redo to a table, which undoes its own document.
 
 | Keys | |
 |---|---|
+| Cmd/Ctrl+N | New Data Dictionary… (a host with `newFile`) |
 | Cmd/Ctrl+O, Cmd/Ctrl+Shift+O | Open File…, Open Folder… |
 | Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Alt+S | Save, Save As…, Save All |
 | Cmd/Ctrl+W | close the tab |
-| Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
+| Ctrl+Tab, Ctrl+Shift+Tab | the next tab of the pane, the one before |
+| Cmd/Ctrl+\\ | Split Right: the tab into the pane on the right |
+| Cmd/Ctrl+1, Cmd/Ctrl+2 | the first pane, the second (while the documents are in two) |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
+| + (in a table) | Add Child, on the selected row |
+| Shift+F10, the ContextMenu key | the menu of the table's selected row |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
+| Cmd/Ctrl+Shift+H | Root's relationship graph (Show Graph) |
 | Cmd/Ctrl+, | Settings |
 | Cmd/Ctrl+Shift+P, F1 | the command palette |
 | Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Explorer, the Gallery, Search |
@@ -610,15 +729,19 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Ctrl+\` (on macOS too), Cmd/Ctrl+Shift+D | the Terminal, the Log |
 
 A view's chord shows it, or closes its side when it is the one shown. With
-`nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
-the command palette and the views' chords, and the menu the rest. In a browser
-tab, a few chords are the browser's whatever the page does: Chromium keeps
-Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs, and there the
-toolbar, the tab row and the command palette do the same. The shell's own
-chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+`nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Root's
+graph, Settings, the command palette, the panes' and the views' chords, and the
+menu the rest. In a browser tab, a few chords are the browser's whatever the
+page does: a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox
+both do), and Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own
+tabs; there the toolbar, the tab row and the command palette do the same.
+Cmd/Ctrl+1 and Cmd/Ctrl+2 are the shell's only while the documents are in two
+panes: with one, they are left to the browser, which switches its own tabs by
+them. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
-there, and F1 opens the command palette wherever a browser keeps
+there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in
+a Mac's browsers, and F1 opens the command palette wherever a browser keeps
 Ctrl+Shift+P for itself.
 
 ### Every part on its own
@@ -682,6 +805,7 @@ app turns parts of it off or over:
 |---|---|---|
 | `readonly` (`readonly`) | `false` | no cell editor, no `+ Add`, no row drag or drop |
 | `canAdd`, `rowDrag` | `false`, `true` | the `+ Add` button; dragging rows |
+| `dragOut` (`drag-out`) | `false` | rows dragged out onto the page, from a table that takes no row drag too (as a copy) |
 | `expandTopLevel` (`expand-top-level`) | `false` | open the top level of the first rows, then keep what the user opened |
 | `expandedIds`, `expand(ids)`, `collapse(ids)` | | which rows are open |
 | `storageKey` (`storage-key`) | `'dex'` | the prefix of the localStorage keys the column choices are kept under; `null` keeps them out of storage |
@@ -720,8 +844,10 @@ defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
 (put the attribute on `<html>`). Each widget falls back to the light value of
 every token it reads, so a widget is readable on a page that loads no theme at
 all. The icons are drawn for a light background, and the dark set turns them
-over with `--dex-icon-filter`. To match your app, declare the `--dex-*` tokens
-after this file, or map them onto your own design system's variables.
+over with `--dex-icon-filter`; a `<dex-icon mono>` (the shell's Minimal icons)
+is drawn in its text colour instead, with no filter. To match your app, declare
+the `--dex-*` tokens after this file, or map them onto your own design system's
+variables.
 
 ```js
 import 'data-explorer-view/theme.css';

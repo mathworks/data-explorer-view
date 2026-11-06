@@ -11,8 +11,8 @@
 import { applyEntryOps, addChildXml, addNewEntryXml, catalogFunctionRenameOf, catalogRenameOf, cellEdit, deleteChildrenXml, deleteChildXml, deleteEntriesByNameXml, deleteEntryXml, editRefusalText, entryRecord, entrySelectorOf, findEntryByName, findOwningEntry, insertOp, mutateEntry, opsOfPastedEntries, pasteEntriesXml, patchOfPairs, planDeletion, refuseDisallowedPaste, removalPairs, removeEntries, removeOp, replaceOp, reselectAfterRemoval, scXmlFunctionRenamePatch, scXmlRenamePatch, sectionByName, spliceEntryObject, } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildSectionRowId } from '../ids/sectionRowId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { basename } from '../ids/pathUtil.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw } from '../raw/rawView.js';
@@ -334,12 +334,14 @@ export class BinaryView {
         const { matrix, message } = matrixCellsMessage(nodeId, this.findForRead(nodeId));
         return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
     }
-    async inspect(selection) {
-        const rowIds = typeof selection === 'string' ? [selection] : selection;
-        let view = { groups: [] };
-        const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
-        new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-        return view;
+    // The inspector's page (inspectTree), off the model as it stands, as the Raw pane's: the file's page
+    // says it holds edits while its undo stack is off the save point.
+    async inspect(selection, options) {
+        if (this.closed || this.doc.disposed)
+            return { groups: [] };
+        const doc = this.doc;
+        const tree = { root: () => doc.liveModel(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: this.session, dirty: () => doc.options.index.dirty };
+        return inspectTree(tree, selection, options);
     }
     // The Raw pane's answer for a row (raw/rawOfRow.ts), off the model as it stands: at rest, the
     // chunk as edited, which is what a save writes. Nothing once closed: the model a closed view
@@ -756,13 +758,18 @@ export class BinaryView {
         const registers = this.doc.options.registers;
         void runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps());
     }
+    // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
     drop(rowId, mode) {
         if (this.closed)
             return;
         const registers = this.doc.options.registers;
-        void runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+        return runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()).then(() => undefined, () => undefined);
     }
     // --- Undo, redo, and the whole text of a Value ---------------------------------------------------
+    /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+    get history() {
+        return this.doc.options.history;
+    }
     undo() {
         if (this.closed)
             return;

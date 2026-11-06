@@ -1,6 +1,7 @@
 import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import { type DragItem, type DropTarget } from '../../model/actions/dropDecision.js';
 import { type OperandRow } from '../../model/actions/operands.js';
+import type { EditHistory } from '../../model/source/tableSource.js';
 export interface MenuRow extends OperandRow {
     /** The Name cell, whose `label` is the display name a label quotes. */
     Name?: {
@@ -50,7 +51,26 @@ export interface MenuInput {
     pasteTarget: PasteTarget | null;
     /** This document's uri, which a cut's `sourceDocUri` is compared with. */
     docUri?: string;
+    /**
+     * Where the document's undo stack stands, when its source says (EditableTableSource.history):
+     * Undo is offered only where there is an edit to undo, and Redo one to redo. Without it both are
+     * offered wherever the document may be edited, as a source whose stack is an editor's (VS Code's)
+     * leaves them.
+     */
+    history?: Pick<EditHistory, 'canUndo' | 'canRedo'>;
+    /**
+     * Whether '+' adds a child, as the table answers it where it is asked to (ConnectTableOptions
+     * .addChildChord): Add Child then labels it, as Copy labels its chord. Without it Add Child names
+     * no chord, as the VS Code extension's table has none.
+     */
+    addChildChord?: boolean;
 }
+/**
+ * Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is
+ * Backspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace
+ * alike. Exported so that an app's toolbar names the key the menu does.
+ */
+export declare function deleteKeyLabel(mac: boolean): string;
 export type ShortcutAction = 'copy' | 'cut' | 'paste' | 'delete';
 export declare function resolveShortcutAction(e: KeyboardEvent): ShortcutAction | null;
 /**
@@ -69,8 +89,8 @@ export declare function shouldOpenCellEditor(editable: boolean): boolean;
  * Build the right-click context menu for the CURRENT SELECTION.
  *
  * Pure and synchronous: enablement comes from the host-computed row flags, the cached
- * clipboard state, the target section's rules, and whether the document is editable —
- * no round-trip. Two things it deliberately does NOT decide: which rows are operands
+ * clipboard state, the target section's rules, whether the document is editable, and where its
+ * undo stack stands when the source says — no round-trip. Two things it deliberately does NOT decide: which rows are operands
  * (resolveOperands does, so the keyboard cannot diverge) and whether a payload may land
  * in a section (dropDecision.rejectReason does, so a Paste offered here is a drop the
  * hover feedback would allow).

@@ -22,6 +22,13 @@ export interface BrowserFile {
     source: BrowserSource;
 }
 /**
+ * What a tooltip says of the file at `path`: what the path means to the user rather than the path
+ * made up for it. A pick's folder, `/files/<n>/`, is the page's own, so a pick's file is its name; a
+ * shown folder's file is its place in the folder (`plant/models/ctrlA.slx`), the root's slash being
+ * the page's too.
+ */
+export declare function titleOfPath(path: string): string;
+/**
  * When the file of `source` was last written and how long it is, without reading it: a handle's as
  * of now, a File's as it was picked. Null for bytes the page holds, or a handle whose file is gone.
  */
@@ -39,6 +46,8 @@ export declare function stampOf(source: BrowserSource): Promise<string | null>;
 export declare class WebFiles {
     private readonly entries;
     private readonly folders;
+    /** The pick folder of each group an app named (addToGroup), by its name. */
+    private readonly groups;
     private picks;
     /** A file picked on its own: `/files/<n>/<name>`, so two `a.sldd` from two picks differ. */
     addPicked(name: string, source: BrowserSource): Promise<string>;
@@ -50,7 +59,28 @@ export declare class WebFiles {
      * file opens in the tab it has; Files cannot be told apart, and each takes a path of its own.
      */
     addPick(picked: readonly BrowserFile[]): Promise<string[]>;
-    /** The path of a file read through a handle to the file `handle` is to, if the page has one. */
+    /**
+     * Files of the app's own into the group named `group`: a folder `/files/<n>/` made the first time
+     * the name has a file, which every later file of the group joins, so a link from one to another
+     * finds it whenever each was added. A group is one folder, so it holds one file of a name: a file
+     * of a name the group has takes that file's place, its path then reading the new source (as a
+     * file copied into a folder replaces the one of its name there), and its path is in `replaced`.
+     * The same file again (sameFile) replaces nothing: a page that fetches its samples again has
+     * changed none of them. A handle to a file the page has a path for already keeps that path,
+     * wherever it is, as in a pick.
+     */
+    addToGroup(group: string, added: readonly BrowserFile[]): Promise<{
+        paths: string[];
+        replaced: string[];
+    }>;
+    /**
+     * The path of a file read through a handle to the file `handle` is to, if the page has one; else,
+     * for a file inside a folder shown through a handle (the latest shown first), its place there,
+     * which the page then reads through `handle` as the folder's listing would. Chromium's New and
+     * Save As may write a file into the folder the Explorer shows, one it has not listed yet: under a
+     * pick's path, the folder's next look listed it a second time, and opening it there opened it in
+     * a second tab.
+     */
     pathOf(handle: FileSystemFileHandle): Promise<string | undefined>;
     /**
      * The root a shown folder takes: `/<name>`, or `/<name> (2)` and on when another folder of that
