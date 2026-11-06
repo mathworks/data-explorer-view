@@ -9,7 +9,8 @@
 // and an open one by its own: what its table shows, unsaved edits and all, rather than what the
 // index read from its disk. The folder's index answers in its own time (a first build reads every
 // file), so the panel says it is searching meanwhile, and the answer to a query the typing has
-// moved past is dropped.
+// moved past is dropped. An index that cannot be read says so once, not on every query, until it
+// answers again.
 
 import type { NameRecord } from '../../../model/search/nameExtract.js';
 import type { NameIndex } from '../../../model/search/nameIndex.js';
@@ -43,6 +44,8 @@ export function mergeSearchRecords(open: readonly NameRecord[], folder: readonly
 /** Wire `panel` to the open files and the folder; `scope(folderName)` says what it searches. */
 export function connectSearchPane(panel: DexSearchPanel, context: SearchPaneContext): { scope(folderName: string | null): void; dispose(): void } {
   let asked = 0;
+  // The index whose last answer was a failure, said already.
+  let refused: NameIndex | null = null;
   const onQuery = (e: CustomEvent<{ query: string }>): void => {
     const query = e.detail.query;
     const ask = ++asked;
@@ -61,6 +64,7 @@ export function connectSearchPane(panel: DexSearchPanel, context: SearchPaneCont
     panel.searching = true;
     index.list().then(
       (folder) => {
+        if (refused === index) refused = null;
         if (ask !== asked) return;
         panel.results = searchEntries(mergeSearchRecords(open, folder), query);
         panel.searching = false;
@@ -68,7 +72,8 @@ export function connectSearchPane(panel: DexSearchPanel, context: SearchPaneCont
       (err) => {
         if (ask !== asked) return;
         // The folder's names could not be read: the open files' are still searched.
-        context.failed(`Could not search the folder: ${message(err)}`);
+        if (refused !== index) context.failed(`Could not search the folder: ${message(err)}`);
+        refused = index;
         panel.results = searchEntries(mergeSearchRecords(open, []), query);
         panel.searching = false;
       },
