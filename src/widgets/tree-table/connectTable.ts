@@ -197,6 +197,14 @@ export interface TableHandleEventMap {
    * until a copy succeeds or the table repaints.
    */
   copyFailed: CopyFailure;
+  /**
+   * A whole paint is drawn: the source's answer to open() (the first paint, and one asked again)
+   * or a `replaceAll`, the view it drew. Sent once its rows are in the table and `view` is it, so
+   * what an app reads off the handle (`view`, `can()`) is the paint's: for a toolbar to be enabled
+   * as the file stands from its first paint, before any selection or change. Not for a repaint of
+   * one entry, nor a selection.
+   */
+  painted: TableView;
 }
 
 /** A table wired to a source: what connectTable returns. */
@@ -307,6 +315,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     navigate: new Set(),
     action: new Set(),
     copyFailed: new Set(),
+    painted: new Set(),
   };
   const emit = <K extends keyof TableHandleEventMap>(type: K, detail: TableHandleEventMap[K]): void => {
     for (const listener of [...listeners[type]]) (listener as (d: TableHandleEventMap[K]) => void)(detail);
@@ -463,6 +472,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     pendingSelectIds = [];
     pendingRenameId = null;
     refreshInspector();
+    emit('painted', next);
   };
 
   const failed = (message: string): void => {
