@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { portFromMessagePort } from '../../src/model/source/ports.js';
 import { serveFolder, type FolderReads } from '../../src/serve/index.js';
 import type { LogEntry } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
-import { at, changedOutside, choose, dirtyTabs, edit, folderReads, logPanel, menuOn, open, rowOf, serveFolderTo, startPage, tempFolder, until, type Page } from './harness.js';
+import { at, changedOutside, choose, commandWindow, dirtyTabs, edit, folderReads, logPanel, menuOn, open, rowOf, serveFolderTo, startPage, tempFolder, until, type Page } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -77,6 +77,21 @@ describe('the Log view', () => {
     choose('paste');
     await until(() => lines.some((l) => l.includes('the original in params.sldd could not be removed')));
     expect(lines.find((l) => l.includes('could not be removed'))!.startsWith('warning ')).toBe(true);
+  });
+
+  it('says a gesture the document refused, and a copy that did not reach the clipboard', async () => {
+    const page = startPage(FILES);
+    await open(page, 'ParamMat.mat');
+    const lines = logged();
+    // A property of an object, which its class defines: core refuses its delete.
+    commandWindow().dispatchEvent(new CustomEvent('dex-command-run', { detail: { line: 'rm ParamMat.Value' }, bubbles: true, composed: true }));
+    await until(() => lines.length === 1);
+    expect(lines[0]).toMatch(/^warning Cannot Delete: Cannot delete "ParamMat\.Value": it is a property of "ParamMat"/);
+    page.host.copyText = () => Promise.reject(new Error('The clipboard is not allowed here.'));
+    await menuOn('ParamMat.mat', 'ParamMat');
+    choose('copyName');
+    await until(() => lines.length === 2);
+    expect(lines[1]).toBe('error Could not copy: The clipboard is not allowed here.');
   });
 
   it('says a file changed on disk, and what was done about it', async () => {

@@ -11,7 +11,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
-import { at, open, serveFolderTo, settingsPanel, settled, startPage, tableOf, tempFolder, until } from './harness.js';
+import { at, commandWindow, galleryPanel, open, rawViewer, searchPanel, serveFolderTo, settingsPanel, settled, startPage, tableOf, tempFolder, until } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -132,6 +132,27 @@ describe('connectShell', () => {
     // A second dispose is nothing.
     page.handle.dispose();
     expect(page.main.closedFiles).toHaveLength(2);
+  });
+
+  it("takes the modules' views down with it: none of them answers once it is disposed", async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const [terminal, search, gallery, raw, graph] = [commandWindow(), searchPanel(), galleryPanel(), rawViewer(), document.querySelector('dex-relationship-graph')!];
+    const send = (el: Element, type: string, detail: object) => el.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
+    const outputOf = () => terminal.shadowRoot!.querySelectorAll('.output .line').length;
+    page.handle.dispose();
+    const lines = outputOf();
+    const reads = page.main.reads.length;
+    send(terminal, 'dex-command-run', { line: 'ls' });
+    send(search, 'dex-search-query', { query: 'Kp' });
+    send(gallery, 'dex-gallery-add', { className: 'Simulink.Parameter', section: 'design', label: 'Parameter' });
+    send(raw, 'dex-raw-copy', { text: 'x' });
+    send(graph, 'dex-graph-open', { uri: `file://${at('params.sldd')}` });
+    await settled();
+    expect(outputOf()).toBe(lines);
+    expect(search.results).toEqual([]);
+    expect(page.main.copied).toEqual([]);
+    expect(page.main.reads.length).toBe(reads);
   });
 
   it('a file still being read when the shell is taken down is told closed once, and opens nothing', async () => {
