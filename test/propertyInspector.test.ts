@@ -363,6 +363,7 @@ describe('editing a property', () => {
     value!.value = 'bogus';
     value!.dispatchEvent(new Event('input'));
     value!.dispatchEvent(new Event('change'));
+    name!.focus();
     name!.value = 'Kq';
     name!.dispatchEvent(new Event('input'));
     await setGroups(el, structuredClone(page));
@@ -375,6 +376,17 @@ describe('editing a property', () => {
     name!.dispatchEvent(new Event('blur'));
     await setGroups(el, [{ title: 'G', properties: [{ name: 'Name', value: 'Kr', editable: true, key: 'Name' }, page[0]!.properties[1]!] }]);
     expect(name!.value).toBe('Kr');
+  });
+
+  it('keeps typed text only in the field the focus is in: one it has left follows its row', async () => {
+    // The text is the user's while they are in the field. Out of it (the focus moved on with no
+    // change, or the field is a new one at the same place), the field shows its row.
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'Value', value: '1', editable: true, key: 'Value' }] }]);
+    const input = el.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!;
+    input.value = '123';
+    input.dispatchEvent(new Event('input'));
+    await setGroups(el, [{ title: 'G', properties: [{ name: 'Value', value: '7', editable: true, key: 'Value' }] }]);
+    expect(input.value).toBe('7');
   });
 
   it('commit() sends the change of the field the focus is in, once, as leaving it would', async () => {

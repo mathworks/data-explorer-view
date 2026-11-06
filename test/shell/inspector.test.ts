@@ -115,12 +115,31 @@ describe('the Properties view, beside a tab', () => {
     value.dispatchEvent(new Event('input'));
     value.dispatchEvent(new Event('change'));
     const name = await fieldOf('Name');
+    name.focus();
     name.value = 'Kq';
     name.dispatchEvent(new Event('input'));
     await until(() => dirtyTabs().join() === 'params.sldd');
     await until(() => inspector().groups[0]!.properties.find((p) => p.name === 'Value')?.value === '5');
     await settled();
     expect(fieldNow('Name')!.value).toBe('Kq');
+  });
+
+  it('writes what is typed to its row when the selection moves on with the focus still in the field', async () => {
+    // A move with no blur: Back from a native menu, a command, a link. The text is Kp's, and Uo's
+    // field shows Uo's value.
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const value = await fieldOf('Value');
+    value.focus();
+    value.value = '123';
+    value.dispatchEvent(new Event('input'));
+    const uo = await selectRow('params.sldd', 'Uo');
+    await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name.label === 'Kp')) === '123');
+    await until(() => rows().includes('Name: Uo'));
+    await settled();
+    expect(fieldNow('Value')!.value).toBe(textOf(uo));
+    expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name.label === 'Uo'))).toBe(textOf(uo));
   });
 
   it('saves what is typed in a field with Mod+S, the focus still in it', async () => {

@@ -132,7 +132,12 @@ export function connectInspector(
     if (openedHere) variableEditor?.close();
     openedHere = false;
     const groups = Array.isArray(page.groups) ? page.groups : [];
-    shownRowId = typeof page.rowId === 'string' && groups.length > 0 ? page.rowId : undefined;
+    const rowId = typeof page.rowId === 'string' && groups.length > 0 ? page.rowId : undefined;
+    // Another row's page, with the focus still in a field (a move that blurs nothing: a menu's Back,
+    // a command, a host's select): what is typed there is the row it was typed for, written to it
+    // while the inspector still names that row and its feed.
+    if (rowId !== shownRowId) inspector.commit();
+    shownRowId = rowId;
     inspector.groups = groups;
     setEmpty(groups.length === 0);
   };
@@ -147,6 +152,8 @@ export function connectInspector(
     },
     follow(next) {
       if (disposed || next === following) return;
+      // What is typed in a field is the row of the feed it was typed in, written before it is left.
+      inspector.commit();
       stop();
       // The rows shown, and a grid opened on one of them, are the last feed's.
       if (openedHere) variableEditor?.close();

@@ -160,11 +160,13 @@ export class DexPropertyInspector extends LitElement {
   // The fields typed in since their last change. A change of one field is answered by groups pushed
   // again (the repaint, a refusal, the document's unsaved state), maybe more than once, while the
   // user types in the next: that text is theirs until they change it or leave the field, so a push
-  // leaves it alone. Every other field follows its row (live), a refused one put back among them.
+  // leaves it alone. Only while the focus is in it (_typing): a field it is not in, or a new one at
+  // the same place, follows its row (live), as every other field does, a refused one among them.
   private readonly _typed = new Set<string>();
-  // The text each field's change last sent, until it is typed in again: commit() sends a change
-  // before the field's own (on leaving it), which must not send it twice.
-  private readonly _sent = new Map<string, string>();
+  // The text each field's change last sent, and the row it was sent for, until the field is typed in
+  // again: commit() sends a change before the field's own (on leaving it), which must not send it
+  // twice, while a change of the next row's field at the same place is its own.
+  private readonly _sent = new Map<string, { row: PropertyRow; text: string }>();
 
   /**
    * Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
@@ -182,8 +184,9 @@ export class DexPropertyInspector extends LitElement {
   // row's, or the one this field last sent, is no change.
   private _onPropertyChange(id: string, prop: PropertyRow, newValue: string): void {
     this._typed.delete(id);
-    if (newValue === prop.value || this._sent.get(id) === newValue) return;
-    this._sent.set(id, newValue);
+    const sent = this._sent.get(id);
+    if (newValue === prop.value || (sent?.row === prop && sent.text === newValue)) return;
+    this._sent.set(id, { row: prop, text: newValue });
     const { name: propName, key, value: oldValue } = prop;
     this.dispatchEvent(new CustomEvent<PropertyChangedDetail>('dex-property-changed', {
       detail: { propName, ...(key === undefined ? {} : { key }), newValue, oldValue },
@@ -200,6 +203,14 @@ export class DexPropertyInspector extends LitElement {
   // Left without a change (typed back as it was): the field follows its row again, drawn as it now is.
   private _onLeft(id: string): void {
     if (this._typed.delete(id)) this.requestUpdate();
+  }
+
+  // Whether the field `id` holds the user's text: typed in since its last change, and the focus in it.
+  private _typing(id: string): boolean {
+    if (!this._typed.has(id)) return false;
+    if ((this.shadowRoot?.activeElement as HTMLElement | null | undefined)?.dataset?.field === id) return true;
+    this._typed.delete(id);
+    return false;
   }
 
   private _onLinkClick(e: Event, target: string): void {
@@ -221,7 +232,8 @@ export class DexPropertyInspector extends LitElement {
       const typed = () => this._onTyped(id);
       const left = () => this._onLeft(id);
       // The row's value, unless the user is typing over it.
-      const text = this._typed.has(id) ? noChange : live(prop.value);
+      const typing = this._typing(id);
+      const text = typing ? noChange : live(prop.value);
       // A choice lists the value among its options, first where it is not one of them: a list shows
       // its first option when none is chosen, and the value it does not list would read as that one
       // and be written over with it. No value at all (core names no default) is none of them, shown
@@ -232,7 +244,7 @@ export class DexPropertyInspector extends LitElement {
         return html`<select class="prop-input" data-field=${id} aria-label=${prop.name} @input=${typed} @change=${changed} @blur=${left}>
           ${listed.map((option) => {
             const none = option === '' && !prop.options!.includes('');
-            return html`<option .value=${option} ?disabled=${none} ?hidden=${none} .selected=${this._typed.has(id) ? noChange : live(option === prop.value)}>${option}</option>`;
+            return html`<option .value=${option} ?disabled=${none} ?hidden=${none} .selected=${typing ? noChange : live(option === prop.value)}>${option}</option>`;
           })}
         </select>`;
       }

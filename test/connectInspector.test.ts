@@ -297,6 +297,50 @@ describe('writing a change back', () => {
     expect(edits).toEqual([{ rowId: 'r1', columnId: 'Value', oldValue: '1', newValue: '9' }]);
   });
 
+  it("writes what is typed to the row it was typed for when the page moves to another row with the focus still in the field", async () => {
+    // A selection moved with no blur (a native menu's Back, a command, a host's select): the text
+    // is the old row's edit, and the new row's field shows the new row's value.
+    const field = (value: string, rowId: string) => ({ rowId, groups: [{ title: 'G', properties: [{ name: 'Value', value, editable: true, key: 'Value' }] }] });
+    const { feed, edits, send } = feedOf([field('1', 'kp')]);
+    const pi = document.createElement('dex-property-inspector');
+    document.body.append(pi);
+    const inspector = connectInspector(pi, feed as never);
+    cleanups.push(() => inspector.dispose());
+    await pi.updateComplete;
+    const input = pi.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!;
+    input.focus();
+    input.value = '123';
+    input.dispatchEvent(new Event('input'));
+    send(field('7', 'uo'));
+    await pi.updateComplete;
+    expect(edits).toEqual([{ rowId: 'kp', columnId: 'Value', oldValue: '1', newValue: '123' }]);
+    expect(pi.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!.value).toBe('7');
+    // Its blur, later, writes nothing more.
+    input.dispatchEvent(new Event('change'));
+    input.dispatchEvent(new Event('blur'));
+    expect(edits).toHaveLength(1);
+  });
+
+  it('writes what is typed back before it follows another feed, and shows the page it comes back to as it is', async () => {
+    const page = { rowId: 'kp', groups: [{ title: 'G', properties: [{ name: 'Value', value: '1', editable: true, key: 'Value' }] }] };
+    const { feed, edits } = feedOf([page]);
+    const pi = document.createElement('dex-property-inspector');
+    document.body.append(pi);
+    const inspector = connectInspector(pi, feed as never);
+    cleanups.push(() => inspector.dispose());
+    await pi.updateComplete;
+    const input = pi.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!;
+    input.focus();
+    input.value = '123';
+    input.dispatchEvent(new Event('input'));
+    inspector.follow(null);
+    await pi.updateComplete;
+    expect(edits).toEqual([{ rowId: 'kp', columnId: 'Value', oldValue: '1', newValue: '123' }]);
+    inspector.follow(feed as never);
+    await pi.updateComplete;
+    expect(pi.shadowRoot!.querySelector<HTMLInputElement>('input.prop-input')!.value).toBe('1');
+  });
+
   it('writes nothing for a change with no key, a page with no row, a feed it no longer follows, or after dispose', async () => {
     const { feed, edits, send } = feedOf([{ rowId: 'r1', groups: [{ title: 'G', properties: [] }] }]);
     const pi = document.createElement('dex-property-inspector');
