@@ -320,6 +320,14 @@ describe('ls', () => {
     expect(only).toBe(`  v  char  ${'x'.repeat(59)}…`);
   });
 
+  it('shows the first thousand lines of a long listing, and says how many more there are', async () => {
+    const rows = Array.from({ length: 1200 }, (_, i) => row(`u/v${i}`, null, `v${i}`, { Value: String(i), Class: 'double' }));
+    const out = await run('ls', fake({ rows }));
+    expect(out.lines.length).toBe(1001);
+    expect(out.lines[999]!.text.trim().split(/\s{2,}/)).toEqual(['v999', 'double', '999']);
+    expect(out.lines[1000]).toEqual(line('… 200 more lines.', 'info'));
+  });
+
   it("lists a row's own rows by its name, and walks a dotted name down", async () => {
     expect((await texts('ls Bus', fake())).map((t) => t.trim().split(/\s{2,}/))).toEqual([
       ['Kp', 'Simulink.BusElement'],
@@ -520,6 +528,20 @@ describe('set, and <name> = <value>', () => {
     expect((await run('Kp.Name = Ki', t)).lines).toEqual([line('"Kp" was not renamed.', 'error')]);
   });
 
+  it('finds the row again by its name where the edit gave it a new id', async () => {
+    // A source may rebuild an entry's rows under new ids; the echo still reads the row the name finds.
+    let rows = [row('u/x@1', null, 'x', { Value: '1', _valueEditable: true })];
+    const target: CommandTarget = {
+      docs: () => [DD],
+      rows: () => rows,
+      inspect: async () => ({ groups: [] }),
+      edit: async (e) => {
+        rows = [row('u/x@2', null, 'x', { Value: e.newValue, _valueEditable: true })];
+      },
+    };
+    expect(await texts('x = 2', target)).toEqual(['x = 2']);
+  });
+
   it('sends nothing for the value the cell already has', async () => {
     const t = fake();
     expect(await texts('Kp = 1', t)).toEqual(['Kp = 1']);
@@ -544,6 +566,133 @@ describe('set, and <name> = <value>', () => {
   it('reads an assignment to a name a command has as an assignment', async () => {
     const t = fake({ rows: [row('u/ls', null, 'ls', { Value: '1', _valueEditable: true })] });
     expect(await texts('ls = 2', t)).toEqual(['ls = 2']);
+  });
+});
+
+describe("a dot means a row's field before a column of the row", () => {
+  // MATLAB's dot names a field or a property. A struct with fields named Value and Description
+  // must reach its fields, not the struct row's own cells.
+  const rows = () => [
+    row('section:design', null, 'Design Data'),
+    row(`${U}/design/s`, 'section:design', 's', { Value: '<1x1 struct>', Class: 'struct', _descriptionApplies: false }),
+    row(`${U}/design/s/Value`, `${U}/design/s`, 'Value', { Value: '3', _valueEditable: true, Class: 'double' }),
+    row(`${U}/design/s/Description`, `${U}/design/s`, 'Description', { Value: "'text'", _valueEditable: true, Class: 'char' }),
+  ];
+
+  it('reads the field', async () => {
+    const t = fake({ rows: rows() });
+    expect(await texts('s.Value', t)).toEqual(['s.Value = 3']);
+    expect(await texts('s.Description', t)).toEqual(["s.Description = 'text'"]);
+  });
+
+  it("sets the field's Value, as typed", async () => {
+    const t = fake({ rows: rows() });
+    expect(await texts('s.Value = 4', t)).toEqual(['s.Value = 4']);
+    expect(await texts("s.Description = 'new'", t)).toEqual(["s.Description = 'new'"]);
+    expect(t.edits).toEqual([
+      { rowId: `${U}/design/s/Value`, columnId: 'Value', oldValue: '3', newValue: '4' },
+      { rowId: `${U}/design/s/Description`, columnId: 'Value', oldValue: "'text'", newValue: "'new'" },
+    ]);
+  });
+});
+
+describe('MATLAB line endings', () => {
+  it('runs a line ending in ; and shows nothing for it', async () => {
+    const t = fake();
+    expect(await run('Kp = 5;', t)).toEqual({ lines: [] });
+    expect(await run('set Kp 6;', t)).toEqual({ lines: [] });
+    expect(await run('Kp;', t)).toEqual({ lines: [] });
+    expect(t.edits.map((e) => e.newValue)).toEqual(['5', '6']);
+    expect(await texts('Kp', t)).toEqual(['Kp = 6']);
+  });
+
+  it('drops a % comment, and the ; before one', async () => {
+    const t = fake();
+    expect(await texts('Kp = 6 % six', t)).toEqual(['Kp = 6']);
+    expect(await run('Kp = 7; % quietly', t)).toEqual({ lines: [] });
+    expect(await texts('Kp % the gain', t)).toEqual(['Kp = 7']);
+    expect(await run('% only a note', t)).toEqual({ lines: [] });
+    expect(t.edits.map((e) => e.newValue)).toEqual(['6', '7']);
+  });
+
+  it('keeps a % or a ; inside quotes, and a transpose', async () => {
+    const t = fake();
+    expect(await texts("Speed.Description = '50% off; then more'", t)).toEqual(['Speed.Description = 50% off; then more']);
+    expect(await texts("Speed.Description = 'it''s; fine' % but this goes", t)).toEqual(["Speed.Description = it's; fine"]);
+    expect(await run("Speed = [1 2]';", t)).toEqual({ lines: [] });
+    expect(t.edits.map((e) => e.newValue)).toEqual(['50% off; then more', "it's; fine", "[1 2]'"]);
+  });
+
+  it('still says what went wrong on a quiet line', async () => {
+    const t = fake({ refuse: () => true });
+    expect((await run('Kp = foo(;', t)).lines).toEqual([line('"Kp" is unchanged.', 'info')]);
+    expect((await run('Nope = 1;', t)).lines).toEqual([line('Nothing is named "Nope" in dd.sldd.', 'error')]);
+  });
+
+  it('runs a command ending in ;, which has nothing to echo', async () => {
+    expect(await run('ls;', fake())).toEqual(await run('ls', fake()));
+  });
+});
+
+describe('names with spaces and indices', () => {
+  const rows = () => [
+    row('u/Gain 1', null, 'Gain 1', { Value: '2', _valueEditable: true, Class: 'double', Description: '', _descriptionEditable: true }),
+    row('u/Mat', null, 'Mat', { Value: '[1 2; 3 4]', _valueEditable: true, Class: 'double' }),
+    row('u/Mat/1', 'u/Mat', 'Mat(1,1)', { Value: '1', _valueEditable: true, Class: 'double' }),
+    row('u/arr', null, 'arr', { Value: '<2x1 struct>', Class: 'struct' }),
+    row('u/arr/1', 'u/arr', 'arr(1)', { Value: '<1x1 struct>', Class: 'struct' }),
+    row('u/arr/1/Name', 'u/arr/1', 'Name', { Value: "'Ka'", _valueEditable: true, Class: 'char' }),
+    row('u/c', null, 'c', { Value: "{'a'}", Class: 'cell' }),
+    row('u/c/1', 'u/c', 'c{1}', { Value: "'a'", _valueEditable: true, Class: 'char' }),
+  ];
+
+  it('reads a quoted name in set, with a column after it', async () => {
+    const t = fake({ rows: rows() });
+    expect(await texts('set "Gain 1" 5', t)).toEqual(['Gain 1 = 5']);
+    expect(await texts("set 'Gain 1'.Description two words", t)).toEqual(['Gain 1.Description = two words']);
+    expect(t.edits.map((e) => [e.rowId, e.columnId, e.newValue])).toEqual([
+      ['u/Gain 1', 'Value', '5'],
+      ['u/Gain 1', 'Description', 'two words'],
+    ]);
+  });
+
+  it('takes an indexed name where the table has its row, spaces in the index or not', async () => {
+    const t = fake({ rows: rows() });
+    expect(await texts('Mat(1,1) = 5', t)).toEqual(['Mat(1,1) = 5']);
+    expect(await texts('Mat(1, 1)', t)).toEqual(['Mat(1, 1) = 5']);
+    expect(await texts('arr(1).Name', t)).toEqual(["arr(1).Name = 'Ka'"]);
+    expect(await texts("arr(1).Name = 'Kb'", t)).toEqual(["arr(1).Name = 'Kb'"]);
+    expect(await texts('c{1}', t)).toEqual(["c{1} = 'a'"]);
+    expect(t.edits.map((e) => [e.rowId, e.newValue])).toEqual([
+      ['u/Mat/1', '5'],
+      ['u/arr/1/Name', "'Kb'"],
+    ]);
+  });
+
+  it('walks to an element under a field of its base name', async () => {
+    // A cell field's elements are under the field's row, each labelled with its index: Tags{1}
+    // under Tags, under the object.
+    const t = fake({
+      rows: [
+        row('u/v', null, 'v', { Value: '<1x1 Vehicle>', Class: 'Vehicle' }),
+        row('u/v/Tags', 'u/v', 'Tags', { Value: "{'suv'}", Class: 'cell' }),
+        row('u/v/Tags/1', 'u/v/Tags', 'Tags{1}', { Value: "'suv'", _valueEditable: true, Class: 'char' }),
+      ],
+    });
+    expect(await texts('v.Tags{1}', t)).toEqual(["v.Tags{1} = 'suv'"]);
+  });
+
+  it('says what is missing, by the part of the name that is', async () => {
+    const t = fake();
+    expect((await run('Nope.Description = x', t)).lines).toEqual([line('Nothing is named "Nope" in dd.sldd.', 'error')]);
+    expect((await run('Nope.Description', t)).lines).toEqual([line('Nothing is named "Nope" in dd.sldd.', 'error')]);
+    expect((await run('Bus.Nope', t)).lines).toEqual([line('"Bus" has no row or column named "Nope".', 'error')]);
+    expect((await run('Bus.Nope.x', t)).lines).toEqual([line('"Bus" has no row named "Nope".', 'error')]);
+    expect(t.edits).toEqual([]);
+  });
+
+  it('says a comparison is not something it runs, and how to set', async () => {
+    expect((await run('Kp == 5', fake())).lines).toEqual([line('This window does not compare values. To set Kp, write: Kp = 5', 'error')]);
   });
 });
 
@@ -635,6 +784,14 @@ describe('add', () => {
     expect((await run('add Simulink.Parameter p2', t)).lines).toEqual([
       line('Created "Param" (Simulink.Parameter), but could not name it "p2".', 'error'),
     ]);
+  });
+
+  it('refuses a name with a space in it, before adding anything', async () => {
+    const t = fake();
+    const refused = [line('"my p" has a space in it, which a name cannot.', 'error')];
+    expect((await run('add Simulink.Parameter "my p"', t)).lines).toEqual(refused);
+    expect((await run('add Simulink.Parameter my p', t)).lines).toEqual(refused);
+    expect(t.added).toEqual([]);
   });
 
   it('refuses a document open read-only, and one that takes no entries', async () => {
@@ -736,51 +893,53 @@ describe('anything else', () => {
   });
 });
 
+// A document opened in a workspace, and a target over it as an app would make one: the rows a
+// connected table would hold, and the source's commands, each settled as the CommandTarget says.
+async function openDoc(path: string) {
+  const ws = createWorkspace({ editing: true });
+  const doc = await ws.open(readFileSync(path), path.split('/').pop()!);
+  const table = doc.table as EditableTableSource;
+  const view = await table.open();
+  // The rows a connected table would hold, kept as the source repaints them.
+  let rows = view.rows;
+  // A structural gesture is queued in the source and answered later: its add or delete paints,
+  // says the selection it leaves (or a refusal), and writes the text after that, within the same
+  // task. An edit sent before the write is done is lost (the source cannot find the entry's text
+  // yet), so the gesture is done one task past its selection: `add <class> <name>` renames next.
+  const waiting: (() => void)[] = [];
+  table.subscribe((change) => {
+    if (change.kind === 'replaceAll') rows = change.view.rows;
+    if (change.kind === 'updateEntry') rows = spliceEntryRows(rows, change.entryRowId, change.rows) ?? rows;
+    if (change.kind === 'insertEntry') rows = insertEntryRows(rows, change.sectionRowId, change.beforeRowId, change.rows) ?? rows;
+    if (change.kind === 'select' || change.kind === 'refused' || change.kind === 'error') for (const done of waiting.splice(0)) done();
+  });
+  table.opened?.();
+  const settled = () => new Promise<void>((done) => waiting.push(() => setTimeout(done, 0)));
+  const target: CommandTarget = {
+    docs: () => [{ name: doc.name, kind: doc.kind, active: true, dirty: doc.dirty }],
+    rows: () => rows,
+    inspect: (rowId) => table.inspect(rowId),
+    edit: (edit) => table.edit(edit),
+    addEntry: (entry) => {
+      const done = settled();
+      table.addEntry(entry);
+      return done;
+    },
+    remove: (rowIds) => {
+      const done = settled();
+      table.delete(rowIds);
+      return done;
+    },
+    classes: () => addChoicesOf(view),
+  };
+  return { ws, doc, target };
+}
+
 // The commands over the package's own source for a JSON dictionary: its rows, its inspector page,
 // its edits and refusals, its add and its delete, and the bytes a save would write.
 describe('over a JSON dictionary opened in a workspace', () => {
-  async function open() {
-    const ws = createWorkspace({ editing: true });
-    const doc = await ws.open(readFileSync('test/fixtures/params.sldd'), 'params.sldd');
-    const table = doc.table as EditableTableSource;
-    const view = await table.open();
-    // The rows a connected table would hold, kept as the source repaints them.
-    let rows = view.rows;
-    // A structural gesture is queued in the source and answered later: its add or delete paints,
-    // says the selection it leaves (or a refusal), and writes the text after that, within the same
-    // task. An edit sent before the write is done is lost (the source cannot find the entry's text
-    // yet), so the gesture is done one task past its selection: `add <class> <name>` renames next.
-    const waiting: (() => void)[] = [];
-    table.subscribe((change) => {
-      if (change.kind === 'replaceAll') rows = change.view.rows;
-      if (change.kind === 'updateEntry') rows = spliceEntryRows(rows, change.entryRowId, change.rows) ?? rows;
-      if (change.kind === 'insertEntry') rows = insertEntryRows(rows, change.sectionRowId, change.beforeRowId, change.rows) ?? rows;
-      if (change.kind === 'select' || change.kind === 'refused' || change.kind === 'error') for (const done of waiting.splice(0)) done();
-    });
-    table.opened?.();
-    const settled = () => new Promise<void>((done) => waiting.push(() => setTimeout(done, 0)));
-    const target: CommandTarget = {
-      docs: () => [{ name: doc.name, kind: doc.kind, active: true, dirty: doc.dirty }],
-      rows: () => rows,
-      inspect: (rowId) => table.inspect(rowId),
-      edit: (edit) => table.edit(edit),
-      addEntry: (entry) => {
-        const done = settled();
-        table.addEntry(entry);
-        return done;
-      },
-      remove: (rowIds) => {
-        const done = settled();
-        table.delete(rowIds);
-        return done;
-      },
-      classes: () => addChoicesOf(view),
-    };
-    return { ws, doc, target };
-  }
-
   it('lists, inspects, edits, refuses, removes and adds', async () => {
-    const { ws, doc, target } = await open();
+    const { ws, doc, target } = await openDoc('test/fixtures/params.sldd');
     try {
       expect((await run('ls', target)).lines).toEqual([
         line('Design Data', 'info'),
@@ -814,6 +973,48 @@ describe('over a JSON dictionary opened in a workspace', () => {
         name: 'Kp',
         value: 5,
       });
+    } finally {
+      ws.dispose();
+    }
+  });
+});
+
+// Objects, structs, arrays and cells as the package's sources lay them out: a property named Name
+// beside the entry's own Name, an element under its field, a matrix's cells by index.
+describe('over objects, structs and arrays in real files', () => {
+  it("reaches an object's Name property, and never renames the entry for it", async () => {
+    const { ws, doc, target } = await openDoc('test/fixtures/object_props_text.sldd');
+    try {
+      expect(await texts('vehicleObject.Name', target)).toEqual(['vehicleObject.Name = "Model-X"']);
+      expect(await texts('vehicleObject.Name = "Model-Y"', target)).toEqual(['vehicleObject.Name = "Model-Y"']);
+      const names = (await texts('ls', target)).map((t) => t.trim().split(/\s{2,}/)[0]);
+      expect(names).toEqual(['Other Data', 'a', 'fleetObject', 'vehicleObject']);
+      expect(await texts('vehicleObject.Tags{1}', target)).toEqual(["vehicleObject.Tags{1} = 'suv'"]);
+      expect(await texts('vehicleObject.Engine.Cylinders = 6', target)).toEqual(['vehicleObject.Engine.Cylinders = 6']);
+      expect(await texts('a.c.d', target)).toEqual(['a.c.d = 42']);
+      const text = new TextDecoder().decode(doc.serialize().bytes);
+      expect(text).toContain('Model-Y');
+      expect(text).not.toContain('Model-X');
+    } finally {
+      ws.dispose();
+    }
+  });
+
+  it("edits a matrix's cell by its index in a MAT-file", async () => {
+    const { ws, target } = await openDoc('test/fixtures/nd_numeric.mat');
+    try {
+      expect(await texts('Mat(1,1) = 9', target)).toEqual(['Mat(1,1) = 9']);
+      expect(await texts('Mat', target)).toEqual(['Mat = [9 2 3; 4 5 6]']);
+    } finally {
+      ws.dispose();
+    }
+  });
+
+  it("reads a field of an array's element", async () => {
+    const { ws, target } = await openDoc('test/fixtures/mcos/variableUsageArray.mat');
+    try {
+      expect(await texts('variables(1).Name', target)).toEqual(["variables(1).Name = 'Ka'"]);
+      expect(await texts('variables(2).Source', target)).toEqual(["variables(2).Source = 'f14'"]);
     } finally {
       ws.dispose();
     }

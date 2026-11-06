@@ -16,9 +16,13 @@
 //
 // Names resolve as connectTable's selectByName does: an entry first, since a nested row that
 // shares the name is not what a bare name means; then any row; then a block by its key. A dotted
-// name (`Bus.Element`) that no row has walks down instead, each part a row under the one before;
-// and a dotted name whose last part is a column of the row before it (`Speed.Description`) names
-// that cell.
+// name (`Bus.Element`, `variables(1).Name`) that no row has walks down instead, each part a row
+// under the one before, as MATLAB's dot names a field or a property; only where the row before the
+// last part has no row by that name is the last part a column of it (`Speed.Description`). So an
+// object's Name property is `vehicle.Name`, and the entry is renamed only where it has none.
+//
+// A line is read as MATLAB reads one: a `%` comment dropped, and one `;` ending it suppressing
+// the echo, each outside quotes.
 //
 // Every answer is lines. Nothing throws: a check that ends a command early throws an Early answer,
 // which runCommand turns back into its lines, and any other failure (the target's) becomes an
@@ -109,12 +113,18 @@ export interface CommandTarget {
 
 /** One line of a command's answer: what it says, and whether it is output, an error or a note. */
 export interface OutputLine {
+  /** What the line says, as text: drawn as it is, its spaces kept (a listing's columns line up on them). */
   text: string;
+  /**
+   * What it is: `out`, what the command answers (a value, a listing); `error`, why the command did
+   * nothing, or not what was asked; `info`, a note around the answer (a heading, "is unchanged").
+   */
   kind: 'out' | 'error' | 'info';
 }
 
 /** A command's answer: the lines to show, after clearing the window first where `clear` says. */
 export interface CommandOutput {
+  /** The lines to show, in order; none for a blank line, a comment, or a line ending in `;` that did what it said. */
   lines: OutputLine[];
   /** The window is to be cleared (`clear`). */
   clear?: boolean;
@@ -141,10 +151,10 @@ export function addChoicesOf(view: Pick<TableView, 'add' | 'addSections'>): AddC
  * rejects: what went wrong is a line of the answer. A blank line answers nothing.
  */
 export async function runCommand(line: string, target: CommandTarget): Promise<CommandOutput> {
-  const text = line.trim();
+  const { text, quiet } = statement(line);
   if (!text) return { lines: [] };
   try {
-    return await dispatch(text, target);
+    return await dispatch(text, target, quiet);
   } catch (err) {
     if (err instanceof Early) return { lines: err.lines };
     return { lines: [error(messageOf(err))] };
@@ -186,7 +196,9 @@ const HELP: readonly OutputLine[] = [
   out('  <name>                         show its value'),
   out('  <name> = <value>               set its Value'),
   out('  <name>.<Column> = <value>      set its Name, Description, DataType or another column'),
-  out('  A name finds an entry before a row inside one; Bus.Element finds a row inside Bus.'),
+  out('  A name finds an entry before a row inside one; Bus.Element finds a row inside Bus,'),
+  out('  and Mat(1,1) or variables(1).Name an element where the table has its row.'),
+  out('  A line ending in ; shows nothing; % starts a comment.'),
   info("JavaScript is not run here: the page's security policy forbids evaluating typed code."),
 ];
 
@@ -195,25 +207,77 @@ const HELP: readonly OutputLine[] = [
 const NAME_WIDTH = 32;
 // The most of a value `ls` shows on its line; `<name>` alone shows it whole.
 const VALUE_WIDTH = 60;
-// The most lines of raw text `json` answers: the window keeps its newest lines, and a long record
-// would push its own first lines out.
-const RAW_LINES = 1000;
+// The most lines `json` and `ls` answer: the window keeps its newest lines, and a long record or
+// a long listing would push its own first lines out.
+const MAX_LINES = 1000;
+
+/** The first MAX_LINES of `lines`, and a note of how many more there were. */
+function capped(lines: OutputLine[]): OutputLine[] {
+  if (lines.length <= MAX_LINES) return lines;
+  return [...lines.slice(0, MAX_LINES), info(`… ${lines.length - MAX_LINES} more lines.`)];
+}
+
+/** The length of the longest of `texts`, up to `cap`: a reduce, as a spread of a long list overflows the stack. */
+const widest = (texts: readonly string[], cap = Infinity): number =>
+  Math.min(cap, texts.reduce((w, t) => Math.max(w, t.length), 0));
 
 // --- Dispatch --------------------------------------------------------------------------------------
 
-// `<name> = <value>`, `<name>.<Column> = <value>`: MATLAB's identifiers, dotted. Not `==`.
-const ASSIGNMENT = /^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*=(?!=)\s*(.*)$/;
+// One part of a dotted name: a MATLAB identifier, with the indices a table's labels write after
+// one (`Mat(1,1)`, `variables(1)`, `Tags{1}`).
+const PART = String.raw`[A-Za-z_]\w*(?:\([^()]*\)|\{[^{}]*\})*`;
+const PATH_SOURCE = `${PART}(?:\\.${PART})*`;
 // A line that is a name or a dotted name, and nothing else.
-const PATH = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
+const PATH = new RegExp(`^${PATH_SOURCE}$`);
+// `<name> = <value>`, `<name>.<Column> = <value>`. Not `==`, which COMPARISON is.
+const ASSIGNMENT = new RegExp(`^(${PATH_SOURCE})\\s*=(?!=)\\s*(.*)$`);
+const COMPARISON = new RegExp(`^(${PATH_SOURCE})\\s*==\\s*(.*)$`);
 
-async function dispatch(text: string, target: CommandTarget): Promise<CommandOutput> {
+/**
+ * A line as MATLAB reads it: without its `%` comment, and without one `;` that ends it, each only
+ * outside quotes; and whether there was that `;` (`quiet`). A quote is a char vector's or a
+ * string's, but for a `'` straight after a name, a bracket, a dot or another quote, which is
+ * MATLAB's transpose (`[1 2]'`); a quote doubled inside its own kind is one quote.
+ */
+function statement(line: string): { text: string; quiet: boolean } {
+  let quote: string | null = null;
+  let end = line.length;
+  // The last character outside quotes that is not a space (an opening quote counts as one).
+  let last = -1;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (quote) {
+      if (c === quote) {
+        if (line[i + 1] === quote) i++;
+        else quote = null;
+      }
+      continue;
+    }
+    if (c === '%') {
+      end = i;
+      break;
+    }
+    if (c === '"' || (c === "'" && !/[\w)\]}.'"]/.test(line[i - 1] ?? ''))) quote = c;
+    if (c.trim()) last = i;
+  }
+  const quiet = last >= 0 && line[last] === ';';
+  return { text: line.slice(0, quiet ? last : end).trim(), quiet };
+}
+
+async function dispatch(text: string, target: CommandTarget, quiet: boolean): Promise<CommandOutput> {
+  // What a line ending in `;` did is not echoed, as MATLAB does not; what went wrong still is.
+  const echo = (lines: OutputLine[]): OutputLine[] => (quiet ? lines.filter((l) => l.kind !== 'out') : lines);
+  const comparison = COMPARISON.exec(text);
+  if (comparison) {
+    return { lines: [error(`This window does not compare values. To set ${comparison[1]}, write: ${comparison[1]} = ${comparison[2]}`)] };
+  }
   // An assignment before a command: `ls = 2` sets an entry named ls, as MATLAB reads it.
   const assignment = ASSIGNMENT.exec(text);
   if (assignment) {
     const path = assignment[1]!;
     const value = assignment[2]!;
     if (value === '') return { lines: [error(`Give a value: ${path} = <value>`)] };
-    return { lines: await setCell(target, path, value) };
+    return { lines: echo(await setCell(target, path, value)) };
   }
   const space = text.search(/\s/);
   const word = space < 0 ? text : text.slice(0, space);
@@ -228,21 +292,21 @@ async function dispatch(text: string, target: CommandTarget): Promise<CommandOut
     case 'sources':
       return { lines: sources(target) };
     case 'ls':
-      return { lines: list(target, unquote(args)) };
+      return { lines: list(target, nameArg(args)) };
     case 'info':
-      return { lines: await properties(target, unquote(args)) };
+      return { lines: await properties(target, nameArg(args)) };
     case 'json':
-      return { lines: await rawOf(target, unquote(args)) };
+      return { lines: await rawOf(target, nameArg(args)) };
     case 'set':
-      return { lines: await set(target, args) };
+      return { lines: echo(await set(target, args)) };
     case 'add':
       return { lines: await add(target, args) };
     case 'rm':
-      return { lines: await remove(target, unquote(args)) };
+      return { lines: await remove(target, nameArg(args)) };
     case 'save':
       return { lines: await save(target) };
     default:
-      return { lines: show(target, text, word) };
+      return { lines: echo(show(target, text, word)) };
   }
 }
 
@@ -280,42 +344,98 @@ function valueOf(row: TreeTableRow): string {
  */
 const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
 
-/** The row a whole name names, in selectByName's order: an entry, any row, a block's key. */
+// Whether a row's label is `part`: as written, or, for a part with an index, with the spaces in
+// it ignored (`Mat(1, 1)` is the row labelled `Mat(1,1)`).
+function sameLabel(row: TreeTableRow, part: string): boolean {
+  const label = labelOf(row);
+  if (label === part) return true;
+  return /[({]/.test(part) && label.replace(/\s+/g, '') === part.replace(/\s+/g, '');
+}
+
+// The name an indexed part indexes (`Tags` of `Tags{1}`), or null for a part with no index.
+const baseOf = (part: string): string | null => /^([A-Za-z_]\w*)[({]/.exec(part)?.[1] ?? null;
+
+/**
+ * The row a whole name names, in selectByName's order: an entry; an element of an entry by its
+ * index (`Mat(1,1)` under Mat); any row; a block by its key.
+ */
 function named(rows: readonly TreeTableRow[], name: string): TreeTableRow | undefined {
-  return (
-    rows.find((r) => labelOf(r) === name && isEntry(r)) ?? rows.find((r) => labelOf(r) === name) ?? rows.find((r) => r._blockKey === name)
-  );
+  const entry = rows.find((r) => isEntry(r) && sameLabel(r, name));
+  if (entry) return entry;
+  const base = baseOf(name);
+  const holder = base === null ? undefined : rows.find((r) => isEntry(r) && labelOf(r) === base);
+  const element = holder && rows.find((r) => r.parent === holder.ID && sameLabel(r, name));
+  return element ?? rows.find((r) => sameLabel(r, name)) ?? rows.find((r) => r._blockKey === name);
 }
 
 /**
- * The row `path` names: the row of that whole name, else its dotted parts walked down from the
- * first, each a row under the one before. With no such row, `lazy` is the row the walk stopped at
- * when that row's own rows were held back (`_lazy`): the name may be there, not yet loaded.
+ * The row under `parent` that `part` names: one of that label, or, for an indexed part, the element
+ * under the row of its base name (a cell field's `Tags{1}` is under `Tags`).
  */
-function lookup(rows: readonly TreeTableRow[], path: string): { row?: TreeTableRow; lazy?: TreeTableRow } {
+function childOf(rows: readonly TreeTableRow[], parent: TreeTableRow, part: string): TreeTableRow | undefined {
+  const direct = rows.find((r) => r.parent === parent.ID && sameLabel(r, part));
+  if (direct) return direct;
+  const base = baseOf(part);
+  const holder = base === null ? undefined : rows.find((r) => r.parent === parent.ID && labelOf(r) === base);
+  return holder && rows.find((r) => r.parent === holder.ID && sameLabel(r, part));
+}
+
+/** A dotted name's parts: split at each dot outside an index (`x(1.5)` is one part). */
+function splitPath(path: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < path.length; i++) {
+    const c = path[i];
+    if (c === '(' || c === '{') depth++;
+    else if ((c === ')' || c === '}') && depth > 0) depth--;
+    else if (c === '.' && depth === 0) {
+      parts.push(path.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(path.slice(start));
+  return parts;
+}
+
+/**
+ * A name walked down the rows: the row of the whole name; else its first part as a name finds an
+ * entry, and each next part a row under the one before. Where no row is found, where the walk
+ * stopped: the row it was at (`at`, null before the first part) and the part not found (`index`).
+ */
+type Walk = { row: TreeTableRow } | { row?: undefined; at: TreeTableRow | null; parts: string[]; index: number };
+
+function walk(rows: readonly TreeTableRow[], path: string): Walk {
   const whole = named(rows, path);
   if (whole) return { row: whole };
-  const [first, ...rest] = path.split('.');
-  if (rest.length === 0) return {};
-  let at = named(rows, first!);
-  for (const part of rest) {
-    if (!at) return {};
-    const parent: TreeTableRow = at;
-    at = rows.find((r) => r.parent === parent.ID && labelOf(r) === part);
-    if (!at) return parent._lazy ? { lazy: parent } : {};
+  const parts = splitPath(path);
+  let at: TreeTableRow | null = null;
+  for (let index = 0; index < parts.length; index++) {
+    const next: TreeTableRow | undefined = at === null ? named(rows, parts[index]!) : childOf(rows, at, parts[index]!);
+    if (!next) return { at, parts, index };
+    at = next;
   }
-  return { row: at };
+  return { row: at! };
 }
 
 const notLoaded = (row: TreeTableRow): string =>
   `The rows under "${labelOf(row)}" are not loaded yet: expand it in the table, then ask again.`;
 
-/** The row `path` names; without one, the command ends saying so, and what a wrong case meant. */
+/**
+ * What to say of a walk that found no row, by the part it did not find: no such name at all (and
+ * what a wrong case meant), rows held back under the row it reached, or no such row under that one.
+ */
+function missed(rows: readonly TreeTableRow[], miss: Exclude<Walk, { row: TreeTableRow }>, doc: CommandDoc): OutputLine {
+  const part = miss.parts[miss.index]!;
+  if (miss.at === null) return error(`Nothing is named "${part}" in ${doc.name}.${suggestion(rows, part)}`);
+  if (miss.at._lazy) return info(notLoaded(miss.at));
+  return error(`"${miss.parts.slice(0, miss.index).join('.')}" has no row named "${part}".`);
+}
+
+/** The row `path` names; without one, the command ends saying what is missing. */
 function findRow(rows: readonly TreeTableRow[], path: string, doc: CommandDoc): TreeTableRow {
-  const { row, lazy } = lookup(rows, path);
-  if (row) return row;
-  if (lazy) stop(info(notLoaded(lazy)));
-  return stop(error(`Nothing is named "${path}" in ${doc.name}.${suggestion(rows, path)}`));
+  const found = walk(rows, path);
+  return found.row ?? stop(missed(rows, found, doc));
 }
 
 // " Did you mean "Speed"?" for `speed`: the name in another case, an entry first, as a name finds.
@@ -350,23 +470,21 @@ interface Cell {
 }
 
 /**
- * The cell `path` names: `<row>.<Column>` where the last part is a column of the row before it,
- * else the Value of the row the whole path names. `notAColumn` is what to say of a row that has
- * neither: a last part that is no column of it, and no row under it.
+ * The cell `path` names: the Value of the row it walks to; else, where the row before its last
+ * part has no row by that name, that row's column of the name (`Speed.Description`). `notAColumn`
+ * is what to say where the last part is neither.
  */
 function cellAt(rows: readonly TreeTableRow[], path: string, doc: CommandDoc, notAColumn: (head: string, key: string) => string): Cell {
-  const dot = path.lastIndexOf('.');
-  if (dot > 0) {
-    const head = path.slice(0, dot);
-    const key = path.slice(dot + 1);
-    const { row } = lookup(rows, head);
-    if (row && isColumn(row, key)) return { row, column: key, path, name: head };
-    const whole = lookup(rows, path);
-    if (whole.row) return { row: whole.row, column: 'Value', path, name: path };
-    if (whole.lazy) stop(info(notLoaded(whole.lazy)));
-    if (row) stop(error(notAColumn(head, key)));
+  const found = walk(rows, path);
+  if (found.row) return { row: found.row, column: 'Value', path, name: path };
+  if (found.at && found.index === found.parts.length - 1) {
+    const key = found.parts[found.index]!;
+    const head = found.parts.slice(0, found.index).join('.');
+    if (isColumn(found.at, key)) return { row: found.at, column: key, path, name: head };
+    // Under a row whose rows were held back, the name may be one of them, not yet loaded.
+    if (!found.at._lazy) stop(error(notAColumn(head, key)));
   }
-  return { row: findRow(rows, path, doc), column: 'Value', path, name: path };
+  return stop(missed(rows, found, doc));
 }
 
 /** A cell's text: its Name's label, its Value's text, any other cell's. */
@@ -384,9 +502,13 @@ function show(target: CommandTarget, text: string, word: string): OutputLine[] {
   const doc = target.docs().find((d) => d.active);
   if (!doc) return [unknown];
   const rows = target.rows();
-  // A name with a space or a bracket in it (`Design Data`, `Mat(1,1)`) is a name only if a row has it.
+  // A name with a space in it (`Design Data`) is a name only if a row has it; an indexed one
+  // (`Mat(1,1)`) only if a row has it or its base name, else it is a call (`disp(x)`), not a name.
   if (!PATH.test(text) && !named(rows, text)) return [unknown];
-  const cell = cellAt(rows, text, doc, (head, key) => `"${head}" has no column ${key}.`);
+  const first = splitPath(text)[0]!;
+  const base = baseOf(first);
+  if (base !== null && !named(rows, first) && !named(rows, base)) return [unknown];
+  const cell = cellAt(rows, text, doc, (head, key) => `"${head}" has no row or column named "${key}".`);
   return [out(display(cell.row, cell.column, cell.path))];
 }
 
@@ -395,7 +517,7 @@ function sources(target: CommandTarget): OutputLine[] {
   const docs = target.docs();
   if (docs.length === 0) return [info('No documents are open.')];
   const names = docs.map((d) => d.name + (d.dirty ? ' *' : ''));
-  const width = Math.max(...names.map((n) => n.length));
+  const width = widest(names);
   const lines = docs.map((d, i) => out(`  ${names[i]!.padEnd(width)}  ${d.kind}${d.active ? '  (active)' : ''}`));
   return docs.some((d) => d.dirty) ? [...lines, info('* has unsaved changes')] : lines;
 }
@@ -408,7 +530,7 @@ function list(target: CommandTarget, name: string): OutputLine[] {
     const row = findRow(rows, name, doc);
     const under = rows.filter((r) => r.parent === row.ID);
     if (under.length === 0) return [info(row._lazy ? notLoaded(row) : `"${name}" has no rows under it.`)];
-    return listing(under).map(out);
+    return capped(listing(under).map(out));
   }
   const entries = rows.filter(isEntry);
   if (entries.length === 0) return [info(`${doc.name} has no entries.`)];
@@ -425,13 +547,13 @@ function list(target: CommandTarget, name: string): OutputLine[] {
     }
     lines.push(out(text[i]!));
   });
-  return lines;
+  return capped(lines);
 }
 
 /** Each row as `  name  class  value`, the first two columns lined up across the rows. */
 function listing(rows: readonly TreeTableRow[]): string[] {
-  const nameWidth = Math.min(NAME_WIDTH, Math.max(...rows.map((r) => labelOf(r).length)));
-  const classWidth = Math.min(NAME_WIDTH, Math.max(...rows.map((r) => classOf(r).length)));
+  const nameWidth = widest(rows.map(labelOf), NAME_WIDTH);
+  const classWidth = widest(rows.map(classOf), NAME_WIDTH);
   return rows.map((r) => `  ${labelOf(r).padEnd(nameWidth)}  ${classOf(r).padEnd(classWidth)}  ${cut(cellText(r.Value))}`.trimEnd());
 }
 
@@ -445,7 +567,7 @@ async function properties(target: CommandTarget, name: string): Promise<OutputLi
   const view = await target.inspect(row.ID);
   const groups = view.groups.filter((g) => g.properties.length > 0);
   if (groups.length === 0) return [info(`No properties to show for "${name}".`)];
-  const width = Math.min(NAME_WIDTH, Math.max(...groups.flatMap((g) => g.properties.map((p) => p.name.length))));
+  const width = widest(groups.flatMap((g) => g.properties.map((p) => p.name)), NAME_WIDTH);
   return groups.flatMap((g) => [info(g.title), ...g.properties.map((p) => out(`  ${p.name.padEnd(width)}  ${p.value}`.trimEnd()))]);
 }
 
@@ -459,8 +581,7 @@ async function rawOf(target: CommandTarget, name: string): Promise<OutputLine[]>
   if (typeof raw.text === 'string' && raw.text !== '') {
     const lines = raw.text.split(/\r?\n/);
     if (lines.at(-1) === '') lines.pop();
-    const shown = lines.slice(0, RAW_LINES).map(out);
-    return lines.length > RAW_LINES ? [...shown, info(`… ${lines.length - RAW_LINES} more lines.`)] : shown;
+    return capped(lines.map(out));
   }
   if (raw.bytes instanceof Uint8Array) return [info(`"${name}" holds ${raw.bytes.length} bytes of binary data.`)];
   return [info(raw.reason || 'No raw data for this row.')];
@@ -480,13 +601,49 @@ function unquote(text: string): string {
 }
 
 /**
+ * The name at the start of `args`, and what follows it. A quoted name is a name with a space in it
+ * (`"Gain 1"`), MATLAB's way, with a `.Column` or `.field` written straight after its closing quote
+ * kept on it; any other name runs to the first space or `=`.
+ */
+function readName(args: string): { name: string; rest: string } {
+  const plain = (): { name: string; rest: string } => {
+    const parts = /^([^\s=]*)\s*(.*)$/.exec(args)!;
+    return { name: parts[1]!, rest: parts[2]! };
+  };
+  const q = args[0];
+  if (q !== '"' && q !== "'") return plain();
+  let name = '';
+  let i = 1;
+  for (; i < args.length; i++) {
+    if (args[i] === q) {
+      if (args[i + 1] !== q) break;
+      i++;
+    }
+    name += args[i];
+  }
+  // No closing quote: the quote is part of the name, which matches no row and says so.
+  if (i >= args.length) return plain();
+  const after = args.slice(i + 1);
+  const suffix = /^(?:\.[^\s=]+)?/.exec(after)![0];
+  return { name: name + suffix, rest: after.slice(suffix.length).trim() };
+}
+
+/** The name `ls`, `info`, `json` and `rm` take: the whole of `args`, or a quoted name and nothing after it. */
+function nameArg(args: string): string {
+  if (args[0] !== '"' && args[0] !== "'") return args;
+  const { name, rest } = readName(args);
+  return rest ? args : name;
+}
+
+/**
  * What a cell's editor would open on, or null where the table offers none: the same rules as the
- * tree table's _cellEditTarget, so the window edits exactly the cells a double-click would. A
+ * tree table's _cellEditTarget, so the window edits exactly the cells a double-click would (a
+ * test holds the two together over real views; exported for it). A
  * Name by its own flag; a Value by its cell's (with the choices a select offers) or the row's
  * `_valueEditable`; a Description wherever the object has one it can keep; any other column where
  * its cell says it is editable.
  */
-function editorOf(row: TreeTableRow, column: string): { text: string; options?: string[] } | null {
+export function cellEditor(row: TreeTableRow, column: string): { text: string; options?: string[] } | null {
   const cell = row[column];
   const optionsOf = (c: Record<string, unknown>) =>
     Array.isArray(c.options) ? { options: c.options.filter((o): o is string => typeof o === 'string') } : {};
@@ -514,9 +671,10 @@ function wasRenamed(rows: readonly TreeTableRow[], row: TreeTableRow, from: stri
 
 /** `set <name>[.<Column>] <value>`, with or without an `=` between. */
 function set(target: CommandTarget, args: string): Promise<OutputLine[]> {
-  const parts = /^([^\s=]+)\s*(?:=\s*)?(.*)$/.exec(args);
-  if (!parts || parts[2] === '') return Promise.resolve([error('Usage: set <name>[.<Column>] <value>')]);
-  return setCell(target, parts[1]!, parts[2]!);
+  const { name, rest } = readName(args);
+  const value = rest.replace(/^=\s*/, '');
+  if (!name || value === '') return Promise.resolve([error('Usage: set <name>[.<Column>] <value>')]);
+  return setCell(target, name, value);
 }
 
 /**
@@ -530,7 +688,7 @@ async function setCell(target: CommandTarget, path: string, value: string): Prom
   const cell = cellAt(target.rows(), path, doc, () => "Only the table's columns can be set here.");
   const { row, column, name } = cell;
   if (isSectionRowId(row.ID)) return [error(`"${name}" is a section: set its entries instead.`)];
-  const editor = editorOf(row, column);
+  const editor = cellEditor(row, column);
   if (!editor) return [error(`"${name}" has no editable ${column}.`)];
   let newValue = column === 'Value' ? value : unquote(value);
   if (editor.options) {
@@ -550,7 +708,7 @@ async function setCell(target: CommandTarget, path: string, value: string): Prom
       : [error(`"${name}" was not renamed.`)];
   }
   // The row as the edit left it: a refused one, as it was, which is what the window says.
-  const now = rows.find((r) => r.ID === row.ID) ?? lookup(rows, name).row;
+  const now = rows.find((r) => r.ID === row.ID) ?? walk(rows, name).row;
   if (!now) return [out(`${cell.path} = ${newValue}`)];
   const lines = [out(display(now, column, cell.path))];
   if (textAt(now, column) === oldValue) lines.push(info(`"${name}" is unchanged.`));
@@ -576,6 +734,8 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
   if (!parts) return usage;
   const asked = parts[1]!;
   const name = unquote(parts[2]!);
+  // Refused before anything is added: a rename to it would be, and leave a default-named entry.
+  if (/\s/.test(name)) return [error(`"${name}" has a space in it, which a name cannot.`)];
   // The tiles of the class, in the gallery's order (Design Data's before Architectural Data's); a
   // class typed in another case is still the class.
   let tiles = choices.filter((c) => c.className === asked);
