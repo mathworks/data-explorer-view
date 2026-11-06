@@ -20,6 +20,7 @@ const TAGS = [
   'dex-toolbar',
   'dex-location-bar',
   'dex-explorer',
+  'dex-folder-bar',
   'dex-doc-tabs',
   'dex-settings-panel',
   'dex-about-panel',
