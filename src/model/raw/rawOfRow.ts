@@ -11,8 +11,9 @@
 //   entry                          serializeEntryToXml), out of the chunk's indent
 //   a row inside an entry          its part of the same: a JSON value, or the XML element it is
 //                                  written as (`<P Name=…>`, or a cell's `<Element>`)
-//   a MAT-file's variable, and a   the bytes of its element as read (`_rawBytes`, as a dump), or
-//   Model Workspace's              its record where core keeps no bytes (an object), as JSON
+//   a MAT-file's variable, and a   the bytes of its element as read (`_rawBytes`, as a dump),
+//   Model Workspace's              while they are what it holds; its record, as JSON, once it
+//                                  is edited, or where core keeps no bytes (an object)
 //   a model's block, external      no record of its own (core's serialize() is null): what the
 //   data source or reference       model says of it, the facts core read from the file
 //
@@ -29,10 +30,18 @@ import { noRaw, rawOfNode, rawOfValue, type RawView } from './rawView.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** A document's tree, as `rawOfRow` reads it. */
+/**
+ * A document's tree, as `rawOfRow` reads it: a read-only document's (source/workspace.ts), or an
+ * editing engine's view's (edit/jsonView.ts, edit/binaryView.ts, edit/matEngine.ts), each of which
+ * answers `TableSource.raw` through it.
+ */
 export interface RawSource {
-  /** The document's root node: the tree its table's rows are of. */
-  readonly root: unknown;
+  /**
+   * The document's root node, as the document stands now: the tree its table's rows are of. Asked
+   * first, so a source that builds its tree when asked (an edited JSON dictionary's, from its text)
+   * has built it before `find` is. A throw is no tree, and nothing to show.
+   */
+  root(): unknown;
   /** The ids that name the file itself: its uri, and the srcId its tree is registered under. */
   readonly fileIds: readonly string[];
   /** The node a row id names in the tree, or null. */
@@ -44,9 +53,10 @@ export interface RawSource {
  * of this file for each kind of row. Nothing to show for a row that is not there.
  */
 export function rawOfRow(source: RawSource, rowId: string): RawView {
-  const root = source.root as any;
-  if (!root || typeof rowId !== 'string' || rowId === '') return noRaw();
+  if (typeof rowId !== 'string' || rowId === '') return noRaw();
   try {
+    const root = source.root() as any;
+    if (!root) return noRaw();
     if (source.fileIds.includes(rowId)) return rawOfFile(root);
     if (isSectionRowId(rowId)) {
       const section = sectionByName(root, sectionNameFromRowId(rowId)!);
@@ -63,7 +73,7 @@ export function rawOfRow(source: RawSource, rowId: string): RawView {
       case 'mdl':
         return modelRaw(node);
       default:
-        return rawOfNode(node);
+        return variableRaw(node);
     }
   } catch {
     // A node core will not write, as its record or its XML: nothing to show for it.
@@ -126,12 +136,25 @@ function outdented(text: string): string {
 }
 
 /**
- * A row of a model. A Model Workspace variable and a configuration set have a record, or bytes, as
- * any node has (rawOfNode). A block, an external data source and a model reference have none in
- * core (their serialize() is null): what the model says of each, as core read it, stands for one.
+ * A row of a MAT-file, or of a Model Workspace: the bytes of its element while they are still what
+ * it holds, and otherwise its record, which a save writes. Core keeps the bytes it read past an
+ * edit, a rename or an edit of a row inside the variable (a save replays them for what no edit
+ * touched); the variable as read (`_matVar`) is what they spell, and it is gone, or stale
+ * (`_varStale`), once anything in it moved. An undo puts both back, and the bytes are shown again.
+ */
+function variableRaw(node: any): RawView {
+  const asRead = !!node._matVar && !node._varStale;
+  return node._rawBytes instanceof Uint8Array && !asRead ? rawOfValue(node.serialize()) : rawOfNode(node);
+}
+
+/**
+ * A row of a model. A Model Workspace variable and a configuration set have bytes, or a record, as
+ * a MAT-file's variable has (variableRaw). A block, an external data source and a model reference
+ * have none in core (their serialize() is null): what the model says of each, as core read it,
+ * stands for one.
  */
 function modelRaw(node: any): RawView {
-  const own = rawOfNode(node);
+  const own = variableRaw(node);
   if (own.format !== 'none') return own;
   if (node instanceof ModelBlockNode) {
     return rawOfValue({

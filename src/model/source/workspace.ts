@@ -499,7 +499,7 @@ class InPageDoc implements HeldDoc {
   private raw(rowId: string): RawView {
     const r = this.reading;
     if (!r) return noRaw();
-    return rawOfRow({ root: r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
+    return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
   }
 }
 
