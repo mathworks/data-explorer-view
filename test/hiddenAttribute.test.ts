@@ -53,6 +53,7 @@ describe('the hidden attribute', () => {
       'DexMatrixOpen',
       'DexProjectPage',
       'DexPropertyInspector',
+      'DexRawViewer',
       'DexSettingsPanel',
       'DexShellAction',
       'DexShellDocs',
