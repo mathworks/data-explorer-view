@@ -84,6 +84,7 @@ export type {
   ChildRows,
   ClipboardStatus,
   EditableTableSource,
+  EditHistory,
   InspectorFeed,
   InspectorView,
   MatrixPage,

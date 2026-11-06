@@ -58,6 +58,7 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -103,6 +104,13 @@ export interface MatEngineOptions {
   sink: EditSink;
   /** Where the stack stands, and its save point. */
   index: EditIndex;
+  /**
+   * Where the stack the edits go on (`sink`) stands, which its tables hand on as their `history`
+   * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+   * to undo or redo: in the page, the stack itself (EditStack). Default: none, and Undo and Redo are
+   * offered wherever the document may be edited (in the VS Code extension the stack is VS Code's).
+   */
+  history?: EditHistory;
   /** The registers the window's documents share. */
   registers: Registers;
   /** Where a notice the table does not show goes. Default: nowhere. */
@@ -1510,6 +1518,11 @@ class MatView implements EditableTableSource {
   }
 
   // --- Undo, redo, and the whole text of a Value --------------------------------------------------
+
+  /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   undo(): void {
     this.handle('undo', () => this.doc.options.sink.undo());

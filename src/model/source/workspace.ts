@@ -553,7 +553,8 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
   readonly editable = true;
   protected abstract readonly engine: SavingEngine<S>;
   protected view!: EditableTableSource & { dispose(): void; repaintAll(): Promise<void> };
-  protected readonly stack = new EditStack();
+  /** Where its edits go: the history its table offers Undo and Redo by, too (the engine's `history`). */
+  protected readonly stack: EditStack;
   protected readonly index = new EditStackIndex();
   /**
    * The stack's position, as the engine moves it. Whoever listens for `dirty` is told once the
@@ -573,6 +574,7 @@ abstract class EditableDoc<S extends SaveToken & { readonly bytes: Uint8Array }>
     readonly name: string,
   ) {
     this.bell = new DirtyBell(listenerFailure(shared.notify, name));
+    this.stack = new EditStack(listenerFailure(shared.notify, name));
     const index = this.index;
     this.watched = {
       get dirty() {
@@ -696,6 +698,7 @@ class EditableMatDoc extends EditableDoc<MatSave> {
       bytes,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -774,6 +777,7 @@ class EditableBinaryDoc extends EditableDoc<BinarySave> {
       bytes,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -859,6 +863,7 @@ class EditableJsonDoc implements HeldDoc {
       uri,
       name,
       text: this.text,
+      history: this.text.history,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,
@@ -1015,6 +1020,7 @@ class EditableModelDoc extends EditableDoc<MatSave> {
       file: MODEL_FILE,
       sink: this.stack,
       index: this.watched,
+      history: this.stack,
       registers: shared.registers,
       notify: shared.notify,
       budget: shared.budget,

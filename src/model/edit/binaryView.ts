@@ -63,6 +63,7 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -822,6 +823,11 @@ export class BinaryView implements EditableTableSource {
   }
 
   // --- Undo, redo, and the whole text of a Value ---------------------------------------------------
+
+  /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   undo(): void {
     if (this.closed) return;

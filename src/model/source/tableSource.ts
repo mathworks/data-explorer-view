@@ -11,8 +11,8 @@
 //
 // Editing (an edit, a paste, a drop, undo) is the other half: EditableTableSource extends this
 // interface with one command per gesture, each the extension's editing message without its
-// envelope, and its answers arrive as more TableChanges. A read-only source implements this one
-// alone.
+// envelope, and its answers arrive as more TableChanges; a source whose undo stack is the page's
+// says where it stands too (EditHistory). A read-only source implements this one alone.
 //
 // Types, isEditable, and SourceClosed.
 import type { DropFacts } from '../actions/dropFacts.js';
@@ -246,6 +246,25 @@ export interface NewEntry {
 }
 
 /**
+ * Where a document's undo stack stands, as a table offers Undo and Redo by it: whether there is an
+ * edit to undo and one to redo, and when either changes. The page's own stacks have one (EditStack,
+ * and a JSON dictionary's text); an editor's stack that says nothing of itself to the table (the VS
+ * Code extension's: VS Code keeps the edits) has none.
+ */
+export interface EditHistory {
+  /** Whether there is an edit to undo. */
+  readonly canUndo: boolean;
+  /** Whether there is an undone edit to redo. */
+  readonly canRedo: boolean;
+  /**
+   * Hear `canUndo` or `canRedo` change, once the step that changed it is done (an edit, an undo, a
+   * redo, a reload that empties the stack), until the returned function is called. A step that
+   * changes neither is not told.
+   */
+  onChange(listener: () => void): () => void;
+}
+
+/**
  * A TableSource that also takes edits: one command per gesture, each the editing message of the
  * wire (wire.ts) without its envelope, in the order the user makes them.
  *
@@ -295,6 +314,14 @@ export interface EditableTableSource extends TableSource {
    * and offers it on the rows it marks (`_canSetActive`).
    */
   setActiveConfigSet?(rowId: string): void;
+  /**
+   * Where the document's undo stack stands: a connected table offers Undo only where there is an
+   * edit to undo, and Redo one to redo (its menu, its handle's `can`, and so an app's toolbar).
+   * Optional: a source without it (one across a channel, as the VS Code extension's, whose stack is
+   * VS Code's) has Undo and Redo offered wherever the document may be edited. A workspace's
+   * documents the page edits have it.
+   */
+  readonly history?: EditHistory;
 }
 
 /**

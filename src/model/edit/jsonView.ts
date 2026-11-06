@@ -83,6 +83,7 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -1495,6 +1496,11 @@ export class JsonView implements EditableTableSource {
   }
 
   // --- Undo, redo, the whole text of a Value, and Location in Text ---------------------------------
+
+  /** Where the document's undo stack stands, the text's, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   // One stack, the text's own: an undo here is an undo of the text, which every table and text view
   // of the document hears.

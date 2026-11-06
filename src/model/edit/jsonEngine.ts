@@ -14,7 +14,7 @@
 // change of the text says.
 import type { Session } from 'data-explorer-core';
 import { uriPathBasename } from '../ids/pathUtil.js';
-import type { EditableTableSource, TableView } from '../source/tableSource.js';
+import type { EditableTableSource, EditHistory, TableView } from '../source/tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import { parseDetached, type DocumentRegistry } from '../workspace/SlddModel.js';
 import type { Notify, TextStore } from './hooks.js';
@@ -59,6 +59,14 @@ export interface JsonEngineOptions {
   name?: string;
   /** The document's text, which is the truth. */
   text: TextStore;
+  /**
+   * Where the text's undo stack stands, which its tables hand on as their `history`
+   * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+   * to undo or redo: in the page, the text store's own (PageTextStore.history). Default: none, and
+   * Undo and Redo are offered wherever the document may be edited (in the VS Code extension the
+   * stack is the TextDocument's, which says nothing of itself).
+   */
+  history?: EditHistory;
   /** The registers the window's documents share. */
   registers: Registers;
   /** Where a notice the table does not show goes. Default: nowhere. */
