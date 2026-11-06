@@ -9,8 +9,10 @@ It holds no document. The app gives it rows and answers what it asks for; every 
 goes out as a `dex-*` event, and the table never changes the document itself. Its defaults are a
 full editor: `readonly` makes it a viewer, `canAdd` and `rowDrag` turn the `+ Add` button and
 dragging on and off. `keyboardMenu` gives the keyboard the row menu: Shift+F10 and the ContextMenu
-key on the grid send `dex-table-context-menu` for the keyboard's row, placed under it (off by
-default, which leaves both keys to the browser, whose own event names no row).
+key on the grid send `dex-table-context-menu` for the keyboard's row, placed under it, with
+`keyboard: true`, and `connectTable` shows that menu with the keyboard on its first item, given
+back to the grid as it closes (off by default, which leaves both keys to the browser, whose own
+event names no row).
 
 `connectTable` feeds it from a table source: a document opened in the page
 (`createWorkspace().open(bytes, name)`), or a host across a channel (`messageSource(port)`). It

@@ -635,3 +635,101 @@ describe('a width that does not follow the selection', () => {
     expect(shortcut).not.toMatch(/max-width/);
   });
 });
+
+// A menu a KEY opened (Shift+F10 on a table's grid) left the keyboard on the grid: the first
+// ArrowDown both entered the menu and moved the table's selection, so Enter then acted on another
+// row, and after the menu closed the focus was on the page's body. `focusFirst` puts the keyboard
+// on the first item at once, and gives it back where it was on Escape or a choice. A right-click's
+// menu, and every caller that does not ask, is as it was.
+describe('focusFirst: a menu a key opened', () => {
+  /** A focusable element inside a shadow root, as a table's grid is, with the focus on it. */
+  function focusedInShadow(): { host: HTMLElement; inner: HTMLElement } {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const inner = document.createElement('div');
+    inner.tabIndex = 0;
+    host.attachShadow({ mode: 'open' }).append(inner);
+    inner.focus();
+    return { host, inner };
+  }
+  async function open(items: ContextMenuItem[], options?: { focusFirst?: boolean }): Promise<DexContextMenu> {
+    menu = new DexContextMenu();
+    document.body.appendChild(menu);
+    menu.show(10, 10, items, options);
+    await menu.updateComplete;
+    await frame();
+    await menu.updateComplete;
+    return menu;
+  }
+  // The element with the focus, down through the shadow roots that hold it. Read from the top, as a
+  // browser keeps it: happy-dom throws reading the activeElement of a shadow root the focus is not in.
+  const deepActive = (): Element | null => {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    return el;
+  };
+  const grid = deepActive;
+  /** The label of the menu's item that has the focus, if one has. */
+  const focusedItem = (): string | undefined => deepActive()?.closest('.item')?.querySelector('.item-label')?.textContent ?? undefined;
+
+  it('puts real focus on the first item at once, a disabled one included', async () => {
+    const { host } = focusedInShadow();
+    const el = await open([{ id: 'paste', label: 'Paste', disabled: true }, ...ITEMS], { focusFirst: true });
+    expect(focusedItem()).toBe('Paste');
+    // An arrow moves from there, and not from before the first item.
+    key('ArrowDown');
+    await el.updateComplete;
+    expect(focusedItem()).toBe('Cut');
+    host.remove();
+  });
+
+  it('gives the focus back where it was, inside its shadow root, on Escape', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    expect(focusedItem()).toBe('Cut');
+    key('Escape');
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(grid()).toBe(inner);
+    host.remove();
+  });
+
+  it('gives it back on a choice before the choice is sent, so what the choice opens may take it', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    const sent: { focus?: Element | null } = {};
+    el.addEventListener('dex-action', () => void (sent.focus = grid()));
+    key('ArrowDown');
+    await el.updateComplete;
+    key('Enter');
+    expect(sent.focus).toBe(inner);
+    expect(grid()).toBe(inner);
+    host.remove();
+  });
+
+  it('leaves the focus where a click outside put it', async () => {
+    const { host } = focusedInShadow();
+    const other = document.createElement('button');
+    document.body.append(other);
+    const el = await open(ITEMS, { focusFirst: true });
+    other.focus();
+    other.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(document.activeElement).toBe(other);
+    other.remove();
+    host.remove();
+  });
+
+  it('without it (a right-click), takes no focus until an arrow does, and gives none back', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS);
+    expect(focusedItem()).toBeUndefined();
+    expect(grid()).toBe(inner);
+    key('ArrowDown');
+    await el.updateComplete;
+    expect(focusedItem()).toBe('Cut');
+    key('Escape');
+    // Nothing was remembered, so nothing is given back.
+    expect(grid()).not.toBe(inner);
+    host.remove();
+  });
+});

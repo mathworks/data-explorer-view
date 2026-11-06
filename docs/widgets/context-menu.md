@@ -5,6 +5,9 @@ separators and disabled items that say why (their `reason`, as a tooltip and to 
 reader). A choice sends `dex-action` with the item's id and closes the menu; Escape, a click
 elsewhere or a scroll close it. However it closes, it sends `dex-menu-closed`, so whoever filled
 it knows its items are gone. The keyboard moves along every item, disabled ones included.
+A menu a key opened is shown with `{ focusFirst: true }`: the keyboard is on its first item at
+once, so the arrows move along the menu and not along what is under it, and it goes back where it
+was (inside a shadow root too) when Escape or a choice closes the menu.
 
 The tree table asks for a menu with `dex-table-context-menu`; the items for its selection come
 from `buildContextMenuItems` (`data-explorer-view/tree-table`):
@@ -16,12 +19,12 @@ defineContextMenu();
 const menu = document.body.appendChild(document.createElement('dex-context-menu'));
 
 table.addEventListener('dex-table-context-menu', (e) => {
-  const { x, y, rowId } = e.detail;
+  const { x, y, rowId, keyboard } = e.detail; // keyboard: Shift+F10 opened it (keyboardMenu)
   menu.show(x, y, [
     { id: 'copy', label: 'Copy', shortcut: 'Ctrl+C' },
     { id: 'sep', label: '', separator: true },
     { id: 'delete', label: 'Delete', disabled: true, reason: 'This file is read-only' },
-  ]);
+  ], { focusFirst: !!keyboard });
 });
 menu.addEventListener('dex-action', (e) => run(e.detail.actionId));
 ```

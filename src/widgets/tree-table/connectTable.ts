@@ -58,7 +58,8 @@ export interface ConnectTableOptions {
   /**
    * Whether a right-click opens a context menu: by default it does, with Copy Name and Copy
    * Value for the selection, then `menuItems`. False for none, for an app that answers
-   * `dex-table-context-menu` itself.
+   * `dex-table-context-menu` itself. The menu the table's `keyboardMenu` keys open takes the
+   * keyboard at once, and gives it back to the grid when Escape or a choice closes it.
    */
   menu?: boolean;
   /**
@@ -782,8 +783,11 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
         menuListening = true;
       }
-      // After show(): a menu it replaces says it closed, which clears every table's context.
-      contextMenu.show(x, y, items);
+      // After show(): a menu it replaces says it closed, which clears every table's context. A menu
+      // a key opened takes the keyboard at once, and gives it back to the grid as it closes: left on
+      // the grid, the first arrow would move the selection the menu acts on too.
+      if (e.detail.keyboard) contextMenu.show(x, y, items, { focusFirst: true });
+      else contextMenu.show(x, y, items);
       menuOwners.set(contextMenu, menuOwner);
       menuContext = context;
     });

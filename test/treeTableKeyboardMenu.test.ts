@@ -62,7 +62,7 @@ describe('keyboardMenu: the row menu from the keyboard', () => {
     placeGrid(table, { left: 10, top: 100, bottom: 700 });
     place(table, 'b', { left: 10, top: 150, bottom: 172 });
     expect(key(grid(table), 'keydown', SHIFT_F10)).toBe(false);
-    expect(menus).toEqual([{ x: 10, y: 172, rowId: 'b' }]);
+    expect(menus).toEqual([{ x: 10, y: 172, rowId: 'b', keyboard: true }]);
     expect(table.selectedRowIds).toEqual(['b']);
   });
 
@@ -95,14 +95,14 @@ describe('keyboardMenu: the row menu from the keyboard', () => {
     placeGrid(table, { left: 10, top: 100, bottom: 300 });
     place(table, 'c', { left: 10, top: 290, bottom: 312 });
     key(grid(table), 'keydown', SHIFT_F10);
-    expect(menus).toEqual([{ x: 10, y: 300, rowId: 'c' }]);
+    expect(menus).toEqual([{ x: 10, y: 300, rowId: 'c', keyboard: true }]);
   });
 
   it('with no row selected, is the menu of the space under the rows, at the top of the grid', async () => {
     const { table, menus } = await mount();
     placeGrid(table, { left: 10, top: 100, bottom: 700 });
     key(grid(table), 'keydown', SHIFT_F10);
-    expect(menus).toEqual([{ x: 10, y: 100, rowId: null }]);
+    expect(menus).toEqual([{ x: 10, y: 100, rowId: null, keyboard: true }]);
   });
 
   it('on an empty table, is the menu of its "No data", as a right-click there is', async () => {
@@ -155,6 +155,49 @@ describe('keyboardMenu: the row menu from the keyboard', () => {
     expect(key(grid(table), 'keydown', MENU_KEY)).toBe(true);
     expect(key(grid(table), 'keyup', MENU_KEY)).toBe(true);
     expect(menus).toEqual([]);
+  });
+
+  it('says a menu is the keyboard\'s, which a right-click\'s is not', async () => {
+    const { table, menus } = await mount();
+    const tr = [...table.shadowRoot!.querySelectorAll<HTMLElement>('tr[data-row-id]')].find((r) => r.getAttribute('data-row-id') === 'a')!;
+    tr.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true, clientX: 5, clientY: 6 }));
+    expect(menus).toHaveLength(1);
+    expect(menus[0]).toMatchObject({ x: 5, y: 6, rowId: 'a' });
+    expect(menus[0].keyboard).toBeUndefined();
+  });
+
+  it('names no row the table no longer shows: the arrows\' row gone, the selection\'s last shown one', async () => {
+    const { table, menus } = await mount();
+    table.selectedRowIds = ['a'];
+    (table as any)._lastClickedId = 'a';
+    await table.updateComplete;
+    // Shift+ArrowDown takes the keyboard to b, and the selection over a and b.
+    key(grid(table), 'keydown', { key: 'ArrowDown', shiftKey: true });
+    expect(table.selectedRowIds).toEqual(['a', 'b']);
+    // b goes (a delete repainted the rows), the selection still naming it.
+    table.rows = ROWS.filter((r) => r.ID !== 'b');
+    await table.updateComplete;
+    const selected: string[][] = [];
+    table.addEventListener('dex-row-selected', (e) => void selected.push(e.detail.rowIds));
+    key(grid(table), 'keydown', SHIFT_F10);
+    expect(menus.map((m) => m.rowId)).toEqual(['a']);
+    // a was selected already: nothing selected anew, least of all the row that is gone.
+    expect(selected).toEqual([]);
+    // No selected row shown at all: the space under the rows.
+    table.rows = ROWS.filter((r) => r.ID !== 'a' && r.ID !== 'b');
+    await table.updateComplete;
+    key(grid(table), 'keydown', SHIFT_F10);
+    expect(menus.map((m) => m.rowId)).toEqual(['a', null]);
+    expect(selected).toEqual([]);
+  });
+
+  it('says its keys on the grid, and on an empty table, for assistive tech; not where it is off', async () => {
+    const on = await mount();
+    expect(grid(on.table).getAttribute('aria-keyshortcuts')).toBe('Shift+F10 ContextMenu');
+    const empty = await mount([]);
+    expect(empty.table.shadowRoot!.querySelector('.empty-state')!.getAttribute('aria-keyshortcuts')).toBe('Shift+F10 ContextMenu');
+    const off = await mount(ROWS, false);
+    expect(grid(off.table).hasAttribute('aria-keyshortcuts')).toBe(false);
   });
 
   it('is set by the keyboard-menu attribute', async () => {
