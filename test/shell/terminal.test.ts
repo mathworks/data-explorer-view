@@ -7,7 +7,7 @@
 // typed and an edit never lands inside an add; and a Save from anywhere waits for the lines before
 // it, since an edit the window made is no cell editor for commitEdit to wait on.
 import { describe, expect, it } from 'vitest';
-import { at, commandWindow, dirtyTabs, docTabs, graph, open, previewTabs, rowOf, savedTo, startPage, tabIdOf, tableOf, textOf, until, valueIn } from './harness.js';
+import { at, commandWindow, dirtyTabs, docTabs, graph, open, previewTabs, rowOf, savedTo, startPage, tabIdOf, tabNames, tableOf, textOf, until, valueIn } from './harness.js';
 
 const FILES = { 'params.sldd': 'params.sldd', 'legacy_ctrl.mdl': 'legacy_ctrl.mdl' };
 const run = (line: string) => commandWindow().dispatchEvent(new CustomEvent('dex-command-run', { detail: { line }, bubbles: true, composed: true }));
@@ -119,5 +119,24 @@ describe('the Terminal view', () => {
     page.command('save');
     await until(() => !!savedTo(page.main, 'params.sldd') && dirtyTabs().length === 0);
     expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Kb')).toBe('9');
+  });
+
+  it('a close asked while a line still runs waits for it, and asks about the edit it made', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    run('add Simulink.Parameter Kw');
+    page.closeWindow();
+    await until(() => page.main.closedWindow.length === 1);
+    expect(page.main.closeAsked).toEqual([['params.sldd']]);
+    expect(page.main.closedWindow).toEqual([false]);
+  });
+
+  it("a tab's close asked while a line still runs waits for it too", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    run('add Simulink.Parameter Kv');
+    docTabs().dispatchEvent(new CustomEvent('dex-tab-close', { detail: { id: tabIdOf('params.sldd') }, bubbles: true, composed: true }));
+    await until(() => page.main.closeAsked.length === 1);
+    expect(tabNames()).toEqual(['params.sldd']);
   });
 });

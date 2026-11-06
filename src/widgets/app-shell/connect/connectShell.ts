@@ -273,7 +273,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   }
 
   // A tab with unsaved edits closes once the user says to save them (and they are) or discard them.
+  // An edit a Terminal line still running makes is one too, as it is for a save.
   async function requestClose(tab: OpenTab): Promise<void> {
+    await modules.idle();
     // What a cell editor still open holds is an unsaved edit too.
     await tab.handle?.commitEdit();
     if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab)) close(tab);
@@ -574,6 +576,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     command,
     async requestClose() {
       if (disposed) return true;
+      await modules.idle();
       await Promise.all(tabs.items.map((t) => t.handle?.commitEdit()));
       return settle(tabs.items, confirmClose, (t) => save(t));
     },
