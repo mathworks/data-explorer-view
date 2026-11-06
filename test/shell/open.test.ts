@@ -12,6 +12,7 @@ import { parseLinkTarget } from '../../src/model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../src/model/source/sourceUri.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import { linkDestination } from '../../src/widgets/app-shell/connect/links.js';
+import { DexShellNote } from '../../src/widgets/app-shell/connect/dex-shell-note.js';
 import { activeTab, at, choose, fixture, inspectorNote, menuOn, open, rowOf, settled, startPage, tabNames, tableOf, until, welcomeShown } from './harness.js';
 
 const ALL = {
@@ -76,6 +77,33 @@ describe('the shell opens files as tabs', () => {
     expect(tableOf('broken.sldd')!.banners?.error).toMatch(/broken\.sldd/);
     expect(tableOf('gone.sldd')!.banners?.error).toBe(`Failed to open gone.sldd: ENOENT: no such file, open '${at('gone.sldd')}'`);
     expect(tableOf('broken.sldd')!.rows).toEqual([]);
+  });
+
+  it('says "Opening NAME…" in the tab while its file is read and parsed, as a status, and not once it is shown or failed', async () => {
+    // The tab was blank meanwhile. The note says it once the read has taken a moment (its own
+    // stylesheet holds it back a little), so a file read at once never flashes it.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    const read = page.host.readFile;
+    const held: (() => void)[] = [];
+    page.host.readFile = (p) => new Promise((resolve, reject) => held.push(() => read(p).then(resolve, reject)));
+    const panel = (name: string) => document.querySelector<HTMLElement>(`.doc-panel[data-path="${at(name)}"]`);
+    const noteIn = (name: string) => panel(name)?.querySelector<HTMLElement>('dex-shell-note');
+    void page.handle.openPaths([at('params.sldd')]);
+    await until(() => !!noteIn('params.sldd'));
+    expect(noteIn('params.sldd')!.getAttribute('role')).toBe('status');
+    expect(noteIn('params.sldd')!.textContent).toBe('Opening params.sldd…');
+    held.shift()!();
+    await until(() => (tableOf('params.sldd')?.rows.length ?? 0) > 0);
+    expect(noteIn('params.sldd')).toBeNull();
+    // A read that fails takes the note away too, and its banner says why.
+    void page.handle.openPaths([at('gone.sldd')]);
+    await until(() => !!noteIn('gone.sldd'));
+    held.shift()!();
+    await until(() => !!tableOf('gone.sldd')?.banners?.error);
+    expect(noteIn('gone.sldd')).toBeNull();
+    // Held back by a delayed fade in, not hidden: in the accessibility tree from the start.
+    const css = [DexShellNote.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(css).toMatch(/:host\(\[role='status'\]\) \{ animation: [\w-]+ 0s \d+ms both; \}/);
   });
 
   it('each file keeps its own column choices, under a key of its own', async () => {

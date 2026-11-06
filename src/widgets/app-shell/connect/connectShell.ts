@@ -36,6 +36,7 @@ import {
   connectDocument,
   docTabOf,
   newTable,
+  openingNote,
   repaintProjects,
   showProject,
   statusOf,
@@ -425,7 +426,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     tabs.add(tab);
     if (at >= 0) tabs.move(tab, at);
     shown();
-    tab.ready = load(tab, uri, !!how.created);
+    // Until the file is shown (its table, its banner, its page), the panel says it is opening it.
+    const note = openingNote(tab);
+    tab.ready = load(tab, uri, !!how.created).finally(() => note.remove());
     await tab.ready;
     return tab;
   }

@@ -98,6 +98,19 @@ export function clearSelection(tab: OpenTab): void {
 
 // --- The widgets ---------------------------------------------------------------------------------
 
+/**
+ * The note `tab`'s panel shows while its file is read and parsed, which for a large file takes a
+ * while: "Opening plant.sldd…", as a status. Remove it once the file is shown, or failed.
+ */
+export function openingNote(tab: OpenTab): HTMLElement {
+  const note = document.createElement('dex-shell-note');
+  note.className = 'doc-opening';
+  note.setAttribute('role', 'status');
+  note.textContent = `Opening ${tab.name}…`;
+  tab.panel.append(note);
+  return note;
+}
+
 /** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
 export function newTable(tab: OpenTab, storageKey: string, editable = false, tableStyle: DexTreeTable['tableStyle'] = 'normal'): DexTreeTable {
   const table = document.createElement('dex-tree-table');
