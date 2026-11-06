@@ -21,7 +21,6 @@ import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
-import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
 import type { DexAppShell } from '../dex-app-shell.js';
@@ -30,10 +29,9 @@ import {
   clearSelection,
   connectDocument,
   docTabOf,
-  followProjectLink,
-  newProjectPage,
   newTable,
-  paintProject,
+  repaintProjects,
+  showProject,
   statusOf,
   type OpenTab,
 } from './documents.js';
@@ -94,11 +92,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       log(notice.level === 'status' ? 'info' : notice.level, notice.message);
     },
   });
-  // What the shell caught and must say: a toast, and its line in the Log.
-  const failed = (text: string): void => {
-    toasts.show({ level: 'error', message: text });
-    log('error', text);
+  // What the shell must say: a toast, and its line in the Log; what it caught, as an error.
+  const say = (level: 'info' | 'error', text: string, ms?: number): void => {
+    toasts.show({ level, message: text, ...(ms === undefined ? {} : { ms }) });
+    log(level, text);
   };
+  const failed = (text: string): void => say('error', text);
 
   // The inspector follows the active tab's table, or none (its empty text).
   const inspector = connectInspector(parts.inspector, null, { variableEditor: editor, empty: parts.inspectorEmpty });
@@ -237,10 +236,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // Save writes over the file, Save As where the user says, which the tab then shows. A save
   // that cannot be made says why.
   const saver = new Saver(host);
-  const saved = (name: string) => {
-    toasts.show({ level: 'info', message: `Saved ${name}`, ms: 2000 });
-    log('info', `Saved ${name}`);
-  };
+  const saved = (name: string) => say('info', `Saved ${name}`, 2000);
   async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
@@ -277,11 +273,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab)) close(tab);
   }
 
-  function close(tab: OpenTab): void {
+  // A tab's listeners, table and document let go, and the host told its file is closed.
+  function release(tab: OpenTab): void {
     for (const stop of tab.stops.splice(0)) stop();
     tab.handle?.dispose();
     tab.doc?.dispose();
     host.closeFile?.(tab.path);
+  }
+
+  function close(tab: OpenTab): void {
+    release(tab);
     tab.panel.remove();
     const wasActive = tab === tabs.active;
     tabs.remove(tab);
@@ -336,18 +337,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // its document, any other file; and in the table's banner why it could not be.
   async function load(tab: OpenTab, uri: string): Promise<void> {
     const { path } = tab;
-    if (isProjectFile(path)) {
-      const revealIn = host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
-      // A link that cannot be followed says why on the page, and in the Log.
-      const follow = (root: string, link: ProjectOpenDetail) =>
-        followProjectLink(root, link, { folder: folderNow, open: (to) => open(to, { preview: true }), reveal: (to) => host.reveal?.(to) }).catch((err) => {
-          log('error', `Could not open ${link.path}: ${message(err)}`);
-          throw err;
-        });
-      await paintProject(tab, newProjectPage(tab, revealIn, follow), folderNow());
-      log('info', `Opened ${tab.name}`);
-      return;
-    }
+    if (isProjectFile(path)) return showProject(tab, { host, folder: folderNow, open: (to) => open(to, { preview: true }), log });
     const storageKey = `${key}:${uri}`;
     try {
       const bytes = await host.readFile(path);
@@ -466,18 +456,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
   // What the document commands are carried out with (carryOut.ts).
-  const carrying: CarryOutContext = {
-    host,
-    tabs,
-    nav,
-    openPaths,
-    save,
-    close: (tab) => void requestClose(tab),
-    shown,
-    later,
-    failed,
-  };
-
+  const carrying: CarryOutContext = { host, tabs, nav, openPaths, save, close: (tab) => void requestClose(tab), shown, later, failed };
 
   // --- The modules' views ------------------------------------------------------------------------
 
@@ -533,21 +512,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // Every open table is painted again, its Usage filled from the folder shown, and every
   // project's page from its store, again when the folder says its marker changed (a matlab.toml
   // saved).
-  const repaintProjects = (shown: FolderView, uris?: readonly string[]): void => {
-    for (const t of tabs.items) {
-      if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, shown);
-    }
-  };
   const folders = connectShownFolder(folderPart, tree, {
     open: openOn,
     shown(shown) {
       log('info', `Showing the folder ${shown.root}`);
       modules.scope(basenameOf(shown.root));
       void ws.setUsage(shown.session.usage, shown.session.reposts);
-      repaintProjects(shown);
+      repaintProjects(tabs.items, shown);
       follow();
     },
-    changed: repaintProjects,
+    changed: (shown, uris) => repaintProjects(tabs.items, shown, uris),
     failed: (text) => log('error', `This folder could not be read: ${text}`),
   });
 
@@ -582,10 +556,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       // Every tab closes, the host told of each file once: a read that lands later finds its tab
       // gone and the shell down, and tells it nothing more.
       for (const tab of [...tabs.items]) {
-        for (const stop of tab.stops.splice(0)) stop();
-        tab.handle?.dispose();
-        tab.doc?.dispose();
-        host.closeFile?.(tab.path);
+        release(tab);
         tabs.remove(tab);
       }
       folders.dispose();

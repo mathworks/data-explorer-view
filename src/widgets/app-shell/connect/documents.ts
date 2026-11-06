@@ -22,6 +22,7 @@ import type { DexVariableEditor } from '../../variable-editor/dex-variable-edito
 import type { DocTab } from '../dex-doc-tabs.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
+import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
@@ -160,6 +161,30 @@ export async function paintProject(tab: OpenTab, page: DexProjectPage, folder: F
   } catch (err) {
     page.error = `Failed to read ${tab.name}: ${message(err)}`;
   }
+}
+
+/** Draw again from `folder`'s store each project's page among `tabs`, or only those whose marker is among `uris`. */
+export function repaintProjects(tabs: readonly OpenTab[], folder: FolderView, uris?: readonly string[]): void {
+  for (const t of tabs) if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, folder);
+}
+
+/**
+ * Show the project of `tab` on its page, drawn from the shown folder's store: a link on it opens
+ * its file as a preview (`open`), and one that cannot be followed says why on the page and in the
+ * Log.
+ */
+export async function showProject(
+  tab: OpenTab,
+  on: { host: ShellHost; folder(): FolderView | undefined; open(path: string): Promise<unknown>; log(level: 'info' | 'error', text: string): void },
+): Promise<void> {
+  const revealIn = on.host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
+  const follow = (root: string, link: ProjectOpenDetail) =>
+    followProjectLink(root, link, { folder: on.folder, open: on.open, reveal: (to) => on.host.reveal?.(to) }).catch((err) => {
+      on.log('error', `Could not open ${link.path}: ${message(err)}`);
+      throw err;
+    });
+  await paintProject(tab, newProjectPage(tab, revealIn, follow), on.folder());
+  on.log('info', `Opened ${tab.name}`);
 }
 
 /**
