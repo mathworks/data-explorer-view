@@ -172,6 +172,24 @@ export class FakeDirHandle {
     return other instanceof FakeDirHandle && other.entry === this.entry;
   }
 
+  /**
+   * The names on the way down from this directory to `other` (a handle to a file or a directory
+   * under it, whichever handle object it is), as Chromium's resolve() answers: [] for the directory
+   * itself, null for a handle that is not under it.
+   */
+  async resolve(other: unknown): Promise<string[] | null> {
+    if (await this.isSameEntry(other)) return [];
+    for (const [name, child] of this.children) {
+      if (child.kind === 'file') {
+        if (!child.gone && (await child.isSameEntry(other))) return [name];
+        continue;
+      }
+      const below = await child.resolve(other);
+      if (below) return [name, ...below];
+    }
+    return null;
+  }
+
   /** The file at the `/`-separated `rel` under this directory, made with the directories above it. */
   add(rel: string, content: string | Uint8Array = ''): FakeFileHandle {
     const cut = rel.lastIndexOf('/');

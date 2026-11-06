@@ -65,6 +65,29 @@ describe('WebFiles', () => {
     expect(await files.pathOf(asFile(new FakeFileHandle('e.sldd')))).toBeUndefined();
   });
 
+  it("gives a handle to a file inside a shown folder its place there, though the folder never listed it", async () => {
+    // Chromium's New or Save As writing a file into the folder the Explorer shows: the folder's next
+    // look lists it under its place, so a path of a pick's would show it twice, and open it twice.
+    const files = new WebFiles();
+    const proj = fakeDir('proj', { 'models/a.slx': '' });
+    const root = await files.folderRoot({ kind: 'handle', handle: asDir(proj) });
+    const made = proj.add('models/new.sldd', 'made');
+    const path = await files.pathOf(asFile(made.again()));
+    expect(path).toBe('/proj/models/new.sldd');
+    // Held as the folder's listing would hold it: a read goes through the handle.
+    expect(text(await files.bytes(path!))).toBe('made');
+    expect(files.get(path!)?.name).toBe('new.sldd');
+    expect(await files.addPicked('new.sldd', { kind: 'handle', handle: asFile(made) })).toBe(path);
+    // The latest folder shown first: one shown inside the first names the file by its place in it.
+    const models = await files.folderRoot({ kind: 'handle', handle: asDir(proj.dir('models')) });
+    expect(models).toBe('/models');
+    expect(await files.pathOf(asFile(proj.add('models/b.sldd')))).toBe('/models/b.sldd');
+    expect(root).toBe('/proj');
+    // A file under none of them, or a folder listed from Files, which has no handle to ask: none.
+    await files.folderRoot(listedDir('list', { 'c.sldd': '' }));
+    expect(await files.pathOf(asFile(new FakeFileHandle('c.sldd')))).toBeUndefined();
+  });
+
   it("says what a path means to the user, for a tooltip: a pick's file by its name, a folder's by its place in the folder", async () => {
     // The shell's tooltips showed the path, and a pick's folder is the page's own making.
     const files = new WebFiles();

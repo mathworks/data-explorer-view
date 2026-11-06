@@ -172,6 +172,31 @@ describe('browserHost', () => {
     expect(text(await host.readFile(held))).toBe('x');
   });
 
+  it("gives a Save As or a New written into the shown folder the folder's path, so its tree and its tab are one file", async () => {
+    // Chromium's save picker may name a file in the folder the Explorer shows, one the folder has
+    // not listed yet. Under a pick's path, the folder's next look listed it a second time, and
+    // opening it there opened a second tab.
+    const proj = fakeDir('proj', { 'a.sldd': 'one' });
+    let next: FakeFileHandle | undefined;
+    const { host, files, folders } = hostOf({
+      showSaveFilePicker: async () => {
+        next!.writePermission = 'granted';
+        return asFile(next!);
+      },
+    });
+    await host.openFolder({ kind: 'handle', handle: asDir(proj) });
+    const picked = await files.addPicked('x.sldd', { kind: 'bytes', bytes: bytesOf('x') });
+    next = proj.add('sub/copy.sldd');
+    expect(await host.saveFileAs(picked, bytesOf('copied'))).toEqual({ path: '/proj/sub/copy.sldd', overwritten: false });
+    expect(text(proj.file('sub/copy.sldd').bytes)).toBe('copied');
+    next = proj.add('made.sldd');
+    expect(await host.newFile!('untitled.sldd')).toBe('/proj/made.sldd');
+    // A new dictionary written there at once, read back through the folder's path.
+    expect((await host.readFile('/proj/made.sldd')).length).toBeGreaterThan(0);
+    // The folder lists each under the path it opened at.
+    expect(await listed(folders[0].port)).toEqual(['/proj/a.sldd', '/proj/made.sldd', '/proj/sub/copy.sldd']);
+  });
+
   it('looks at the shown folder again when the page is shown or its window focused, at most once every LOOK_EVERY_MS', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     const proj = fakeDir('proj', { 'a.sldd': '', 'b.sldd': 'one' });
