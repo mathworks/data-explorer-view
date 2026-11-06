@@ -7,10 +7,10 @@
 // groups them by directory, and under a group lists only the files nothing else there references:
 // the rest are reached through what references them. The Folder view lists each folder's entries
 // (FolderReader.entries) as its row opens, every folder, data file and other file of it. So a
-// folder row's rows are its entries, a data file the hierarchy's row for that file (wherever the
-// hierarchy has it: a file only ever referenced is a row of its folder too) with its references
-// under it, a folder a folder row of its own, and any other file a dimmed row that opens nothing.
-// Under a data file the rows are the hierarchy's, each saying what it is to the file above it.
+// folder row's rows are its entries, a data file the hierarchy's own row for that file (rowOf: the
+// row it is at a group's top, a file only ever referenced too) with its references under it, a
+// folder a folder row of its own, and any other file a dimmed row that opens nothing. Under a data
+// file the rows are the hierarchy's, each saying what it is to the file above it.
 //
 // KEYS FOLLOW THE TREE, NOT THE HIERARCHY. A row's key is its parent's key, a `/`, and one encoded
 // part of its own, the rule connectHierarchy walks a key back down by; and the same row has the
@@ -212,14 +212,15 @@ export class FolderTree {
     if (listed === null) return [];
     const entries = sortEntries(listed);
     const top = await this.hierarchy.roots();
-    const found = await this.rowsOf(new Set(entries.filter((e) => e.kind === 'data').map((e) => sourceUri(e.path))), top);
-    return entries.map((entry) => {
+    // Each data file's own row, from the graph the hierarchy holds: nothing is read for them.
+    const theirsOf = await Promise.all(entries.map((e) => (e.kind === 'data' ? this.hierarchy.rowOf(sourceUri(e.path)) : undefined)));
+    return entries.map((entry, i) => {
       if (entry.kind === 'folder') return this.folderRow(entry, `${parent.key}${part(`dir:${entry.name}`)}`, top);
       const kind = entry.kind === 'data' ? fileKindOf(entry.path) : null;
       if (kind === null) return otherRow(entry, parent.key);
       const uri = sourceUri(entry.path);
       const key = `${parent.key}${part(uri)}`;
-      const theirs = found.get(uri);
+      const theirs = theirsOf[i];
       if (!theirs) {
         return { label: entry.name, kind, id: uri, health: null, collapsible: 'none', icon: fileIconOf(kind), key, path: entry.path };
       }
@@ -249,35 +250,6 @@ export class FolderTree {
     const own: HierarchyItem = { ...row, key: `${parent.key}${row.key.slice(theirsParent.key.length)}`, ...(relation ? { relation } : {}) };
     this.copies.set(own, row);
     return own;
-  }
-
-  /**
-   * The hierarchy's row for each file of `uris` it has one for: the shallowest, and of several at
-   * one depth the first as the tree draws them, as pathTo finds a row. One walk down the
-   * hierarchy, level by level, until every file is found or there is nothing more to open; each
-   * file's references are opened once, however many rows it is.
-   */
-  private async rowsOf(uris: ReadonlySet<string>, top: readonly HierarchyItem[]): Promise<Map<string, HierarchyItem>> {
-    const found = new Map<string, HierarchyItem>();
-    const opened = new Set<string>();
-    let level: readonly HierarchyItem[] = top;
-    while (level.length > 0 && found.size < uris.size) {
-      for (const item of level) {
-        if (item.kind !== 'group' && item.id !== undefined && uris.has(item.id) && !found.has(item.id)) found.set(item.id, item);
-      }
-      if (found.size === uris.size) break;
-      const next: HierarchyItem[] = [];
-      for (const item of level) {
-        if (item.collapsible !== 'collapsed') continue;
-        if (item.kind !== 'group' && item.id !== undefined) {
-          if (opened.has(item.id)) continue;
-          opened.add(item.id);
-        }
-        next.push(...(await this.hierarchy.children(item)));
-      }
-      level = next;
-    }
-    return found;
   }
 }
 

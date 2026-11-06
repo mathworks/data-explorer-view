@@ -202,6 +202,16 @@ export class RelGraph {
     return roots.length > 0 ? roots : members;
   }
 
+  // A file's node as the top of its own expansion, with no ancestors: the node a group lists it
+  // as when it is one of the group's roots, wherever the tree otherwise reaches it. For a tree
+  // that draws a file in its folder rather than under what references it (FolderTree). None for a
+  // uri no source has, nor for a project's marker, which heads its group and is never a file node.
+  nodeOf(uriString: string): GraphNode | undefined {
+    const src = this.sources.get(uriString);
+    if (!src || src.type === 'project') return undefined;
+    return this.toNode(src, new Set());
+  }
+
   children(node: GraphNode): GraphNode[] {
     if (node.kind === 'missing' || node.cycle) return [];
 

@@ -244,6 +244,22 @@ export class FolderHierarchy {
     return undefined;
   }
 
+  /**
+   * The row of the file `uri` as the top of its own expansion: the row a group lists it as when
+   * nothing there references it, whether or not something does. Collapsible by its references,
+   * marked as such a row is (unsaved; no cycle, which only a repeat under it closes), and keyed as
+   * a row of the top level, `/` and its uri encoded. Undefined for a uri no file of the folder
+   * has, and for a project's marker, which heads its group and is no file row.
+   *
+   * For a tree that draws every file in its own folder rather than under what references it
+   * (FolderTree), which keys the row again under its own; its rows are this hierarchy's
+   * children(), from the graph as it is then. Answered from the graph there is: no listing, no read.
+   */
+  async rowOf(uri: string): Promise<HierarchyItem | undefined> {
+    const node = (await this.ensureGraph()).nodeOf(uri);
+    return node ? this.itemsOf([node], '')[0] : undefined;
+  }
+
   /** Draw the rows again from the graph there is: for a file's unsaved changes. */
   refresh(): void {
     for (const listener of [...this.listeners]) listener();

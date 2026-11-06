@@ -240,6 +240,20 @@ describe('a folder tree', () => {
     ]);
   });
 
+  it("draws a data file's references as its own expansion: a cycle marked only where it closes", async () => {
+    // r → a → b → a: in the hierarchy, b is reached through r and a only.
+    files.set('/w/c/r.sldd', sldd('a.sldd'));
+    files.set('/w/c/a.sldd', sldd('b.sldd'));
+    files.set('/w/c/b.sldd', sldd('a.sldd'));
+    const tree = treeOf();
+    const b = await child(tree, await child(tree, await rootRow(tree), 'c'), 'b.sldd');
+    expect(await draw(tree, [b])).toEqual([
+      'b.sldd [sldd]',
+      '  a.sldd [sldd] (referenced dictionary)',
+      '    b.sldd [sldd] (referenced dictionary) - ↻ circular reference',
+    ]);
+  });
+
   it('says what each reference is to the file it is under, and only what the graph says', async () => {
     const tree = treeOf();
     const top = await child(tree, await rootRow(tree), 'top.slx');
