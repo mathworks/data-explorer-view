@@ -43,6 +43,8 @@ export interface ToolbarState {
 const TABLE_CHORDS: Partial<Record<ShellCommand, string>> = {
   undo: 'Mod+Z',
   redo: 'Mod+Shift+Z',
+  // The shell's tables answer it (connectTable's addChildChord).
+  'add-child': '+',
   cut: 'Mod+X',
   copy: 'Mod+C',
   paste: 'Mod+V',

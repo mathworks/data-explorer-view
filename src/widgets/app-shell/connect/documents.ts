@@ -148,11 +148,13 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     contextMenu: wiring.menu,
     // Every document wired for editing: one that takes no edits (a .mdl, a .slx or MAT-file
     // kept for viewing only) gets the read-only menu, and an editing menu ends with Copy Name
-    // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself.
+    // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself, and '+' with Add
+    // Child, the prototype's chord.
     editing: true,
     readOnlyMenu: true,
     copyText: true,
     undoChords: true,
+    addChildChord: true,
     // Its rows can be dragged onto the Explorer, to a file or a section of one (explorerDrop.ts): from
     // a document that may not be edited too, to be copied.
     dragOut: true,

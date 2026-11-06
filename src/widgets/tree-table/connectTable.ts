@@ -144,6 +144,12 @@ export interface ConnectTableOptions {
    */
   undoChords?: boolean;
   /**
+   * With `editing`: the table answers '+' (with Shift or without, as the layout types it) with Add
+   * Child, on the selected row, outside its fields and where the editing menu offers the item, which
+   * then labels it. Default false: the VS Code extension's table has no such chord.
+   */
+  addChildChord?: boolean;
+  /**
    * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
    * `<body>`, and takes away again on dispose().
    */
@@ -758,6 +764,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       dragOutSource: dragOutSourceOf(source),
       textView: options.textView,
       undoChords: !!options.undoChords,
+      addChildChord: !!options.addChildChord,
       errorDialog: dialog!,
       listen: (type, listener, capture = false) => {
         table.addEventListener(type, listener, capture);

@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
 import { defineTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
-import { at, dirtyTabs, docTabs, edit, open, rowOf, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
+import { at, dirtyTabs, docTabs, edit, open, rowOf, selectRow, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -304,6 +304,24 @@ describe('the chords, connected', () => {
     await settled();
     expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp'))).toBe('5');
     expect(dirtyTabs()).toEqual(['params.sldd']);
+  });
+
+  it("'+' in a table adds a child to the selected struct, as Add Child does; typed in its search box, it is the box's", async () => {
+    // The prototype's chord, which the shell asks the table for (connectTable's addChildChord).
+    const page = startPage({ 'rt_bin.sldd': 'rt_bin.sldd' });
+    await open(page, 'rt_bin.sldd');
+    const specs = await selectRow('rt_bin.sldd', 'Specs');
+    const table = tableOf('rt_bin.sldd')!;
+    const children = () => table.rows.filter((r) => r.parent === specs.ID).length;
+    const before = children();
+    const search = document.createElement('input');
+    table.append(search);
+    expect(press({ key: '+', shiftKey: true }, search)).toBe(false);
+    await settled();
+    expect(children()).toBe(before);
+    expect(press({ key: '+', shiftKey: true }, table)).toBe(true);
+    await until(() => children() > before);
+    await until(() => dirtyTabs().join() === 'rt_bin.sldd');
   });
 
   it('with a native menu, leaves Save to the menu, which sends it through the handle', async () => {

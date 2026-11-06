@@ -220,6 +220,9 @@ async function save() {
   `handle.redo()` do what the items do, for an app's Edit menu, and
   `isTypingInField(event)` tells a key typed in one of the table's fields (its
   search box, a column filter, a cell editor), which the table leaves alone.
+  With `addChildChord: true` it answers `+` too, with Add Child on the selected
+  row, which the menu then labels; off, as the VS Code extension leaves it, `+`
+  does nothing on the grid.
 - A document's table says where its undo stack stands (`doc.table.history`:
   `canUndo`, `canRedo`, and `onChange` when either moves), so Undo and Redo
   are offered only where there is a step: in the menu, by `handle.can('undo')`
@@ -698,6 +701,7 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
+| + (in a table) | Add Child, on the selected row |
 | Shift+F10, the ContextMenu key | the menu of the table's selected row |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
 | Cmd/Ctrl+, | Settings |

@@ -82,7 +82,7 @@ describe('toolbarItems', () => {
       'close-tab': 'Ctrl+W',
       undo: 'Ctrl+Z',
       redo: 'Ctrl+Shift+Z',
-      'add-child': undefined,
+      'add-child': '+',
       cut: 'Ctrl+X',
       copy: 'Ctrl+C',
       paste: 'Ctrl+V',

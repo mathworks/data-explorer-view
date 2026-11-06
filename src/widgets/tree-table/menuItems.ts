@@ -63,6 +63,12 @@ export interface MenuInput {
    * leaves them.
    */
   history?: Pick<EditHistory, 'canUndo' | 'canRedo'>;
+  /**
+   * Whether '+' adds a child, as the table answers it where it is asked to (ConnectTableOptions
+   * .addChildChord): Add Child then labels it, as Copy labels its chord. Without it Add Child names
+   * no chord, as the VS Code extension's table has none.
+   */
+  addChildChord?: boolean;
 }
 
 // A display name short enough that the label fits the menu's max-width, with the whole
@@ -294,6 +300,7 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
     id: 'addChild',
     label: 'Add Child',
     icon: 'addChild',
+    ...(input.addChildChord ? { shortcut: '+' } : {}),
     disabled: !editable || n > 1 || !soleRow?._canAddChild,
     ...(n > 1
       ? { reason: 'Select a single item to add a child' }

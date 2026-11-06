@@ -118,6 +118,8 @@ export interface EditingHost {
   textView?: TableTextView;
   /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
   undoChords?: boolean;
+  /** Whether the table answers '+' with Add Child (ConnectTableOptions.addChildChord). */
+  addChildChord?: boolean;
   errorDialog: DexErrorDialog;
   /** Listen on the table until the connection is disposed. */
   listen(type: string, listener: (e: Event) => void, capture?: boolean): void;
@@ -296,6 +298,8 @@ export function wireEditing(host: EditingHost): EditingWire {
       // Where the document's undo stack stands, when the source says: Undo and Redo only where
       // there is a step. A source whose stack is an editor's says nothing, and offers both.
       ...(source?.history ? { history: source.history } : {}),
+      // Add Child names the '+' that does the same, where the table answers it.
+      ...(host.addChildChord ? { addChildChord: true } : {}),
     });
   };
 
@@ -570,6 +574,28 @@ export function wireEditing(host: EditingHost): EditingWire {
         ev.preventDefault();
         ev.stopPropagation();
         history(action);
+      },
+      true,
+    );
+  }
+
+  // '+' adds a child to the selected row, as Add Child does, only where the table is asked to answer
+  // it: the prototype's chord, which the VS Code extension's table never had. The '+' itself, Shift
+  // or no Shift, since which a layout needs for it differs (a US keyboard's is Shift+=, a German
+  // one's and the keypad's are not); with Cmd, Ctrl or Alt it is another chord (a browser's zoom).
+  // Outside the fields, where a '+' is typed, and only where the menu offers Add Child, through the
+  // gesture its item is; a key held adds one child, its repeats spent.
+  if (host.addChildChord) {
+    host.listen(
+      'keydown',
+      (e) => {
+        const ev = e as KeyboardEvent;
+        if (ev.key !== '+' || ev.metaKey || ev.ctrlKey || ev.altKey || isTypingInField(ev)) return;
+        const gesture = gestureFor('addChild');
+        if (!gesture) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!ev.repeat) gesture();
       },
       true,
     );
