@@ -53,9 +53,14 @@ export class PopoverController implements ReactiveController {
 
   /**
    * Opens the popover beside `anchor`, in viewport px (the opening button's
-   * getBoundingClientRect()), or moves it there when it is open already.
+   * getBoundingClientRect()), or moves it there when it is open already. A popover that is not
+   * on the page does not open.
    */
   show(anchor: Rect): void {
+    // A popover off the page cannot be seen or closed by a press on it, and nothing would take
+    // its listeners away: hostDisconnected has already run, or never will. Opened anyway, it
+    // would swallow every Escape on the page.
+    if (!this._host.isConnected) return;
     if (!this._open) {
       // Taken only on opening: by a second show() focus is inside the popover, and going back
       // there would leave it on a control of a closed popover.

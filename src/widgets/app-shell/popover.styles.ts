@@ -44,7 +44,8 @@ export const popoverStyles = css`
     outline: none;
   }
 
-  /* A small-capitals label over the card, as the side bars' section titles are (EXPLORER). */
+  /* The card's title in capitals, as the side bars' section titles are (EXPLORER): SETTINGS,
+     and the About card's heading. */
   .title {
     margin-bottom: 8px;
     font-size: 11px;

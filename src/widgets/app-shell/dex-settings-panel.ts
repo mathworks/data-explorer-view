@@ -151,7 +151,7 @@ export class DexSettingsPanel extends LitElement {
    * Opens the popover beside `anchor`, the button that opened it, in viewport px (its
    * getBoundingClientRect()): to its right with their bottoms in line, or to its left when the
    * right has no room, and inside the window. Focus goes to the chosen theme. Open already, it
-   * moves.
+   * moves; not on the page, it does not open.
    */
   show(anchor: Rect): void {
     this._popover.show(anchor);

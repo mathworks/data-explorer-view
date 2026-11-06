@@ -9,8 +9,8 @@ import { PopoverController } from './popover.js';
 import { popoverStyles } from './popover.styles.js';
 
 /**
- * The shell's About popover, opened from the (i) button of an activity bar: a heading, the app's
- * name, and the lines the app hands it, each a label and its value (the app's version, the
+ * The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's
+ * name) and the lines the app hands it, each a label and its value (the app's version, the
  * versions it is built on). The app's words are drawn as text, never as markup.
  *
  * show() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a
@@ -24,14 +24,9 @@ export class DexAboutPanel extends LitElement {
       min-width: 200px;
     }
 
-    .heading {
-      font-size: 14px;
-      font-weight: 600;
-    }
-
     /* Selectable, whatever the page around says: a version is what a bug report quotes. */
     .lines {
-      margin: 8px 0 0;
+      margin: 0;
       user-select: text;
     }
 
@@ -54,7 +49,7 @@ export class DexAboutPanel extends LitElement {
     }
   `];
 
-  /** The heading, the app's name, and the dialog's accessible name. */
+  /** The heading, the app's name, drawn in capitals as the Settings title is; also the dialog's accessible name. */
   @property() heading = 'Data Explorer';
 
   /** The lines under the heading, in order: a label (Version) and its value (1.0.0). */
@@ -72,7 +67,8 @@ export class DexAboutPanel extends LitElement {
   /**
    * Opens the popover beside `anchor`, the button that opened it, in viewport px (its
    * getBoundingClientRect()): to its right with their bottoms in line, or to its left when the
-   * right has no room, and inside the window. Open already, it moves.
+   * right has no room, and inside the window. Open already, it moves; not on the page, it does
+   * not open.
    */
   show(anchor: Rect): void {
     this._popover.show(anchor);
@@ -87,7 +83,7 @@ export class DexAboutPanel extends LitElement {
     if (!this.open) return nothing;
     return html`
       <div class="popover" role="dialog" aria-label=${this.heading} tabindex="-1">
-        <div class="heading">${this.heading}</div>
+        <div class="title">${this.heading}</div>
         ${this.lines.length ? html`
           <dl class="lines">
             ${this.lines.map((line) => html`<div class="line"><dt>${line.label}</dt><dd>${line.value}</dd></div>`)}

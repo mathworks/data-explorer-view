@@ -332,6 +332,25 @@ describe('the keyboard', () => {
     expect(heard).not.toHaveBeenCalled();
   });
 
+  it('gives focus back to a button inside another shadow root, as the shell\'s gear is', async () => {
+    // document.activeElement names only the shell element; focusing that would put focus on
+    // no button at all.
+    const shell = document.createElement('div');
+    const root = shell.attachShadow({ mode: 'open' });
+    const gear = document.createElement('button');
+    root.append(gear);
+    document.body.append(shell);
+    cleanups.push(() => shell.remove());
+    gear.focus();
+    panel = new DexSettingsPanel();
+    document.body.append(panel);
+    panel.show(GEAR);
+    await panel.updateComplete;
+    expect(focused(panel)).toBe('Auto');
+    key(panel.shadowRoot!.activeElement!, 'Escape');
+    expect(root.activeElement).toBe(gear);
+  });
+
   it('close() from the app leaves focus alone when the popover does not hold it', async () => {
     // The person has moved on to a field elsewhere; pulling focus back to the gear would
     // interrupt their typing.
@@ -391,6 +410,22 @@ describe('its document listeners', () => {
     el.remove();
     expect(spy.removed()).toEqual(spy.added());
     expect(el.open).toBe(false);
+  });
+
+  it('are never added for a panel that is not on the page: it does not open', async () => {
+    // Nothing could take them away again (a panel never connected is never disconnected),
+    // and they would swallow every Escape on the page.
+    const spy = spyListeners();
+    panel = new DexSettingsPanel();
+    panel.show(GEAR);
+    expect(panel.open).toBe(false);
+    expect(panel.hasAttribute('open')).toBe(false);
+    expect(spy.added()).toEqual([]);
+    const heard = vi.fn();
+    document.body.addEventListener('keydown', heard);
+    cleanups.push(() => document.body.removeEventListener('keydown', heard));
+    key(document.body, 'Escape');
+    expect(heard).toHaveBeenCalledTimes(1);
   });
 
   it('are not added twice by a second show()', async () => {

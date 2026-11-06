@@ -68,7 +68,7 @@ afterEach(() => {
 describe('what it shows', () => {
   it('the heading, then each line as a label and its value, in order', async () => {
     const el = await open(LINES, 'Data Explorer App');
-    expect(el.shadowRoot!.querySelector('.heading')!.textContent!.trim()).toBe('Data Explorer App');
+    expect(el.shadowRoot!.querySelector('.title')!.textContent!.trim()).toBe('Data Explorer App');
     expect(shownLines(el)).toEqual([
       ['Version', '1.0.0'],
       ['data-explorer-core', '1.58.0'],
@@ -77,11 +77,11 @@ describe('what it shows', () => {
 
   it("'Data Explorer' when the app names nothing, and the heading attribute when it does", async () => {
     const el = await open();
-    expect(el.shadowRoot!.querySelector('.heading')!.textContent!.trim()).toBe('Data Explorer');
+    expect(el.shadowRoot!.querySelector('.title')!.textContent!.trim()).toBe('Data Explorer');
     el.setAttribute('heading', 'My App');
     await el.updateComplete;
     expect(el.heading).toBe('My App');
-    expect(el.shadowRoot!.querySelector('.heading')!.textContent!.trim()).toBe('My App');
+    expect(el.shadowRoot!.querySelector('.title')!.textContent!.trim()).toBe('My App');
   });
 
   it('a dialog named by its heading, which takes focus', async () => {
