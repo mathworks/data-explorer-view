@@ -389,7 +389,8 @@ describe('Root', () => {
     expect(docsArea().split).toBe(false);
     expect(rows().every((r) => r.hidden)).toBe(true);
     expect(shown()).toEqual([]);
-    // Back to the documents by a tab of the left pane: both panes, each its tab, the left one focused.
+    // Back to where the user was before Root, params.sldd in the right pane: both panes again,
+    // each its tab, the right one focused.
     page.command('back');
     await until(() => docsArea().split);
     expect(shown()).toEqual(['params.sldd@1', 'shadow_ws.slx@0']);

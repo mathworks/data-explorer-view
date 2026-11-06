@@ -170,16 +170,19 @@ export class DexShellDocs extends LitElement {
     }
 
     /* The divider between two panes, as the shell's sashes are drawn: the border's grey, the
-       resizer's accent while it is pointed at or dragged. */
+       resizer's accent while it is pointed at, dragged, or has the keyboard. Stacked over the
+       panes, as the sashes are: the right pane, later in the row, would paint over its focus ring. */
     .divider {
       flex: 0 0 4px;
+      z-index: 10;
       background: var(--dex-border-color, #d0d0d0);
       cursor: col-resize;
       touch-action: none;
     }
 
     .divider:hover,
-    .divider.dragging {
+    .divider.dragging,
+    .divider:focus-visible {
       background: var(--dex-shell-resizer-hover, #0078d4);
     }
 
@@ -236,7 +239,8 @@ export class DexShellDocs extends LitElement {
       }
 
       .divider:hover,
-      .divider.dragging {
+      .divider.dragging,
+      .divider:focus-visible {
         background: Highlight;
       }
     }
@@ -263,8 +267,10 @@ export class DexShellDocs extends LitElement {
   @state() private _drag: { id: string; sides: boolean } | null = null;
   @state() private _over: { pane: number; zone: PaneZone } | null = null;
   @state() private _resizing = false;
-  // The divider's drag: its pointer, the panes' box measured as it began, and the ratio it began at.
-  private _resize: { pointerId: number; left: number; width: number; from: number } | null = null;
+  // The divider's drag: its pointer, the panes' box measured as it began, and the ratio it began at;
+  // where the pointer was last, and the frame that lays the panes out for it.
+  private _resize: { pointerId: number; left: number; width: number; from: number; at?: number } | null = null;
+  private _frame = 0;
 
   constructor() {
     super();
@@ -284,6 +290,8 @@ export class DexShellDocs extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._endDrag();
+    if (this._frame) cancelAnimationFrame(this._frame);
+    this._frame = 0;
     this._resize = null;
     this._resizing = false;
   }
@@ -427,16 +435,32 @@ export class DexShellDocs extends LitElement {
     this._resizing = true;
   }
 
+  // A move lays the panes out again (two tables, each measuring its rows), so it is drawn once a
+  // frame, where the pointer is by then, however many moves the frame had.
   private _onDividerMove(e: PointerEvent): void {
     const drag = this._resize;
     if (!drag || e.pointerId !== drag.pointerId || drag.width <= 0) return;
-    this._setRatio((e.clientX - drag.left) / drag.width);
+    drag.at = e.clientX;
+    this._frame ||= requestAnimationFrame(() => {
+      this._frame = 0;
+      this._followPointer();
+    });
   }
 
-  // However the drag ends (the button let go, the pointer lost): said once, if it moved.
+  private _followPointer(): void {
+    const drag = this._resize;
+    if (drag?.at !== undefined) this._setRatio((drag.at - drag.left) / drag.width);
+  }
+
+  // However the drag ends (the button let go, the pointer lost): where the pointer was let go, a
+  // frame early if need be, said once, if it moved.
   private _onDividerUp(e: PointerEvent): void {
     const drag = this._resize;
     if (!drag || e.pointerId !== drag.pointerId) return;
+    if (this._frame) cancelAnimationFrame(this._frame);
+    this._frame = 0;
+    if (Number.isFinite(e.clientX) && drag.width > 0) drag.at = e.clientX;
+    this._followPointer();
     this._resize = null;
     this._resizing = false;
     if (clampSplit(this.ratio) !== drag.from) this._resized();

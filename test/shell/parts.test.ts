@@ -192,18 +192,35 @@ describe('<dex-shell-docs> split in two', () => {
     const sep = divider(docs)!;
     const pointer = (type: string, clientX: number) =>
       sep.dispatchEvent(Object.assign(new Event(type, { bubbles: true, composed: true, cancelable: true }), { pointerId: 1, button: 0, clientX }));
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     pointer('pointerdown', 600);
     pointer('pointermove', 400);
+    await frame();
     expect(docs.ratio).toBe(0.3);
+    // Moves between two frames lay the panes out once, at the last.
+    pointer('pointermove', 1000);
     pointer('pointermove', 1090);
+    expect(docs.ratio).toBe(0.3);
+    await frame();
     expect(docs.ratio).toBe(0.8);
     expect(said).toEqual([]);
+    // Let go before the frame: where it was let go.
     pointer('pointermove', 350);
     pointer('pointerup', 350);
+    expect(docs.ratio).toBe(0.25);
     expect(said).toEqual([{ ratio: 0.25 }]);
     // A move after the drag is over moves nothing.
     pointer('pointermove', 900);
+    await frame();
     expect(docs.ratio).toBe(0.25);
+  });
+
+  it('draws the divider over the panes beside it, its focus ring too, in the accent while it has the keyboard', () => {
+    // A flex item later in the row paints over the one before it: the ring, a box shadow, was
+    // under the right pane. As the shell's sashes are, it is stacked over them.
+    const css = [DexShellDocs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(/\.divider \{[^}]*z-index: 10;/.test(css)).toBe(true);
+    expect(css).toMatch(/\.divider:hover, \.divider\.dragging, \.divider:focus-visible \{ background: var\(--dex-shell-resizer-hover, #0078d4\); \}/);
   });
 
   it("shows where a tab dragged from its row lands, the left or the right of the documents or among them, and asks for it there", async () => {
