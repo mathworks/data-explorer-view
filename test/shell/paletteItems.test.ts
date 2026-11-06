@@ -53,6 +53,8 @@ describe('paletteCommands', () => {
     const shortcut = (mac: boolean) => Object.fromEntries(paletteCommands({ ...NOTHING, mac }).map((c) => [c.id, c.shortcut]));
     expect(shortcut(false)).toMatchObject({ 'new-file': 'Ctrl+N', 'open-file': 'Ctrl+O', 'show-search': 'Ctrl+Shift+F', 'show-terminal': 'Ctrl+`', settings: 'Ctrl+,', about: undefined });
     expect(shortcut(true)).toMatchObject({ save: '⌘S', 'show-log': '⇧⌘D', 'show-raw': '⇧⌘U', 'show-terminal': '⌃`', settings: '⌘,' });
+    // Root's graph: not Shift+Command+G, a browser's Find Previous on macOS.
+    expect([shortcut(false)['show-graph'], shortcut(true)['show-graph']]).toEqual(['Ctrl+Shift+H', '⇧⌘H']);
   });
 
   it('offers no Folder to a host without one', () => {

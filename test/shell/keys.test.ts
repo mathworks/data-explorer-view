@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
 import { defineTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
-import { at, dirtyTabs, docTabs, edit, open, rowOf, selectRow, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
+import { at, dirtyTabs, docTabs, edit, graphShown, open, rowOf, selectRow, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -56,6 +56,7 @@ describe('the shell answers its chords', () => {
       [{ key: 'ArrowRight', altKey: true }, 'forward'],
       [{ key: 'ArrowUp', altKey: true }, 'up'],
       [{ key: ',', ctrlKey: true }, 'settings'],
+      [{ key: 'H', ctrlKey: true, shiftKey: true }, 'show-graph'],
     ];
     for (const [init] of all) expect(press(init), JSON.stringify(init)).toBe(true);
     expect(ran).toEqual(all.map(([, c]) => c));
@@ -67,9 +68,12 @@ describe('the shell answers its chords', () => {
     press({ key: 's', metaKey: true });
     press({ key: 'ß', code: 'KeyS', metaKey: true, altKey: true });
     press({ key: 'Tab', ctrlKey: true });
+    press({ key: 'H', metaKey: true, shiftKey: true });
     // Ctrl+S is not Save on a Mac.
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
-    expect(ran).toEqual(['save', 'save-all', 'next-tab']);
+    // Shift+Command+G is a browser's Find Previous there, which the graph's chord keeps clear of.
+    expect(press({ key: 'G', metaKey: true, shiftKey: true })).toBe(false);
+    expect(ran).toEqual(['save', 'save-all', 'next-tab', 'show-graph']);
   });
 
   it('leaves a press with a modifier more, or a key no chord names, alone', () => {
@@ -126,7 +130,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual(['next-tab', 'back']);
   });
 
-  it('with a native menu, answers only Back, Forward, Up, Save All, Settings and the palette', () => {
+  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette and Root's graph", () => {
     onPlatform('Win32');
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
@@ -140,8 +144,18 @@ describe('the shell answers its chords', () => {
     press({ key: ',', ctrlKey: true });
     press({ key: 'P', ctrlKey: true, shiftKey: true });
     press({ key: 'F1' });
-    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette']);
-    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette', 'palette']);
+    press({ key: 'H', ctrlKey: true, shiftKey: true });
+    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette', 'show-graph']);
+    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual([
+      'save-all',
+      'back',
+      'forward',
+      'up',
+      'show-graph',
+      'settings',
+      'palette',
+      'palette',
+    ]);
   });
 
   it('leaves the chord of a command the shell does not offer now to the page, asked at each press', () => {
@@ -304,6 +318,15 @@ describe('the chords, connected', () => {
     await settled();
     expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp'))).toBe('5');
     expect(dirtyTabs()).toEqual(['params.sldd']);
+  });
+
+  it("Ctrl+Shift+H shows Root's graph from a tab, the tab kept", async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    expect(ctrl('H', { shiftKey: true })).toBe(true);
+    await until(() => docTabs().hidden && graphShown());
+    expect(tabNames()).toEqual(['params.sldd', 'ParamMat.mat']);
   });
 
   it("'+' in a table adds a child to the selected struct, as Add Child does; typed in its search box, it is the box's", async () => {

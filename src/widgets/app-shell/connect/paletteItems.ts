@@ -45,7 +45,7 @@ export function paletteCommands(state: ToolbarState): PaletteCommand[] {
       command(item.id as ShellCommand, LABELS[item.id as ShellCommand] ?? item.label, categoryOf(item.align), item.shortcut, !!item.disabled),
     ),
     ...SHELL_VIEWS.map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
-    command('show-graph', 'Show Graph', 'View'),
+    command('show-graph', 'Show Graph', 'View', label(chordOf('show-graph'))),
     command('settings', 'Settings', 'Preferences', label(chordOf('settings'))),
     command('about', 'About', 'Help'),
   ];
