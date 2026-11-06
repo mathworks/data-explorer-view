@@ -418,10 +418,11 @@ export class DexAppShell extends LitElement {
   /**
    * Shows the view with this id, opening its side if it was closed: what a command that brings a
    * view forward does. Never closes a side. Sends `dex-shell-view-changed`, and keeps the layout,
-   * when that changes anything. An id no view has does nothing.
+   * when that changes anything. A view appended in the same task is one too; an id no view has
+   * does nothing.
    */
   showView(view: string): void {
-    const side = this._sideOf(view);
+    const side = this._sideNow(view);
     if (side) this._change(side, withViewShown(this._chosen, side, view));
   }
 
@@ -430,7 +431,7 @@ export class DexAppShell extends LitElement {
    * view shown. Sends `dex-shell-view-changed` and keeps the layout. An id no view has does nothing.
    */
   toggleView(view: string): void {
-    const side = this._sideOf(view);
+    const side = this._sideNow(view);
     if (side) this._change(side, withViewToggled(this._chosen, side, view));
   }
 
@@ -599,6 +600,15 @@ export class DexAppShell extends LitElement {
 
   private _sideOf(view: string): ShellSide | undefined {
     return SIDES.find((side) => this._views[side].some((v) => v.view === view));
+  }
+
+  // The side of the view `view`, for a method that names it: the children read again first when a
+  // script appended it in this task, before the observer, a microtask later, has told of it.
+  private _sideNow(view: string): ShellSide | undefined {
+    const side = this._sideOf(view);
+    if (side || ![...this.children].some((c) => c instanceof DexShellView && c.view === view)) return side;
+    this._readChildren();
+    return this._sideOf(view);
   }
 
   /** The view a side draws now, if it is open. */

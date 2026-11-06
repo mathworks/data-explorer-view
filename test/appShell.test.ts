@@ -276,6 +276,24 @@ describe('which view a side shows', () => {
     shell.toggleView('nowhere');
     expect(changes).toHaveLength(3);
   });
+
+  it('shows and toggles a view appended in the same task, before the shell has heard of it', async () => {
+    const shell = await mount();
+    const changes = viewChanges(shell);
+    shell.append(view('left', 'gallery', 'Gallery'));
+    shell.showView('gallery');
+    expect(shell.layout.left).toMatchObject({ view: 'gallery', open: true });
+    shell.append(view('bottom', 'log', 'Log'));
+    shell.toggleView('log');
+    expect(changes).toEqual([
+      { side: 'left', view: 'gallery', open: true },
+      // The bottom panel's first view, open at first: toggled shut.
+      { side: 'bottom', view: 'log', open: false },
+    ]);
+    await settle(shell);
+    expect(shell.layout.left).toMatchObject({ view: 'gallery', open: true });
+    expect(viewOf(shell, 'gallery').hidden).toBe(false);
+  });
 });
 
 describe('the chords', () => {

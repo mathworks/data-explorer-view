@@ -127,14 +127,7 @@ export function connectModules(context: ModulesContext): Modules {
     },
     show(view) {
       shell.showView(view);
-      if (onScreen(view)) return focusBox(view);
-      // Asked before the shell has read its views (in the task that connected it): it reads them
-      // in a microtask of the append, which runs before this one.
-      queueMicrotask(() => {
-        shell.showView(view);
-        focusBox(view);
-        context.later();
-      });
+      focusBox(view);
     },
     shown: focusBox,
     idle: () => terminal.idle(),
