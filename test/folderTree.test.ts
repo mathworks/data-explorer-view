@@ -17,7 +17,7 @@
 // the layouts core reads), and a fake `entries` over the same folder.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import type { SourceFile } from 'data-explorer-core';
 import {
@@ -351,14 +351,16 @@ describe('a folder tree', () => {
     expect((await tree.children(await rootRow(tree))).map(line)).toEqual(['odd.xyz [other] dimmed']);
   });
 
-  it("draws a project's folder as the project's row, its marker inside a plain row that opens the project page", async () => {
+  it("draws a project's folder by its own name, with the project's icon and name, opening the project's page", async () => {
     const tree = treeOf();
-    const proj = await child(tree, await rootRow(tree), 'MyProj');
-    expect(proj).toMatchObject({
-      label: 'MyProj',
+    const proj = await child(tree, await rootRow(tree), 'proj');
+    expect(proj).toEqual({
+      label: 'proj',
       kind: 'group',
       groupKind: 'project',
       id: 'file:///w/proj/MyProj.prj',
+      description: 'MyProj',
+      tooltip: 'Open the project page for "MyProj".',
       icon: 'simulink_project',
       collapsible: 'collapsed',
       key: '/dir%3A%2Fw/dir%3Aproj',
@@ -369,6 +371,70 @@ describe('a folder tree', () => {
       ['MyProj.prj', 'project', 'file:///w/proj/MyProj.prj', 'none'],
       ['p.sldd', 'sldd', 'file:///w/proj/p.sldd', 'none'],
     ]);
+  });
+
+  it("says nothing more of a project's folder named as its project is", async () => {
+    files.delete('/w/proj/MyProj.prj');
+    files.set('/w/proj/proj.prj', new ArrayBuffer(0));
+    const tree = treeOf();
+    const proj = await child(tree, await rootRow(tree), 'proj');
+    expect([proj.label, proj.groupKind, proj.icon]).toEqual(['proj', 'project', 'simulink_project']);
+    expect(proj).not.toHaveProperty('description');
+  });
+
+  it("lists the root once for its row and its first opening, and again for each opening after", async () => {
+    const tree = treeOf();
+    const root = await rootRow(tree);
+    await tree.children(root);
+    expect(entriesAsked).toEqual(['/w']);
+    await tree.children(root);
+    expect(entriesAsked).toEqual(['/w', '/w']);
+  });
+
+  it("draws the folder still when the index cannot be read: its data files as plain rows that open them", async () => {
+    let fail = true;
+    const failing = new FolderHierarchy({
+      files: {
+        list: async () => {
+          if (fail) throw new Error('the index is gone');
+          return listing();
+        },
+      },
+      reader,
+    });
+    const tree = treeOf(failing);
+    const root = await rootRow(tree);
+    expect(root).toMatchObject({ label: 'w', groupKind: 'folder' });
+    const rows = await tree.children(root);
+    expect(rows.map((r) => [r.label, r.kind, r.collapsible, r.id ?? null])).toEqual([
+      ['docs', 'group', 'collapsed', null],
+      ['empty', 'group', 'collapsed', null],
+      ['models', 'group', 'collapsed', null],
+      ['proj', 'group', 'collapsed', null],
+      ['base.sldd', 'sldd', 'none', 'file:///w/base.sldd'],
+      ['child.slx', 'model', 'none', 'file:///w/child.slx'],
+      ['notes.md', 'other', 'none', null],
+      ['params.sldd', 'sldd', 'none', 'file:///w/params.sldd'],
+      ['top.slx', 'model', 'none', 'file:///w/top.slx'],
+      ['ws.mat', 'mat', 'none', 'file:///w/ws.mat'],
+    ]);
+    // The index read again, once it can be: the same rows, with their references.
+    fail = false;
+    const again = await tree.children(root);
+    expect(again.map((r) => r.key)).toEqual(rows.map((r) => r.key));
+    expect(again.find((r) => r.label === 'top.slx')?.collapsible).toBe('collapsed');
+    expect(again.find((r) => r.label === 'proj')?.groupKind).toBe('project');
+  });
+
+  it('asks the index nothing for a level of other files alone', async () => {
+    const h = hierarchy();
+    const tree = treeOf(h);
+    const docs = await child(tree, await rootRow(tree), 'docs');
+    const roots = vi.spyOn(h, 'roots');
+    const rowOf = vi.spyOn(h, 'rowOf');
+    expect((await tree.children(docs)).map(line)).toEqual(['guide.txt [other] dimmed', 'readme.md [other] dimmed']);
+    expect(roots).not.toHaveBeenCalled();
+    expect(rowOf).not.toHaveBeenCalled();
   });
 
   it('says a folder could not be read in a row of its own, rather than failing the tree', async () => {
@@ -419,7 +485,7 @@ describe('a folder tree', () => {
       `/dir%3A%2Fw/${encodeURIComponent('file:///w/params.sldd')}`,
     ]);
     // A project's marker is its plain row in the project's folder, not the folder.
-    expect((await tree.pathTo(sourceUri('/w/proj/MyProj.prj')))?.map((r) => r.label)).toEqual(['w', 'MyProj', 'MyProj.prj']);
+    expect((await tree.pathTo(sourceUri('/w/proj/MyProj.prj')))?.map((r) => r.label)).toEqual(['w', 'proj', 'MyProj.prj']);
   });
 
   it('finds no row for a file outside the folder, and lists nothing to know it', async () => {

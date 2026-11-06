@@ -27,10 +27,16 @@ export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'> & {
   /**
    * One level of `dir`. Absent: the served folder answers a `list` with a `dir` with `refused`.
    *
-   * `dir` is the page's, not trusted: list only a folder this host serves (its root, or a folder
-   * inside it, by a path as these entries name them), and throw for any other, with the reason the
-   * page's call rejects with. A folder that cannot be read throws too (its permissions, gone). The
-   * order is the host's own: the page sorts (sortEntries).
+   * `dir` is the page's, not trusted: list only a folder this host serves, and throw for any
+   * other, with the reason the page's call rejects with. A folder that cannot be read throws too
+   * (its permissions, gone). The order is the host's own: the page sorts (sortEntries).
+   *
+   * Containment is easy to get wrong. A `..` segment (`/w/models/../../etc`) climbs out of a path
+   * that starts with the root; a prefix test without the separator lets `/w-other` pass as inside
+   * `/w`; a symbolic link inside the root names a folder outside it, which a test of the path
+   * alone never sees. The safe form: answer only the root itself or a folder this host returned
+   * as an entry (a set of the paths it answered with), each realpath'd as it is answered, and
+   * compare a realpath'd `dir` against that set; never resolve or join the page's path to decide.
    */
   entries?(dir: string): Promise<readonly FolderEntry[]>;
 };

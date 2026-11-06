@@ -411,13 +411,17 @@ export type TableEditHostMessage =
 // which no listing holds (the index lists files, and the folders it would name are any the user
 // opens), so it is matched against nothing here: the host's `entries` (FolderReads.entries) is
 // what lists only the folders it serves, and throws for any other, the error the page's call
-// rejects with. What it answers is names and kinds, never a file's bytes: those are still only a
-// listed file's, and a folder's entries are not the listing the host keeps.
+// rejects with. Its traps are the ones a uri check above avoids by matching exactly: a `..`
+// segment that climbs out of a path starting with the root, a prefix test without the separator
+// (`/w-other` is not inside `/w`), and a symbolic link inside the root to a folder outside it. So
+// a host answers only its root or a folder it returned as an entry, realpath'd, rather than any
+// path that resolves inside. What it answers is names and kinds, never a file's bytes: those are
+// still only a listed file's, and a folder's entries are not the listing the host keeps.
 //
-// Why a `list` with a `dir` and not an ask of its own: a host older than the entries ignores the
-// `dir` and answers its listing of files, with no `entries` field, which tells the page it lists
-// none; it would leave an ask it does not know refused, but the page could not tell a host that
-// lists no entries from one that will not answer, and a message of a new type it would ignore.
+// Why a `list` with a `dir` and not an ask of its own: FolderAsk and the answer's `value` are what
+// an app's own host is written against (a switch over every ask), and a `dir` and an `entries`
+// only add to them. A host older than the fields ignores the `dir` and answers its listing of
+// files, with no `entries`, which the page reads as a host that lists none.
 
 /** What a `folderRequest` asks: the folder's files (or with a `dir`, one level of that folder), or a version, the bytes or the project store of one of them. */
 export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';

@@ -106,8 +106,11 @@ export class FolderTree {
   private readonly hierarchy: FolderHierarchy;
   private readonly entries: (dir: string) => Promise<readonly FolderEntry[] | null>;
   private readonly root: string;
-  // Whether the host lists entries, from its first answer: a host does not start or stop.
+  // Whether the host lists entries, from its first answer for the root: a host does not start or
+  // stop. And that answer, until the root's row first opens, which draws it rather than list the
+  // root a second time.
   private lists: Promise<boolean> | null = null;
+  private firstRoot: Promise<readonly FolderEntry[] | null> | null = null;
   // This tree's folder rows, each by the path its entries are listed by.
   private readonly folders = new WeakMap<HierarchyItem, string>();
   // This tree's copies of the hierarchy's rows, each by the row it copies, which its rows are asked of.
@@ -125,8 +128,13 @@ export class FolderTree {
    * the hierarchy's roots.
    */
   async roots(): Promise<HierarchyItem[]> {
-    if (!(await this.listsEntries())) return this.hierarchy.roots();
-    const top = await this.hierarchy.roots();
+    const [lists, index] = await Promise.all([this.listsEntries(), settled(this.hierarchy.roots())]);
+    if (!lists) {
+      if ('failed' in index) throw index.failed;
+      return index.rows;
+    }
+    // An index that cannot be read leaves the root's row, with no project's look and no notice.
+    const top = 'rows' in index ? index.rows : [];
     // Keyed by its whole path, where a folder under it is keyed by its name: another root of the
     // same name is another tree.
     const root = this.folderRow({ name: basename(this.root) || this.root, path: this.root, kind: 'folder' }, part(`dir:${this.root}`), top);
@@ -134,16 +142,20 @@ export class FolderTree {
   }
 
   /**
-   * A folder row: its entries (sortEntries order) — a data file becomes the hierarchy's row for it
-   * (its references under it), a folder the hierarchy has becomes that row, a folder it lacks a
-   * collapsible folder row of its own (kind `group`, groupKind `folder`, as the hierarchy's are;
-   * key `${parent.key}/dir%3A<name>`), an other file a `dimmed` row with no `id` (kind `other`).
-   * Any other row: the hierarchy's children, a reference row's `relation` set from the edge kind.
+   * A folder row: its entries (sortEntries order), each with its `path`.
    *
-   * A folder that cannot be read answers one `notice` row that says so, with the host's reason. A
-   * project's folder is the project's row, which opens its page. A data file the hierarchy has no
-   * row for (past the index's cap) is a plain row that opens it, with nothing under it; one core
-   * does not read is an other file. Every row made from an entry has its `path`.
+   * - A data file is the hierarchy's own row for it (FolderHierarchy.rowOf), its references under
+   *   it; one the index has no row for (past its cap, or an index that cannot be read) is a plain
+   *   row that opens it, with nothing under it; one core does not read is an other file.
+   * - A folder is a collapsible folder row of its own (kind `group`, groupKind `folder`, as the
+   *   hierarchy's are; key `${parent.key}/dir%3A<name>`), whether or not it holds data. A project's
+   *   folder (its marker in it) keeps its own name and takes the project's icon, its name as the
+   *   `description` and its marker's `id`, so it opens the project's page.
+   * - An other file is a `dimmed` row (kind `other`) with no `id`.
+   *
+   * A folder that cannot be read answers one `notice` row that says so, with the host's reason.
+   * Any other row: the hierarchy's children of the row it copies, keyed under it, a reference
+   * row's `relation` set from the edge kind.
    */
   async children(item: HierarchyItem): Promise<HierarchyItem[]> {
     const dir = this.folders.get(item);
@@ -156,8 +168,7 @@ export class FolderTree {
   }
 
   /**
-   * The row of a file (by uri) along its folders, for revealing the active tab (delegates to the
-   * hierarchy).
+   * The row of a file (by uri) along its folders, for revealing the active tab.
    *
    * From the root's row down through the folders that hold the file, to its own row in its own
    * folder: so a file only ever referenced is found where it is, not under what references it.
@@ -187,18 +198,25 @@ export class FolderTree {
   }
 
   private listsEntries(): Promise<boolean> {
-    // A root that cannot be read is a host that lists entries: its row says why.
-    this.lists ??= this.entries(this.root).then(
-      (entries) => entries !== null,
-      () => true,
-    );
+    if (!this.lists) {
+      const first = this.entries(this.root);
+      this.firstRoot = first;
+      // A root that cannot be read is a host that lists entries: its row says why.
+      this.lists = first.then(
+        (entries) => entries !== null,
+        () => true,
+      );
+    }
     return this.lists;
   }
 
   private async folderChildren(parent: HierarchyItem, dir: string): Promise<HierarchyItem[]> {
+    // The root's first opening draws the answer roots() asked for; every other, a listing of its own.
+    const asked = dir === this.root && this.firstRoot ? this.firstRoot : this.entries(dir);
+    if (dir === this.root) this.firstRoot = null;
     let listed: readonly FolderEntry[] | null;
     try {
-      listed = await this.entries(dir);
+      listed = await asked;
     } catch (err) {
       return [
         {
@@ -211,9 +229,23 @@ export class FolderTree {
     }
     if (listed === null) return [];
     const entries = sortEntries(listed);
-    const top = await this.hierarchy.roots();
-    // Each data file's own row, from the graph the hierarchy holds: nothing is read for them.
-    const theirsOf = await Promise.all(entries.map((e) => (e.kind === 'data' ? this.hierarchy.rowOf(sourceUri(e.path)) : undefined)));
+    // What the index says of this level: its projects, for a folder's row, and each data file's
+    // own row, from the graph it holds (nothing is read for them). Not asked for a level of other
+    // files alone; and an index that cannot be read (its listing failed) says nothing, so the
+    // folder is still drawn, its data files as plain rows, as a file past its cap is.
+    const hasFolders = entries.some((e) => e.kind === 'folder');
+    const hasData = entries.some((e) => e.kind === 'data');
+    let top: readonly HierarchyItem[] = [];
+    let theirsOf: readonly (HierarchyItem | undefined)[] = [];
+    try {
+      [top, theirsOf] = await Promise.all([
+        hasFolders ? this.hierarchy.roots() : [],
+        hasData ? Promise.all(entries.map((e) => (e.kind === 'data' ? this.hierarchy.rowOf(sourceUri(e.path)) : undefined))) : [],
+      ]);
+    } catch {
+      top = [];
+      theirsOf = [];
+    }
     return entries.map((entry, i) => {
       if (entry.kind === 'folder') return this.folderRow(entry, `${parent.key}${part(`dir:${entry.name}`)}`, top);
       const kind = entry.kind === 'data' ? fileKindOf(entry.path) : null;
@@ -230,15 +262,23 @@ export class FolderTree {
     });
   }
 
-  // A folder's row: the project's row when a project's marker is in it (the hierarchy groups a
-  // project by its marker's folder), else a folder row as the hierarchy draws a folder.
+  // A folder's row, as the hierarchy draws a folder; a project's folder (the hierarchy groups a
+  // project by its marker's folder) is the project's row under the folder's own name, so the row
+  // reads as the path bar does, with the project's name after it where that is another.
   private folderRow(entry: FolderEntry, key: string, top: readonly HierarchyItem[]): HierarchyItem {
     const folderUri = folderUriOf(entry.path);
     const project = top.find(
       (item) => item.kind === 'group' && item.groupKind === 'project' && item.id !== undefined && item.id.slice(0, item.id.lastIndexOf('/')) === folderUri,
     );
     const row: HierarchyItem = project
-      ? { ...project, collapsible: 'collapsed', key, path: entry.path }
+      ? {
+          ...project,
+          label: entry.name,
+          ...(project.label !== entry.name ? { description: project.label } : {}),
+          collapsible: 'collapsed',
+          key,
+          path: entry.path,
+        }
       : { label: entry.name, kind: 'group', groupKind: 'folder', collapsible: 'collapsed', icon: FOLDER_ICON, key, path: entry.path };
     this.folders.set(row, entry.path);
     return row;
@@ -251,6 +291,14 @@ export class FolderTree {
     this.copies.set(own, row);
     return own;
   }
+}
+
+// A promise's outcome as a value, for a pair of asks one of which may fail alone.
+function settled<T>(promise: Promise<T>): Promise<{ rows: T } | { failed: unknown }> {
+  return promise.then(
+    (rows) => ({ rows }),
+    (failed: unknown) => ({ failed }),
+  );
 }
 
 // Another file's row: dimmed, a plain document, opening nothing (no `id`), its path kept for the

@@ -104,7 +104,7 @@ const ICON_BY_KIND: Readonly<Record<string, string>> = {
   group: 'link_database',
 };
 
-/** Every icon id a hierarchy row can name, for the check that each one ships in icons/. */
+/** Every icon id FolderHierarchy's rows can name, for the check that each one ships in icons/ (a FolderTree's own rows name more: its test checks those). */
 export const HIERARCHY_ICONS: readonly string[] = [
   ...new Set([...Object.values(ICON_BY_KIND), 'simulink_folder', 'typeGeneric']),
 ];
