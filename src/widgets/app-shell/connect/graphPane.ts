@@ -72,29 +72,35 @@ export interface GraphPane {
   dispose(): void;
 }
 
-/** The sections of a model's table whose rows name another file: what a Show in Graph on one reveals. */
-const REFERENCE_SECTIONS: ReadonlySet<string> = new Set([buildSectionRowId('dataSources'), buildSectionRowId('references')]);
-
-/** The kinds of edge from a file to a file it references. */
-const FILE_LINKS: ReadonlySet<GraphEdgeKind> = new Set(['model-ref', 'data-link', 'sldd-ref']);
+/**
+ * The sections of a model's table whose rows name another file, and the links a row of each is
+ * drawn as: what a Show in Graph on one reveals. External Data, a dictionary or a MAT-file the model
+ * links; Model References, a model it references.
+ */
+const REFERENCE_SECTIONS: ReadonlyMap<string, ReadonlySet<GraphEdgeKind>> = new Map([
+  [buildSectionRowId('dataSources'), new Set<GraphEdgeKind>(['data-link', 'sldd-ref'])],
+  [buildSectionRowId('references'), new Set<GraphEdgeKind>(['model-ref'])],
+]);
 
 /** A file's name in any case, with no extension: a model reference may name its model without one. */
 const stemOf = (name: string): string => name.toLowerCase().replace(/\.[^./\\]*$/, '');
 
 /**
- * The box the reference `ref` of the file `uri` is drawn to: the file it resolves to, or the ghost of
- * the name, at the end of a link from the file's box, matched by name in any case, with or without
- * its extension. Null where the file's box has no such link.
+ * The box the reference `ref`, a row of the file `uri`'s table in the section `section`, is drawn
+ * to: the file it resolves to, or the ghost of the name, at the end of a link of the section's kind
+ * from the file's box. By its name in any case, and else by its name without the extension (a model
+ * reference may leave it out): `plant.sldd` under External Data is plant.sldd's box, not the model
+ * plant.slx's. Null where the file's box has no such link.
  */
-function referencedId(graph: RelationshipGraph, uri: string, ref: string): string | null {
+export function referencedId(graph: RelationshipGraph, uri: string, ref: string, section: string): string | null {
+  const kinds = REFERENCE_SECTIONS.get(section);
   const from = graph.boxes.find((b) => !b.ghost && b.uri === uri);
-  if (!from) return null;
-  for (const edge of graph.edges) {
-    if (edge.from !== from.id || !FILE_LINKS.has(edge.kind)) continue;
-    const to = graph.boxes.find((b) => b.id === edge.to);
-    if (to && (to.label.toLowerCase() === ref.toLowerCase() || stemOf(to.label) === stemOf(ref))) return to.id;
-  }
-  return null;
+  if (!kinds || !from) return null;
+  const linked = graph.edges
+    .filter((edge) => edge.from === from.id && kinds.has(edge.kind))
+    .flatMap((edge) => graph.boxes.filter((b) => b.id === edge.to));
+  const named = ref.toLowerCase();
+  return (linked.find((b) => b.label.toLowerCase() === named) ?? linked.find((b) => stemOf(b.label) === stemOf(ref)))?.id ?? null;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -115,8 +121,9 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   let seen: ReturnType<typeof openFiles> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let building = false;
-  // What to reveal once the graph holds it: an item by `name`, a reference by `ref`, else the box.
-  let pendingReveal: { uri: string; name?: string; ref?: string } | null = null;
+  // What to reveal once the graph holds it: an item by `name`, a reference by `ref` (a row of the
+  // table's `section`), else the box.
+  let pendingReveal: { uri: string; name?: string; ref?: { name: string; section: string } } | null = null;
   let disposed = false;
 
   const check = (): void => {
@@ -129,7 +136,7 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   const showRevealed = (graph: RelationshipGraph | null): void => {
     if (!pendingReveal || !graph) return;
     const { uri, name, ref } = pendingReveal;
-    const id = (ref === undefined ? null : referencedId(graph, uri, ref)) ?? graphIdOf(graph, uri, name);
+    const id = (ref === undefined ? null : referencedId(graph, uri, ref.name, ref.section)) ?? graphIdOf(graph, uri, name);
     pendingReveal = null;
     if (!id) return;
     // An item is drawn in its box only while the box is open.
@@ -167,7 +174,8 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       // A box gone from the graph is open no more.
       const ids = new Set(graph.boxes.map((b) => b.id));
       if (el.expanded.some((id) => !ids.has(id))) el.expanded = el.expanded.filter((id) => ids.has(id));
-      showRevealed(graph);
+      // Its inputs changed while it ran (the folder): the build after it, which draws them, reveals.
+      if (!outOfDate) showRevealed(graph);
     } catch (err) {
       if (disposed) return;
       if (context.folder() !== shownFolder) {
@@ -195,7 +203,8 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
     if (timer !== undefined || disposed || !context.shown()) return;
     timer = setTimeout(() => {
       timer = undefined;
-      if (!disposed && context.shown()) void build();
+      // Nothing to build where a build since (the one after a build the change ran into) drew it.
+      if (!disposed && outOfDate && context.shown()) void build();
     }, REBUILD_MS);
   };
 
@@ -236,7 +245,7 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
     },
     showRow(uri, rows, rowId) {
       const row = rowId === null ? undefined : rowIn(rows, rowId);
-      if (row?.parent && REFERENCE_SECTIONS.has(row.parent)) return revealWhenDrawn({ uri, ref: row.Name.label });
+      if (row?.parent && REFERENCE_SECTIONS.has(row.parent)) return revealWhenDrawn({ uri, ref: { name: row.Name.label, section: row.parent } });
       const name = rowId === null ? undefined : graphNameOf(rows, rowId);
       revealWhenDrawn({ uri, ...(name === undefined ? {} : { name }) });
     },

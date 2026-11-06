@@ -1,3 +1,4 @@
+import { type RelationshipGraph } from '../../../model/graph/graphTypes.js';
 import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import type { DexRelationshipGraph } from '../modules/dex-relationship-graph.js';
 import type { FolderView } from './folder.js';
@@ -44,5 +45,13 @@ export interface GraphPane {
     showRow(uri: string, rows: readonly TreeTableRow[], rowId: string | null): void;
     dispose(): void;
 }
+/**
+ * The box the reference `ref`, a row of the file `uri`'s table in the section `section`, is drawn
+ * to: the file it resolves to, or the ghost of the name, at the end of a link of the section's kind
+ * from the file's box. By its name in any case, and else by its name without the extension (a model
+ * reference may leave it out): `plant.sldd` under External Data is plant.sldd's box, not the model
+ * plant.slx's. Null where the file's box has no such link.
+ */
+export declare function referencedId(graph: RelationshipGraph, uri: string, ref: string, section: string): string | null;
 /** Wire `el` to the open tabs and the folder. */
 export declare function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneContext): GraphPane;

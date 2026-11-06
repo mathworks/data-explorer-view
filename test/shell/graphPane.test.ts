@@ -11,7 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
 import type { RawSource } from '../../src/model/usage/usageCells.js';
 import type { FolderView } from '../../src/widgets/app-shell/connect/folder.js';
-import { connectGraphPane, REBUILD_MS, type GraphPaneContext, type GraphTab } from '../../src/widgets/app-shell/connect/graphPane.js';
+import { connectGraphPane, referencedId, REBUILD_MS, type GraphPaneContext, type GraphTab } from '../../src/widgets/app-shell/connect/graphPane.js';
+import type { GraphBox, GraphEdgeKind, RelationshipGraph } from '../../src/model/graph/graphTypes.js';
 import type { DexRelationshipGraph } from '../../src/widgets/app-shell/modules/dex-relationship-graph.js';
 
 const bytesOf = (name: string) => new Uint8Array(readFileSync(path.join(import.meta.dirname, 'fixtures', name)));
@@ -149,6 +150,25 @@ describe('the graph pane', () => {
     expect(el.reveal).toHaveBeenLastCalledWith(ghost.id);
   });
 
+  it("reveals a reference row's file by its section's kind of link, and its name before its stem", () => {
+    // A model referencing plant.slx and linking plant.sldd and plant.mat: a row of its External
+    // Data is a data link's, of its Model References a model reference's.
+    const box = (label: string, kind: GraphBox['kind']): GraphBox => ({ id: `file:///w/${label}`, uri: `file:///w/${label}`, kind, label, ghost: false, items: [] });
+    const link = (kind: GraphEdgeKind, to: string) => ({ id: `${kind}:${to}`, kind, from: 'file:///w/m.slx', to: `file:///w/${to}` });
+    const graph: RelationshipGraph = {
+      boxes: [box('m.slx', 'model'), box('plant.slx', 'model'), box('plant.sldd', 'sldd'), box('plant.mat', 'mat')],
+      edges: [link('model-ref', 'plant.slx'), link('data-link', 'plant.sldd'), link('data-link', 'plant.mat')],
+    };
+    expect(referencedId(graph, 'file:///w/m.slx', 'plant.sldd', 'section:dataSources')).toBe('file:///w/plant.sldd');
+    expect(referencedId(graph, 'file:///w/m.slx', 'plant.mat', 'section:dataSources')).toBe('file:///w/plant.mat');
+    // A name without its extension: the model under Model References, a data file under External Data.
+    expect(referencedId(graph, 'file:///w/m.slx', 'plant', 'section:references')).toBe('file:///w/plant.slx');
+    expect(referencedId(graph, 'file:///w/m.slx', 'plant', 'section:dataSources')).toBe('file:///w/plant.sldd');
+    // A name no link of the section's kind is drawn to, or a row of another section: none.
+    expect(referencedId(graph, 'file:///w/m.slx', 'other.sldd', 'section:dataSources')).toBeNull();
+    expect(referencedId(graph, 'file:///w/m.slx', 'plant.sldd', 'section:design')).toBeNull();
+  });
+
   it('opens a box or an item, and looks for a ghost from the file that references it', async () => {
     const resolveLink = vi.fn(async (link: { file: string }) => (link.file === 'params.sldd' ? 'file:///d/params.sldd' : null));
     const folder = { graphSources: async () => [], resolveLink } as unknown as FolderView;
@@ -222,6 +242,41 @@ describe('the graph pane', () => {
     await pause();
     expect(asked).toHaveLength(2);
     expect(labels(el)).toEqual(['params.sldd', 'shadow_ws.slx']);
+  });
+
+  it('keeps a reveal for the build after one whose folder changed while it ran', async () => {
+    const asked: ((sources: RawSource[]) => void)[] = [];
+    const folder = { graphSources: () => new Promise<RawSource[]>((answer) => asked.push(answer)) } as unknown as FolderView;
+    const { el, pane: p } = pane([tabOf('shadow_ws.slx')], { folder: () => folder });
+    p.refresh();
+    await pause();
+    // A file written into the folder while the build reads it, and asked to be shown.
+    p.stale();
+    p.reveal('file:///w/shared_gain.slx');
+    asked[0]!([]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(el.reveal).not.toHaveBeenCalled();
+    expect(asked).toHaveLength(2);
+    asked[1]!([sourceOf('shared_gain.slx')]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(el.reveal).toHaveBeenCalledWith('file:///w/shared_gain.slx');
+  });
+
+  it('builds once for a folder shown in place of another mid-build, not again from the pause the change armed', async () => {
+    let rejectOld: (err: Error) => void = () => {};
+    const old = { graphSources: () => new Promise((_, reject) => (rejectOld = reject)) } as unknown as FolderView;
+    const next = { graphSources: vi.fn(async () => [sourceOf('shared_gain.slx')]) } as unknown as FolderView & { graphSources: ReturnType<typeof vi.fn> };
+    let folder: FolderView = old;
+    const { el, pane: p } = pane([], { folder: () => folder });
+    p.stale();
+    await pause();
+    folder = next;
+    p.stale();
+    rejectOld(new Error('This folder reader is closed.'));
+    await pause();
+    await pause();
+    expect(next.graphSources).toHaveBeenCalledTimes(1);
+    expect(el.builds).toBe(1);
   });
 
   it('drops a reveal its build could not make, rather than making it on a later build', async () => {
