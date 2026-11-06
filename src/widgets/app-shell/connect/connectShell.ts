@@ -21,9 +21,10 @@
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { isEditable, type InspectorFeed } from '../../../model/source/tableSource.js';
+import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
-import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
+import { basenameOf, isProjectFile, isSlddFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
 import type { DexAppShell } from '../dex-app-shell.js';
@@ -251,7 +252,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   }
 
   // What the toolbar's buttons, and the palette's rows for them, can do now.
-  const toolbarState = (): ToolbarState => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac());
+  const toolbarState = (): ToolbarState => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac(), !!host.newFile);
 
   function refresh(): void {
     const active = tabs.active;
@@ -375,9 +376,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
    * Open the file at `path` in a tab, or go to its tab. `preview`: the file is only being looked at
    * (a click in the folder's tree, a search pick, a link), so it takes the place of the preview tab
    * there is, unless that one holds edits; a file opened for good is kept, and so is its tab when
-   * it was a preview.
+   * it was a preview. `created`: a new dictionary to make there (openNew), not a file to read.
    */
-  async function open(path: string, how: { preview?: boolean } = {}): Promise<OpenTab> {
+  async function open(path: string, how: { preview?: boolean; created?: boolean } = {}): Promise<OpenTab> {
     // A file by its uri, as the workspace knows it: on Windows the folder's tree and a link spell
     // the path File > Open gave (`C:\work\x.sldd`) as `c:\work\x.sldd` and `C:\work/x.sldd`.
     const uri = sourceUri(path);
@@ -404,19 +405,21 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     tabs.add(tab);
     if (at >= 0) tabs.move(tab, at);
     shown();
-    tab.ready = load(tab, uri);
+    tab.ready = load(tab, uri, !!how.created);
     await tab.ready;
     return tab;
   }
 
   // Read the file of a tab just added and show it: on its page, a project; in a table connected to
-  // its document, any other file; and in the table's banner why it could not be.
-  async function load(tab: OpenTab, uri: string): Promise<void> {
+  // its document, any other file; and in the table's banner why it could not be. A new dictionary
+  // (`created`) is made in the page, and nothing is read for it.
+  async function load(tab: OpenTab, uri: string, created = false): Promise<void> {
     const { path } = tab;
     if (isProjectFile(path)) return showProject(tab, { host, folder: folderNow, open: (to) => open(to, { preview: true }), log });
     const storageKey = `${key}:${uri}`;
     try {
-      const bytes = await host.readFile(path);
+      // A new file's bytes are the dictionary it is made as: what the graph draws until a save writes it.
+      const bytes = created ? newDictionaryBytes() : await host.readFile(path);
       // The shell was taken down meanwhile, and the host told of every file it had open.
       if (disposed) return;
       // Closed while its file was read: nothing to open. The host began watching the file after the
@@ -426,13 +429,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         if (!tabs.find((t) => sourceUri(t.path) === uri)) host.closeFile?.(path);
         return;
       }
-      const doc = await ws.open(bytes, tab.name, uri);
+      const doc = await (created ? ws.create(tab.name, uri) : ws.open(bytes, tab.name, uri));
       if (disposed || !tabs.items.includes(tab)) {
         doc.dispose();
         return;
       }
       tab.doc = doc;
       tab.bytes = bytes;
+      // A new file holds unsaved edits from the start, which no change of its dirty state tells.
+      if (doc.dirty) {
+        tab.dirty = true;
+        paint();
+      }
       tab.stops.push(
         doc.onDirty((dirty) => {
           tab.dirty = dirty;
@@ -480,7 +488,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       );
       if (tab === tabs.active) follow();
       later();
-      log('info', `Opened ${tab.name}`);
+      log('info', created ? `Opened ${tab.name}, a new data dictionary` : `Opened ${tab.name}`);
     } catch (err) {
       if (disposed) return;
       const table = tab.table ?? newTable(tab, storageKey, false, popovers.tableStyle());
@@ -503,6 +511,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const to = linkDestination(link, from.path);
     const tab = await open(uri ? uriPath(uri) : to.path, { preview: true });
     if (to.select) tab.handle?.selectByName(to.select);
+  }
+
+  // A new data dictionary at `path`, where the host's New said it goes (ShellHost.newFile), in a tab
+  // of its own and unsaved until the user saves it. Not over a file a tab has open, whose edits it
+  // would take the place of; and only a dictionary, the one kind of file New makes.
+  async function openNew(path: string): Promise<void> {
+    if (disposed) return;
+    const name = basenameOf(path);
+    if (!isSlddFile(path)) return failed(`Could not make ${name}: a new file is a data dictionary, whose name ends in .sldd.`);
+    if (tabs.find((t) => sourceUri(t.path) === sourceUri(path))) return failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
+    await open(path, { created: true });
   }
 
   function openPaths(paths: readonly string[]): Promise<void> {
@@ -553,7 +572,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
   // What the document commands are carried out with (carryOut.ts).
-  const carrying: CarryOutContext = { host, tabs, nav, openPaths, save, close: (tab) => void requestClose(tab), shown, later, failed };
+  const carrying: CarryOutContext = { host, tabs, nav, openPaths, openNew, save, close: (tab) => void requestClose(tab), shown, later, failed };
 
   // --- The modules' views ------------------------------------------------------------------------
 

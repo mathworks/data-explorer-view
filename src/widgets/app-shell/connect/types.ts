@@ -16,11 +16,13 @@ import type { Theme } from '../../../model/shell/settings.js';
 
 /**
  * A command the shell carries out: a toolbar button's id, a chord's, an explorer menu item's, a
- * command palette row's, and what a native menu asks for through `ShellHandle.command`. `palette`
- * opens the command palette; each `show-<view>` brings that view of the shell forward, and
- * `show-graph` goes to the Explorer's Root, where the relationship graph is.
+ * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
+ * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
+ * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
+ * goes to the Explorer's Root, where the relationship graph is.
  */
 export type ShellCommand =
+  | 'new-file'
   | 'open-file'
   | 'open-folder'
   | 'save'
@@ -62,6 +64,15 @@ export type CloseAnswer = 'save' | 'discard' | 'cancel';
  * clipboard at each copy), so a host, or a test, may replace one while the shell runs.
  */
 export interface ShellHost {
+  /**
+   * Ask where a new data dictionary is to go, `suggestedName` offered (`untitled.sldd`): resolves to
+   * its path, or null when cancelled. The shell opens the path in a tab of its own as a new, empty
+   * dictionary with unsaved edits (Workspace.create), and nothing is written there until the user
+   * saves it, through `saveFile`; nor read, so a file that is there already is written over by that
+   * save. A path the host cannot write may still be answered: its save says why. Absent: the shell
+   * offers no New (no button, chord or command).
+   */
+  newFile?(suggestedName: string): Promise<string | null>;
   /** Show the host's Open File dialog; resolves to the chosen paths (empty when cancelled). */
   pickFiles(): Promise<string[]>;
   /**

@@ -15,9 +15,9 @@ import { SHELL_VIEWS } from './views.js';
 import type { Rect } from '../../../model/shell/placement.js';
 
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
-  'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-  'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
-  'show-graph', ...SHELL_VIEWS.map((v) => v.command),
+  'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
+  'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
+  'palette', 'show-graph', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */

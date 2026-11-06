@@ -2,8 +2,8 @@
 // @vitest-environment happy-dom
 //
 // The shell's chords (connect/keys.ts): which key does which command, on either platform, heard on
-// the window wherever the focus is, but for what a field is typing (where only Save and Open still
-// work, as in any editor) and what a widget has taken for itself (a table's own Cmd/Ctrl+Z). With
+// the window wherever the focus is, but for what a field is typing (where only New, Open and Save
+// still work, as in any editor) and what a widget has taken for itself (a table's own Cmd/Ctrl+Z). With
 // a native menu, which owns the File and Edit chords and fires them itself, only those it cannot
 // have are answered here. Each chord answered is spent (preventDefault), so the browser does not
 // also print, or open its own Open dialog. Undo and Redo are answered outside a table and a field
@@ -42,6 +42,7 @@ describe('the shell answers its chords', () => {
     onPlatform('Win32');
     const ran = listen();
     const all: [KeyboardEventInit, ShellCommand][] = [
+      [{ key: 'n', ctrlKey: true }, 'new-file'],
       [{ key: 'o', ctrlKey: true }, 'open-file'],
       [{ key: 'O', ctrlKey: true, shiftKey: true }, 'open-folder'],
       [{ key: 's', ctrlKey: true }, 'save'],
@@ -80,7 +81,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual([]);
   });
 
-  it('while a field takes the typing, answers only Save and Open', () => {
+  it('while a field takes the typing, answers only New, Open and Save', () => {
     onPlatform('Win32');
     const ran = listen();
     const input = document.createElement('input');
@@ -90,7 +91,8 @@ describe('the shell answers its chords', () => {
     expect(press({ key: 'ArrowLeft', altKey: true }, input)).toBe(false);
     expect(press({ key: 's', ctrlKey: true }, input)).toBe(true);
     expect(press({ key: 'o', ctrlKey: true }, input)).toBe(true);
-    expect(ran).toEqual(['save', 'open-file']);
+    expect(press({ key: 'n', ctrlKey: true }, input)).toBe(true);
+    expect(ran).toEqual(['save', 'open-file', 'new-file']);
   });
 
   it('reads the field off the composed path, through a shadow root', () => {
@@ -129,6 +131,8 @@ describe('the shell answers its chords', () => {
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
     expect(press({ key: 'o', ctrlKey: true })).toBe(false);
+    // New is the menu's File > New.
+    expect(press({ key: 'n', ctrlKey: true })).toBe(false);
     expect(press({ key: 'w', ctrlKey: true })).toBe(false);
     expect(press({ key: 'Tab', ctrlKey: true })).toBe(false);
     press({ key: 'ArrowUp', altKey: true });

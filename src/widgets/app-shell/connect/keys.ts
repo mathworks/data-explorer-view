@@ -6,8 +6,9 @@
 // The Electron app bound these in its native menu (data-explorer-app src/main/menu.ts at 0983920:
 // CmdOrCtrl+O, +Shift+O, +S, +Shift+S, +W, +Z, Shift+CmdOrCtrl+Z, CmdOrCtrl+F, Ctrl+Tab,
 // Ctrl+Shift+Tab); a browser page
-// has no such menu, so the shell answers them itself, along with the shell's own (Save All,
-// Back, Forward, Up, Settings, the command palette, as the prototype had them). The chords of
+// has no such menu, so the shell answers them itself, along with the shell's own (New, Save All,
+// Back, Forward, Up, Settings, the command palette, as the prototype had them). New is a File
+// menu's item, CmdOrCtrl+N, in an app with a native menu, as Open is. The chords of
 // the shell's views (Mod+Shift+E and the rest, views.ts) are <dex-app-shell>'s, which answers each
 // view's `shortcut` itself, with a native menu or without. A host with a native menu says so,
 // and then the menu fires its chords through the handle and the shell answers only the ones a
@@ -17,8 +18,8 @@
 // itself (a table's Cmd/Ctrl+Z and Cmd/Ctrl+F, the shell's own view chords) prevents its default,
 // and a press already spent is left alone. A press typed into a field (the search box, a cell
 // editor, a column filter, read off the composed path as the table reads it) is the field's,
-// but for Save and Open, which an editor answers wherever the caret is. A field is one that takes
-// text (shared/textField.ts): a chord on a checkbox outside a table is the shell's.
+// but for New, Open and Save, which an editor answers wherever the caret is. A field is one that
+// takes text (shared/textField.ts): a chord on a checkbox outside a table is the shell's.
 //
 // Undo and Redo are the native Edit menu's in Electron, and a browser page has none: here they
 // undo the active document from wherever the focus is but two places. In a field they are left
@@ -53,6 +54,7 @@ export interface ShellChord {
 
 /** The chords the shell answers, in the order the toolbar and the menus list them. */
 export const SHELL_CHORDS: readonly ShellChord[] = [
+  { chord: 'Mod+N', command: 'new-file', inField: true },
   { chord: 'Mod+O', command: 'open-file', inField: true },
   { chord: 'Mod+Shift+O', command: 'open-folder' },
   { chord: 'Mod+S', command: 'save', inField: true },

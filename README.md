@@ -528,10 +528,10 @@ onWindowClose(async () => {
 
 Nothing opens until the host says so: the window starts on a welcome with Open
 File… and Open Folder… buttons. `app.command(id)` carries out a command
-(`'save'`, `'undo'`, `'show-search'`, …) as its button or its chord does, for a
-native menu's items, and `app.dispose()` takes the app down. The settings, the
-layout the user left and each file's column choices are kept in localStorage
-under connectShell's `storageKey` (`'dex-shell'` by default).
+(`'new-file'`, `'save'`, `'undo'`, `'show-search'`, …) as its button or its
+chord does, for a native menu's items, and `app.dispose()` takes the app down.
+The settings, the layout the user left and each file's column choices are kept
+in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
 
 ### The host
 
@@ -543,6 +543,7 @@ shell runs.
 | Member | When the shell calls it | Without it |
 |---|---|---|
 | `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
+| `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` | no New: the host makes no files |
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
 | `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
 | `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
@@ -566,6 +567,7 @@ each item calls `app.command(id)`:
 ```js
 // The page; window.api is the preload's bridge to main.
 const host = {
+  newFile: (name) => window.api.newFile(name), // a native Save dialog: the path, or null; main writes nothing yet
   pickFiles: () => window.api.openFile(),
   pickFolder: () => window.api.openFolder(), // main serves it, and posts its port for app.showFolder
   readFile: (path) => window.api.readFile(path),
@@ -664,11 +666,12 @@ const app = connectShell(shell, {
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus
-is, but leaves it to a text field that has the focus, except Open and Save,
+is, but leaves it to a text field that has the focus, except New, Open and Save,
 and leaves Undo and Redo to a table, which undoes its own document.
 
 | Keys | |
 |---|---|
+| Cmd/Ctrl+N | New Data Dictionary… (a host with `newFile`) |
 | Cmd/Ctrl+O, Cmd/Ctrl+Shift+O | Open File…, Open Folder… |
 | Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Alt+S | Save, Save As…, Save All |
 | Cmd/Ctrl+W | close the tab |
@@ -687,8 +690,9 @@ A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
 the command palette and the views' chords, and the menu the rest. In a browser
 tab, a few chords are the browser's whatever the page does: Chromium keeps
-Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs, and there the
-toolbar, the tab row and the command palette do the same. The shell's own
+Cmd/Ctrl+N for a new window and Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for
+its own tabs, and there the toolbar, the tab row and the command palette do the
+same. The shell's own
 chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
