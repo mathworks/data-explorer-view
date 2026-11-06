@@ -101,6 +101,8 @@ describe('compareRows', () => {
         DataType: { paramLinks: [{ property: 'Gain', paramName: 'k', source: 'p.sldd', linkTarget: 'file:///p.sldd#k' }] },
       });
     }
+    // A list of links, which the table draws as anchors whatever their targets.
+    Object.assign(a.rows.find((row) => row.Name.label === 'Uo')!, { DataType: { links: [{ text: 'T1', linkTarget: 'x#T1' }, { text: 'T2', linkTarget: 'x#T2' }] } });
     const layout = compareRows(diffSides(a, b));
     const id = idOf(layout, 'Kp');
     const copy = layout.left.rows.find((row) => row.ID === id)!;
@@ -110,6 +112,8 @@ describe('compareRows', () => {
     expect(copy.DataType).toEqual({ paramLinks: [{ property: 'Gain', paramName: 'k', source: 'p.sldd', linkTarget: '' }] });
     // The side's own row is left as it was.
     expect(kp(a)._lazy).toBe(true);
+
+    expect(layout.left.rows.find((row) => row.ID === idOf(layout, 'Uo'))!.DataType).toEqual({ text: 'T1, T2' });
 
     const gap = layout.right.rows.find((row) => row.ID === idOf(layout, 'Uo'))!;
     expect(gap).toEqual({ ID: idOf(layout, 'Uo'), parent: 'section:design', Name: { label: '' }, Value: '', DataType: '', Description: '', Status: '' });

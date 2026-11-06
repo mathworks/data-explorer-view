@@ -13,13 +13,39 @@
 // deleted entry, a new one, a compressed dictionary's struct field, a MAT-file's matrix element, a
 // model workspace's variable. Around it, everything else must read the same, which is as much a
 // part of the answer: a compare that found differences the edit did not make would be noise.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DataModel } from 'data-explorer-core';
 import { diffDocuments, diffFiles } from '../src/model/compare/diffDocuments.js';
 import { readDiffSide } from '../src/model/compare/readSide.js';
 import type { DocumentDiff, RowDiff } from '../src/model/compare/diff.js';
 import { createWorkspace, sourceUri, type TableSource, type Workspace, type WorkspaceOptions } from '../src/model/index.js';
 import { derive, fixtureBytes, rowNamed, settle } from './compare/derive.js';
+
+// Every workspace made, and every one disposed: diffFiles reads each file in a workspace of its own
+// and must leave none open. A workspace's session is its own, which core's module-level registry
+// (the afterEach's check) does not see, so its disposal is counted here instead.
+const workspaces$ = vi.hoisted(() => ({ made: 0, disposed: 0 }));
+vi.mock('../src/model/source/workspace.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/model/source/workspace.js')>();
+  return {
+    ...actual,
+    createWorkspace: (options?: WorkspaceOptions) => {
+      const ws = actual.createWorkspace(options);
+      workspaces$.made++;
+      const dispose = ws.dispose;
+      ws.dispose = () => {
+        workspaces$.disposed++;
+        dispose();
+      };
+      return ws;
+    },
+  };
+});
+/** Count the workspaces from now on. */
+const countWorkspaces = (): void => {
+  workspaces$.made = 0;
+  workspaces$.disposed = 0;
+};
 
 let workspaces: Workspace[] = [];
 afterEach(() => {
@@ -132,6 +158,7 @@ describe('diffFiles', () => {
     });
     const diff = await diffFiles({ bytes: fixtureBytes('slxcases.slx', true), name: 'slxcases.slx', path: '/a/slxcases.slx' }, { bytes: edited, name: 'slxcases.slx', path: '/b/slxcases.slx' });
     const tau = lineAt(diff, ['tau']);
+    expect(section(diff, 'workspace').rows).toContain(tau);
     expect(tau.status).toBe('changed');
     expect(tau.properties).toEqual([{ column: 'Value', label: 'Value', before: '0.25', after: '0.5' }]);
     const blocks = section(diff, 'blocks');
@@ -150,11 +177,20 @@ describe('diffFiles', () => {
     await expect(diffFiles(params, { bytes: text('x'), name: 'bad.sldd' })).rejects.toThrow(/^Failed to parse bad\.sldd/);
   });
 
-  it('reads each file in a session of its own, even two under one path', async () => {
-    const bytes = fixtureBytes('params.sldd');
-    const diff = await diffFiles({ bytes, name: 'params.sldd', path: '/w/params.sldd' }, { bytes, name: 'params.sldd', path: '/w/params.sldd' });
-    expect(diff.counts).toEqual({ changed: 0, added: 0, removed: 0, same: 3 });
-    // The afterEach's check: both workspaces are gone.
+  it('reads each file in a session of its own, even two under one path, and closes both', async () => {
+    const before = fixtureBytes('params.sldd');
+    const after = await editedParams();
+    countWorkspaces();
+    // Two versions under one path: one session would refuse the second, or read it as the first.
+    const diff = await diffFiles({ bytes: before, name: 'params.sldd', path: '/w/params.sldd' }, { bytes: after, name: 'params.sldd', path: '/w/params.sldd' });
+    expect(lineAt(diff, ['Kp']).status).toBe('changed');
+    expect(diff.counts).toEqual({ changed: 1, removed: 1, added: 1, same: 1 });
+    expect(workspaces$).toEqual({ made: 2, disposed: 2 });
+
+    // And when one of the two cannot be read.
+    countWorkspaces();
+    await expect(diffFiles({ bytes: before, name: 'params.sldd' }, { bytes: new TextEncoder().encode('x'), name: 'bad.sldd' })).rejects.toThrow(/^Failed to parse bad\.sldd/);
+    expect(workspaces$).toEqual({ made: 2, disposed: 2 });
   });
 });
 
@@ -194,6 +230,27 @@ describe('readDiffSide', () => {
     expect(side.rows.some((row) => row.Name.label === 'Kp')).toBe(true);
     expect(side.docUri).toBe('file:///w/params.sldd');
     expect(side.columns).toEqual(view.columns);
+
+    // A table that has opened a held-back row holds its children: they are not asked for again.
+    const nd = await tableOf(fixtureBytes('nd_numeric.mat'), 'nd_numeric.mat', { rowBudget: 3 });
+    const painted = await nd.open();
+    const held = painted.rows.filter((row) => row._lazy);
+    expect(held.map((row) => row.Name.label)).toEqual(['Mat', 'Nd', 'Nd4', 'Vec']);
+    const opened = await nd.children(rowNamed(held, 'Mat').ID);
+    const asked: string[] = [];
+    const counting: TableSource = {
+      open: () => nd.open(),
+      children: (rowId) => (asked.push(rowId), nd.children(rowId)),
+      matrix: (nodeId) => nd.matrix(nodeId),
+      inspect: (selection, options) => nd.inspect(selection, options),
+      subscribe: (listener) => nd.subscribe(listener),
+    };
+    const ndSide = await readDiffSide(counting, { shown: { view: painted, rows: [...painted.rows, ...opened.rows] } });
+    expect(asked).toEqual(['Nd', 'Nd4', 'Vec'].map((label) => rowNamed(held, label).ID));
+    const ids = ndSide.rows.map((row) => row.ID);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ndSide.rows.filter((row) => row.parent === rowNamed(held, 'Mat').ID)).toHaveLength(6);
+    expect(ndSide.rows.some((row) => row._lazy)).toBe(false);
   });
 
   it("reads each entry's inspector page when asked, and none past maxPages", async () => {

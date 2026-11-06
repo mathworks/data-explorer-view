@@ -257,6 +257,40 @@ describe('diffSides', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it("keys a name written with `~` apart from a repeated name's places", () => {
+    const entries = { design: [r('p', { Class: 'double' }), r('p', { Class: 'single' }), r('p~0')] };
+    const lines = linesOf(diffSides(sideOf(A, entries), sideOf(B, entries)));
+    expect(lines.map((row) => row.key)).toEqual(['design/p~0', 'design/p~1', 'design/p%7E0']);
+    expect(lines.map((row) => [row.path, row.status])).toEqual([
+      [['p'], 'same'],
+      [['p'], 'same'],
+      [['p~0'], 'same'],
+    ]);
+  });
+
+  it("reads an array's elements from its matrix's shape, where its Value is edited as a whole text", () => {
+    const elements = [r('u(1)', { element: true }), r('u(2)', { element: true }), r('u(3)', { element: true })];
+    const side = (uri: string) => {
+      const made = sideOf(uri, { '': [r('u', { Value: '1 2 3 …', Class: 'double' }, elements), r('t', { Value: '1 2 3 …', Class: 'double' }, elements)] });
+      const named = (label: string) => made.rows.find((row) => row.Name.label === label)!;
+      // Both hold their Value whole (`_hasEditText`); only u says its shape.
+      Object.assign(named('u'), { _hasEditText: true, _matrix: { name: 'u', className: 'double', dims: [1, 20000], nodeId: 'n' } });
+      Object.assign(named('t'), { _hasEditText: true });
+      return made;
+    };
+    const [u, t] = linesOf(diffSides(side('file:///a/x.mat'), side('file:///b/x.mat')), '');
+    expect(u.partial).toBe(true);
+    // No shape to count its elements by: not said to be partial.
+    expect(t.partial).toBeUndefined();
+  });
+
+  it('reads a side with no headings and no rows as an empty section of variables', () => {
+    const diff = diffSides(sideOf('file:///a/x.mat', { '': [] }), sideOf('file:///b/x.mat', { '': [r('x')] }));
+    expect(diff.sections.map((s) => [s.key, s.status])).toEqual([['', 'same']]);
+    expect(shapeOf(diff.sections[0].rows)).toEqual(['x added']);
+    expect(diff.counts).toEqual({ added: 1, removed: 0, changed: 0, same: 0 });
+  });
+
   it('sums up the counts that are not 0', () => {
     expect(diffSummary({ changed: 3, added: 1, removed: 2, same: 9 })).toBe('3 changed, 1 added, 2 removed');
     expect(diffSummary({ changed: 0, added: 1, removed: 0, same: 0 })).toBe('1 added');

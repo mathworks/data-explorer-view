@@ -59,11 +59,15 @@ export interface CompareSideRows {
   marks: Map<string, SideMark>;
 }
 
+/** A diff laid out for the compare's two tables: its lines, each table's rows and marks, the changes, and the lines to open. */
 export interface CompareRows {
   /** Every line drawn, parents before children, in the diff's order. */
   lines: CompareLine[];
+  /** Each line by its id, for a selected or expanded row of either table. */
   byId: ReadonlyMap<string, CompareLine>;
+  /** What the left table is given: a's side. */
   left: CompareSideRows;
+  /** What the right table is given: b's side. */
   right: CompareSideRows;
   /** The ids of the lines that differ, in line order: what Next Change steps through. */
   changes: string[];
@@ -71,6 +75,7 @@ export interface CompareRows {
   opened: string[];
 }
 
+/** How compareRows lays a diff out. */
 export interface CompareRowsOptions {
   /** Leave out a line with no difference in or under it, a heading too. Default true. */
   onlyDifferences?: boolean;
