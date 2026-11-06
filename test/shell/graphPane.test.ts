@@ -1,8 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The relationship graph's wiring on its own (connect/graphPane.ts), over a stand-in for the
-// element: what the page tests cannot time. The graph is built a pause (REBUILD_MS) after what it
-// is drawn from last changed, once for every change in that pause, and only while it is shown; an
+// element: what the page tests cannot time. The graph is built REBUILD_MS after the first change
+// since the last build, once for every change in that time, and only while it is shown; an
 // open file's bytes are drawn over the folder's of the same file; a reveal waits for the build it
 // needs; a ghost is looked for from the file that references it; a box gone is open no more.
 import { readFileSync } from 'node:fs';
@@ -48,7 +48,7 @@ beforeEach(() => void vi.useFakeTimers());
 afterEach(() => void vi.useRealTimers());
 
 describe('the graph pane', () => {
-  it('builds a pause after the last change, once for every change in it, and only while shown', async () => {
+  it('builds REBUILD_MS after the first change, once for every change in that time, and only while shown', async () => {
     const tabs = [tabOf('shadow_ws.slx')];
     const { el, on, pane: p } = pane(tabs);
     p.refresh();

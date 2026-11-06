@@ -22,7 +22,11 @@ import type { RawSource } from '../../../model/usage/usageCells.js';
 import type { DexRelationshipGraph } from '../modules/dex-relationship-graph.js';
 import type { FolderView } from './folder.js';
 
-/** How long what the graph is drawn from must be still before it is built again, in ms. */
+/**
+ * How long after the first change since the last build the graph is built again, in ms: every
+ * change in that time is drawn by the one build, and a change during it waits for none of its own
+ * (it throttles, it does not wait for the changes to stop).
+ */
 export const REBUILD_MS = 300;
 
 /** A tab, as the graph draws it: its file, and the bytes the file holds as the shell last read or wrote them. */
@@ -49,9 +53,9 @@ export interface GraphPaneContext {
 
 /** The graph pane, as connectShell drives it. */
 export interface GraphPane {
-  /** The folder shown, or its files, changed: build again, after a pause, when the graph is shown. */
+  /** The folder shown, or its files, changed: build again, REBUILD_MS after the first change, when the graph is shown. */
   stale(): void;
-  /** Something changed (a tab, Root shown): build again, after a pause, if the graph is shown and out of date. */
+  /** Something changed (a tab, Root shown): build again, REBUILD_MS after the first change, if the graph is shown and out of date. */
   refresh(): void;
   /** Select and bring forward the box of the file `uri`, or its item `name` (opening its box), once the graph holds it. */
   reveal(uri: string, name?: string): void;

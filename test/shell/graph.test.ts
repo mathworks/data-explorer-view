@@ -3,8 +3,8 @@
 //
 // The relationship graph, connected: the Explorer's Root shows it in the center while files are
 // open (the welcome while none is), built from every open file's bytes (what the host read, and
-// after a save what was saved) and the shown folder's files, and built again, after a pause, as
-// files open, close and are saved. A double-click opens a box's file (an item's on its row) in a
+// after a save what was saved) and the shown folder's files, and built again, shortly after the
+// first change, as files open, close and are saved and the folder changes. A double-click opens a box's file (an item's on its row) in a
 // preview tab; a box for a file referenced and not open is resolved as a link would be, through the
 // folder, or said not to be open. A box's +/− shows or hides its items. A table's menu offers Show
 // in Graph, and the palette Show Graph.
@@ -40,7 +40,7 @@ describe('the relationship graph', () => {
     expect(boxes().sort()).toEqual(['params.sldd', 'shadow_ws.slx']);
     // The model's DictOnly block reads the dictionary's Uo (its WsGain, Kp, from its own workspace).
     expect(itemsOf('params.sldd')).toEqual(['Uo']);
-    // A file closed leaves it, after a pause: the model's reference to it is a box of its own.
+    // A file closed leaves it, a build later: the model's reference to it is a box of its own.
     closeTab('params.sldd');
     await until(() => tabNames().join() === 'shadow_ws.slx');
     root();
