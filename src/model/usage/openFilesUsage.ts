@@ -16,9 +16,15 @@
 // nothing. The files are taken in the order of their uris, which decides which of two same-named
 // dictionaries a name means, so moving a tab moves no answer.
 //
-// A file that is not open is not there. A model whose dictionary is not open has its parameters
-// unresolved, as a folder that lacks the dictionary answers; once the dictionary opens, they
-// resolve to it, by its uri.
+// A file that is not open is not there, so a model whose dictionary is not open has its
+// parameters unresolved in the graph, as a folder that lacks the dictionary answers. A page of open
+// files is not a folder that lacks it, though: the dictionary is most likely beside the model,
+// unopened. So where a parameter is unresolved (not its workspace's, not a mask's) and the model
+// links a dictionary, its cell names that dictionary as the model does, `Gain=Kp (params.sldd)`,
+// linked by name (`Kp@params.sldd`), which opens it beside the model, as the prototype linked it.
+// Once the dictionary opens, the parameter resolves to it, by its uri. A parameter the model's
+// workspace shadows still names the workspace. The graphs themselves (`graphs`) answer as a folder
+// session's do: the name is the cell's, not the graph's.
 //
 // WHEN A COLUMN IS OWED A REPAINT
 //
@@ -31,8 +37,14 @@
 // over, and once a burst of changes is over (the reposts' trailing window, so opening ten files
 // repaints each one once), every document whose last fill was answered over other files than are
 // open now is painted again, once. One never painted is not (its first paint will be fresh), nor
-// one closed since; one opened in the burst only if more came after it.
-import { isGraphPath, newSourceCache, type SourceCache, type SourceFile, type SourceReader } from 'data-explorer-core';
+// one closed since; one opened in the burst only if more came after it. A save hands its tab new
+// bytes, a new version, so every table filled before it is painted again a window later, whether
+// or not the save moved an edge: telling which would mean comparing the file's summaries, and a
+// repaint is the cheaper of the two.
+//
+// connectShell makes one for the shell's workspace; the package's entries do not export it.
+import { cheapOne, identifiersIn, isGraphPath, isModelFile, newSourceCache, type SourceCache, type SourceFile, type SourceReader } from 'data-explorer-core';
+import { basename } from '../ids/pathUtil.js';
 import type { UsageSource } from '../source/workspace.js';
 import type { UsageGraph } from './usageCells.js';
 import { UsageGraphs } from './usageGraphs.js';
@@ -66,11 +78,14 @@ export interface OpenFilesUsageOptions {
 }
 
 /**
- * A workspace's `usage` over the open files (createWorkspace's, or setUsage's). An app is handed
- * one and does not implement it, so a release may add to it.
+ * A workspace's `usage` over the open files (createWorkspace's, or setUsage's), as connectShell
+ * makes one: it is not part of the package's entries.
  */
 export interface OpenFilesUsage extends UsageSource {
-  /** The graphs it answers from: the queries a folder session's `usage` answers, over the open files. */
+  /**
+   * The graphs it answers from: the queries a folder session's `usage` answers, over the open
+   * files, an unresolved parameter unresolved (the dictionary's name is `graphFor`'s, for a cell).
+   */
   readonly graphs: UsageGraphs;
   /**
    * The files open may have changed: if they did (a file opened, closed, saved or reloaded), the
@@ -131,24 +146,60 @@ export function createOpenFilesUsage(options: OpenFilesUsageOptions): OpenFilesU
   };
   const keyOf = (files: readonly OpenSource[]): string => files.map((f) => `${f.uriString} ${f.version}`).join('\n');
 
+  // The bytes each file had when it was listed, whatever its tab holds by the read.
+  const readerOf = (files: readonly OpenSource[]): SourceReader => {
+    const held = new Map(files.map((f) => [f.uriString, f]));
+    return {
+      version: async (file) => held.get(file.uriString)?.version ?? null,
+      bytes: async (file) => {
+        const f = held.get(file.uriString);
+        return f ? bufferOf(f.bytes) : null;
+      },
+    };
+  };
+
   const graphs = new UsageGraphs({
     inputs: {
       inputsKey: () => keyOf(current()),
       candidates: async () => current(),
-      // The bytes each file had when the build listed it, whatever its tab holds by the read.
-      readerFor(files): SourceReader {
-        const held = new Map((files as readonly OpenSource[]).map((f) => [f.uriString, f]));
-        return {
-          version: async (file) => held.get(file.uriString)?.version ?? null,
-          bytes: async (file) => {
-            const f = held.get(file.uriString);
-            return f ? bufferOf(f.bytes) : null;
-          },
-        };
-      },
+      readerFor: (files) => readerOf(files as readonly OpenSource[]),
     },
     cache: options.cache ?? newSourceCache(),
   });
+
+  // The dictionary the model `file` links, by its name as the model records it (a path cut to its
+  // basename), or null for none: core's structure of the model, read through the cache the graphs
+  // read, so off the parse they already made.
+  async function dictionaryOf(file: OpenSource): Promise<string | null> {
+    try {
+      const entry = await cheapOne(graphs.cache, readerOf([file]), file);
+      const linked = entry?.cheap.kind === 'model' ? entry.cheap.structure.dataDictionary : null;
+      return linked ? basename(linked) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // The model `uri`'s graph, its unresolved parameters named after the dictionary it links.
+  async function withDictionary(uri: string, graph: Promise<UsageGraph>): Promise<UsageGraph> {
+    const file = current().find((f) => f.uriString === uri);
+    const answer = await graph;
+    const dictionary = file && isModelFile(file.path) ? await dictionaryOf(file) : null;
+    if (!dictionary) return answer;
+    return {
+      blocksUsing: (sourceUri, varName) => answer.blocksUsing(sourceUri, varName),
+      paramLinks(modelUri, blockKey) {
+        const links = answer.paramLinks(modelUri, blockKey);
+        if (modelUri !== uri) return links;
+        // Unresolved is the one origin with no target: a workspace's and a mask's have theirs.
+        return links.map((link) => {
+          if (link.linkTarget !== '') return link;
+          const name = identifiersIn(link.paramName)[0];
+          return name ? { ...link, source: dictionary, linkTarget: `${name}@${dictionary}` } : link;
+        });
+      },
+    };
+  }
 
   // The files each document's last fill was answered over (their key), by the document's uri.
   const filled = new Map<string, string>();
@@ -180,7 +231,7 @@ export function createOpenFilesUsage(options: OpenFilesUsageOptions): OpenFilesU
     graphs,
     graphFor(uri: string): Promise<UsageGraph> {
       if (!disposed) filled.set(uri, keyOf(current()));
-      return graphs.graphFor(uri);
+      return withDictionary(uri, graphs.graphFor(uri));
     },
     changed() {
       if (disposed) return;

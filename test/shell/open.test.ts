@@ -152,13 +152,15 @@ describe('the shell opens files as tabs', () => {
   it('a link into another file opens it, beside the file it is in, and selects the row it names', async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
     await open(page, 'shadow_ws.slx');
-    // An entry of another file, named by its name and the file's, as a cell's link names one the
-    // file alone tells of (a type's, say): Kp in the dictionary the model names, beside it.
-    const link = 'Kp@params.sldd';
+    // The DictOnly block's Usage, Value=Uo: Uo in the dictionary the model names, not open, by its
+    // name. (WsGain's Kp is the model workspace's, which shadows the dictionary's.)
+    const block = await rowOf('shadow_ws.slx', 'DictOnly');
+    const link = (block.UsedBy as { paramLinks?: { linkTarget: string }[] }).paramLinks?.[0]?.linkTarget;
+    expect(link).toBe('Uo@params.sldd');
     tableOf('shadow_ws.slx')!.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: link }, bubbles: true, composed: true }));
     await until(() => tabNames().includes('params.sldd') && (tableOf('params.sldd')?.selectedRowIds.length ?? 0) > 0);
-    const kp = await rowOf('params.sldd', 'Kp');
-    expect(tableOf('params.sldd')!.selectedRowIds).toEqual([kp.ID]);
+    const uo = await rowOf('params.sldd', 'Uo');
+    expect(tableOf('params.sldd')!.selectedRowIds).toEqual([uo.ID]);
     await until(() => !!activeTab()?.textContent?.includes('params.sldd'));
   });
 

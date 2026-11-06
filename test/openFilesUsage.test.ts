@@ -72,14 +72,37 @@ describe('the Usage column over the open files', () => {
     expect(blockNames((await usage.graphFor(DICT)).blocksUsing(DICT, 'SharedGain'))).toEqual(['GainA', 'LimitA', 'GainB']);
   });
 
-  it("resolves a model's block parameter to an open dictionary, by its uri, and to nothing while it is not open", async () => {
+  it("resolves a model's block parameter to an open dictionary by its uri, and while it is not open, to the dictionary the model names, by its name", async () => {
     const files = [opened('ctrlA.slx')];
     const { usage } = usageOver(files);
-    const alone = (await usage.graphFor(CTRL)).paramLinks(CTRL, '1');
-    expect(alone).toEqual([expect.objectContaining({ paramName: 'SharedGain', source: '', linkTarget: '' })]);
+    // The graph itself, as a folder without the dictionary answers: unresolved.
+    expect((await usage.graphs.graphFor(CTRL)).paramLinks(CTRL, '1')).toEqual([
+      expect.objectContaining({ paramName: 'SharedGain', source: '', linkTarget: '' }),
+    ]);
+    // What the open files answer: the dictionary the model links, as the model names it, which a
+    // click opens beside the model (as the prototype linked it).
+    expect((await usage.graphFor(CTRL)).paramLinks(CTRL, '1')).toEqual([
+      expect.objectContaining({ paramName: 'SharedGain', source: 'sharedParams.sldd', linkTarget: 'SharedGain@sharedParams.sldd' }),
+    ]);
     files.push(opened('sharedParams.sldd'));
     expect((await usage.graphFor(CTRL)).paramLinks(CTRL, '1')).toEqual([
       expect.objectContaining({ paramName: 'SharedGain', source: 'sharedParams.sldd', linkTarget: `SharedGain@${DICT}` }),
+    ]);
+  });
+
+  it("names no dictionary for a parameter its model's workspace holds", async () => {
+    // shadow_ws's WsGain reads Kp, which its own workspace shadows: the workspace, never the dictionary.
+    const shadow: OpenFile = {
+      uri: 'file:///f/shadow_ws.slx',
+      path: '/f/shadow_ws.slx',
+      bytes: new Uint8Array(readFileSync(resolve(import.meta.dirname, 'fixtures/shadow_ws.slx'))),
+    };
+    const { usage } = usageOver([shadow]);
+    const graph = await usage.graphFor(shadow.uri);
+    const keys = ['1', '2'];
+    expect(keys.map((key) => graph.paramLinks(shadow.uri, key).map((l) => `${l.paramName} ${l.source} ${l.linkTarget}`))).toEqual([
+      [`Kp  workspace:Kp@${shadow.uri}`],
+      ['Uo params.sldd Uo@params.sldd'],
     ]);
   });
 

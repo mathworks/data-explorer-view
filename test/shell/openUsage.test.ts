@@ -8,9 +8,10 @@
 //   - every table shows the column with no folder shown, a dictionary's and a MAT-file's too;
 //   - a dictionary's entries name the blocks of the open models that use them, a model opened or
 //     closed after it included: its table is painted again once the burst is over;
-//   - a model's blocks name the open dictionary their parameters come from, by its uri, once it is
-//     open (until then, as a folder without it answers, they resolve to nothing), and a parameter
-//     its own workspace shadows names that workspace, never the dictionary;
+//   - a model's blocks name the dictionary their parameters come from: by its name, as the model
+//     names it, while it is not open (a click opens it beside the model, as the prototype linked
+//     it), and by its uri once it is; a parameter its own workspace shadows names that workspace,
+//     never the dictionary;
 //   - a folder shown still wins: its usage fills the column from then on, and a file outside it
 //     has none, as before.
 import { readFileSync } from 'node:fs';
@@ -53,17 +54,17 @@ describe('the Usage column with no folder shown', () => {
     expect(usedBy(rowNamed('shadow_ws.slx', 'Kp'))).toEqual(['WsGain']);
   });
 
-  it("names the open dictionary a model's block reads, once it is open, and the workspace a parameter it shadows", async () => {
+  it("names the dictionary a model's block reads, by its name and then, open, by its uri, and the workspace a parameter it shadows", async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
     await open(page, 'shadow_ws.slx');
     await until(() => paramsOf(rowNamed('shadow_ws.slx', 'DictOnly')).length > 0);
-    // The dictionary is not open: Uo resolves to nothing, as in a folder without the dictionary.
-    expect(paramsOf(rowNamed('shadow_ws.slx', 'DictOnly'))).toEqual(['Value=Uo -> ']);
+    // The dictionary is not open: Uo is named after the dictionary the model links, by its name.
+    expect(paramsOf(rowNamed('shadow_ws.slx', 'DictOnly'))).toEqual(['Value=Uo (params.sldd) -> Uo@params.sldd']);
     expect(paramsOf(rowNamed('shadow_ws.slx', 'WsGain'))).toEqual([`Gain=Kp -> workspace:Kp@${MODEL}`]);
 
     // Opened: the model is painted again, its block naming the dictionary by its uri.
     await open(page, 'params.sldd');
-    await until(() => paramsOf(rowNamed('shadow_ws.slx', 'DictOnly'))[0] !== 'Value=Uo -> ');
+    await until(() => paramsOf(rowNamed('shadow_ws.slx', 'DictOnly'))[0] !== 'Value=Uo (params.sldd) -> Uo@params.sldd');
     expect(paramsOf(rowNamed('shadow_ws.slx', 'DictOnly'))).toEqual([`Value=Uo (params.sldd) -> Uo@${DICT}`]);
     expect(paramsOf(rowNamed('shadow_ws.slx', 'WsGain'))).toEqual([`Gain=Kp -> workspace:Kp@${MODEL}`]);
   });
