@@ -605,17 +605,22 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
 | Cmd/Ctrl+, | Settings |
-| Cmd/Ctrl+Shift+P | the command palette |
+| Cmd/Ctrl+Shift+P, F1 | the command palette |
 | Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Explorer, the Gallery, Search |
-| Cmd/Ctrl+Shift+I, Cmd/Ctrl+Shift+W | the Properties, Raw |
-| Cmd/Ctrl+\`, Cmd/Ctrl+Shift+D | the Terminal, the Log |
+| Cmd/Ctrl+Shift+I, Cmd/Ctrl+Shift+U | the Properties, Raw |
+| Ctrl+\` (on macOS too), Cmd/Ctrl+Shift+D | the Terminal, the Log |
 
 A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
 the command palette and the views' chords, and the menu the rest. In a browser
 tab, a few chords are the browser's whatever the page does: Chromium keeps
 Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs, and there the
-toolbar, the tab row and the command palette do the same.
+toolbar, the tab row and the command palette do the same. The shell's own
+chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
+Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
+there, and F1 opens the command palette wherever a browser keeps
+Ctrl+Shift+P for itself.
 
 ### Every part on its own
 

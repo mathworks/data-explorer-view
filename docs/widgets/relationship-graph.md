@@ -17,7 +17,8 @@ Legend names the kinds. On the keyboard, the arrows move the selection to the ne
 way, Enter opens, Space shows or hides a box's items, + and − zoom and 0 fits.
 
 ```js
-import { buildRelationshipGraph, defineRelationshipGraph } from 'data-explorer-view/app-shell';
+import { defineRelationshipGraph } from 'data-explorer-view/app-shell';
+import { buildRelationshipGraph } from 'data-explorer-view/model';
 
 defineRelationshipGraph();
 const view = document.querySelector('dex-relationship-graph');
@@ -37,6 +38,6 @@ view.addEventListener('dex-graph-open', (e) => {
 A graph rebuilt from the same files (after an edit) keeps the view, and its ids are the same, so
 `selected` and `expanded` still hold; a graph of other files is fitted to the canvas afresh.
 `reveal(id)` brings a box or an item to the middle, for a "Show in Graph" from a table: the id of
-a file's box, or of an entry's item, is `graphIdOf(graph, uri, name)`.
+a file's box, or of an entry's item, is `graphIdOf(graph, uri, name)` (`data-explorer-view/model`).
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
