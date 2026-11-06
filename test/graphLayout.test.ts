@@ -197,6 +197,73 @@ describe('the fixtures', () => {
   });
 });
 
+describe('many files nothing references', () => {
+  // The gallery's page of ten open files that reference nothing: every model a root, all of them in
+  // one row, and a fit to the window shrank the whole row to boxes too small to read. Trees now sit
+  // side by side only up to a few columns, then start a row of their own under the last, models on
+  // the left and data files on the right as ever.
+  const box = (kind: GraphBox['kind'], n: number, label = `${kind}${n}.${kind === 'model' ? 'slx' : kind}`): GraphBox => ({
+    id: `mem:///g/${label}`,
+    uri: `mem:///g/${label}`,
+    kind,
+    label,
+    ghost: false,
+    items: [],
+  });
+  const lonely = (): RelationshipGraph => ({
+    boxes: [
+      ...Array.from({ length: 10 }, (_, i) => box('model', i)),
+      ...Array.from({ length: 7 }, (_, i) => box('sldd', i)),
+      ...Array.from({ length: 3 }, (_, i) => box('mat', i)),
+    ],
+    edges: [],
+  });
+  // The boxes of a kind, row by row (top to bottom), each row left to right.
+  const rows = (g: RelationshipGraph, l: GraphLayout, kind: GraphBox['kind']): string[][] => {
+    const ofKind = l.boxes.filter((b) => g.boxes.find((x) => x.id === b.id)!.kind === kind);
+    const ys = [...new Set(ofKind.map((b) => b.y))].sort((a, b) => a - b);
+    return ys.map((y) => ofKind.filter((b) => b.y === y).sort((a, b) => a.x - b.x).map((b) => g.boxes.find((x) => x.id === b.id)!.label));
+  };
+
+  it('wraps unrelated models into rows of three, and data files into rows of two, in the order given', () => {
+    const g = lonely();
+    const l = layoutGraph(g, new Set());
+    expect(rows(g, l, 'model')).toEqual([
+      ['model0.slx', 'model1.slx', 'model2.slx'],
+      ['model3.slx', 'model4.slx', 'model5.slx'],
+      ['model6.slx', 'model7.slx', 'model8.slx'],
+      ['model9.slx'],
+    ]);
+    expect(rows(g, l, 'sldd')).toEqual([['sldd0.sldd', 'sldd1.sldd'], ['sldd2.sldd', 'sldd3.sldd'], ['sldd4.sldd', 'sldd5.sldd'], ['sldd6.sldd']]);
+    expect(rows(g, l, 'mat')).toEqual([['mat0.mat', 'mat1.mat'], ['mat2.mat']]);
+    checkInvariants(g, new Set(), l);
+  });
+
+  it('keeps the two columns: every model left of every data file, the MAT-files under the dictionaries', () => {
+    const g = lonely();
+    const l = layoutGraph(g, new Set());
+    const kind = new Map(g.boxes.map((b) => [b.id, b.kind]));
+    const of = (k: string) => l.boxes.filter((b) => kind.get(b.id) === k);
+    const modelsRight = Math.max(...of('model').map(right));
+    for (const d of [...of('sldd'), ...of('mat')]) expect(d.x).toBeGreaterThan(modelsRight);
+    expect(Math.min(...of('mat').map((b) => b.y))).toBeGreaterThan(Math.max(...of('sldd').map(bottom)));
+    // Wider than tall no longer by a row's worth of boxes: three models and two data files across.
+    expect(l.width).toBeLessThan(l.height * 3);
+  });
+
+  it('wraps between trees, never inside one: a model referencing five keeps them in one row', () => {
+    const g = lonely();
+    const [a, b, c, d, e, f, h] = g.boxes.map((x) => x.id);
+    g.edges = [b, c, d, e, f].map((to) => ({ id: `${a}>${to}`, kind: 'model-ref' as const, from: a!, to: to! }));
+    const l = layoutGraph(g, new Set());
+    const at = (id: string) => l.boxes.find((x) => x.id === id)!;
+    expect(new Set([b, c, d, e, f].map((id) => at(id!).y)).size).toBe(1);
+    // The next tree starts a row of its own, under the whole of the wide one.
+    expect(at(h!).y).toBeGreaterThan(bottom(at(b!)));
+    checkInvariants(g, new Set(), l);
+  });
+});
+
 describe('the reference trees', () => {
   // Boxes and reference edges by hand: `tree('model', [['A', 'B'], ...])`.
   const tree = (kind: 'model' | 'sldd', refs: [string, string][], names: string[]): RelationshipGraph => ({

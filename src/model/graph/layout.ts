@@ -3,9 +3,11 @@
 // orthogonal route for each edge whose ends show. A port of the prototype's BipartiteLayout, which the
 // look of the graph (graph-expanded.png, legend-expanded.png) comes from.
 //
-// TWO COLUMNS. The models on the left, as a tree of their model references: what a model
+// TWO COLUMNS. The models on the left, as trees of their model references: what a model
 // references in the row under it, side by side, the model centred over them. The dictionaries on
-// the right, as a tree of their references, and the MAT-files stacked under them. A file a model
+// the right, as trees of their references, and the MAT-files under them. Trees sit side by side up
+// to a few columns (three of models, two of data files), and the next starts a row of its own under
+// them, so files that reference nothing make a grid rather than one row too wide to read. A file a model
 // links (data-link) and a variable a block reads (param-usage) are reached across the gap between
 // the columns, each edge on a lane of its own there so that edges side by side do not merge into
 // one line; a block reading its own model's workspace (ws-usage) is routed inside the model's box,
@@ -97,6 +99,11 @@ const MAX_BOX_WIDTH = 240;
 const ROW_GAP = 44;
 const SIBLING_GAP = 30;
 const COLUMN_GAP = 300;
+// How many slots of trees side by side before the next tree starts a row of its own under them:
+// the models' column, and the data files'. Ten files referencing nothing were ten roots in one
+// row, and a fit to the window made every box unreadable.
+const MODEL_COLUMNS = 3;
+const DATA_COLUMNS = 2;
 // Around the whole picture.
 const PADDING = 40;
 // The estimate of a label's width: 11px text, and the icon, the margins and the collapse button.
@@ -171,7 +178,10 @@ function shownItems(graph: RelationshipGraph, expanded: ReadonlySet<string>): Se
  * Two nodes of one row never share a slot: the subtrees are walked one after another, so each
  * takes a run of slots of its own, and a node sits within its own subtree's run.
  */
-function treeSlots(ids: readonly string[], edges: readonly GraphEdge[]): Map<string, { slot: number; depth: number }> {
+function treeSlots(
+  ids: readonly string[],
+  edges: readonly GraphEdge[],
+): { placed: Map<string, { slot: number; depth: number; tree: number }>; trees: { first: number; slots: number }[] } {
   const inTree = new Set(ids);
   const children = new Map<string, string[]>(ids.map((id) => [id, []]));
   const referenced = new Set<string>();
@@ -183,7 +193,8 @@ function treeSlots(ids: readonly string[], edges: readonly GraphEdge[]): Map<str
   const roots = ids.filter((id) => !referenced.has(id));
   if (roots.length === 0 && ids.length > 0) roots.push(ids[0]!);
 
-  const placed = new Map<string, { slot: number; depth: number }>();
+  const placed = new Map<string, { slot: number; depth: number; tree: number }>();
+  const trees: { first: number; slots: number }[] = [];
   const visited = new Set<string>();
   let nextLeaf = 0;
   const place = (id: string, depth: number): number => {
@@ -193,12 +204,18 @@ function treeSlots(ids: readonly string[], edges: readonly GraphEdge[]): Map<str
     // subtree reached is that subtree's, and this node is centred over the children it placed.
     for (const kid of children.get(id)!) if (!visited.has(kid)) slots.push(place(kid, depth + 1));
     const slot = slots.length === 0 ? nextLeaf++ : (Math.min(...slots) + Math.max(...slots)) / 2;
-    placed.set(id, { slot, depth });
+    placed.set(id, { slot, depth, tree: trees.length });
     return slot;
   };
-  for (const root of roots) if (!visited.has(root)) place(root, 0);
-  for (const id of ids) if (!visited.has(id)) place(id, 0);
-  return placed;
+  // Each walk from a root is one tree, and takes the run of slots from where the last one ended.
+  const tree = (root: string): void => {
+    const first = nextLeaf;
+    place(root, 0);
+    trees.push({ first, slots: nextLeaf - first });
+  };
+  for (const root of roots) if (!visited.has(root)) tree(root);
+  for (const id of ids) if (!visited.has(id)) tree(id);
+  return { placed, trees };
 }
 
 /** A box being placed: its graph box, size and, once placed, its rectangle and row. */
@@ -215,29 +232,51 @@ interface Placed {
 }
 
 /**
- * Lay one column's tree out from `x0`: each row as tall as its tallest box, each box centred in a
- * slot as wide as the column's widest box. Answers the bottom of the lowest row, or `y0` for none.
+ * Lay one column's trees out from `x0`, `y0`: each tree's rows as tall as their tallest box, each box
+ * centred in a slot as wide as the column's widest box, and the trees side by side in the order
+ * given until the next would take the row past `columns` slots, when it starts a row of its own
+ * under them (a tree wider than that alone keeps its whole width: what wraps is trees, never the
+ * boxes of one). Answers the bottom of the lowest box, or `y0` for none.
+ *
+ * A row of trees is as tall as its tallest tree, and the trees in it share no slot, so no box of
+ * one row of trees reaches another and no two trees of a row overlap.
  */
-function placeTree(nodes: Placed[], edges: readonly GraphEdge[], x0: number, slotWidth: number, y0: number): number {
-  const slots = treeSlots(nodes.map((n) => n.box.id), edges);
-  const rows: number[] = [];
+function placeColumn(nodes: Placed[], edges: readonly GraphEdge[], x0: number, slotWidth: number, y0: number, columns: number): number {
+  if (nodes.length === 0) return y0;
+  const { placed, trees } = treeSlots(nodes.map((n) => n.box.id), edges);
+  // Each tree's own rows, by depth.
+  const rows = trees.map(() => [] as number[]);
   for (const n of nodes) {
-    const { depth } = slots.get(n.box.id)!;
-    rows[depth] = Math.max(rows[depth] ?? 0, n.height);
+    const { depth, tree } = placed.get(n.box.id)!;
+    rows[tree]![depth] = Math.max(rows[tree]![depth] ?? 0, n.height);
   }
-  const rowTop: number[] = [];
-  let y = y0;
-  for (let d = 0; d < rows.length; d++) {
-    rowTop[d] = y;
-    y += rows[d]! + ROW_GAP;
-  }
+  const heightOf = (t: number): number => rows[t]!.reduce((h, r) => h + r + ROW_GAP, -ROW_GAP);
+  // The trees into rows of trees: where each starts, in slots across and in pixels down.
+  const at = trees.map(() => ({ slot: 0, top: 0 }));
+  let used = 0;
+  let top = y0;
+  let tallest = 0;
+  trees.forEach((t, i) => {
+    if (used > 0 && used + t.slots > columns) {
+      top += tallest + ROW_GAP;
+      used = 0;
+      tallest = 0;
+    }
+    at[i] = { slot: used, top };
+    used += t.slots;
+    tallest = Math.max(tallest, heightOf(i));
+  });
+  let lowest = y0;
   for (const n of nodes) {
-    const { slot, depth } = slots.get(n.box.id)!;
-    n.x = x0 + slot * (slotWidth + SIBLING_GAP) + (slotWidth - n.width) / 2;
-    n.y = rowTop[depth]!;
-    n.rowBottom = rowTop[depth]! + rows[depth]!;
+    const { slot, depth, tree } = placed.get(n.box.id)!;
+    const t = trees[tree]!;
+    const rowTop = at[tree]!.top + rows[tree]!.slice(0, depth).reduce((h, r) => h + r + ROW_GAP, 0);
+    n.x = x0 + (at[tree]!.slot + slot - t.first) * (slotWidth + SIBLING_GAP) + (slotWidth - n.width) / 2;
+    n.y = rowTop;
+    n.rowBottom = rowTop + rows[tree]![depth]!;
+    lowest = Math.max(lowest, n.y + n.height);
   }
-  return rows.length > 0 ? y - ROW_GAP : y0;
+  return lowest;
 }
 
 /** The offsets that spread `n` things `spacing` apart around 0, in order. */
@@ -285,18 +324,13 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
 
   // The left column, then the right one beside it (at the left edge when there are no models).
   const kindOf = (kind: GraphEdge['kind']) => graph.edges.filter((e) => e.kind === kind);
-  placeTree(models, kindOf('model-ref'), PADDING, widest(models), PADDING);
+  placeColumn(models, kindOf('model-ref'), PADDING, widest(models), PADDING, MODEL_COLUMNS);
   const leftRight = models.reduce((r, n) => Math.max(r, n.x + n.width), 0);
   const rightX = models.length > 0 ? leftRight + COLUMN_GAP : PADDING;
   const rightSlot = widest([...sldds, ...mats]);
-  let matY = placeTree(sldds, kindOf('sldd-ref'), rightX, rightSlot, PADDING);
-  matY = sldds.length > 0 ? matY + ROW_GAP : PADDING;
-  for (const n of mats) {
-    n.x = rightX + (rightSlot - n.width) / 2;
-    n.y = matY;
-    n.rowBottom = matY + n.height;
-    matY += n.height + ROW_GAP;
-  }
+  const slddBottom = placeColumn(sldds, kindOf('sldd-ref'), rightX, rightSlot, PADDING, DATA_COLUMNS);
+  // The MAT-files under the dictionaries, each a tree of one, wrapped as they are.
+  placeColumn(mats, [], rightX, rightSlot, sldds.length > 0 ? slddBottom + ROW_GAP : PADDING, DATA_COLUMNS);
 
   // The boxes and their items, and every drawn thing's rectangle by id, for the routes.
   const rects = new Map<string, GraphRect>();
