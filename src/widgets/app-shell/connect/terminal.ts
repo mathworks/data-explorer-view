@@ -11,7 +11,8 @@
 // after the first change it brings.
 //
 // Lines run one after another, on one promise chain: the answers come in the order the lines were
-// typed, and a line's edit never lands inside the line before's add. An edit the window makes goes
+// typed, and a line's edit never lands inside the line before's add. Each runs on the tab active
+// when it was typed, whichever is active by its turn; one whose tab closed meanwhile is not run. An edit the window makes goes
 // to the source, not through a cell editor, so commitEdit() has nothing to wait for: the shell's
 // Save waits for idle() first.
 
@@ -22,7 +23,7 @@ import type { OpenTab } from './documents.js';
 
 /** What the window runs its lines over. */
 export interface TerminalContext {
-  /** The active tab: the document the lines act on. */
+  /** The active tab: the document a line typed now acts on. */
   active(): OpenTab | undefined;
   /** Every open tab, for `sources`. */
   tabs(): readonly OpenTab[];
@@ -84,12 +85,14 @@ export function connectTerminal(window: DexCommandWindow, context: TerminalConte
   let disposed = false;
   const onRun = (e: CustomEvent<{ line: string }>): void => {
     const line = e.detail.line;
+    // The tab active as the line is typed: the one the person sees it act on, whatever is active
+    // once the lines before it have run.
+    const tab = context.active();
     chain = chain
       .then(async () => {
         if (disposed) return;
-        // The tab active when the line's turn comes: a line typed after a click on another tab is
-        // that tab's.
-        const output = await runCommand(line, commandTarget(context.active(), context.tabs(), context.save));
+        if (tab && !context.tabs().includes(tab)) throw new Error(`${tab.name} was closed before this line ran: ${line}`);
+        const output = await runCommand(line, commandTarget(tab, context.tabs(), context.save));
         if (!disposed) window.appendOutput(output);
       })
       .catch((err) => {

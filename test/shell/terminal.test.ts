@@ -7,7 +7,7 @@
 // typed and an edit never lands inside an add; and a Save from anywhere waits for the lines before
 // it, since an edit the window made is no cell editor for commitEdit to wait on.
 import { describe, expect, it } from 'vitest';
-import { commandWindow, dirtyTabs, open, rowOf, savedTo, startPage, tableOf, textOf, until, valueIn } from './harness.js';
+import { at, commandWindow, dirtyTabs, docTabs, graph, open, previewTabs, rowOf, savedTo, startPage, tabIdOf, tableOf, textOf, until, valueIn } from './harness.js';
 
 const FILES = { 'params.sldd': 'params.sldd', 'legacy_ctrl.mdl': 'legacy_ctrl.mdl' };
 const run = (line: string) => commandWindow().dispatchEvent(new CustomEvent('dex-command-run', { detail: { line }, bubbles: true, composed: true }));
@@ -61,6 +61,36 @@ describe('the Terminal view', () => {
     await until(() => output().length >= 3);
     expect(output()).toEqual(['Created "Ka" (Simulink.Parameter).', 'Ka = 7', 'Ka = 7']);
     expect(textOf(await rowOf('params.sldd', 'Ka'))).toBe('7');
+  });
+
+  it('runs each line on the tab active when it was typed, whichever is active at its turn', async () => {
+    const page = startPage({ ...FILES, 'p2.sldd': 'params.sldd' });
+    await open(page, 'params.sldd', 'p2.sldd');
+    run('add Simulink.Parameter Kq');
+    run('Ki = 77');
+    // Another tab, before the lines' turn.
+    docTabs().dispatchEvent(new CustomEvent('dex-tab-select', { detail: { id: tabIdOf('params.sldd') }, bubbles: true, composed: true }));
+    await until(() => output().length >= 2);
+    expect(output()).toEqual(['Created "Kq" (Simulink.Parameter).', 'Ki = 77']);
+    expect(textOf(await rowOf('p2.sldd', 'Ki'))).toBe('77');
+    expect(textOf(await rowOf('params.sldd', 'Ki'))).toBe('3');
+    expect(names('params.sldd')).not.toContain('Kq');
+  });
+
+  it('says a line typed on a tab closed before its turn was not run, and runs it on no other', async () => {
+    const page = startPage({ ...FILES, 'p2.sldd': 'params.sldd', 'p3.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const preview = (name: string) => graph().dispatchEvent(new CustomEvent('dex-graph-open', { detail: { uri: `file://${at(name)}` }, bubbles: true, composed: true }));
+    preview('p2.sldd');
+    await until(() => previewTabs().join() === 'p2.sldd' && !!tableOf('p2.sldd')?.rows.length);
+    run('Ki = 77');
+    // The next preview takes the place of p2's tab before the line's turn.
+    preview('p3.sldd');
+    await until(() => output().length >= 1);
+    expect(output()).toEqual(['p2.sldd was closed before this line ran: Ki = 77']);
+    await until(() => !!tableOf('p3.sldd')?.rows.length);
+    expect(textOf(await rowOf('p3.sldd', 'Ki'))).toBe('3');
+    expect(textOf(await rowOf('params.sldd', 'Ki'))).toBe('3');
   });
 
   it('saves the active document, and says so', async () => {
