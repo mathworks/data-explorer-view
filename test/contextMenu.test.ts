@@ -719,6 +719,44 @@ describe('focusFirst: a menu a key opened', () => {
     host.remove();
   });
 
+  // Chromium on Windows opens its own menu on the ContextMenu key's KEYUP, unless that keyup was
+  // spent, and that keyup lands in this menu now that it has the keyboard. Its own contextmenu
+  // event, should one come, is spent too: a native menu over this one is a second menu.
+  it("spends the ContextMenu key's keyup, and the browser's own menu event, on a menu a key opened", async () => {
+    const { host } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    const at = deepActive()!;
+    expect(at.closest('.item')).not.toBeNull();
+    const keyup = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(keyup);
+    expect(keyup.defaultPrevented).toBe(true);
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(native);
+    expect(native.defaultPrevented).toBe(true);
+    // Neither closed it.
+    expect(el.hasAttribute('open')).toBe(true);
+    // Another key's keyup is not the menu's to spend.
+    const other = new KeyboardEvent('keyup', { key: 'a', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+    host.remove();
+  });
+
+  it('gives the focus back however it closes while holding it: a scroll, a right-click outside, close()', async () => {
+    for (const how of ['scroll', 'contextmenu', 'close'] as const) {
+      const { host, inner } = focusedInShadow();
+      const el = await open(ITEMS, { focusFirst: true });
+      expect(focusedItem()).toBe('Cut');
+      if (how === 'scroll') window.dispatchEvent(new Event('scroll'));
+      else if (how === 'contextmenu') document.body.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true }));
+      else el.close();
+      expect(el.hasAttribute('open'), how).toBe(false);
+      expect(grid(), how).toBe(inner);
+      el.remove();
+      host.remove();
+    }
+  });
+
   it('without it (a right-click), takes no focus until an arrow does, and gives none back', async () => {
     const { host, inner } = focusedInShadow();
     const el = await open(ITEMS);
@@ -727,6 +765,13 @@ describe('focusFirst: a menu a key opened', () => {
     key('ArrowDown');
     await el.updateComplete;
     expect(focusedItem()).toBe('Cut');
+    // A right-click's menu spends neither the ContextMenu keyup nor a right-click on it, as before.
+    const at = deepActive()!;
+    const keyup = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(keyup);
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(native);
+    expect([keyup.defaultPrevented, native.defaultPrevented]).toEqual([false, false]);
     key('Escape');
     // Nothing was remembered, so nothing is given back.
     expect(grid()).not.toBe(inner);

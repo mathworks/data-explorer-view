@@ -7,7 +7,8 @@ elsewhere or a scroll close it. However it closes, it sends `dex-menu-closed`, s
 it knows its items are gone. The keyboard moves along every item, disabled ones included.
 A menu a key opened is shown with `{ focusFirst: true }`: the keyboard is on its first item at
 once, so the arrows move along the menu and not along what is under it, and it goes back where it
-was (inside a shadow root too) when Escape or a choice closes the menu.
+was (inside a shadow root too) whenever the menu closes holding it; the browser's own menu for the
+key that opened it is spent (Chromium on Windows opens one on the ContextMenu key's keyup).
 
 The tree table asks for a menu with `dex-table-context-menu`; the items for its selection come
 from `buildContextMenuItems` (`data-explorer-view/tree-table`):

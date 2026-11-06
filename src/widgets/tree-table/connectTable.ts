@@ -59,7 +59,7 @@ export interface ConnectTableOptions {
    * Whether a right-click opens a context menu: by default it does, with Copy Name and Copy
    * Value for the selection, then `menuItems`. False for none, for an app that answers
    * `dex-table-context-menu` itself. The menu the table's `keyboardMenu` keys open takes the
-   * keyboard at once, and gives it back to the grid when Escape or a choice closes it.
+   * keyboard at once, and gives it back to the grid when it closes holding it.
    */
   menu?: boolean;
   /**

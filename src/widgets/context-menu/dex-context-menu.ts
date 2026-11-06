@@ -46,10 +46,12 @@ export interface ActionDetail {
 export interface ContextMenuShowOptions {
   /**
    * Put the keyboard on the first item at once, and give it back to the element that had it (inside
-   * a shadow root too: a table's grid) when the menu closes on Escape or a choice: for a menu a key
-   * opened, whose arrows must move along it and not along what is under it. A click outside leaves
-   * the focus where the click put it. Default false: the keyboard stays where it is until an arrow
-   * moves into the menu, as for a menu a right-click opened.
+   * a shadow root too: a table's grid) when the menu closes holding it (Escape, a choice, a scroll, a
+   * right-click outside, close()): for a menu a key opened, whose arrows must move along it and not
+   * along what is under it. A click outside moves the focus where the click puts it. The browser's
+   * own menu for that key is spent while the menu is open (Chromium on Windows opens one on the
+   * ContextMenu key's keyup). Default false: the keyboard stays where it is until an arrow moves
+   * into the menu, as for a menu a right-click opened, and a right-click on it is the browser's.
    */
   focusFirst?: boolean;
 }
@@ -68,7 +70,7 @@ function deepActiveElement(): HTMLElement | null {
  * or a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move
  * along the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.
  * A menu a key opened is shown with `focusFirst`: the keyboard is on its first item at once, and
- * goes back where it was when Escape or a choice closes it.
+ * goes back where it was when the menu closes holding it.
  * The tree table's items for a selection are buildContextMenuItems'
  * (`data-explorer-view/tree-table`).
  *
@@ -227,8 +229,10 @@ export class DexContextMenu extends LitElement {
   @state() private _x = 0;
   @state() private _y = 0;
   @state() private _focusedIndex = -1;
-  // Where the keyboard goes back to when a menu opened with `focusFirst` closes on Escape or a choice.
+  // Where the keyboard goes back to when a menu opened with `focusFirst` closes holding it.
   private _returnFocus: HTMLElement | null = null;
+  // Opened with `focusFirst`, by a key: the browser's own menu for that key is spent (below).
+  private _byKey = false;
 
   private _dismissHandler = (e: MouseEvent) => {
     if (!e.composedPath().includes(this)) {
@@ -244,9 +248,7 @@ export class DexContextMenu extends LitElement {
 
   private _keyHandler = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      const back = this._returnFocus;
       this.close();
-      back?.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       this._moveFocus(1);
@@ -266,19 +268,40 @@ export class DexContextMenu extends LitElement {
     this.close();
   };
 
+  // Chromium on Windows opens its own menu on the ContextMenu key's keyup unless that keyup is
+  // spent, and with the keyboard in this menu the keyup of the press that opened it lands here.
+  // Heard from show() on, not a frame later as the others are: the keyup may come first.
+  private _menuKeyUpHandler = (e: KeyboardEvent) => {
+    if (e.key === 'ContextMenu') e.preventDefault();
+  };
+
+  // A browser menu event on a menu a key opened (the ContextMenu key pressed while it is open, or a
+  // keyup that went unspent) is spent: a native menu over this one is a second menu. On a menu a
+  // right-click opened, a right-click on it is the browser's, as it always was.
+  private _onMenuContextMenu = (e: MouseEvent) => {
+    if (this._byKey) e.preventDefault();
+  };
+
+  // Whether the keyboard is on one of this menu's items.
+  private _holdsFocus(): boolean {
+    const active = deepActiveElement();
+    return !!active && active.getRootNode() === this.shadowRoot;
+  }
+
   /**
    * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
    * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
    * open is replaced: it closes first, and says so (`dex-menu-closed`). With `focusFirst`, the
-   * keyboard is on the first item at once, and goes back where it was on Escape or a choice.
+   * keyboard is on the first item at once, and goes back where it was as the menu closes.
    */
   show(x: number, y: number, items: ContextMenuItem[], options: ContextMenuShowOptions = {}): void {
     if (this._open) this._sendClosed();
     // What has the keyboard now, unless it is this menu's own item (a menu replaced while the
     // keyboard is in it gives it back where the first one would have).
-    const active = deepActiveElement();
-    const inMenu = !!active && active.getRootNode() === this.shadowRoot;
-    this._returnFocus = options.focusFirst ? (inMenu ? this._returnFocus : active) : null;
+    this._returnFocus = options.focusFirst ? (this._holdsFocus() ? this._returnFocus : deepActiveElement()) : null;
+    this._byKey = !!options.focusFirst;
+    if (this._byKey) document.addEventListener('keyup', this._menuKeyUpHandler);
+    else document.removeEventListener('keyup', this._menuKeyUpHandler);
     this._x = x;
     this._y = y;
     this._items = items;
@@ -296,17 +319,25 @@ export class DexContextMenu extends LitElement {
     });
   }
 
-  /** Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). */
+  /**
+   * Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). A menu opened with
+   * `focusFirst` that holds the keyboard as it closes (Escape, a scroll, a right-click outside,
+   * close()) gives it back where it was.
+   */
   close(): void {
     const wasOpen = this._open;
+    const back = this._returnFocus && this._holdsFocus() ? this._returnFocus : null;
     this._open = false;
     this._focusedIndex = -1;
     this._returnFocus = null;
+    this._byKey = false;
     this.removeAttribute('open');
     document.removeEventListener('mousedown', this._dismissHandler);
     document.removeEventListener('contextmenu', this._contextMenuHandler);
     document.removeEventListener('keydown', this._keyHandler);
+    document.removeEventListener('keyup', this._menuKeyUpHandler);
     window.removeEventListener('scroll', this._scrollHandler, true);
+    back?.focus();
     if (wasOpen) this._sendClosed();
   }
 
@@ -424,7 +455,7 @@ export class DexContextMenu extends LitElement {
     const actionItems = this._getActionItems();
 
     return html`
-      <div class="menu" role="menu">
+      <div class="menu" role="menu" @contextmenu=${this._onMenuContextMenu}>
         ${this._items.map(item => {
           if (item.separator) {
             return html`<div class="separator" role="separator"></div>`;

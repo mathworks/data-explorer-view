@@ -125,6 +125,25 @@ describe('a menu the keyboard opened', () => {
     expect(calls).toEqual([]);
   });
 
+  it("opened by the ContextMenu key, spends that key's keyup where the keyboard now is, so Windows opens no menu of its own", async () => {
+    const { grid } = await mount();
+    press('ContextMenu');
+    await menu().updateComplete;
+    // The keyup comes before the menu's frame, and lands in the menu, which has the keyboard now.
+    expect(focusedItem()).toBe('Copy "A"');
+    const keyup = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    deepActive()!.dispatchEvent(keyup);
+    expect(keyup.defaultPrevented).toBe(true);
+    await frame();
+    // The browser's own menu event, should one come anyway, is spent too, and the menu stays.
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    deepActive()!.dispatchEvent(native);
+    expect(native.defaultPrevented).toBe(true);
+    expect(menu().hasAttribute('open')).toBe(true);
+    press('Escape');
+    expect(deepActive()).toBe(grid);
+  });
+
   it("a right-click's menu leaves the keyboard where it is, as it always did", async () => {
     const { table, grid } = await mount();
     table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: A }, bubbles: true, composed: true }));
