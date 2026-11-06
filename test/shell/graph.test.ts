@@ -8,10 +8,10 @@
 // preview tab; a box for a file referenced and not open is resolved as a link would be, through the
 // folder, or said not to be open. A box's +/− shows or hides its items. A table's menu offers Show
 // in Graph, and the palette Show Graph.
-import { readFileSync } from 'node:fs';
+import { copyFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { choose, dirtyTabs, docTabs, edit, graph, graphShown, menuOn, open, previewTabs, rowOf, serveFolderTo, settled, startPage, tabIdOf, tabNames, tableOf, tempFolder, toastTexts, until, welcomeShown } from './harness.js';
+import { choose, dirtyTabs, docTabs, edit, fixture, graph, graphShown, menuOn, open, previewTabs, rowOf, serveFolderTo, settled, startPage, tabIdOf, tabNames, tableOf, tempFolder, toastTexts, until, welcomeShown } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -74,6 +74,21 @@ describe('the relationship graph', () => {
     await until(() => tabNames().length === 1);
     root();
     await until(() => boxes().includes('shared_gain.slx') && boxes().includes('shadow_ws.slx'));
+  });
+
+  it('is built again as the folder shown changes: a file written into it is a box of its own', async () => {
+    const dir = tempFolder('plant', FILES);
+    const page = startPage();
+    page.host.readFile = async (p) => new Uint8Array(readFileSync(p));
+    const served = serveFolderTo(page, dir);
+    stop.push(served.dispose);
+    void page.handle.openPaths([path.join(dir, 'params.sldd')]);
+    await until(() => tabNames().length === 1);
+    root();
+    await until(() => boxes().includes('shadow_ws.slx'));
+    copyFileSync(fixture('shared_gain.slx'), path.join(dir, 'new_gain.slx'));
+    served.changed();
+    await until(() => boxes().includes('new_gain.slx'));
   });
 
   it("opens a box's file, an item's on its row, in a preview tab", async () => {
