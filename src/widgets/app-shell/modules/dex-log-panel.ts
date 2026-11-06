@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { defineElement } from '../../shared/define.js';
@@ -74,8 +74,10 @@ const pad = (n: number): string => String(n).padStart(2, '0');
  * nothing.
  *
  * The lines are a log region (`role="log"`), which a screen reader reads out as lines arrive, and
- * a Tab stop, so the keyboard can scroll it. It keeps the newest line in view as lines arrive,
- * until the user scrolls up to read an older one; scrolled back to the bottom, it follows again.
+ * a Tab stop, so the keyboard can scroll it. A change of filter marks the region busy until its
+ * new lines are drawn, so they are not all read out. It keeps the newest line in view as lines
+ * arrive, until the user scrolls up to read an older one; scrolled back to the bottom, it
+ * follows again, as it does after a clear or a change of filter.
  * It fills the height it is given (a bottom panel's view) and scrolls the lines within it.
  *
  * @tagname dex-log-panel
@@ -243,10 +245,15 @@ export class DexLogPanel extends LitElement {
   // Oldest first.
   @state() private _lines: Line[] = [];
   private _nextKey = 0;
-  // Whether the view keeps the newest line in sight: true until the user scrolls up from the
-  // bottom, and again once they scroll back to it, or the lines start afresh.
+  // Whether the view keeps the newest line in sight: true while it is at the bottom, decided
+  // before each render from where the view is and kept for a resize between renders.
   private _follow = true;
+  // Set by clear(): the next render follows the newest line whatever the view's position, since
+  // the lines it was among are gone. A change of filter does the same.
+  private _toNewest = false;
   private _resize: ResizeObserver | null = null;
+  // The frame that ends a busy region, while one is pending.
+  private _busyFrame: number | null = null;
 
   /**
    * Adds a line at the bottom, dropping the oldest once there are a thousand. Its time is the
@@ -271,7 +278,7 @@ export class DexLogPanel extends LitElement {
   /** Takes every line away, sending nothing. */
   clear(): void {
     this._lines = [];
-    this._follow = true;
+    this._toNewest = true;
   }
 
   override connectedCallback(): void {
@@ -284,10 +291,29 @@ export class DexLogPanel extends LitElement {
     super.disconnectedCallback();
     this._resize?.disconnect();
     this._resize = null;
+    // Off the page no frame need end the busy state: it ends now, and the panel put back on the
+    // page is not left with a region that says it is never done.
+    this._endBusy();
   }
 
   protected override firstUpdated(): void {
     this._observe();
+  }
+
+  // Before the new lines are drawn, where the view is decides whether they are followed: a
+  // browser reports a scroll in its next frame, so a user who has just scrolled up (or back
+  // down) and lines arriving in the same frame would otherwise be judged by where the view was
+  // before. Hidden (no box), the view is nowhere, and the last decision stands.
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    const lines = this._linesBox();
+    const refiltered = changed.has('filter') && this.hasUpdated;
+    if (this._toNewest || refiltered) {
+      this._follow = true;
+      this._toNewest = false;
+    } else if (lines && lines.clientHeight > 0) {
+      this._follow = this._atBottom(lines);
+    }
+    if (lines && refiltered) this._beginBusy(lines);
   }
 
   protected override updated(): void {
@@ -316,11 +342,35 @@ export class DexLogPanel extends LitElement {
     if (lines) lines.scrollTop = lines.scrollHeight;
   }
 
-  // The user's scroll, and the panel's own to the bottom, which lands where following goes on.
-  // Content that grows sends no scroll, so between the two the choice holds.
+  private _atBottom(lines: HTMLElement): boolean {
+    return lines.scrollHeight - lines.scrollTop - lines.clientHeight <= BOTTOM_SLACK;
+  }
+
+  // The user's scroll, and the panel's own to the bottom, which lands where following goes on:
+  // what a resize between renders goes by.
   private _onScroll(): void {
     const lines = this._linesBox();
-    if (lines) this._follow = lines.scrollHeight - lines.scrollTop - lines.clientHeight <= BOTTOM_SLACK;
+    if (lines) this._follow = this._atBottom(lines);
+  }
+
+  // A change of filter replaces up to a thousand lines of a log region at once, and a screen
+  // reader would read every line added. aria-busy asks it to wait; it is set before the render
+  // and taken away a frame after it, once the new lines are in the page, rather than in the same
+  // task, where nothing would ever see it set. Set on the element and not in the template, so
+  // ending it does not draw the thousand lines again.
+  private _beginBusy(lines: HTMLElement): void {
+    lines.setAttribute('aria-busy', 'true');
+    if (this._busyFrame !== null) cancelAnimationFrame(this._busyFrame);
+    this._busyFrame = requestAnimationFrame(() => {
+      this._busyFrame = null;
+      lines.removeAttribute('aria-busy');
+    });
+  }
+
+  private _endBusy(): void {
+    if (this._busyFrame !== null) cancelAnimationFrame(this._busyFrame);
+    this._busyFrame = null;
+    this._linesBox()?.removeAttribute('aria-busy');
   }
 
   private _shownFilter(): LogFilter {
@@ -328,11 +378,10 @@ export class DexLogPanel extends LitElement {
   }
 
   // A notification, and only for a change: as a radio button sends nothing when it is already
-  // the one checked. New lines of the new filter start at the newest.
+  // the one checked.
   private _choose(filter: LogFilter): void {
     if (this._shownFilter() === filter) return;
     this.filter = filter;
-    this._follow = true;
     this.dispatchEvent(new CustomEvent<LogFilterChangedDetail>('dex-log-filter-changed', {
       detail: { filter },
       bubbles: true,

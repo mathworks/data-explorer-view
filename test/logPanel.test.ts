@@ -42,11 +42,39 @@ const clearButton = (el: DexLogPanel): HTMLButtonElement => el.shadowRoot!.query
 
 const at = (h: number, m: number, s: number): Date => new Date(2026, 10, 6, h, m, s);
 
-// The scroll box as a browser would measure it: `content` px of lines in a box `box` px tall.
-function measure(el: HTMLElement, content: number, box = 100): void {
-  Object.defineProperty(el, 'scrollHeight', { configurable: true, get: () => content });
-  Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => box });
+/** How the scroll box is laid out: its height, and whether it is hidden (and so has no box). */
+interface Layout {
+  box: number;
+  hidden: boolean;
 }
+
+const LINE = 20;
+
+// The scroll box as a browser lays it out: 20 px for each line drawn in it (so, while the panel
+// decides what to do before it draws a new line, the lines already there), in a box `box` px
+// tall, scrolled no further than its last line. Hidden, it has no box and nothing to scroll.
+function layOut(el: DexLogPanel, layout: Layout = { box: 100, hidden: false }): Layout {
+  const log = region(el);
+  let top = 0;
+  const content = (): number => (layout.hidden ? 0 : lines(el).length * LINE);
+  const box = (): number => (layout.hidden ? 0 : layout.box);
+  Object.defineProperty(log, 'scrollHeight', { configurable: true, get: content });
+  Object.defineProperty(log, 'clientHeight', { configurable: true, get: box });
+  Object.defineProperty(log, 'scrollTop', {
+    configurable: true,
+    get: () => top,
+    set: (value: number) => {
+      top = Math.max(0, Math.min(value, content() - box()));
+    },
+  });
+  return layout;
+}
+
+/** Where the box is scrolled to when its last line is at its foot. */
+const bottomOf = (log: HTMLElement): number => log.scrollHeight - log.clientHeight;
+
+const infos = (n: number, level: LogEntry['level'] = 'info'): LogEntry[] =>
+  Array.from({ length: n }, (_, i) => ({ level, message: `${level} ${i}` }));
 
 function scrollTo(el: HTMLElement, top: number): void {
   el.scrollTop = top;
@@ -329,54 +357,74 @@ describe('the level filter', () => {
 describe('following the newest line', () => {
   it('scrolls to the newest line as lines are appended', async () => {
     const el = await mount();
-    measure(region(el), 500);
-    await add(el, { level: 'info', message: 'a' });
-    expect(region(el).scrollTop).toBe(500);
-    measure(region(el), 520);
-    await add(el, { level: 'info', message: 'b' });
-    expect(region(el).scrollTop).toBe(520);
+    const log = region(el);
+    layOut(el);
+    await add(el, ...infos(10));
+    expect(log.scrollTop).toBe(100);
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(120);
   });
 
   it('holds still once the user has scrolled up, and follows again back at the bottom', async () => {
     const el = await mount();
     const log = region(el);
-    measure(log, 500);
-    await add(el, { level: 'info', message: 'a' });
-    scrollTo(log, 120);
-    measure(log, 520);
-    await add(el, { level: 'info', message: 'b' });
-    expect(log.scrollTop).toBe(120);
-    // Back to the bottom: 520 of lines in a box of 100, scrolled to 420.
-    scrollTo(log, 420);
-    measure(log, 540);
-    await add(el, { level: 'info', message: 'c' });
-    expect(log.scrollTop).toBe(540);
+    layOut(el);
+    await add(el, ...infos(10));
+    scrollTo(log, 40);
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(40);
+    scrollTo(log, bottomOf(log));
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(bottomOf(log));
+    expect(log.scrollTop).toBe(140);
+  });
+
+  it('goes by where the view is when lines arrive, before the scroll is reported', async () => {
+    // A browser reports a scroll in its next frame, and lines can arrive before it does: a user
+    // who has just scrolled up must not be pulled back down for want of the report, nor left
+    // behind when they have just come back to the bottom.
+    const el = await mount();
+    const log = region(el);
+    layOut(el);
+    await add(el, ...infos(10));
+    log.scrollTop = 40;
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(40);
+    log.scrollTop = bottomOf(log);
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(140);
   });
 
   it('counts a few pixels short of the bottom as the bottom', async () => {
     // A zoomed page scrolls in fractions of a pixel, and the last one is not always reached.
     const el = await mount();
     const log = region(el);
-    measure(log, 500);
-    scrollTo(log, 398);
-    measure(log, 520);
-    await add(el, { level: 'info', message: 'x' });
-    expect(log.scrollTop).toBe(520);
+    layOut(el);
+    await add(el, ...infos(10));
+    scrollTo(log, 98);
+    await add(el, ...infos(1));
+    expect(log.scrollTop).toBe(120);
   });
 
   it('follows again after a clear and after a change of filter', async () => {
     const el = await mount();
     const log = region(el);
-    measure(log, 500);
-    await add(el, { level: 'info', message: 'a' });
+    layOut(el);
+    await add(el, ...infos(10));
     scrollTo(log, 0);
     el.clear();
-    await add(el, { level: 'info', message: 'b' });
-    expect(log.scrollTop).toBe(500);
+    await add(el, ...infos(10), ...infos(10, 'error'));
+    expect(log.scrollTop).toBe(bottomOf(log));
+    expect(log.scrollTop).toBe(300);
     scrollTo(log, 0);
     segment(el, 'Errors').click();
     await el.updateComplete;
-    expect(log.scrollTop).toBe(500);
+    expect(log.scrollTop).toBe(100);
+    // And when the app sets the filter.
+    scrollTo(log, 0);
+    el.filter = 'all';
+    await el.updateComplete;
+    expect(log.scrollTop).toBe(300);
   });
 
   it('scrolls to the newest line when its box changes size, as when the panel is shown again', async () => {
@@ -392,17 +440,42 @@ describe('following the newest line', () => {
     });
     const el = await mount();
     const log = region(el);
-    measure(log, 0, 0);
-    await add(el, { level: 'info', message: 'a' }, { level: 'info', message: 'b' });
-    measure(log, 300);
+    const layout = layOut(el, { box: 100, hidden: true });
+    await add(el, ...infos(10));
+    expect(log.scrollTop).toBe(0);
+    layout.hidden = false;
     expect(report).not.toBeNull();
     report!();
-    expect(log.scrollTop).toBe(300);
+    expect(log.scrollTop).toBe(100);
     // But not while the user is reading further up.
     scrollTo(log, 50);
-    measure(log, 400);
+    layout.box = 60;
     report!();
     expect(log.scrollTop).toBe(50);
+  });
+
+  it('keeps a reader where they were when lines arrive while the panel is hidden', async () => {
+    // Hidden, the box measures nothing at all, which is no position to go by: the decision made
+    // while it was shown stands, so a person reading further up is not taken to the bottom
+    // when the panel comes back.
+    let report: (() => void) | null = null;
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) {
+        report = callback;
+      }
+      observe(): void {}
+      disconnect(): void {}
+    });
+    const el = await mount();
+    const log = region(el);
+    const layout = layOut(el);
+    await add(el, ...infos(10));
+    scrollTo(log, 40);
+    layout.hidden = true;
+    await add(el, ...infos(5));
+    layout.hidden = false;
+    report!();
+    expect(log.scrollTop).toBe(40);
   });
 
   it('lets go of its resize observer when it leaves the page', async () => {
@@ -414,5 +487,51 @@ describe('following the newest line', () => {
     const el = await mount();
     el.remove();
     expect(disconnect).toHaveBeenCalled();
+  });
+});
+
+describe('a change of filter, as a screen reader hears it', () => {
+  // The log region reads out what is added to it. A change of filter replaces up to a thousand
+  // lines at once, and every one would be read: the region says it is busy while they are
+  // drawn, and stops saying so a frame later, once the new lines are in place.
+  const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+  it('marks the region busy while a filter chosen in the toolbar is drawn', async () => {
+    const el = await mount();
+    await add(el, ...infos(5), ...infos(5, 'error'));
+    expect(region(el).hasAttribute('aria-busy')).toBe(false);
+    segment(el, 'Errors').click();
+    await el.updateComplete;
+    expect(region(el).getAttribute('aria-busy')).toBe('true');
+    await frame();
+    expect(region(el).hasAttribute('aria-busy')).toBe(false);
+  });
+
+  it('marks it busy when the app sets the filter too', async () => {
+    const el = await mount();
+    await add(el, ...infos(5));
+    el.filter = 'warning';
+    await el.updateComplete;
+    expect(region(el).getAttribute('aria-busy')).toBe('true');
+    await frame();
+    expect(region(el).hasAttribute('aria-busy')).toBe(false);
+  });
+
+  it('never marks it busy for lines appended or cleared, which are read as they come', async () => {
+    const el = await mount();
+    await add(el, ...infos(3));
+    expect(region(el).hasAttribute('aria-busy')).toBe(false);
+    el.clear();
+    await el.updateComplete;
+    expect(region(el).hasAttribute('aria-busy')).toBe(false);
+  });
+
+  it('is not left busy by a panel that leaves the page mid-change', async () => {
+    const el = await mount();
+    segment(el, 'Errors').click();
+    await el.updateComplete;
+    const log = region(el);
+    el.remove();
+    expect(log.hasAttribute('aria-busy')).toBe(false);
   });
 });
