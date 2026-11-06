@@ -1,10 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The app under test: an empty <dex-app-shell> in the page, every element the shell is built from
-// defined, and connectShell() over an in-memory ShellHost. Files are bytes in a map; what the shell
-// asks of its host (saves, Save As, the prompts, the window's edited mark, the clipboard) is
-// recorded and answered here. A folder is served to it as the Electron app's main process serves
-// one: core's node readers through serveFolder, across a MessageChannel of the page's own.
+// defined (defineShellWidgets, and nothing else), and connectShell() over an in-memory ShellHost.
+// Files are bytes in a map; what the shell asks of its host (saves, Save As, the prompts, the
+// window's edited mark, the clipboard) is recorded and answered here. A folder is served to it as
+// the Electron app's main process serves one: core's node readers through serveFolder, across a
+// MessageChannel of the page's own.
 //
 // Ported from data-explorer-app's test/unit/page/harness.ts, whose page tests the ones beside this
 // are: the same files, the same helpers, the DOM queries moved from the app's index.html to the
@@ -20,33 +21,27 @@ import { isEditable } from '../../src/model/source/tableSource.js';
 import { portFromMessagePort } from '../../src/model/source/ports.js';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
 import { listedFiles, serveFolder, type FolderReads } from '../../src/serve/index.js';
-import { defineTreeTable, type DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
-import { definePropertyInspector } from '../../src/widgets/property-inspector/dex-property-inspector.js';
-import { defineVariableEditor } from '../../src/widgets/variable-editor/dex-variable-editor.js';
-import { defineContextMenu } from '../../src/widgets/context-menu/dex-context-menu.js';
-import { defineErrorDialog } from '../../src/widgets/error-dialog/dex-error-dialog.js';
-import { defineHierarchy } from '../../src/widgets/hierarchy/dex-hierarchy.js';
-import { defineProjectPage } from '../../src/widgets/project-page/dex-project-page.js';
-import { defineAppShell, type DexAppShell } from '../../src/widgets/app-shell/dex-app-shell.js';
-import { defineToolbar, type DexToolbar } from '../../src/widgets/app-shell/dex-toolbar.js';
-import { defineDocTabs, type DexDocTabs } from '../../src/widgets/app-shell/dex-doc-tabs.js';
-import { defineLocationBar, type DexLocationBar } from '../../src/widgets/app-shell/dex-location-bar.js';
-import { defineExplorer, type DexExplorer } from '../../src/widgets/app-shell/dex-explorer.js';
-import { defineSettingsPanel, type DexSettingsPanel } from '../../src/widgets/app-shell/dex-settings-panel.js';
-import { defineAboutPanel, type DexAboutPanel } from '../../src/widgets/app-shell/dex-about-panel.js';
-import { defineToastHost, type DexToastHost } from '../../src/widgets/app-shell/dex-toast-host.js';
-import { defineConfirmDialog, type DexConfirmDialog } from '../../src/widgets/app-shell/dex-confirm-dialog.js';
-import { defineShellDocs, type DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
-import { defineShellFolder, type DexShellFolder } from '../../src/widgets/app-shell/connect/dex-shell-folder.js';
-import { defineShellNote } from '../../src/widgets/app-shell/connect/dex-shell-note.js';
-import { defineRawViewer, type DexRawViewer } from '../../src/widgets/app-shell/modules/dex-raw-viewer.js';
-import { defineSearchPanel, type DexSearchPanel } from '../../src/widgets/app-shell/modules/dex-search-panel.js';
-import { defineGalleryPanel, type DexGalleryPanel } from '../../src/widgets/app-shell/modules/dex-gallery-panel.js';
-import { defineCommandWindow, type DexCommandWindow } from '../../src/widgets/app-shell/modules/dex-command-window.js';
-import { defineLogPanel, type DexLogPanel } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
-import { defineCommandPalette, type DexCommandPalette } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
-import { defineRelationshipGraph, type DexRelationshipGraph } from '../../src/widgets/app-shell/modules/dex-relationship-graph.js';
+import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
+import type { DexAppShell } from '../../src/widgets/app-shell/dex-app-shell.js';
+import type { DexToolbar } from '../../src/widgets/app-shell/dex-toolbar.js';
+import type { DexDocTabs } from '../../src/widgets/app-shell/dex-doc-tabs.js';
+import type { DexLocationBar } from '../../src/widgets/app-shell/dex-location-bar.js';
+import type { DexExplorer } from '../../src/widgets/app-shell/dex-explorer.js';
+import type { DexSettingsPanel } from '../../src/widgets/app-shell/dex-settings-panel.js';
+import type { DexAboutPanel } from '../../src/widgets/app-shell/dex-about-panel.js';
+import type { DexToastHost } from '../../src/widgets/app-shell/dex-toast-host.js';
+import type { DexConfirmDialog } from '../../src/widgets/app-shell/dex-confirm-dialog.js';
+import type { DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
+import type { DexShellFolder } from '../../src/widgets/app-shell/connect/dex-shell-folder.js';
+import type { DexRawViewer } from '../../src/widgets/app-shell/modules/dex-raw-viewer.js';
+import type { DexSearchPanel } from '../../src/widgets/app-shell/modules/dex-search-panel.js';
+import type { DexGalleryPanel } from '../../src/widgets/app-shell/modules/dex-gallery-panel.js';
+import type { DexCommandWindow } from '../../src/widgets/app-shell/modules/dex-command-window.js';
+import type { DexLogPanel } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
+import type { DexCommandPalette } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
+import type { DexRelationshipGraph } from '../../src/widgets/app-shell/modules/dex-relationship-graph.js';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
+import { defineShellWidgets } from '../../src/widgets/app-shell/defineShellWidgets.js';
 import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from '../../src/widgets/app-shell/connect/types.js';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -79,32 +74,7 @@ afterAll(() => {
   Object.defineProperty(ShadowRoot.prototype, 'activeElement', shadowActive);
 });
 
-defineTreeTable();
-definePropertyInspector();
-defineVariableEditor();
-defineContextMenu();
-defineErrorDialog();
-defineHierarchy();
-defineProjectPage();
-defineAppShell();
-defineToolbar();
-defineDocTabs();
-defineLocationBar();
-defineExplorer();
-defineSettingsPanel();
-defineAboutPanel();
-defineToastHost();
-defineConfirmDialog();
-defineShellDocs();
-defineShellFolder();
-defineShellNote();
-defineRawViewer();
-defineSearchPanel();
-defineGalleryPanel();
-defineCommandWindow();
-defineLogPanel();
-defineCommandPalette();
-defineRelationshipGraph();
+defineShellWidgets();
 
 /** What the host was asked, and how it answers. */
 export interface Main {

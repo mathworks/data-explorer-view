@@ -942,8 +942,8 @@ function firstFocusable(root: Element): HTMLElement | null {
 /**
  * Registers the widget as `<dex-app-shell>`, or under `tag`, and the parts it is given and draws:
  * `<dex-shell-view>`, `<dex-shell-action>` and `<dex-icon>`. The parts first, so the views of a
- * page are upgraded before the shell reads them. The parts connectShell builds the shell from are
- * defined here too as they join the entry.
+ * page are upgraded before the shell reads them. The layout's alone: what connectShell builds in it
+ * is defined, this with it, by defineShellWidgets().
  */
 export function defineAppShell(tag = 'dex-app-shell'): void {
   defineIcon();

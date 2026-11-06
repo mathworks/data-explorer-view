@@ -9,9 +9,15 @@
 // them, put in the body once. dispose() takes all of it away, and every listener with it.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
-import { at, open, settingsPanel, settled, startPage, tableOf, until } from './harness.js';
+import { at, open, serveFolderTo, settingsPanel, settled, startPage, tableOf, tempFolder, until } from './harness.js';
+
+let stop: (() => void)[] = [];
+afterEach(() => {
+  for (const s of stop) s();
+  stop = [];
+});
 
 const OVERLAYS = [
   'dex-variable-editor',
@@ -152,6 +158,28 @@ describe('connectShell', () => {
     handle.dispose();
     expect(document.querySelectorAll('dex-settings-panel')).toHaveLength(1);
     expect(settingsPanel().isConnected).toBe(true);
+  });
+
+  it('draws no element defineShellWidgets, which is all the harness defines, leaves undefined', async () => {
+    const dir = tempFolder('plant', { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
+    const page = startPage({ 'params.sldd': 'params.sldd', 'Plant.prj': 'params.sldd' });
+    stop.push(serveFolderTo(page, dir).dispose);
+    await page.handle.openPaths([at('params.sldd'), '/work/Plant.prj']);
+    await until(() => !!tableOf('params.sldd')?.rows.length && !!document.querySelector('dex-project-page')?.shadowRoot);
+    page.command('show-graph');
+    page.command('palette');
+    await settled();
+    // Every element in the page and in every shadow root, as drawn.
+    const tags = new Set<string>();
+    const walk = (root: ParentNode): void => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.localName.startsWith('dex-')) tags.add(el.localName);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(document);
+    expect(tags.size).toBeGreaterThan(25);
+    expect([...tags].filter((tag) => !customElements.get(tag))).toEqual([]);
   });
 
   it('a project opens on its page, which asks for the folder it is in', async () => {
