@@ -5,7 +5,7 @@
 // platform writes it, so the shortcut a button's tooltip names is the one that works.
 //
 // What it protects: Mod meaning Command on macOS and Ctrl elsewhere, with a literal Ctrl ('Ctrl+Tab')
-// meaning Ctrl everywhere; a chord that does not fire when more keys are held than it names (⌘⇧E is
+// meaning Ctrl everywhere; a chord that does not fire when more keys are held than it names (⇧⌘E is
 // not ⌘E, and Ctrl+Alt+E on Windows is AltGr+E, a character); a letter that matches whatever case
 // Shift gives it; and Mod+` reaching the key under Escape on a layout where it types something else.
 import { describe, expect, it } from 'vitest';
@@ -45,7 +45,7 @@ describe('parseChord', () => {
 describe('matchesChord', () => {
   const explorer = parseChord('Mod+Shift+E');
 
-  it('matches Mod+Shift+E as ⌘⇧E on macOS and Ctrl+Shift+E elsewhere, and not ⌘E', () => {
+  it('matches Mod+Shift+E as ⇧⌘E on macOS and Ctrl+Shift+E elsewhere, and not ⌘E', () => {
     expect(matchesChord(explorer, press('E', { meta: true, shift: true }), true)).toBe(true);
     expect(matchesChord(explorer, press('E', { ctrl: true, shift: true }), false)).toBe(true);
     expect(matchesChord(explorer, press('e', { meta: true }), true)).toBe(false);
@@ -100,8 +100,10 @@ describe('matchesChord', () => {
 });
 
 describe('chordLabel', () => {
-  it("writes ⌘⇧E on macOS and Ctrl+Shift+E elsewhere", () => {
-    expect(chordLabel(parseChord('Mod+Shift+E'), true)).toBe('⌘⇧E');
+  it("writes ⇧⌘E on macOS (Apple's order, as view's menus do) and Ctrl+Shift+E elsewhere", () => {
+    expect(chordLabel(parseChord('Mod+Shift+E'), true)).toBe('⇧⌘E');
+    expect(chordLabel(parseChord('Mod+Alt+Shift+Ctrl+E'), true)).toBe('⌃⌥⇧⌘E');
+    expect(chordLabel(parseChord('Mod+Alt+Shift+E'), false)).toBe('Ctrl+Alt+Shift+E');
     expect(chordLabel(parseChord('Mod+Shift+E'), false)).toBe('Ctrl+Shift+E');
   });
 

@@ -10,7 +10,7 @@
 // are the same key, so a chord naming both is just Ctrl.
 //
 // A chord matches only with exactly the modifiers it names held. A press with one more is another
-// chord: ⌘⇧E is not ⌘E, and Ctrl+Alt+E off macOS is AltGr+E, which types € on many layouts.
+// chord: ⇧⌘E is not ⌘E, and Ctrl+Alt+E off macOS is AltGr+E, which types € on many layouts.
 //
 // DOM-free: a key press is the few KeyboardEvent fields read, so a KeyboardEvent is one without the
 // model naming a DOM type, and a test's plain object is another. The platform is passed in for the
@@ -115,16 +115,17 @@ function keyMatches(key: string, e: KeyPress): boolean {
 }
 
 /**
- * The chord as a tooltip or a menu writes it: '⌘⇧E' on macOS, 'Ctrl+Shift+E' elsewhere. The
- * modifiers go in one order on both, Ctrl, Mod, Alt, Shift: the order the prototype's tooltips
- * wrote Mod and Shift in. Arrow keys are macOS's glyphs there and words elsewhere ('⌥←',
- * 'Alt+Left'); a letter is upper case, and any other key is written as it is named.
+ * The chord as a tooltip or a menu writes it: '⇧⌘E' on macOS, 'Ctrl+Shift+E' elsewhere. On macOS
+ * the modifiers go in Apple's order, ⌃⌥⇧⌘, which is the order view's own menus write ('⇧⌘Z' for
+ * Redo), so the shell's tooltips and a table's menu agree; elsewhere Ctrl, Alt, Shift. Arrow keys
+ * are macOS's glyphs there and words elsewhere ('⌥←', 'Alt+Left'); a letter is upper case, and any
+ * other key is written as it is named.
  */
 export function chordLabel(chord: Chord, mac: boolean): string {
   const named = KEY_LABELS.get(chord.key);
   const key = named ? (mac ? named.mac : named.other) : chord.key.length === 1 ? chord.key.toUpperCase() : chord.key;
   if (mac) {
-    return `${chord.ctrl ? '⌃' : ''}${chord.mod ? '⌘' : ''}${chord.alt ? '⌥' : ''}${chord.shift ? '⇧' : ''}${key}`;
+    return `${chord.ctrl ? '⌃' : ''}${chord.alt ? '⌥' : ''}${chord.shift ? '⇧' : ''}${chord.mod ? '⌘' : ''}${key}`;
   }
   const parts: string[] = [];
   if (chord.ctrl || chord.mod) parts.push('Ctrl');
