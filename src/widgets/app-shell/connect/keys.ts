@@ -7,7 +7,9 @@
 // CmdOrCtrl+O, +Shift+O, +S, +Shift+S, +W, +Z, Shift+CmdOrCtrl+Z, CmdOrCtrl+F, Ctrl+Tab,
 // Ctrl+Shift+Tab); a browser page
 // has no such menu, so the shell answers them itself, along with the shell's own (Save All,
-// Back, Forward, Up, Settings, as the prototype had them). A host with a native menu says so,
+// Back, Forward, Up, Settings, the command palette, as the prototype had them). The chords of
+// the shell's views (Mod+Shift+E and the rest, views.ts) are <dex-app-shell>'s, which answers each
+// view's `shortcut` itself, with a native menu or without. A host with a native menu says so,
 // and then the menu fires its chords through the handle and the shell answers only the ones a
 // native menu does not have: a second answer would save twice.
 //
@@ -67,6 +69,7 @@ export const SHELL_CHORDS: readonly ShellChord[] = [
   { chord: 'Alt+ArrowRight', command: 'forward', withNativeMenu: true, repeats: true },
   { chord: 'Alt+ArrowUp', command: 'up', withNativeMenu: true, repeats: true },
   { chord: 'Mod+,', command: 'settings', withNativeMenu: true },
+  { chord: 'Mod+Shift+P', command: 'palette', withNativeMenu: true },
 ];
 
 /** The chord of `command`, as written in SHELL_CHORDS, or none. */

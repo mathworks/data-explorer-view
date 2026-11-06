@@ -2,15 +2,18 @@
 //
 // What connectShell puts in the shell, and in the page beside it: the markup the Electron app's
 // index.html held (data-explorer-app at 0983920), as the shell's parts. In the shell, the toolbar
-// and the location bar in their rows, the Explorer view (the open files, the folder under them) and
-// the Settings and About actions on the left, the documents' area in the center, the Properties view
-// on the right, and the status text. In the body, once, the overlays every part shares: the
-// variable editor, the context menu, the error and confirm dialogs, the toasts and the two popovers.
+// and the location bar in their rows, a `<dex-shell-view>` for each of the shell's views
+// (views.ts: the Explorer, with the open files and the folder under them, the Gallery and Search
+// on the left; the Properties and Raw on the right; the Terminal and the Log in the bottom panel),
+// the Settings and About actions on the left, the documents' area in the center, and the status
+// text. In the body, once, the overlays every part shares: the variable editor, the context menu,
+// the error and confirm dialogs, the toasts, the two popovers and the command palette.
 //
 // Its own module so that connectShell, which wires these, is not also the page's markup.
 
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { DexShellAction, DexShellView } from '../dex-shell-view.js';
+import { SHELL_VIEWS } from './views.js';
 
 /** `el` with these attributes, as markup would write them: the shell reads its views' and actions' attributes. */
 function withAttributes<T extends Element>(el: T, attributes: Record<string, string>): T {
@@ -18,9 +21,12 @@ function withAttributes<T extends Element>(el: T, attributes: Record<string, str
   return el;
 }
 
-/** Make a `<dex-shell-view>` for `side`, its activity button drawn from `icon`, `label` and `shortcut`. */
-function view(side: 'left' | 'right', id: string, label: string, icon: string, shortcut: string): DexShellView {
-  return withAttributes(document.createElement('dex-shell-view'), { side, view: id, label, icon, shortcut });
+/** Make the `<dex-shell-view>` of the view `id` (views.ts), its activity button drawn from its icon, label and chord, holding `content`. */
+function view(id: string, ...content: Element[]): DexShellView {
+  const spec = SHELL_VIEWS.find((v) => v.view === id)!;
+  const el = withAttributes(document.createElement('dex-shell-view'), { side: spec.side, view: id, label: spec.label, icon: spec.icon, shortcut: spec.chord });
+  el.append(...content);
+  return el;
 }
 
 /** Make a `<dex-shell-action>` on the left bar. */
@@ -40,13 +46,17 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   location.slot = 'location';
 
   // The open files, and under them the folder, once one is shown.
-  const explorerView = view('left', 'explorer', 'Explorer', 'filesSB', 'Mod+Shift+E');
   const explorer = document.createElement('dex-explorer');
   const folderPart = document.createElement('dex-shell-folder');
   folderPart.hidden = true;
   const tree = document.createElement('dex-hierarchy');
   folderPart.append(tree);
-  explorerView.append(explorer, folderPart);
+  // The modules' views: each a widget of its own, which connectShell fills.
+  const gallery = document.createElement('dex-gallery-panel');
+  const search = document.createElement('dex-search-panel');
+  const raw = document.createElement('dex-raw-viewer');
+  const terminal = document.createElement('dex-command-window');
+  const log = document.createElement('dex-log-panel');
 
   const docs = document.createElement('dex-shell-docs');
   const strip = document.createElement('dex-doc-tabs');
@@ -54,12 +64,10 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   docs.append(strip);
 
   // The inspector, and the note it shows in its place while it has nothing to show.
-  const propertiesView = view('right', 'properties', 'Properties', 'propertyInspectorSB', 'Mod+Shift+I');
   const inspectorEmpty = document.createElement('dex-shell-note');
   inspectorEmpty.className = 'dex-inspector-empty';
   inspectorEmpty.textContent = 'Select an entry to view its properties.';
   const inspector = document.createElement('dex-property-inspector');
-  propertiesView.append(inspectorEmpty, inspector);
 
   const status = document.createElement('span');
   status.slot = 'status';
@@ -67,11 +75,16 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const children = [
     toolbar,
     location,
-    explorerView,
+    view('explorer', explorer, folderPart),
+    view('gallery', gallery),
+    view('search', search),
     action('settings', 'Settings', 'settings', 'Mod+,'),
     action('about', 'About', 'info'),
     docs,
-    propertiesView,
+    view('properties', inspectorEmpty, inspector),
+    view('raw', raw),
+    view('terminal', terminal),
+    view('log', log),
     status,
   ];
   shell.append(...children);
@@ -85,7 +98,10 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const settingsPanel = document.createElement('dex-settings-panel');
   const aboutPanel = document.createElement('dex-about-panel');
   const confirm = document.createElement('dex-confirm-dialog');
-  const overlays = [editor, menu, dialog, toasts, settingsPanel, aboutPanel, confirm];
+  // A modal, as the dialogs are; it closes before its command runs, so no question that command
+  // asks is ever under it.
+  const palette = document.createElement('dex-command-palette');
+  const overlays = [editor, menu, dialog, toasts, settingsPanel, aboutPanel, confirm, palette];
   document.body.append(...overlays);
 
   return {
@@ -99,6 +115,12 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
     inspectorEmpty,
     inspector,
     status,
+    gallery,
+    search,
+    raw,
+    terminal,
+    log,
+    palette,
     editor,
     menu,
     dialog,

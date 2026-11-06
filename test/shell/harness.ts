@@ -39,6 +39,12 @@ import { defineConfirmDialog, type DexConfirmDialog } from '../../src/widgets/ap
 import { defineShellDocs, type DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
 import { defineShellFolder, type DexShellFolder } from '../../src/widgets/app-shell/connect/dex-shell-folder.js';
 import { defineShellNote } from '../../src/widgets/app-shell/connect/dex-shell-note.js';
+import { defineRawViewer, type DexRawViewer } from '../../src/widgets/app-shell/modules/dex-raw-viewer.js';
+import { defineSearchPanel, type DexSearchPanel } from '../../src/widgets/app-shell/modules/dex-search-panel.js';
+import { defineGalleryPanel, type DexGalleryPanel } from '../../src/widgets/app-shell/modules/dex-gallery-panel.js';
+import { defineCommandWindow, type DexCommandWindow } from '../../src/widgets/app-shell/modules/dex-command-window.js';
+import { defineLogPanel, type DexLogPanel } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
+import { defineCommandPalette, type DexCommandPalette } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
 import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from '../../src/widgets/app-shell/connect/types.js';
 
@@ -91,6 +97,12 @@ defineConfirmDialog();
 defineShellDocs();
 defineShellFolder();
 defineShellNote();
+defineRawViewer();
+defineSearchPanel();
+defineGalleryPanel();
+defineCommandWindow();
+defineLogPanel();
+defineCommandPalette();
 
 /** What the host was asked, and how it answers. */
 export interface Main {
@@ -238,6 +250,12 @@ export const explorer = () => document.querySelector<DexExplorer>('dex-explorer'
 export const docsArea = () => document.querySelector<DexShellDocs>('dex-shell-docs')!;
 export const folderPart = () => document.querySelector<DexShellFolder>('dex-shell-folder')!;
 export const confirmDialog = () => document.querySelector<DexConfirmDialog>('dex-confirm-dialog')!;
+export const rawViewer = () => document.querySelector<DexRawViewer>('dex-raw-viewer')!;
+export const searchPanel = () => document.querySelector<DexSearchPanel>('dex-search-panel')!;
+export const galleryPanel = () => document.querySelector<DexGalleryPanel>('dex-gallery-panel')!;
+export const commandWindow = () => document.querySelector<DexCommandWindow>('dex-command-window')!;
+export const logPanel = () => document.querySelector<DexLogPanel>('dex-log-panel')!;
+export const palette = () => document.querySelector<DexCommandPalette>('dex-command-palette')!;
 export const settingsPanel = () => document.querySelector<DexSettingsPanel>('dex-settings-panel')!;
 export const aboutPanel = () => document.querySelector<DexAboutPanel>('dex-about-panel')!;
 export const toastHost = () => document.querySelector<DexToastHost>('dex-toast-host')!;

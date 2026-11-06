@@ -2,15 +2,27 @@
 // @vitest-environment happy-dom
 //
 // What connectShell builds in an empty <dex-app-shell>, and takes down again: the toolbar and the
-// location bar in their rows, the Explorer and the folder in the left side, Settings and About on
-// the left bar, the documents (the tab row and the panels) in the center, the Properties on the
-// right, the status text in the status bar; and the overlays every part shares, put in the body
-// once. dispose() takes all of it away, and every listener with it.
+// location bar in their rows, the Explorer (and the folder), the Gallery and Search in the left
+// side, Settings and About on the left bar, the documents (the tab row and the panels) in the
+// center, the Properties and Raw on the right, the Terminal and the Log in the bottom panel, the
+// status text in the status bar; and the overlays every part shares, the command palette among
+// them, put in the body once. dispose() takes all of it away, and every listener with it.
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
 import { at, open, settingsPanel, settled, startPage, tableOf, until } from './harness.js';
 
-const OVERLAYS = ['dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-confirm-dialog', 'dex-toast-host', 'dex-settings-panel', 'dex-about-panel'];
+const OVERLAYS = [
+  'dex-variable-editor',
+  'dex-context-menu',
+  'dex-error-dialog',
+  'dex-confirm-dialog',
+  'dex-toast-host',
+  'dex-settings-panel',
+  'dex-about-panel',
+  'dex-command-palette',
+];
 const overlays = () => [...document.body.children].map((el) => el.localName).filter((name) => OVERLAYS.includes(name));
 
 describe('connectShell', () => {
@@ -24,17 +36,46 @@ describe('connectShell', () => {
       'dex-toolbar toolbar',
       'dex-location-bar location',
       'dex-shell-view left left explorer',
+      'dex-shell-view left left gallery',
+      'dex-shell-view left left search',
       'dex-shell-action action left settings',
       'dex-shell-action action left about',
       'dex-shell-docs',
       'dex-shell-view right right properties',
+      'dex-shell-view right right raw',
+      'dex-shell-view bottom bottom terminal',
+      'dex-shell-view bottom bottom log',
       'span status',
+    ]);
+    const content = (view: string) => [...page.shell.querySelector(`dex-shell-view[view="${view}"]`)!.children].map((el) => el.localName);
+    expect(['gallery', 'search', 'raw', 'terminal', 'log'].map(content)).toEqual([
+      ['dex-gallery-panel'],
+      ['dex-search-panel'],
+      ['dex-raw-viewer'],
+      ['dex-command-window'],
+      ['dex-log-panel'],
     ]);
     const props = page.shell.querySelector('dex-shell-view[view="properties"]')!;
     expect([...props.children].map((el) => el.localName)).toEqual(['dex-shell-note', 'dex-property-inspector']);
     expect(props.querySelector('.dex-inspector-empty')!.textContent).toBe('Select an entry to view its properties.');
     expect(page.shell.querySelector('dex-shell-action[action="settings"]')!.getAttribute('shortcut')).toBe('Mod+,');
     expect(page.shell.querySelector('dex-shell-action[action="about"]')!.getAttribute('icon')).toBe('info');
+  });
+
+  it('gives each view its label, its icon, which ships, and its chord, as the prototype laid them out', () => {
+    const page = startPage();
+    const shipped = new Set(readdirSync(join(process.cwd(), 'icons')).map((f) => f.replace(/\.svg$/, '')));
+    const views = [...page.shell.querySelectorAll('dex-shell-view')].map((v) => [v.getAttribute('view'), v.getAttribute('label'), v.getAttribute('icon'), v.getAttribute('shortcut')]);
+    expect(views).toEqual([
+      ['explorer', 'Explorer', 'filesSB', 'Mod+Shift+E'],
+      ['gallery', 'Gallery', 'gridUI', 'Mod+Shift+L'],
+      ['search', 'Search', 'find', 'Mod+Shift+F'],
+      ['properties', 'Properties', 'propertyInspectorSB', 'Mod+Shift+I'],
+      ['raw', 'Raw', 'code', 'Mod+Shift+W'],
+      ['terminal', 'Terminal', 'openTerminal', 'Mod+`'],
+      ['log', 'Log', 'documentList', 'Mod+Shift+D'],
+    ]);
+    expect(views.filter(([, , icon]) => !shipped.has(icon!)).map(([, , icon]) => icon)).toEqual([]);
   });
 
   it('puts the shared overlays in the body once, and dispose() takes them, the parts and the documents away', async () => {

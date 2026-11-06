@@ -124,7 +124,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual(['next-tab', 'back']);
   });
 
-  it('with a native menu, answers only Back, Forward, Up, Save All and Settings', () => {
+  it('with a native menu, answers only Back, Forward, Up, Save All, Settings and the palette', () => {
     onPlatform('Win32');
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
@@ -134,8 +134,9 @@ describe('the shell answers its chords', () => {
     press({ key: 'ArrowUp', altKey: true });
     press({ key: 's', ctrlKey: true, altKey: true });
     press({ key: ',', ctrlKey: true });
-    expect(ran).toEqual(['up', 'save-all', 'settings']);
-    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings']);
+    press({ key: 'P', ctrlKey: true, shiftKey: true });
+    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette']);
+    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette']);
   });
 
   it('stops answering once taken away', () => {

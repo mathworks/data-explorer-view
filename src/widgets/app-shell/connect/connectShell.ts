@@ -50,12 +50,15 @@ import { ReloadGate, reloadQuestion } from './reload.js';
 import { Saver, closeAnswerOf, closeQuestion, settle } from './saving.js';
 import { TabList } from './tabs.js';
 import { systemThemeFromMedia } from './theme.js';
-import { tableActionOf, toolbarItems } from './toolbarItems.js';
+import { tableActionOf, toolbarItems, type ToolbarState } from './toolbarItems.js';
+import { paletteCommands } from './paletteItems.js';
+import { SHELL_VIEWS, viewOfCommand } from './views.js';
 import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
 
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
   'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-  'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
+  'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
+  ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -179,15 +182,21 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
 
-  function refresh(): void {
+  // What the toolbar's buttons, and the palette's rows for them, can do now.
+  const toolbarState = (): ToolbarState => {
     const active = tabs.active;
-    toolbar.items = toolbarItems({
+    return {
       canOpenFolder: !!host.pickFolder,
       active: active ? { editable: !!active.doc?.editable, dirty: !!active.dirty } : null,
       anyDirty: tabs.items.some((t) => t.dirty),
       can: (id) => !!active?.handle?.can(id),
       mac: onMac(),
-    });
+    };
+  };
+
+  function refresh(): void {
+    const active = tabs.active;
+    toolbar.items = toolbarItems(toolbarState());
     explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
     // The rows the active table holds now: its paint, the entries repainted since, the children
     // it was answered; none for a project page or a file still being read.
@@ -416,6 +425,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The tab active when the command was given, whatever is active by the time it is carried out.
     const tab = tabs.active;
     if (id === 'settings' || id === 'about') return popovers.toggle(id);
+    // The palette, as its own modal: the popovers make way first, one Escape closing one layer.
+    if (id === 'palette') {
+      popovers.closeAll();
+      return parts.palette.show(paletteCommands(toolbarState()));
+    }
+    const view = viewOfCommand(id);
+    if (view) return showView(view.view);
     if ((id === 'undo' || id === 'redo') && focusIsInTextField()) {
       document.execCommand(id);
       return;
@@ -425,6 +441,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     void Promise.resolve(tab?.handle?.commitEdit()).then(() => {
       if (!disposed) carryOut(id, tab);
     });
+  }
+
+  // A view brought forward; one with a box of its own (Search, the Terminal) takes the keyboard.
+  function showView(view: string): void {
+    shell.showView(view);
+    focusViewBox(view);
+  }
+  function focusViewBox(view: string): void {
+    if (view === 'search') parts.search.focusInput();
+    else if (view === 'terminal') parts.terminal.focusInput();
   }
 
   // A host's dialog that could not be shown (a browser's picker refused, SecurityError,
@@ -486,6 +512,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The toolbar, and the welcome's buttons, which ask what the toolbar's Open and Folder ask.
   listen(toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
   listen(docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
+  listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
+  // A view the user shows by its button or its chord takes the keyboard as its command gives it.
+  listen(shell, 'dex-shell-view-changed', (e) => {
+    if (e.detail.open && e.detail.view) focusViewBox(e.detail.view);
+  });
   listen(shell, 'dex-shell-action', (e) => {
     const { actionId, anchor } = e.detail;
     if (actionId === 'settings' || actionId === 'about') popovers.toggle(actionId, anchor);
