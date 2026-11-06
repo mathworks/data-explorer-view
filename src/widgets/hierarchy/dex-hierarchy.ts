@@ -43,12 +43,16 @@ export interface RowMark {
 export interface HierarchyMenuDetail {
   /** The row. */
   item: HierarchyItem;
-  /** Where the menu goes, in the viewport's pixels: the pointer, or for the keyboard the row's lower left. */
+  /** Where the menu's left edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's left edge. */
   x: number;
+  /** Where the menu's top edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's bottom edge. */
   y: number;
   /** Asked by the keyboard (Shift+F10, the ContextMenu key): the menu takes the focus to its first item. */
   keyboard?: true;
 }
+
+// The keys that ask for a row's menu with `rowMenu`, as aria-keyshortcuts names them (the table's).
+const MENU_KEYS = 'Shift+F10 ContextMenu';
 
 /** One row as drawn: the item, where it sits, and whether it is open. */
 interface Line {
@@ -74,9 +78,10 @@ interface Line {
  * For a folder drawn as a file browser draws it (FolderTree's rows), a `dimmed` row is a file the
  * app does not open, in the muted ink, disabled for a screen reader and opening nothing; a row's
  * `relation` says after its name what it is to the row above it; and `marks` mark each file's rows
- * as its tab stands (open, active, unsaved, a preview). A right click, Shift+F10 or the ContextMenu
- * key asks for a row's menu (`dex-hierarchy-menu`), which the app draws. Rows without these fields,
- * and a tree without marks, draw as they always have.
+ * as its tab stands (open, active, unsaved, a preview). With `rowMenu`, a right click, Shift+F10 or
+ * the ContextMenu key asks for a row's menu (`dex-hierarchy-menu`), which the app draws. Rows
+ * without these fields, a tree without marks and one without `rowMenu` draw and answer as they
+ * always have.
  *
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it
  * opens, and a row with rows under it opens or closes. The arrow keys move through the rows
@@ -126,15 +131,31 @@ export class DexHierarchy extends LitElement {
       cursor: default;
     }
 
-    /* The active tab's row: drawn as a selected row is, and not the tree's selection. */
+    /* The active tab's row, when it is not the tree's selection: a lighter fill than the selection's
+       (the hover's, a step darker under the pointer), its name and description in the selection's
+       ink, which clears 4.5:1 on either fill in every theme. */
     .row.active {
-      background: var(--dex-color-accent-bg, #cde4f7);
+      background: var(--dex-bg-hover, #e8e8e8);
       color: var(--dex-selection-fg, #333);
+    }
+
+    .row.active:hover {
+      background: var(--dex-bg-active, #e0e0e0);
     }
 
     /* The selection's surface and its ink together, as the table's selected row. */
     .row[aria-selected='true'] {
       background: var(--dex-color-accent-bg, #cde4f7);
+      color: var(--dex-selection-fg, #333);
+    }
+
+    /* On either, the name and the description are in the selection's ink, over the colours a row's
+       own state gives them (the muted ink, a mark's), which do not clear 4.5:1 on these fills. The
+       badge keeps its colour: a glyph clears the 3:1 a mark needs. */
+    .row.active .label,
+    .row.active .description,
+    .row[aria-selected='true'] .label,
+    .row[aria-selected='true'] .description {
       color: var(--dex-selection-fg, #333);
     }
 
@@ -246,20 +267,38 @@ export class DexHierarchy extends LitElement {
     }
 
     @media (forced-colors: active) {
-      .row[aria-selected='true'],
+      /* Before the selection's, as in the base rules: a selected file the app does not open reads
+         in HighlightText. */
+      .row.dimmed {
+        color: GrayText;
+      }
+
+      /* The active tab's row, not selected: no fill (forced colours have one for the selection
+         alone), a Highlight outline inside it; the focus ring is drawn over it. */
       .row.active {
+        outline: 1px solid Highlight;
+        outline-offset: -1px;
+      }
+
+      .row[aria-selected='true'] {
         background: Highlight;
         color: HighlightText;
       }
 
-      /* Forced colours drop a shadow: the open bar is a border there, the row's padding given up for it. */
+      .row[aria-selected='true'] .label,
+      .row[aria-selected='true'] .description {
+        color: HighlightText;
+      }
+
+      /* Forced colours drop a shadow: the open bar is a border there, the row's padding given up for
+         it, and on the selection's Highlight in HighlightText. */
       .row.open {
         border-left: 2px solid Highlight;
         padding-left: 2px;
       }
 
-      .row.dimmed {
-        color: GrayText;
+      .row.open[aria-selected='true'] {
+        border-left-color: HighlightText;
       }
 
       .row:focus-visible {
@@ -293,6 +332,13 @@ export class DexHierarchy extends LitElement {
   @property({ attribute: false }) marks: ReadonlyMap<string, RowMark> = new Map();
   /** The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing. */
   @property({ attribute: false }) selectedKey: string | null = null;
+  /**
+   * Whether a row's menu is the app's: a right click on a row, or Shift+F10 or the ContextMenu key
+   * on the focused row, sends `dex-hierarchy-menu`, the browser's own menu kept away and both keys
+   * spent, and the tree names the keys (`aria-keyshortcuts`). False, the default, leaves the right
+   * click and both keys to the browser, as they always were. Attribute `row-menu`.
+   */
+  @property({ type: Boolean, attribute: 'row-menu' }) rowMenu = false;
   /** What a screen reader calls the tree. Default `Files`. Attribute `label`. */
   @property({ type: String }) label = 'Files';
   /**
@@ -317,7 +363,9 @@ export class DexHierarchy extends LitElement {
   // The row revealRow() is to scroll into view once it is drawn.
   private _scrollKey: string | null = null;
   // A menu the keyboard asked for, whose own contextmenu event (which the browser sends for the
-  // same key) is not a second ask. A pointer's press lets go of it: a right click always has one.
+  // same key, after its keydown or its keyup) is not a second ask. A pointer's press lets go of it
+  // (a right click always has one), and so does a task after the key's keyup: a contextmenu with no
+  // pointer after that (an assistive technology's "show menu") is an ask of its own.
   private _keyMenu = false;
 
   /**
@@ -446,8 +494,10 @@ export class DexHierarchy extends LitElement {
     this.dispatchEvent(new CustomEvent<HierarchyMenuDetail>('dex-hierarchy-menu', { detail, bubbles: true, composed: true }));
   }
 
-  // A right click: the menu where the pointer is, and not the browser's.
+  // A right click: the menu where the pointer is, and not the browser's. Without `rowMenu`, the
+  // browser's, as it always was.
   private _onContextMenu(e: MouseEvent, item: HierarchyItem): void {
+    if (!this.rowMenu) return;
     e.preventDefault();
     if (this._keyMenu) {
       this._keyMenu = false;
@@ -457,10 +507,21 @@ export class DexHierarchy extends LitElement {
     this._menu({ item, x: e.clientX, y: e.clientY });
   }
 
+  // The keys that ask for a row's menu, as Chromium tells them and the table takes them: the
+  // ContextMenu key alone, Shift+F10 with Shift alone.
+  private _isMenuKey(e: KeyboardEvent): boolean {
+    if (!this.rowMenu || e.ctrlKey || e.metaKey || e.altKey) return false;
+    return (e.key === 'ContextMenu' && !e.shiftKey) || (e.key === 'F10' && e.shiftKey);
+  }
+
   // Chromium on Windows opens its own menu on the ContextMenu key's keyup unless it is spent; the
-  // keydown asked for the row's.
+  // keydown asked for the row's. The browser's event for the key comes before the next task, so the
+  // flag that spends it goes then.
   private _onKeyup(e: KeyboardEvent): void {
-    if (e.key === 'ContextMenu') e.preventDefault();
+    if (e.key !== 'ContextMenu' && e.key !== 'F10') return;
+    if (this._isMenuKey(e)) e.preventDefault();
+    // Whatever was let go of first, Shift or F10.
+    if (this._keyMenu) setTimeout(() => (this._keyMenu = false), 0);
   }
 
   private _onKeydown(e: KeyboardEvent): void {
@@ -468,7 +529,7 @@ export class DexHierarchy extends LitElement {
     if (lines.length === 0) return;
     const at = Math.max(0, lines.findIndex((l) => l.item.key === this._focusKey));
     const line = lines[at]!;
-    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+    if (this._isMenuKey(e)) {
       // The focused row's menu, below it, and the browser's own contextmenu for the key let go of.
       e.preventDefault();
       const box = this._rowElement(line.item.key)?.getBoundingClientRect();
@@ -595,6 +656,7 @@ export class DexHierarchy extends LitElement {
       <div
         role="tree"
         aria-label=${this.label}
+        aria-keyshortcuts=${this.rowMenu ? MENU_KEYS : nothing}
         @keydown=${this._onKeydown}
         @keyup=${this._onKeyup}
         @pointerdown=${() => (this._keyMenu = false)}

@@ -500,14 +500,14 @@ describe('a folder tree', () => {
     expect(await tree.pathTo(sourceUri('/w/gone/a.sldd'))).toBeUndefined();
   });
 
-  it("gives a menu each row's path: an entry's own, a reference's read back from its uri, none for a row of no file", async () => {
+  it("gives a menu each row's path: an entry's own, a reference's file's, none for a row of no file", async () => {
     const tree = treeOf();
     const root = await rootRow(tree);
     const top = await child(tree, root, 'top.slx');
     const [ref, external] = await tree.children(top);
-    // A reference row carries no path of its own: its file's is its uri read back.
-    expect(ref).not.toHaveProperty('path');
-    expect(rowPath(ref!)).toBe('/w/child.slx');
+    // A reference row's path is its file's, as that file's own row in its folder has it.
+    expect(ref!.path).toBe('/w/child.slx');
+    expect(rowPath(ref!)).toBe((await child(tree, root, 'child.slx')).path);
     expect(rowPath(top)).toBe('/w/top.slx');
     expect(rowPath(root)).toBe('/w');
     expect(rowPath(await child(tree, root, 'notes.md'))).toBe('/w/notes.md');
@@ -516,6 +516,35 @@ describe('a folder tree', () => {
     const [gone] = await tree.children(await child(tree, root, 'child.slx'));
     expect(gone!.kind).toBe('missing');
     expect(rowPath(gone!)).toBeUndefined();
+    // A row the hierarchy made: its file's path read back from its uri.
+    const theirs = (await hierarchy().rowOf(sourceUri('/w/top.slx')))!;
+    expect(theirs).not.toHaveProperty('path');
+    expect(rowPath(theirs)).toBe('/w/top.slx');
+  });
+
+  it("spells a reference row's path as the root is, under a Windows drive, where its uri reads back lower-cased", async () => {
+    const win = new Map<string, ArrayBuffer>([
+      ['C:\\Work\\top.slx', slx({ refs: ['child'] })],
+      ['C:\\Work\\child.slx', slx()],
+    ]);
+    const h = new FolderHierarchy({
+      files: { list: async () => [...win.keys()].sort(byCodePoint).map((path) => ({ uriString: sourceUri(path), path })) },
+      reader: () => ({ version: async (f) => `v:${f.path}`, bytes: async (f) => win.get(f.path) ?? null, projectStore: async () => null }),
+    });
+    const tree = new FolderTree({
+      hierarchy: h,
+      root: 'C:\\Work',
+      entries: async (dir) =>
+        dir === 'C:\\Work' ? ['top.slx', 'child.slx'].map((name) => ({ name, path: `C:\\Work\\${name}`, kind: 'data' as const })) : [],
+    });
+    const root = await rootRow(tree);
+    const own = await child(tree, root, 'child.slx');
+    const [ref] = await tree.children(await child(tree, root, 'top.slx'));
+    expect(ref!.id).toBe('file:///c%3A/Work/child.slx');
+    // Read back from the uri alone, the drive letter is lower-cased: the row's own path is not.
+    expect(ref!.path).toBe('C:\\Work\\child.slx');
+    expect(rowPath(ref!)).toBe(own.path);
+    expect(rowPath({ ...ref!, path: undefined })).toBe('c:\\Work\\child.slx');
   });
 
   it('names every icon its rows draw from icons/', async () => {

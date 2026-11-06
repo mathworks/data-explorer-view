@@ -396,11 +396,15 @@ describe('rows of the Folder view', () => {
   const NOTES = item('/w/notes', 'notes.md', { kind: 'other', dimmed: true, icon: 'documentList', path: '/w/notes.md' });
   const REF = item('/w/m/p', 'params.sldd', { id: 'file:///w/params.sldd', health: null, relation: 'data dictionary', icon: 'simulink_database' });
   const GONE_REF = item('/w/m/g', 'gone.slx', { kind: 'missing', description: 'unresolved reference', relation: 'model reference' });
-  const FOLDER_ROWS: Record<string, HierarchyItem[]> = { '/w': [MODEL, DICT, NOTES], '/w/m': [REF, GONE_REF] };
+  // params.sldd is a row of its own folder, and a reference row under m.slx: one file, two rows.
+  const PARAMS = item('/w/params', 'params.sldd', { id: 'file:///w/params.sldd', health: null, icon: 'simulink_database', path: '/w/params.sldd' });
+  const FOLDER_ROWS: Record<string, HierarchyItem[]> = { '/w': [MODEL, DICT, NOTES, PARAMS], '/w/m': [REF, GONE_REF] };
+  const rowAt = (el: DexHierarchy, key: string): HTMLElement => rows(el).find((r) => r.dataset.key === key)!;
 
-  async function folder(marks?: ReadonlyMap<string, RowMark>): Promise<DexHierarchy> {
+  async function folder(marks?: ReadonlyMap<string, RowMark>, options: { rowMenu?: boolean } = { rowMenu: true }): Promise<DexHierarchy> {
     const el = await tree({ children: FOLDER_ROWS });
     if (marks) el.marks = marks;
+    if (options.rowMenu) el.rowMenu = true;
     el.expandedKeys = ['/w', '/w/m'];
     await settle(el);
     return el;
@@ -431,7 +435,7 @@ describe('rows of the Folder view', () => {
 
   it('says what a reference is after its name, in the muted ink, and after its description when it has one', async () => {
     const el = await folder();
-    const ref = rowOf(el, 'params.sldd');
+    const ref = rowAt(el, '/w/m/p');
     expect([...ref.querySelectorAll('.description')].map((d) => d.textContent)).toEqual(['data dictionary']);
     const gone = rowOf(el, 'gone.slx');
     expect([...gone.querySelectorAll('.description')].map((d) => d.textContent)).toEqual(['unresolved reference', 'model reference']);
@@ -451,7 +455,7 @@ describe('rows of the Folder view', () => {
     expect(model.getAttribute('aria-current')).toBe('true');
     // The active tab is no selection: the tree's own stays as it is.
     expect(model.getAttribute('aria-selected')).toBe('false');
-    const ref = rowOf(el, 'params.sldd');
+    const ref = rowAt(el, '/w/m/p');
     expect(ref.classList.contains('open')).toBe(true);
     expect(ref.classList.contains('preview')).toBe(true);
     expect(ref.hasAttribute('aria-current')).toBe(false);
@@ -466,7 +470,30 @@ describe('rows of the Folder view', () => {
     await settle(el);
     expect(rowOf(el, 'm.slx').classList.contains('open')).toBe(false);
     expect(rowOf(el, 'm.slx').hasAttribute('aria-current')).toBe(false);
-    expect(rowOf(el, 'params.sldd').querySelectorAll('.badge')).toHaveLength(0);
+    expect(rowAt(el, '/w/m/p').querySelectorAll('.badge')).toHaveLength(0);
+  });
+
+  it('marks every row of a file alike: its own row in its folder, and a reference row of it', async () => {
+    const el = await folder(new Map([['file:///w/params.sldd', { open: true, active: true, unsaved: true }]]));
+    for (const key of ['/w/params', '/w/m/p']) {
+      const row = rowAt(el, key);
+      expect(['open', 'active'].map((c) => row.classList.contains(c)), key).toEqual([true, true]);
+      expect(row.getAttribute('aria-current'), key).toBe('true');
+      expect(row.querySelectorAll('.badge'), key).toHaveLength(1);
+    }
+  });
+
+  it('draws the active tab\'s row unselected when the selection is another row, and selected when it is the row', async () => {
+    const el = await folder(new Map([['file:///w/m.slx', { active: true }]]));
+    rowOf(el, 'notes.md').click();
+    await settle(el);
+    const model = rowOf(el, 'm.slx');
+    expect(model.classList.contains('active')).toBe(true);
+    expect(model.getAttribute('aria-selected')).toBe('false');
+    expect(rowOf(el, 'notes.md').getAttribute('aria-selected')).toBe('true');
+    model.click();
+    await settle(el);
+    expect(model.getAttribute('aria-selected')).toBe('true');
   });
 
   it("draws one badge for a file the index marks unsaved and the tabs do too, and a cycle's before it", async () => {
@@ -485,12 +512,83 @@ describe('rows of the Folder view', () => {
     const el = await folder();
     const asked: HierarchyMenuDetail[] = [];
     el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
-    const ref = rowOf(el, 'params.sldd');
+    const ref = rowAt(el, '/w/m/p');
     ref.dispatchEvent(new PointerEvent('pointerdown', { button: 2, bubbles: true, composed: true }));
     const right = new MouseEvent('contextmenu', { clientX: 40, clientY: 90, bubbles: true, composed: true, cancelable: true });
     ref.dispatchEvent(right);
     expect(right.defaultPrevented).toBe(true);
     expect(asked).toEqual([{ item: REF, x: 40, y: 90 }]);
+    expect(el.shadowRoot!.querySelector('[role="tree"]')!.getAttribute('aria-keyshortcuts')).toBe('Shift+F10 ContextMenu');
+  });
+
+  it("asks for a dimmed row's menu too: Reveal and Copy Path are a file's the app does not open", async () => {
+    const el = await folder();
+    const asked: HierarchyMenuDetail[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    rowOf(el, 'notes.md').dispatchEvent(new MouseEvent('contextmenu', { clientX: 1, clientY: 2, bubbles: true, composed: true, cancelable: true }));
+    expect(asked).toEqual([{ item: NOTES, x: 1, y: 2 }]);
+  });
+
+  it('leaves the right click and both keys to the browser without rowMenu, the default', async () => {
+    const el = await folder(undefined, {});
+    expect(el.rowMenu).toBe(false);
+    expect(el.shadowRoot!.querySelector('[role="tree"]')!.hasAttribute('aria-keyshortcuts')).toBe(false);
+    const asked: unknown[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    const ref = rowAt(el, '/w/m/p');
+    const right = new MouseEvent('contextmenu', { clientX: 40, clientY: 90, bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(right);
+    expect(right.defaultPrevented).toBe(false);
+    ref.focus();
+    for (const key of [{ key: 'F10', shiftKey: true }, { key: 'ContextMenu' }]) {
+      const down = new KeyboardEvent('keydown', { ...key, bubbles: true, composed: true, cancelable: true });
+      ref.dispatchEvent(down);
+      const up = new KeyboardEvent('keyup', { ...key, bubbles: true, composed: true, cancelable: true });
+      ref.dispatchEvent(up);
+      expect([down.defaultPrevented, up.defaultPrevented], key.key).toEqual([false, false]);
+    }
+    expect(asked).toEqual([]);
+    // The attribute turns it on.
+    el.setAttribute('row-menu', '');
+    await settle(el);
+    expect(el.rowMenu).toBe(true);
+    rowAt(el, '/w/m/p').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true }));
+    expect(asked).toHaveLength(1);
+  });
+
+  it.each([
+    ['Ctrl+Shift+F10', { key: 'F10', shiftKey: true, ctrlKey: true }],
+    ['Alt+Shift+F10', { key: 'F10', shiftKey: true, altKey: true }],
+    ['Meta+ContextMenu', { key: 'ContextMenu', metaKey: true }],
+    ['Shift+ContextMenu', { key: 'ContextMenu', shiftKey: true }],
+  ])('leaves %s to the browser, as the table does', async (_name, key) => {
+    const el = await folder();
+    const asked: unknown[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    const ref = rowAt(el, '/w/m/p');
+    ref.focus();
+    ref.click();
+    const down = new KeyboardEvent('keydown', { ...key, bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(false);
+    expect(asked).toEqual([]);
+  });
+
+  it("hears a contextmenu with no pointer a moment after the key's keyup as an ask of its own", async () => {
+    // An assistive technology's "show menu" sends one, with no pointer and no key.
+    const el = await folder();
+    const asked: HierarchyMenuDetail[] = [];
+    el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
+    const ref = rowAt(el, '/w/m/p');
+    ref.focus();
+    ref.click();
+    ref.dispatchEvent(new KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true }));
+    ref.dispatchEvent(new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true }));
+    await new Promise((done) => setTimeout(done, 0));
+    const later = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    ref.dispatchEvent(later);
+    expect(asked.map((d) => d.keyboard ?? false)).toEqual([true, false]);
+    expect(later.defaultPrevented).toBe(true);
   });
 
   it.each([
@@ -500,7 +598,7 @@ describe('rows of the Folder view', () => {
     const el = await folder();
     const asked: HierarchyMenuDetail[] = [];
     el.addEventListener('dex-hierarchy-menu', (e) => asked.push(e.detail));
-    const ref = rowOf(el, 'params.sldd');
+    const ref = rowAt(el, '/w/m/p');
     ref.getBoundingClientRect = () => ({ left: 12, bottom: 140, top: 112, right: 300, width: 288, height: 28, x: 12, y: 112, toJSON: () => ({}) });
     ref.focus();
     ref.click();
@@ -513,7 +611,7 @@ describe('rows of the Folder view', () => {
     expect(native.defaultPrevented).toBe(true);
     expect(asked).toEqual([{ item: REF, x: 12, y: 140, keyboard: true }]);
     // The key's keyup is spent too, where a browser opens its own menu on it.
-    const up = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    const up = new KeyboardEvent('keyup', { ...key, bubbles: true, composed: true, cancelable: true });
     ref.dispatchEvent(up);
     expect(up.defaultPrevented).toBe(true);
     // A right click after it is a menu of its own.
@@ -582,11 +680,37 @@ describe('the look of the marks', () => {
     }
   });
 
-  it("draws the active tab's row as a selected one, a preview's name in italics, and another file in GrayText in forced colours", () => {
-    expect(rule('.row.active')).toContain('background: var(--dex-color-accent-bg, #cde4f7)');
+  it("draws the active tab's row a fill lighter than the selection's, the selected row over it, a preview's name in italics", () => {
+    expect(rule('.row.active')).toContain('background: var(--dex-bg-hover, #e8e8e8)');
     expect(rule('.row.active')).toContain('color: var(--dex-selection-fg, #333)');
+    expect(rule('.row.active:hover')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    const all = sheets();
+    expect(all.indexOf(".row[aria-selected='true'] {")).toBeGreaterThan(all.indexOf('.row.active:hover'));
     expect(rule('.preview .label')).toContain('font-style: italic');
-    expect(rule('.row.active', forced())).toContain('background: Highlight');
-    expect(rule('.row.dimmed', forced())).toContain('color: GrayText');
+  });
+
+  it("sets an active or selected row's name and description in the selection's ink, readable on its fill in every theme", () => {
+    for (const selector of ['.row.active .label', '.row.active .description', ".row[aria-selected='true'] .label", ".row[aria-selected='true'] .description"]) {
+      expect(rule(selector), selector).toContain('color: var(--dex-selection-fg, #333)');
+    }
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      for (const fill of ['--dex-color-accent-bg', '--dex-bg-hover', '--dex-bg-active']) {
+        // Text: 4.5:1. The badges keep their colours, marks that need 3:1.
+        expect(contrast(tokens.get('--dex-selection-fg')!, tokens.get(fill)!), `${set} ink on ${fill}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(tokens.get('--dex-color-modified')!, tokens.get(fill)!), `${set} ● on ${fill}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(tokens.get('--dex-color-warning')!, tokens.get(fill)!), `${set} ↻ on ${fill}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('in forced colours, reads a selected dimmed row in HighlightText, outlines the active row, and draws the open border apart from the selection', () => {
+    const block = forced();
+    expect(rule('.row.dimmed', block)).toContain('color: GrayText');
+    expect(block.indexOf(".row[aria-selected='true'] {")).toBeGreaterThan(block.indexOf('.row.dimmed'));
+    expect(rule(".row[aria-selected='true']", block)).toContain('background: Highlight');
+    expect(rule(".row[aria-selected='true'] .label", block)).toContain('color: HighlightText');
+    expect(rule('.row.active', block)).toContain('outline: 1px solid Highlight');
+    expect(rule('.row.active', block)).not.toContain('background');
+    expect(rule(".row.open[aria-selected='true']", block)).toContain('border-left-color: HighlightText');
   });
 });

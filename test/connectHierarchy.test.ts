@@ -352,6 +352,7 @@ describe('marks and menus', () => {
 
   it("hands the app a row's menu, until disposed", async () => {
     const { el, handle } = connected(undefined, { expandTopLevel: true });
+    el.rowMenu = true;
     const asked: HierarchyMenuDetail[] = [];
     handle.on('menu', (detail) => asked.push(detail));
     await settle(el);

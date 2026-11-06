@@ -287,25 +287,52 @@ export class FolderTree {
   // A row of the hierarchy's, drawn under `parent` (this tree's copy of `theirsParent`): keyed
   // under it, by the part the hierarchy keys it by under its own parent.
   private copy(row: HierarchyItem, parent: HierarchyItem, theirsParent: HierarchyItem, relation: string | undefined): HierarchyItem {
-    const own: HierarchyItem = { ...row, key: `${parent.key}${row.key.slice(theirsParent.key.length)}`, ...(relation ? { relation } : {}) };
+    const path = row.id !== undefined ? this.pathOf(row.id) : undefined;
+    const own: HierarchyItem = {
+      ...row,
+      key: `${parent.key}${row.key.slice(theirsParent.key.length)}`,
+      ...(relation ? { relation } : {}),
+      ...(path !== undefined ? { path } : {}),
+    };
     this.copies.set(own, row);
     return own;
+  }
+
+  // The path of a file of the folder, by its uri, spelled as the root is (its separator, its drive
+  // letter's case), so a reference row's path is the one its file's own row has from its entry: a
+  // uri reads back with a drive letter lower-cased (uriPath), where the host names it as it is.
+  // Undefined for a uri outside the root.
+  private pathOf(uri: string): string | undefined {
+    const base = folderUriOf(this.root);
+    if (!uri.startsWith(`${base}/`)) return undefined;
+    const sep = this.root.includes('\\') && !this.root.includes('/') ? '\\' : '/';
+    const root = this.root.endsWith(sep) ? this.root.slice(0, -1) : this.root;
+    return [root, ...uri.slice(base.length + 1).split('/').map(decoded)].join(sep);
   }
 }
 
 /**
- * The path of a row's file or folder, for a menu's Reveal and Copy Path: the row's own `path` (a
- * row a FolderTree made from an entry: a folder, a data file, another file), else its file's read
- * back from its uri (`uriPath(id)`), since a reference row is the hierarchy's and carries no path
- * of its own. Undefined for a row of no file (External Data, a notice, an unresolved reference).
+ * The path of a row's file or folder, for a menu's Reveal and Copy Path: the row's own `path` (every
+ * row a FolderTree draws of a folder or a file has one: an entry's, and a reference's spelled as the
+ * root is), else its file's read back from its uri (`uriPath(id)`), for a row FolderHierarchy made,
+ * which carries none. Undefined for a row of no file (External Data, a notice, an unresolved
+ * reference).
  *
- * A uri reads back as the path sourceUri was given, as a host that lists absolute paths names it
- * (Electron's main). A page's folder, whose paths start at the picked folder, reads back with a
- * `/` before them: Copy Path there copies that spelling, and such a page shows no Reveal.
+ * A uri reads back as the path sourceUri was given for a POSIX path, a page's among them (they start
+ * with `/`); a Windows path reads back with its drive letter, and a UNC path with its host,
+ * lower-cased, which is why a FolderTree's rows carry their own.
  */
 export function rowPath(item: HierarchyItem): string | undefined {
   if (item.path !== undefined) return item.path;
   return item.id !== undefined ? uriPath(item.id) : undefined;
+}
+
+function decoded(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return part;
+  }
 }
 
 // A promise's outcome as a value, for a pair of asks one of which may fail alone.

@@ -134,8 +134,9 @@ other files. Its rows carry three fields the hierarchy's never do, which the tre
   click or Enter selects it and sends `dex-hierarchy-selected` with `uri: null`, so nothing opens.
 - `relation`: what a reference is to the row above it ("model reference", "data dictionary",
   "referenced dictionary", "MAT-file"), drawn after the name in the muted ink.
-- `path`: the row's folder or file, for re-rooting and the menu. A reference row has none:
-  `rowPath(item)` reads its file's path from its uri.
+- `path`: the row's folder or file, for re-rooting and the menu, as the host spells it (a
+  reference row's too). `rowPath(item)` answers it, or for a row the hierarchy made, its file's
+  path read back from its uri.
 
 `connectHierarchy(element, hierarchy, { tree })` draws a tree's rows in place of the hierarchy's:
 every ask for rows goes to it (the top level, a row's rows, `reveal`, the walk back to the row the
@@ -150,10 +151,11 @@ const handle = connectHierarchy(element, hierarchy, { tree, expandTopLevel: true
 
 `marks` (or `handle.setMarks(marks)`) is a map from a file's uri (a row's `id`) to how its tab
 stands, in the tabs' own vocabulary, on every row of that file: `open`, a bar in the accent at the
-row's left edge (a border in forced colours); `active`, the active tab, drawn as a selected row is
-and `aria-current="true"`, which is not the tree's selection; `unsaved`, the ● after the label (the
-index's own unsaved mark is the same badge, so a row never shows two); `preview`, the label in
-italics. Set it again as the tabs change; an empty map marks nothing.
+row's left edge (a border in forced colours); `active`, the active tab, `aria-current="true"` and a
+fill lighter than the selection's (it is not the tree's selection, which may be another row);
+`unsaved`, the ● after the label (the index's own unsaved mark is the same badge, so a row never
+shows two); `preview`, the label in italics. Set it again as the tabs change; an empty map marks
+nothing.
 
 ```js
 handle.setMarks(new Map(tabs.map((t) => [t.uri, { open: true, active: t.active, unsaved: t.dirty, preview: t.preview }])));
@@ -161,13 +163,15 @@ handle.setMarks(new Map(tabs.map((t) => [t.uri, { open: true, active: t.active, 
 
 ### A row's menu
 
-A right click on a row, or Shift+F10 or the ContextMenu key on the focused row, sends
-`dex-hierarchy-menu` with the row (`item`) and where to draw the menu: the pointer, or for the
-keyboard (`keyboard: true`) the row's lower left. The browser's own menu is kept away, and the
-tree draws none: the app does (a `<dex-context-menu>`), and a connected tree hands it on as the
-handle's `menu`.
+With `rowMenu` (attribute `row-menu`), a right click on a row, or Shift+F10 or the ContextMenu key
+on the focused row, sends `dex-hierarchy-menu` with the row (`item`) and where to draw the menu:
+the pointer, or for the keyboard (`keyboard: true`) the row's lower left. The browser's own menu
+is kept away, both keys are spent, and the tree names them (`aria-keyshortcuts`). The tree draws
+no menu: the app does (a `<dex-context-menu>`), and a connected tree hands it on as the handle's
+`menu`. Off, the default, the right click and both keys are the browser's, as they always were.
 
 ```js
+element.rowMenu = true;
 handle.on('menu', ({ item, x, y, keyboard }) => contextMenu.show(x, y, menuFor(item), { focusFirst: keyboard === true }));
 ```
 

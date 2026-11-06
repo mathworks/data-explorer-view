@@ -90,8 +90,8 @@ export interface HierarchyItem {
   dimmed?: boolean;
   /**
    * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
-   * Copy Path). Only on a row a FolderTree made from an entry: a reference row has none, and
-   * `rowPath(item)` reads its file's from its uri.
+   * Copy Path). Only on a FolderTree's rows: an entry's path, and a reference's file's spelled as
+   * the root is. FolderHierarchy's rows have none: `rowPath(item)` reads a file's from its uri.
    */
   path?: string;
   /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
