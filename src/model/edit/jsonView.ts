@@ -1193,11 +1193,15 @@ export class JsonView implements EditableTableSource {
 
   // A drop reads its register when the message ARRIVES, not when its turn comes: the source's
   // dragEnd follows it at once and clears the register.
-  drop(rowId: string, mode: 'copy' | 'move'): void {
+  // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
+  drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void {
     if (this.disposed) return;
     const registers = this.doc.options.registers;
     const register = registers.dragRegister(mode, () => registers.broadcastDragState());
-    void this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps()));
+    return this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps())).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   addEntry(msg: NewEntry): void {

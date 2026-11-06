@@ -348,8 +348,13 @@ export interface TableHandle extends InspectorFeed {
    * on that row of the table does: the source's `drop`, so it is one edit of this document, undone by
    * its Undo, and a move takes the entries out of the document they came from. Handed over at once,
    * where `dropDecision` allows it; call it while the drag is on (from the `drop` event), since its
-   * end lets the entries go. Settles a task later, with whether the source refused it and why, for the
-   * app to say: the table's banner says it too. It is no editing menu item, and tells no `ran`.
+   * end lets the entries go. Settles once the source is done with it, with whether it refused it and
+   * why, for the app to say (the table's banner says it too): a task after the promise the source's
+   * `drop` returns (a workspace's documents return one, a JSON dictionary's settling only when the
+   * edits queued before it are done), or a task after the call for a source that returns none (one
+   * across a channel), which has refused it by then or is taken to have dropped it. Anything the
+   * source refuses meanwhile counts against it, as a refusal does not say what it was about. It is no
+   * editing menu item, and tells no `ran`.
    */
   drop(rowId: string, mode: DragMode): Promise<DropResult>;
   /**

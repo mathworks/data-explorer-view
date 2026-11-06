@@ -15,7 +15,7 @@
 //    `ran`.
 // And `dragOut`: the table's rows can be dragged out to such a list, from a document that may not be
 // edited too, as a copy, where its source can put them in the drag register.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectTable, defineTreeTable, type TableHandle } from '../src/widgets/tree-table/index.js';
 import type { DexTreeTable } from '../src/widgets/tree-table/dex-tree-table.js';
 import type { EditableTableSource, TableChange, TableSource, TableView } from '../src/model/index.js';
@@ -181,6 +181,37 @@ describe("the handle's drop", () => {
     emit(DRAGGING_ONE);
     answer.drop = answerWith;
     expect(await handle.drop(DESIGN, 'move')).toEqual({ dropped: false, count: 1, reason });
+  });
+
+  it("waits for a source whose drop finishes later (a JSON dictionary's, queued behind an edit) and hears its refusal then", async () => {
+    const { source, emit } = pageSource();
+    let finish!: () => void;
+    (source as any).drop = () =>
+      new Promise<void>((resolve) => {
+        finish = () => {
+          emit({ kind: 'error', message: 'Kp is already in Design Data.' });
+          resolve();
+        };
+      });
+    const { handle } = await mount(source);
+    emit(RULES);
+    emit(DRAGGING_ONE);
+    let settled: unknown;
+    void handle.drop(DESIGN, 'move').then((r) => (settled = r));
+    // Several tasks on, the edit the drop is queued behind is still being written.
+    for (let i = 0; i < 3; i++) await new Promise((done) => setTimeout(done, 0));
+    expect(settled).toBeUndefined();
+    finish();
+    await vi.waitFor(() => expect(settled).toEqual({ dropped: false, count: 1, reason: 'Kp is already in Design Data.' }));
+  });
+
+  it('settles as dropped once a source that finishes later is done, refusing nothing', async () => {
+    const { source, emit } = pageSource();
+    (source as any).drop = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
+    const { handle } = await mount(source);
+    emit(RULES);
+    emit(DRAGGING_ONE);
+    expect(await handle.drop(DESIGN, 'copy')).toEqual({ dropped: true, count: 1 });
   });
 
   it('hands nothing over where the prediction refuses it, or it is a no-op, and says why', async () => {

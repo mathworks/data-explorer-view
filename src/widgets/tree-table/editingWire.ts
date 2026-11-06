@@ -92,7 +92,9 @@ export interface DropResult {
 
 /** Where a table's rows go as they are dragged out of it (EditingHost.dragOutSource). */
 export interface DragOutSource {
+  /** These rows are being dragged out: take their entries into the drag register. */
   dragStart(rowIds: readonly string[]): void;
+  /** That drag ended, dropped or not. */
   dragEnd(): void;
 }
 
@@ -173,7 +175,8 @@ export interface EditingWire {
   dropDecision(rowId: string | null, mode: DragMode): TableDropDecision | null;
   /**
    * Drop the drag in flight onto `rowId` as a drop on that row does, where `dropDecision` allows it;
-   * settled a task later, with whether the source refused it.
+   * settled once the source is done with it (a task after its promise, or after the call for a source
+   * that returns none), with whether the source refused it.
    */
   drop(rowId: string, mode: DragMode): Promise<DropResult>;
   /**
@@ -303,29 +306,26 @@ export function wireEditing(host: EditingHost): EditingWire {
   // refusal marks every gesture still waiting, as which one it was is not said: none is told rather
   // than the wrong one. So a refusal that comes late for an earlier gesture (one queued behind a slow
   // edit) silences an unrelated gesture handed in the task it lands in: that one is then not said.
-  // A gesture that is no menu item's (a drop from outside the table) is not told as `ran`: it is told
-  // to whoever handed it (`told`), refused or not, with the first reason said meanwhile.
-  interface Waiting {
-    run: EditingRun;
+  // Each keeps the first reason said with a refusal, for a drop from outside the table to say.
+  interface Refusable {
     refused: boolean;
     reason?: string;
-    told?: (w: Waiting) => void;
   }
-  let waiting: Waiting[] = [];
+  let waiting: (Refusable & { run: EditingRun })[] = [];
+  // The drops from outside the table (dropFromOutside) the source has not yet said are done: they
+  // hear a refusal as the gestures above do, for as long as the source takes, not one task.
+  const dropping = new Set<Refusable>();
   let telling: ReturnType<typeof setTimeout> | null = null;
   // Hand the gesture over (`give`), waiting before it is given, so that a refusal said while the
   // source takes it is its own; one the source throws for is not told, and the throw goes on.
-  const hand = (actionId: string, rowIds: string[], count: number, give: () => void, told?: (w: Waiting) => void): void => {
-    const w: Waiting = { run: { actionId, rowIds, count }, refused: false, ...(told ? { told } : {}) };
+  const hand = (actionId: string, rowIds: string[], count: number, give: () => void): void => {
+    const w = { run: { actionId, rowIds, count }, refused: false };
     waiting.push(w);
     telling ??= setTimeout(() => {
       telling = null;
       const done = waiting;
       waiting = [];
-      for (const d of done) {
-        if (d.told) d.told(d);
-        else if (!d.refused) host.ran(d.run);
-      }
+      for (const d of done) if (!d.refused) host.ran(d.run);
     }, 0);
     try {
       give();
@@ -335,7 +335,7 @@ export function wireEditing(host: EditingHost): EditingWire {
     }
   };
   const refused = (reason?: string): void => {
-    for (const w of waiting) {
+    for (const w of [...waiting, ...dropping]) {
       w.refused = true;
       if (w.reason === undefined && typeof reason === 'string' && reason) w.reason = reason;
     }
@@ -441,6 +441,12 @@ export function wireEditing(host: EditingHost): EditingWire {
   // That part's drop: the drop the row sends (the dex-row-drop listener below, on the same terms),
   // where the prediction allows it, handed over at once. A drop is followed straight away by the drag's
   // end, which clears the register the source reads the entries from (Registers.dragRegister).
+  //
+  // It is settled once the source says it is done (its `drop` returns a promise: a JSON dictionary's
+  // waits its turn behind the edits queued before it), else at the end of the task, by when a source
+  // in the page has refused it; then a task more, for what the source said as it ended to reach the
+  // table. Refused if the source refused anything meanwhile, as `ran` is not told: a refusal does not
+  // say which gesture it was about.
   const dropFromOutside = (rowId: string, mode: DragMode): Promise<DropResult> => {
     const count = editable && dragDescriptor ? dragDescriptor.items.length : 0;
     const decision = dropDecisionFor(rowId, mode);
@@ -448,15 +454,25 @@ export function wireEditing(host: EditingHost): EditingWire {
       const reason = decision && !decision.canDrop && decision.tooltip ? { reason: decision.tooltip } : {};
       return Promise.resolve({ dropped: false, count, ...reason });
     }
-    return new Promise<DropResult>((resolve) => {
-      const told = (w: Waiting): void =>
-        resolve(w.refused ? { dropped: false, count, ...(w.reason ? { reason: w.reason } : {}) } : { dropped: true, count });
-      try {
-        hand('drop', [rowId], count, () => source.drop(rowId, mode), told);
-      } catch (err) {
-        resolve({ dropped: false, count, reason: err instanceof Error ? err.message : String(err) });
-      }
-    });
+    const w: Refusable = { refused: false };
+    dropping.add(w);
+    let answer: void | Promise<void>;
+    try {
+      answer = source.drop(rowId, mode);
+    } catch (err) {
+      dropping.delete(w);
+      return Promise.resolve({ dropped: false, count, reason: err instanceof Error ? err.message : String(err) });
+    }
+    const done = Promise.resolve(answer).then(
+      () => undefined,
+      () => undefined,
+    );
+    return done
+      .then(() => new Promise((next) => setTimeout(next, 0)))
+      .then(() => {
+        dropping.delete(w);
+        return w.refused ? { dropped: false, count, ...(w.reason ? { reason: w.reason } : {}) } : { dropped: true, count };
+      });
   };
 
   // Read-only documents never open the inline cell editor. The table opens it on double-click

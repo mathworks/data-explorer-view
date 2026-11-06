@@ -344,8 +344,14 @@ export interface EditableTableSource extends TableSource {
   dragStart(rowIds: readonly string[]): void;
   /** The drag of this table's rows ended, dropped or not. */
   dragEnd(): void;
-  /** The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries there. */
-  drop(rowId: string, mode: 'copy' | 'move'): void;
+  /**
+   * The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries
+   * there. A source whose drop finishes later (a JSON dictionary's waits its turn behind the edits
+   * queued before it) may return a promise, settled once the drop is done, refused or not, which
+   * `handle.drop()` waits for; one that has done it, or refused it, by the end of the task returns
+   * nothing.
+   */
+  drop(rowId: string, mode: 'copy' | 'move'): void | Promise<void>;
   /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
   requestEditText(rowId: string): void;
   /**

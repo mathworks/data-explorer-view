@@ -15,7 +15,7 @@ export type {
   TableMenuContext,
 } from './connectTable.js';
 export { isTypingInField } from './editingWire.js';
-export type { DragOutSource, DropResult, EditingRun, TableDropDecision, TableTextView } from './editingWire.js';
+export type { DropResult, EditingRun, TableDropDecision, TableTextView } from './editingWire.js';
 export type {
   AddEntryDetail,
   EditCompletedDetail,
