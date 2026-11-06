@@ -95,17 +95,21 @@ export class DexAppShell extends LitElement {
                 this._readChildren();
         });
         // A shortcut works wherever the focus is, but not a press another handler took (it prevented
-        // the default), a held chord's repeats (which would flicker a side open and shut), or a key
-        // that is composing text in an input method. A view shown by its shortcut takes the focus, as
-        // VS Code's views do: the chord is how a keyboard gets to a view.
+        // the default) or a key that is composing text in an input method. A held chord's repeats do
+        // nothing (they would flicker a side open and shut) but are spent all the same, so that no one
+        // else acts on them: an Electron menu item with the same accelerator gets the presses a page
+        // leaves, and would show the side the first press hid. A view shown by its shortcut takes the
+        // focus, as VS Code's views do: the chord is how a keyboard gets to a view.
         this._onKeydown = (e) => {
-            if (e.defaultPrevented || e.repeat || e.isComposing)
+            if (e.defaultPrevented || e.isComposing)
                 return;
             const mac = onMac();
             for (const side of SIDES) {
                 const view = this._views[side].find((v) => pressed(v.shortcut, e, mac));
                 if (view) {
                     e.preventDefault();
+                    if (e.repeat)
+                        return;
                     this.toggleView(view.view);
                     if (!view.hidden)
                         void this._focusInto(view);
@@ -115,7 +119,8 @@ export class DexAppShell extends LitElement {
             const action = [...this._actions.left, ...this._actions.right].find((a) => pressed(a.shortcut, e, mac));
             if (action) {
                 e.preventDefault();
-                this._sendAction(action.action);
+                if (!e.repeat)
+                    this._sendAction(action.action);
             }
         };
     }

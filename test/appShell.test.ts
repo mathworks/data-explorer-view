@@ -343,11 +343,20 @@ describe('the chords', () => {
 });
 
 describe('the chords that are not pressed for the shell', () => {
-  it("ignores a held chord's repeats and a key an input method is composing with", async () => {
-    // A repeat would flicker the side open and shut for as long as the keys are held.
+  it("spends a held chord's repeats and does nothing with them", async () => {
+    // A repeat would flicker the side open and shut for as long as the keys are held; left to the
+    // page, it would reach an Electron menu item with the same accelerator, which shows the side
+    // the first press hid.
     const shell = await mount();
     const changes = viewChanges(shell);
-    expect(press({ key: 'E', ctrlKey: true, shiftKey: true, repeat: true }).defaultPrevented).toBe(false);
+    expect(press({ key: 'E', ctrlKey: true, shiftKey: true, repeat: true }).defaultPrevented).toBe(true);
+    expect(changes).toEqual([]);
+    expect(shell.layout.left.open).toBe(true);
+  });
+
+  it('ignores a key an input method is composing with', async () => {
+    const shell = await mount();
+    const changes = viewChanges(shell);
     expect(press({ key: 'E', ctrlKey: true, shiftKey: true, isComposing: true }).defaultPrevented).toBe(false);
     expect(changes).toEqual([]);
     expect(shell.layout.left.open).toBe(true);
@@ -441,6 +450,14 @@ describe('the actions', () => {
     button(shell, 'Settings').getBoundingClientRect = () => rect(0, 600, 36, 36);
     expect(press({ key: ',', ctrlKey: true }).defaultPrevented).toBe(true);
     expect(sent).toEqual([{ actionId: 'settings', anchor: { x: 0, y: 600, width: 36, height: 36 } }]);
+  });
+
+  it("spends the action's held shortcut and sends it once", async () => {
+    const shell = await mount();
+    const sent = actions(shell);
+    press({ key: ',', ctrlKey: true });
+    expect(press({ key: ',', ctrlKey: true, repeat: true }).defaultPrevented).toBe(true);
+    expect(sent.map((s) => s.actionId)).toEqual(['settings']);
   });
 
   it('gives the box of the button of a view or an action from anchorOf, and null for an id it has none for', async () => {
