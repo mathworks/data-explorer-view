@@ -366,6 +366,7 @@ export class DexAppShell extends LitElement {
   // arrive, which is either at once (views written in the page) or later (views a script adds).
   private _known = new Set<ShellSide>();
   private _drag: Drag | null = null;
+  private _sizeObserver: ResizeObserver | null = null;
   // The children are read from the light DOM, not from a slotchange: a closed side, and a side
   // with no views, draws no slot, and a view added to one would never be heard of. Subtree, for
   // the children's attributes; a change further down is a document's own and is not looked at.
@@ -417,11 +418,19 @@ export class DexAppShell extends LitElement {
     // On the window, bubbling: a view's chord works wherever the focus is, and a widget that takes
     // the same keys for itself (a field, a table) prevents the default and keeps them.
     window.addEventListener('keydown', this._onKeydown);
+    // Back on the page after a removal: the parts it observes are drawn already.
+    if (this.hasUpdated) this._observeSize();
+  }
+
+  protected override firstUpdated(): void {
+    this._observeSize();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._observer.disconnect();
+    this._sizeObserver?.disconnect();
+    this._sizeObserver = null;
     window.removeEventListener('keydown', this._onKeydown);
     // A drag the removal cut short ends where it got to, kept as a drag's end is.
     if (this._drag) {
@@ -620,15 +629,48 @@ export class DexAppShell extends LitElement {
     this._keep();
   }
 
-  // The px the side and the center share along the side's axis, as drawn: the center's width and
-  // the sidebar's, or the documents' height and the bottom panel's. Not a number while the shell
-  // is not laid out (display: none, or no layout engine at all), which sets no largest size.
-  private _room(side: ShellSide): number {
-    const center = this.renderRoot.querySelector<HTMLElement>('.center')?.getBoundingClientRect();
-    if (!center || (center.width === 0 && center.height === 0)) return NaN;
-    const box = (selector: string) => this.renderRoot.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
-    if (side === 'bottom') return (box('.docs')?.height ?? 0) + (box('section.bottom')?.height ?? 0);
-    return center.width + (box(`aside.side.${side}`)?.width ?? 0);
+  // The host, for the window's size, and the documents' box, for a side opened or closed beside
+  // them: either changing changes the room. An observer reports each element once it is first
+  // laid out, which is when a size kept on a larger screen is first fitted to this one.
+  private _observeSize(): void {
+    this._sizeObserver?.disconnect();
+    this._sizeObserver = new ResizeObserver(() => this._fit());
+    this._sizeObserver.observe(this);
+    const docs = this.renderRoot.querySelector('.docs');
+    if (docs) this._sizeObserver.observe(docs);
+  }
+
+  // Fits the open sides to the room there is, as a resize of each to its own size would. A size
+  // is kept field by field and clamped only to the side's minimum on the way back (the layout
+  // rules cannot know the window), so a sidebar widened on a large monitor would otherwise come
+  // back pushing the documents off a small window; a side opened beside another can do the same.
+  // The sides in turn, each against the room the ones before it left. Not kept: the window's size
+  // is not a choice of the person's, and the next window may have the room again.
+  private _fit(): void {
+    let next = this._layout;
+    for (const side of SIDES) {
+      const { view, open, size } = next[side];
+      if (open && view !== null) next = resizeSide(next, side, size, this._room(side, next));
+    }
+    if (next !== this._layout) this._setLayout(next);
+  }
+
+  // The px the side and the center share along the side's axis. For a sidebar, the main area's
+  // width less the activity bars and separators drawn in it and the other sidebar at its size in
+  // `layout`, which may be fitted and not yet drawn; for the bottom panel, the center's height
+  // less the status bar and the panel's separator. Measured from the main area, not from the
+  // center, which is already 0 wide when kept sizes overflow the window. Not a number while the
+  // shell is not laid out (display: none, or no layout engine at all), which sets no largest size.
+  private _room(side: ShellSide, layout: ShellLayoutState = this._layout): number {
+    const main = this.renderRoot.querySelector<HTMLElement>('.main');
+    const box = main?.getBoundingClientRect();
+    if (!main || !box || (box.width === 0 && box.height === 0)) return NaN;
+    const height = (selector: string) => this.renderRoot.querySelector<HTMLElement>(selector)?.getBoundingClientRect().height ?? 0;
+    if (side === 'bottom') return height('.center') - height('.status-bar') - height('.resizer.h');
+    let chrome = 0;
+    for (const part of main.children) if (part.matches('.activity, .resizer.v')) chrome += part.getBoundingClientRect().width;
+    const other = layout[side === 'left' ? 'right' : 'left'];
+    return box.width - chrome - (other.open && other.view !== null ? other.size : 0);
   }
 
   override render() {

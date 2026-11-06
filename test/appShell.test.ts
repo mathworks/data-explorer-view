@@ -12,7 +12,7 @@
 //
 // happy-dom lays nothing out, so every box measures 0 there and a resize is held only to the
 // side's minimum; the test of the room a resize leaves the center gives the boxes sizes of its own.
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DexAppShell, defineAppShell, type ShellActionDetail, type ShellViewChangedDetail } from '../src/widgets/app-shell/dex-app-shell.js';
 import { DexShellAction, DexShellView } from '../src/widgets/app-shell/dex-shell-view.js';
 import type { ShellSide } from '../src/model/shell/shellLayout.js';
@@ -29,7 +29,41 @@ afterEach(() => {
   document.body.replaceChildren();
   localStorage.clear();
   Reflect.deleteProperty(navigator, 'platform');
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  FakeResizeObserver.all = [];
 });
+
+// happy-dom's ResizeObserver never reports, so a test that is about the window's size puts this
+// one in its place and reports a resize itself, as a browser does once the shell is laid out.
+class FakeResizeObserver {
+  static all: FakeResizeObserver[] = [];
+  observed: Element[] = [];
+  constructor(private readonly report: () => void) {
+    FakeResizeObserver.all.push(this);
+  }
+  observe(el: Element): void {
+    this.observed.push(el);
+  }
+  unobserve(el: Element): void {
+    this.observed = this.observed.filter((o) => o !== el);
+  }
+  disconnect(): void {
+    this.observed = [];
+  }
+  static resized(el: Element): void {
+    for (const o of FakeResizeObserver.all) if (o.observed.includes(el)) o.report();
+  }
+}
+
+// The boxes a window of some size gives the shell's parts, by selector (0 for any other): happy-dom
+// lays nothing out. A box a test sets on one element itself still wins.
+function layOut(sizes: Record<string, { width?: number; height?: number }>): void {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const box = Object.entries(sizes).find(([selector]) => this.matches(selector))?.[1];
+    return new DOMRect(0, 0, box?.width ?? 0, box?.height ?? 0);
+  });
+}
 
 // The shell hears about its children from a MutationObserver, and each child reflects its
 // properties in an update of its own: a few turns of the event loop settle all of it.
@@ -437,14 +471,88 @@ describe('resizing', () => {
 
   it('leaves the center 200 px of the room it shares with the side', async () => {
     const shell = await mount();
-    // The left side and the center share 220 + 300 px, so the side grows to 320 px at most.
-    part(shell, '.center')!.getBoundingClientRect = () => rect(261, 80, 300, 600);
-    part(shell, 'aside.side.left')!.getBoundingClientRect = () => rect(37, 80, 220, 600);
+    // An 842 px main area: two 37 px activity bars, two 4 px separators and the 240 px right side
+    // leave the left side and the center 520 px, so the side grows to 320 px at most.
+    layOut({ '.main': { width: 842, height: 600 }, '.activity': { width: 37 }, '.resizer.v': { width: 4 } });
     const left = sash(shell, 'left');
     left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     expect(shell.layout.left.size).toBe(320);
+  });
+});
+
+describe('fitting to the window', () => {
+  // A 1000 x 700 main area: 82 px of activity bars and separators across it, and a 28 px status
+  // bar and a 4 px separator down the center.
+  const WINDOW = {
+    '.main': { width: 1000, height: 700 },
+    '.center': { height: 700 },
+    '.status-bar': { height: 28 },
+    '.activity': { width: 37 },
+    '.resizer.v': { width: 4 },
+    '.resizer.h': { height: 4 },
+  };
+  const withTerminal = (): Element[] => [...standard(), view('bottom', 'terminal', 'Terminal')];
+
+  it('fits sizes kept on a larger screen once the shell is laid out, and keeps what was kept', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const kept = JSON.stringify({ left: { view: 'explorer', open: true, size: 1200 }, bottom: { view: 'terminal', open: true, size: 900 } });
+    localStorage.setItem('shell-test', kept);
+    const shell = await mount(withTerminal(), 'shell-test');
+    // Before any layout there is nothing to fit to.
+    expect([shell.layout.left.size, shell.layout.bottom.size]).toEqual([1200, 900]);
+
+    layOut(WINDOW);
+    FakeResizeObserver.resized(shell);
+    await settle(shell);
+    // Left: 1000 - 82 - the right side's 240 = 678 shared with the center, so 478. Bottom: 700 -
+    // 28 - 4 = 668 shared with the documents, so 468. The right side's 240 fits as it is.
+    expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([478, 240, 468]);
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('478px');
+    // The window's size is not the person's choice: a larger window gets the kept sizes back.
+    expect(localStorage.getItem('shell-test')).toBe(kept);
+  });
+
+  it('fits each side against what the one before it left, when both overflow', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    localStorage.setItem('shell-test', JSON.stringify({ left: { size: 600 }, right: { size: 600 } }));
+    const shell = await mount(standard(), 'shell-test');
+    layOut(WINDOW);
+    FakeResizeObserver.resized(shell);
+    await settle(shell);
+    // Left first: 1000 - 82 - 600 = 318 shared, so its minimum, 140; then the right, beside a
+    // 140 px left side: 1000 - 82 - 140 = 778 shared, so 578. The center keeps its 200 px.
+    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([140, 578]);
+  });
+
+  it('fits a side opened in a window too small for its size, when the documents are resized', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    localStorage.setItem('shell-test', JSON.stringify({ left: { view: 'explorer', open: false, size: 1200 } }));
+    const shell = await mount(standard(), 'shell-test');
+    layOut(WINDOW);
+    FakeResizeObserver.resized(shell);
+    await settle(shell);
+    // Closed, it has nothing to fit.
+    expect(shell.layout.left).toEqual({ view: 'explorer', open: false, size: 1200 });
+
+    button(shell, 'Explorer').click();
+    await settle(shell);
+    FakeResizeObserver.resized(part(shell, '.docs')!);
+    await settle(shell);
+    expect(shell.layout.left).toEqual({ view: 'explorer', open: true, size: 478 });
+  });
+
+  it('stops watching the size once the shell is removed, and watches again when it is back', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const shell = await mount();
+    const watched = () => FakeResizeObserver.all.flatMap((o) => o.observed);
+    expect(watched()).toEqual([shell, part(shell, '.docs')]);
+    shell.remove();
+    expect(watched()).toEqual([]);
+    document.body.append(shell);
+    await settle(shell);
+    expect(watched()).toEqual([shell, part(shell, '.docs')]);
   });
 });
 
