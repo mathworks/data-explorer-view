@@ -197,8 +197,9 @@ describe('Back, Forward and Up', () => {
   });
 
   it('nor one the app has just turned off, before it is drawn disabled', async () => {
-    // The button is redrawn a microtask after the property changes, and a click in between would
-    // ask the app for a move it has just said it cannot make (Back past the start of its history).
+    // The button is redrawn a microtask after the property changes. A user's click cannot land
+    // in that gap, but a script's click() in the same task does, and would ask the app for a move
+    // it has just said it cannot make (Back past the start of its history).
     const el = await bar({ segments: PATH, canBack: true });
     const seen = heard();
     el.canBack = false;

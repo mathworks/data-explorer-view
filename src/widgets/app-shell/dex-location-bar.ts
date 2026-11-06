@@ -156,6 +156,15 @@ export class DexLocationBar extends LitElement {
       box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
     }
 
+    /* The same reason in forced colours, where the shared rule draws an outline 2px outside the
+       button instead: the box cut its top and bottom off, leaving a focused segment two bars.
+       Drawn inside it, the outline is whole. */
+    @media (forced-colors: active) {
+      .segment:focus-visible {
+        outline-offset: -2px !important;
+      }
+    }
+
     .segment dex-icon {
       flex-shrink: 0;
     }
@@ -177,9 +186,11 @@ export class DexLocationBar extends LitElement {
   /** Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`. */
   @property({ type: Boolean, attribute: 'can-up' }) canUp = false;
 
-  // Each button checks again that it can be used, though a disabled one takes no click: the
-  // button is redrawn disabled a microtask after the app says it cannot be used, and a click in
-  // between would ask for a move the app has just ruled out (Back past the start of its history).
+  // Each button checks again that it can be used, though a disabled one takes no click. The
+  // button is redrawn disabled a microtask after the app says it cannot be used, which is before
+  // the next input event, so no click of the user's lands in between; a script's click() in the
+  // same task does, and would ask for a move the app has just ruled out (Back past the start of
+  // its history).
   private _go(to: LocationGoDetail['to'], allowed = true): void {
     if (!allowed) return;
     this.dispatchEvent(new CustomEvent<LocationGoDetail>('dex-location-go', {
