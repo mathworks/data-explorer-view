@@ -47,7 +47,10 @@ turns the API off), get the right column.
 
 A download marks the document saved: the user has the file. The page holds the file as it
 downloaded it from then on, so the tab, and the file opened again, show what was saved; the file on
-disk is as it was, and the shell says "Downloaded plant.sldd" rather than "Saved". The same holds
+disk is as it was, and the shell says "Downloaded plant.sldd" rather than "Saved". A browser tells
+the page nothing of a download once it has handed it over: one the browser blocked, or the user
+cancelled in its download prompt, still leaves the tab saved, and the page's copy is the one to
+download again (Save As). The same holds
 in Chromium for a file the page has no handle to (a drop without handles, or bytes of the app's
 own): its Save is a download too, and Save As there writes a file the page may then save in place.
 A File (the right column, or a Chromium drop without handles) refers to the file on disk, and a
