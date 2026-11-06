@@ -103,6 +103,25 @@ const handle = connectTable(table, messageSource(port), {
 });
 ```
 
+`inspectorPages` and `inspectorEditing` decide what an inspector following the handle
+(connectInspector) is sent. Both are off by default, and the inspector shows the first selected
+row's properties, read-only, and nothing for no row or a section heading.
+- **`inspectorPages`:** the file's own page while no row is selected, a section heading's, "3
+  selected" for several rows, and a row's Usage links as a group of their own.
+- **`inspectorEditing`, with `editing`:** rows are editable where the document may be edited and
+  takes an edit of the property. A change of one comes back through `handle.edit()`, which writes
+  it as a cell edit is: a refusal opens the error dialog, and the page is sent again so the field
+  shows what the document holds. `commitEdit()` waits for it.
+- **`handle.refreshInspector()`:** asks for the page again, for a change the table does not hear
+  of. The file's page says whether the document holds edits: call it whenever that changes (the
+  document's `onDirty`, a save among them). A page that is the one last sent is not sent again.
+
+```js
+const handle = connectTable(table, doc.table, { editing: true, inspectorPages: true, inspectorEditing: true });
+connectInspector(inspector, handle);
+doc.onDirty(() => handle.refreshInspector());
+```
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.

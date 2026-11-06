@@ -30,6 +30,18 @@ bar.addEventListener('dex-location-go', (e) => {
 Back and Forward send nothing while their `can-back` and `can-forward` are off, and Up nothing
 while `can-up` is. A press of the last segment, the current place, is sent all the same.
 
+A segment with `preview` is a place only looked at, not gone to (a file selected in a graph): it
+is drawn dimmed after the current place, which is then the segment before it, and a press on it
+is sent as on any other. A segment's `description` is what a screen reader hears of it past its
+label, such as why it is dimmed.
+
+```js
+bar.segments = [
+  { label: 'Root' },
+  { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', preview: true, description: 'selected in the graph' },
+];
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance
