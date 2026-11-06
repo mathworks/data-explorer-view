@@ -5,7 +5,7 @@
 // data model as the user typed; this one searches nothing. What is typed goes out as a request,
 // and the app answers with the results, so the same panel serves a page that searches its open
 // files in the page (namesOfRows) and one whose folder is indexed in another process (NameIndex),
-// and the rule for what matches stays the model's (searchEntries), in one place.
+// and the rule for what matches, and in what order, stays the model's (searchRanked), in one place.
 //
 // The results are a listbox the box controls, as a combobox's are: the focus stays in the box,
 // the arrows move the active row (aria-activedescendant), and Enter opens it, so a user types,
@@ -83,7 +83,8 @@ function whereInFile(item: SearchItem): string {
 /**
  * The app shell's Search panel: a search box, the scope it searches under it, and the matches
  * grouped by file (each group headed by the file's name and how many it holds, each row an
- * entry's icon, its name with the match marked, and where it is in the file). It asks and
+ * entry's icon, its name with the match marked, where it is in the file, and what it is where its
+ * result says: SearchItem's `type`). It asks and
  * draws: a pause in the typing sends `dex-search-query`, the app sets `results` in answer, and
  * Enter or a click on a result sends `dex-search-open`.
  *
@@ -236,6 +237,19 @@ export class DexSearchPanel extends LitElement {
       color: var(--dex-color-text-muted, #666);
     }
 
+    /* What the entry is, at the row's far end as a file's count is at its heading's, so the names
+       and the types each line up. It gives way before the name, with its own ellipsis. */
+    .type {
+      flex-shrink: 1;
+      min-width: 0;
+      margin-left: auto;
+      padding-left: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 11px;
+      color: var(--dex-color-text-muted, #666);
+    }
+
     mark {
       background: var(--dex-match-highlight-bg, rgba(234, 92, 0, 0.33));
       color: inherit;
@@ -260,8 +274,8 @@ export class DexSearchPanel extends LitElement {
   `];
 
   /**
-   * The matches to show for the query in the box, in the order the app gives them (searchEntries'
-   * items: by name, then by file). They are drawn grouped by file, each file where its first
+   * The matches to show for the query in the box, in the order the app gives them (searchRanked's
+   * items: the best match first). They are drawn grouped by file, each file where its first
    * result is. Shown only while the box holds a query. Default none. Property only.
    */
   @property({ attribute: false }) results: SearchItem[] = [];
@@ -478,6 +492,7 @@ export class DexSearchPanel extends LitElement {
         <dex-icon .iconId=${item.iconId} size="16"></dex-icon>
         <span class="label">${this._label(item.label)}</span>
         ${where ? html`<span class="where">${where}</span>` : nothing}
+        ${item.type ? html`<span class="type">${item.type}</span>` : nothing}
       </div>
     `;
   }

@@ -56,6 +56,23 @@ describe('the Search view', () => {
     await until(() => found().length === 0);
   });
 
+  it("ranks the best match first, and finds an open file's entries by their value and their type, saying what each is", async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
+    await open(page, 'params.sldd', 'shadow_ws.slx');
+    // A name that begins with the query first, then the entries of the file whose name holds it.
+    ask('ws');
+    await until(() => found().length > 0);
+    expect(found()).toEqual(['WsGain@shadow_ws.slx', 'DictOnly@shadow_ws.slx', 'Kp@shadow_ws.slx']);
+    // A block by its type, which its row says.
+    ask('constant');
+    await until(() => found().join() === 'DictOnly@shadow_ws.slx');
+    expect(searchPanel().results[0]!.type).toBe('Constant');
+    // An entry by its value: Ki is 3.
+    ask('3');
+    await until(() => found().join() === 'Ki@params.sldd');
+    expect(searchPanel().results[0]!.type).toBe('double');
+  });
+
   it("finds an open file's unsaved rename by its new name", async () => {
     const page = startPage({ 'params.sldd': 'params.sldd' });
     await open(page, 'params.sldd');
@@ -86,7 +103,8 @@ describe('the Search view', () => {
     ask('gain');
     expect(panel.searching).toBe(true);
     await until(() => found().length === 3);
-    expect(found()).toEqual(['PlantGain@shared_gain.slx', 'Trim@shared_gain.slx', 'WsGain@shadow_ws.slx']);
+    // The names that hold the query, then Trim, whose file's name does.
+    expect(found()).toEqual(['PlantGain@shared_gain.slx', 'WsGain@shadow_ws.slx', 'Trim@shared_gain.slx']);
     expect(panel.searching).toBe(false);
     // params.sldd open, its Kp renamed and unsaved: the folder's Kp of it is not offered.
     void page.handle.openPaths([path.join(dir, 'params.sldd')]);

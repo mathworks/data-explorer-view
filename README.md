@@ -486,7 +486,8 @@ command palette opens over it all. `connectShell` builds all of it in an empty
 tabs, saves them, asks before unsaved edits are lost, reloads a file that
 changed on disk, follows links from file to file, and shows a folder with its
 Usage and search, each as the sections above describe. With no folder shown,
-the Usage column is answered over the files open.
+the Usage column is answered over the files open. Search ranks what it finds
+by name, value and type, best first, and says what each entry is.
 
 ```js
 import 'data-explorer-view/theme.css';

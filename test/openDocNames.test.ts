@@ -183,3 +183,27 @@ describe('namesOfRows over rows as a table holds them', () => {
     expect(namesOfRows(rows, 'file:///w/m.slx', 'model')[0]!.blockPath).toBe('Gain');
   });
 });
+
+describe('namesOfRows with cells', () => {
+  // For the app shell's ranked search, which matches on what a table shows beside the name and
+  // says what each match is. The records are the index's otherwise: the parity above holds.
+  it("adds each entry's Value, Data Type and Class as its row shows them, and nothing else", async () => {
+    const { rows, kind } = await rowsOf('params.sldd', true);
+    const uri = sourceUri(pathOf('params.sldd'));
+    const records = namesOfRows(rows, uri, kind, { cells: true });
+    expect(records.map(({ value, dataType, className, ...rest }) => rest)).toEqual(namesOfRows(rows, uri, kind));
+    expect(records.find((r) => r.name === 'Kp')).toMatchObject({ value: '1', dataType: 'double', className: 'double' });
+  });
+
+  it("gives a block its type and no value, and an object its class", async () => {
+    const model = await rowsOf('shadow_ws.slx', false);
+    const blocks = namesOfRows(model.rows, sourceUri(pathOf('shadow_ws.slx')), model.kind, { cells: true }).filter((r) => r.kind === 'block');
+    expect(blocks.map((r) => [r.name, r.value, r.dataType, r.className])).toEqual([
+      ['WsGain', undefined, 'Gain', undefined],
+      ['DictOnly', undefined, 'Constant', undefined],
+    ]);
+    const mat = await rowsOf('mcos/object_props.mat', false);
+    const vars = namesOfRows(mat.rows, sourceUri(pathOf('mcos/object_props.mat')), mat.kind, { cells: true });
+    expect(vars.find((r) => r.name === 'v')).toMatchObject({ value: '<1x1 Vehicle>', className: 'Vehicle' });
+  });
+});
