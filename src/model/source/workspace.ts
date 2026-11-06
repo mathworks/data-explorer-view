@@ -35,6 +35,7 @@ import { createTextStore, type PageTextStore } from '../edit/textStore.js';
 import { MatEngine, type MatSave } from '../edit/matEngine.js';
 import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
+import { newDictionaryBytes } from './newDictionary.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
 import type { ChildRows, EditableTableSource, InspectOptions, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
@@ -206,6 +207,16 @@ export interface Workspace {
    * with what the table's error banner says.
    */
   open(bytes: ArrayBuffer | Uint8Array, name: string, uri?: string): Promise<Doc>;
+  /**
+   * Open a new data dictionary `name` (a `.sldd`), empty, which no file holds yet: the shell's New.
+   * It is what MATLAB writes for a new dictionary, a text one, edited as any JSON dictionary is, and
+   * unsaved from the start: dirty, whatever is undone, until a save of it lands (`saved`), which
+   * writes the file. `uri` is as for `open`.
+   *
+   * Rejects for a workspace not made with `editing`, a name that is not a dictionary's, and as `open`
+   * does: a uri already open here, or a workspace that is closed.
+   */
+  create(name: string, uri?: string): Promise<Doc>;
   /** The open document of `uri`, if there is one. */
   get(uri: string): Doc | undefined;
   /**
@@ -938,6 +949,15 @@ class EditableJsonDoc implements HeldDoc {
     // Nothing moved for a save until its bytes were written.
   }
 
+  /**
+   * No file holds the document yet (Workspace.create): no state of its text's undo stack is a file,
+   * so it is dirty until a save of it lands. Its Status column is measured from the text it was
+   * made with, as from a file it had been read from.
+   */
+  untitled(): void {
+    this.text.diverged();
+  }
+
   async keepOver(bytes: ArrayBuffer | Uint8Array): Promise<void> {
     if (this.disposed) throw new Error(`${this.name} is closed.`);
     const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -1115,19 +1135,33 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
     },
   };
   let disposed = false;
+  // The uri a document of `name` opens under, unless another document holds it.
+  const freeUri = (name: string, uri: string | undefined): string => {
+    const id = uri ?? sourceUri(`/${name}`);
+    if (docs.has(id)) throw new Error(`${id} is already open in this workspace.`);
+    return id;
+  };
   return {
     async open(bytes, name, uri) {
       if (disposed) throw new Error('This workspace is closed.');
-      const id = uri ?? sourceUri(`/${name}`);
       const kind = docKindOf(name);
       if (!kind) {
         throw new Error(
           `${name} is not a file this workspace opens: it opens data dictionaries (.sldd), models (.slx, .mdl), MAT-files (.mat) and projects.`,
         );
       }
-      if (docs.has(id)) throw new Error(`${id} is already open in this workspace.`);
+      const id = freeUri(name, uri);
       const doc: HeldDoc = (options.editing && editableDoc(shared, id, name, kind, bytes)) || new InPageDoc(shared, id, name, kind, arrayBufferOf(bytes));
       docs.set(id, doc);
+      return doc;
+    },
+    async create(name, uri) {
+      if (disposed) throw new Error('This workspace is closed.');
+      if (!options.editing) throw new Error('A workspace that does not edit makes no new file: create it with createWorkspace({ editing: true }).');
+      if (docKindOf(name) !== 'dictionary') throw new Error(`${name} is not a data dictionary (.sldd), which is what a new file is.`);
+      const doc = new EditableJsonDoc(shared, freeUri(name, uri), name, newDictionaryBytes());
+      doc.untitled();
+      docs.set(doc.uri, doc);
       return doc;
     },
     get: (uri) => docs.get(uri),

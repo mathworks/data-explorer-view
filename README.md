@@ -246,6 +246,10 @@ async function save() {
   document over the file. **In a MAT-file, a variable changed only on disk is
   not marked, and the next save writes the kept value over it.** A document the
   page does not edit reads `bytes`, as `reload` does.
+- `ws.create(name, uri)` opens a new, empty data dictionary that no file holds
+  yet (the app shell's New): what MATLAB writes for a new dictionary, a text
+  one, edited as any JSON dictionary is. It is dirty from the start, whatever is
+  undone, until a save of it lands; that save writes the file.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only
