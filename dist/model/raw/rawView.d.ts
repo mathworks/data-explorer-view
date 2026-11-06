@@ -30,7 +30,8 @@ export declare function rawOfNode(node: unknown): RawView;
 /**
  * A value as JSON, two spaces deep: null and undefined (no record) are nothing. A BigInt, which
  * JSON has no number for (core's MAT reader holds a 64-bit integer as one), is written as its
- * digits, quoted; a value JSON cannot write at all (a cycle) is its text, as ts fell back to.
+ * digits, quoted; a value JSON cannot write at all (a cycle) is its text, as the prototype fell
+ * back to.
  */
 export declare function rawOfValue(value: unknown): RawView;
 /**
@@ -39,9 +40,9 @@ export declare function rawOfValue(value: unknown): RawView;
  */
 export declare const HEX_LIMIT: number;
 /**
- * `bytes` as a hex dump, 16 bytes a line, as ts drew its MAT-file values: the offset (8 hex
- * digits), the bytes, and what they read as in ASCII, a dot for a byte that does not print. At most
- * `max` bytes (HEX_LIMIT unless given), then a line saying how many more there are.
+ * `bytes` as a hex dump, 16 bytes a line, as the prototype drew its MAT-file values: the offset (8
+ * hex digits), the bytes, and what they read as in ASCII, a dot for a byte that does not print. At
+ * most `max` bytes (HEX_LIMIT unless given), then a line saying how many more there are.
  */
 export declare function formatHex(bytes: Uint8Array, max?: number): string;
 /**

@@ -19,7 +19,7 @@ import {
 beforeAll(() => defineExplorer());
 afterEach(() => document.body.replaceChildren());
 
-// A dictionary with its four sections, as ts shows dd.sldd, and one file of each other kind.
+// A dictionary with its four sections, as the prototype shows one, and one file of each other kind.
 const DD: ExplorerFile = {
   id: 'file:///w/dd.sldd',
   label: 'dd.sldd',
@@ -160,7 +160,7 @@ describe('the rows', () => {
     expect(labels(el)).toEqual(['Workspace']);
   });
 
-  it('marks a file with unsaved changes, as ts shows "dd.sldd *", and says so to a screen reader', async () => {
+  it('marks a file with unsaved changes, as the prototype shows "dd.sldd *", and says so to a screen reader', async () => {
     const el = await explorer([{ ...DD, dirty: true }, MODEL]);
     expect(labels(el)).toEqual(['Root', 'm.slx', 'dd.sldd *']);
     const dd = rowOf(el, 'dd.sldd *');
@@ -177,7 +177,7 @@ describe('the rows', () => {
     expect(rowOf(el, 'm.slx').querySelector('.dirty, .sr-only')).toBeNull();
   });
 
-  it('lines a heading up with the icons of the files under it, as ts does', async () => {
+  it('lines a heading up with the icons of the files under it, as the prototype does', async () => {
     // Laid out as a row is: the same zero-width indent and empty twisty before the words, each
     // taking the same gap, so the words start where a file's icon does.
     const el = await explorer([DD]);

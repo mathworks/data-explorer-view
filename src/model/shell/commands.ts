@@ -5,7 +5,7 @@
 // enough for an app to give from what it already holds (CommandTarget): the documents it has open,
 // the rows of the active one's table, and that table source's own commands.
 //
-// It is the prototype's CommandController (src/core/CommandController.ts) without two things.
+// It is the prototype's command interpreter without two things.
 // It runs no JavaScript: the older app evaluated any line it did not know as a JS expression, which
 // a page under a strict content security policy (no 'unsafe-eval') cannot do, and `help` says so
 // rather than leaving a person to find out. And it changes a document only as the table would: an

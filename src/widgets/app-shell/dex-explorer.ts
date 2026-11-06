@@ -72,7 +72,7 @@ export interface ExplorerMenuDetail {
   y: number;
 }
 
-// The headings, in the order they are drawn, as ts's Workspace tree lists them.
+// The headings, in the order they are drawn, as the prototype's Workspace tree lists them.
 const GROUPS: readonly { group: ExplorerGroup; heading: string }[] = [
   { group: 'model', heading: 'Simulink Models' },
   { group: 'sldd', heading: 'Data Dictionaries' },
@@ -141,7 +141,7 @@ export class DexExplorer extends LitElement {
 
     /* A heading is laid out as a row, with the indent's and the twisty's places kept (each takes
        the row's gap, the empty indent too), so its words line up with the icons of the files
-       under it, as ts's do. */
+       under it, as the prototype's do. */
     .row,
     .heading {
       display: flex;
@@ -174,8 +174,8 @@ export class DexExplorer extends LitElement {
       box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
     }
 
-    /* Muted and smaller than a file's name, as ts's, but in the muted ink rather than its disabled
-       grey, which is too faint to read at this size. */
+    /* Muted and smaller than a file's name, as the prototype's, but in the muted ink rather than its
+       disabled grey, which is too faint to read at this size. */
     .heading {
       color: var(--dex-color-text-muted, #666);
       font-size: 11px;
@@ -480,8 +480,8 @@ export class DexExplorer extends LitElement {
   private _label(line: Line) {
     if (line.kind === 'root') return html`<span class="label">${this.rootLabel}</span>`;
     if (line.kind === 'section') return html`<span class="label">${line.section.label}</span>`;
-    // The mark is ts's, and its tab's: `*` after the name, the row's gap the space before it. A
-    // screen reader hears what it means instead.
+    // The mark is the prototype's, and its tab's: `*` after the name, the row's gap the space before
+    // it. A screen reader hears what it means instead.
     const name = html`<span class="label">${line.file.label}</span>`;
     return line.file.dirty
       ? html`${name}<span class="dirty" aria-hidden="true">*</span><span class="sr-only">(unsaved changes)</span>`

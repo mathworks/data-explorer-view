@@ -5,11 +5,11 @@
 // bar asks it whether each button is enabled and where a click goes; the shell tells it each place
 // that is shown, and which places a closed tab took with it.
 //
-// It is the prototype's NavigationService (src/core/NavigationService.ts) without the store it
-// listened to: a list and a cursor, a new place after Back dropping the places ahead, and the
-// place already shown never pushed a second time. Two rules are this package's own. The list is
-// capped, so a long session does not grow it without bound. And it can forget places, since a tab
-// here can close: Back must not land on a place that no longer exists.
+// It is the prototype's navigation history without the store it listened to: a list and a cursor, a
+// new place after Back dropping the places ahead, and the place already shown never pushed a second
+// time. Two rules are this package's own. The list is capped, so a long session does not grow it
+// without bound. And it can forget places, since a tab here can close: Back must not land on a
+// place that no longer exists.
 //
 // Generic over the place, compared by the caller's `same` rather than by identity, because a place
 // is plain data rebuilt on every change (a fresh object for the same tab and node is the same place).

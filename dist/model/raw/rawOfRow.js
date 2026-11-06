@@ -18,9 +18,9 @@
 //   data source or reference       model says of it, the facts core read from the file
 //
 // A section heading and the file itself have no record of their own that is cheap to write (a
-// dictionary's whole text can be 46 MB), so each has a summary of itself, as ts's Raw pane had: a
-// section's name and size; a dictionary's core properties, references and size; a MAT-file's
-// header; a model's release, UUID, dictionary and the parts of its package.
+// dictionary's whole text can be 46 MB), so each has a summary of itself, as the prototype's Raw
+// pane had: a section's name and size; a dictionary's core properties, references and size; a
+// MAT-file's header; a model's release, UUID, dictionary and the parts of its package.
 //
 // Total, as every answer of a TableSource is: a row that is not there has nothing to show, and a
 // node core will not write says so.

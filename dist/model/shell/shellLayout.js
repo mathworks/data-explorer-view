@@ -5,13 +5,12 @@
 // draws what this says and keeps it in localStorage, so a person who closed the bottom panel and
 // widened the explorer finds it so the next time the app starts.
 //
-// The rules are those of the prototype's shell (dex-app.ts, _toggleLeft and _onMouseMove): a
-// click on the activity button of the view a side shows closes the side, and any other click
-// opens the side on that view; a sash cannot make a side narrower than its minimum. Two are this
-// package's own. A sash cannot push the center below 200 px either, which the prototype did not
-// guard, so a side dragged across the window left nothing to read. And what was kept is read field
-// by field, because it outlives the app that wrote it: a view a later version dropped, or a store
-// edited by hand, falls back to a default for that field alone.
+// The rules are those of the prototype's shell: a click on the activity button of the view a side
+// shows closes the side, and any other click opens the side on that view; a sash cannot make a side
+// narrower than its minimum. Two are this package's own. A sash cannot push the center below 200 px
+// either, which the prototype did not guard, so a side dragged across the window left nothing to
+// read. And what was kept is read field by field, because it outlives the app that wrote it: a view
+// a later version dropped, or a store edited by hand, falls back to a default for that field alone.
 //
 // Pure and DOM-free: the element measures the room and owns the storage, so every rule here is a
 // unit test away. State objects are never changed in place; each function hands back a new one,

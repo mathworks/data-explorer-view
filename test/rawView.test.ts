@@ -8,8 +8,8 @@
 // holds, one that threw would leave the pane blank on a file it could not read, and a dump with no
 // cap would hang the page on a large matrix. So the tokenizers are held to giving back exactly the
 // text they were given, on any text at all (malformed, cut short, random), and the dump to its
-// layout and its cap. rawOfNode is held to ts's rules over hand-made nodes; what each kind of
-// document answers, over real files, is test/rawSource.test.ts.
+// layout and its cap. rawOfNode is held to the prototype's rules over hand-made nodes; what each
+// kind of document answers, over real files, is test/rawSource.test.ts.
 import { describe, expect, it } from 'vitest';
 import {
   HEX_LIMIT,

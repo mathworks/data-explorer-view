@@ -24,7 +24,7 @@ export type GraphEdgeKind = 'model-ref' | 'sldd-ref' | 'data-link' | 'param-usag
  *
  * `group` says where in its box it is drawn. A dictionary's and a MAT-file's items are all `data`;
  * a model's are its blocks (`data`, drawn first) and then the model-workspace variables they read
- * (`workspace`, drawn under a divider), as ts drew them.
+ * (`workspace`, drawn under a divider), as the prototype drew them.
  */
 export interface GraphItem {
   /** Unique in the graph, and never a file's uri; the same item has the same id in the next graph. */
