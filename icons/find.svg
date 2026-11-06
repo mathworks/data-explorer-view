@@ -1,0 +1,4 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12.5 14.5L8.5 10.5L10.5 8.5L14.5 12.5C15.0523 13.0523 15.0523 13.9477 14.5 14.5C13.9477 15.0523 13.0523 15.0523 12.5 14.5Z" fill="var(--mw-icon-background-default-medium-gray, #D9D9D9)" stroke="var(--mw-icon-border-default-gray, #616161)"/>
+<path d="M9.88912 2.11091C12.037 4.2588 12.037 7.7412 9.88905 9.88909C7.74115 12.037 4.25874 12.037 2.11088 9.88909C-0.0369877 7.7412 -0.0369539 4.2588 2.11095 2.11091C4.25885 -0.0369709 7.74126 -0.036971 9.88912 2.11091Z" fill="var(--mw-icon-background-default-white, #FFFFFF)" stroke="var(--mw-icon-border-default-gray, #616161)"/>
+</svg>

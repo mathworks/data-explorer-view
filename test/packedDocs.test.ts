@@ -34,6 +34,8 @@ describe('the packed docs', () => {
   it('are the README and every doc, the widgets pages and the folder session among them', () => {
     expect(docs).toContain('README.md');
     expect(docs).toContain('docs/folder-session.md');
+    expect(docs).toContain('docs/browser-host.md');
+    expect(docs).toContain('docs/widgets/app-shell.md');
     expect(docs.filter((f) => f.startsWith('docs/widgets/')).length).toBeGreaterThan(10);
   });
 

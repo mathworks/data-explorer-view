@@ -25,9 +25,11 @@ npm run test:gallery    # the browser tests (see below)
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
 | `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, a search finds an entry by name, the selection fills the inspector, the matrix glyph opens the editor |
 | `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`); with `?limit=N`, a listing cut at N files, which the tree's last row says |
+| `app.html` | a whole app, `<dex-app-shell>` filled by `connectShell` over `browserHost()`: the gallery's files open as tabs (`host.files.addPicked`, `openPaths`), a folder of models and dictionaries in the Explorer (`host.openFolder`), the inspector, Raw, Search, the Gallery, the Terminal, the Log, the relationship graph at Root, Settings and the command palette |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
-`data-theme` on `<html>`, which is all `theme.css` reads.
+`data-theme` on `<html>`, which is all `theme.css` reads. The app page has none: the window is
+the app's, and its theme is the shell's own Settings, kept in the page's storage.
 
 ## How it uses the package
 
@@ -87,6 +89,11 @@ widgets to the document's table source:
   them (`listedFiles`, cut at `?limit=`), and in the page a `FolderHierarchy` over
   `folderReader(portFromMessagePort(port))`, through which the page reads the files it opens too.
   The table's `resolveLink` is the hierarchy's, and each file it opens is revealed in the tree.
+- `app.ts`: what a team's web app writes to host the app shell, with no backend:
+  `defineShellWidgets()`, then `connectShell(shell, { host })` over `browserHost({ onFolder,
+  onChanged })`, `installFileDrop` for files dropped on the window, and `beforeunload` asking
+  while `host.edited`. The fixtures' bytes go in as files the user picked would, and the folder
+  as files listed in a folder the user picked.
 
 - `project-page.ts`: `<dex-project-page>`, given the message `projectPageMessage` builds from a
   project's store (`src/projects.ts` reads the fixture's XML files, bundled by Vite); its

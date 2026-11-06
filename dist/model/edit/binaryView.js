@@ -14,6 +14,8 @@ import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
+import { rawOfRow } from '../raw/rawOfRow.js';
+import { noRaw } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
@@ -338,6 +340,14 @@ export class BinaryView {
         const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
         new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
         return view;
+    }
+    // The Raw pane's answer for a row (raw/rawOfRow.ts), off the model as it stands: at rest, the
+    // chunk as edited, which is what a save writes. Nothing once closed: the model a closed view
+    // asked for would be registered again.
+    async raw(rowId) {
+        if (this.closed || this.doc.disposed)
+            return noRaw();
+        return rawOfRow({ root: () => this.doc.liveModel(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId);
     }
     subscribe(listener) {
         this.listeners.add(listener);

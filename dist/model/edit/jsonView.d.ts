@@ -1,3 +1,4 @@
+import { type RawView } from '../raw/rawView.js';
 import { type CellEdit, type ChildRows, type EditableTableSource, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
 import type { JsonDocument, JsonTableOptions } from './jsonEngine.js';
 /** One table of a JSON dictionary: resolveCustomTextEditor's view, as an EditableTableSource. */
@@ -223,6 +224,7 @@ export declare class JsonView implements EditableTableSource {
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
     inspect(selection: string | readonly string[]): Promise<InspectorView>;
+    raw(rowId: string): Promise<RawView>;
     private findForRead;
     subscribe(listener: (change: TableChange) => void): () => void;
     undo(): void;

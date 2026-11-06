@@ -1,4 +1,5 @@
 import { type AppliedOp } from 'data-explorer-core';
+import { type RawView } from '../raw/rawView.js';
 import { type CellEdit, type ChildRows, type EditableTableSource, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
 import type { BinaryDocument, ModelSource } from './binaryEngine.js';
 /** One table of a compressed dictionary: resolveCustomEditor's view, as an EditableTableSource. */
@@ -57,6 +58,7 @@ export declare class BinaryView implements EditableTableSource {
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
     inspect(selection: string | readonly string[]): Promise<InspectorView>;
+    raw(rowId: string): Promise<RawView>;
     subscribe(listener: (change: TableChange) => void): () => void;
     /**
      * A structural transform WITHIN one entry: add a nested child, delete one. Always entry-scoped:

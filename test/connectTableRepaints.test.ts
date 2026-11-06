@@ -12,9 +12,9 @@
 // one the editing trace (editingTrace.test.ts) does not play.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectTable, defineTreeTable, type DexTreeTable, type TableHandle } from '../src/widgets/tree-table/index.js';
-import { createWorkspace, messageSource, type TablePort, type Workspace } from '../src/model/index.js';
+import { createWorkspace, messageSource, type TablePort, type TableSource, type Workspace } from '../src/model/index.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -78,6 +78,67 @@ const setRows = (rows: any[], over: Record<string, unknown> = {}) => ({
   columnLabels: { Name: 'Name' },
   editable: true,
   ...over,
+});
+
+describe('the painted event', () => {
+  it('is sent after each whole paint, with its view, once its rows are in the table, and for nothing less', async () => {
+    let hear: (m: unknown) => void = () => {};
+    const port: TablePort = { postMessage: () => {}, onMessage: (l) => ((hear = l), () => (hear = () => {})) };
+    const table = document.createElement('dex-tree-table') as DexTreeTable;
+    document.body.append(table);
+    const handle = connectTable(table, messageSource(port), { editing: true });
+    handles.push(handle);
+    const painted: { rows: number; same: boolean; tableRows: number; canCopy: boolean }[] = [];
+    handle.on('painted', (view) => {
+      // What an app reads off the handle as it hears it is the paint's.
+      table.selectedRowIds = [A];
+      painted.push({ rows: view.rows.length, same: view === handle.view, tableRows: table.rows.length, canCopy: handle.can('copy') });
+      table.selectedRowIds = [];
+    });
+    // open()'s answer.
+    hear(setRows(dictRows()));
+    await settle(table);
+    expect(painted).toEqual([{ rows: 3, same: true, tableRows: 3, canCopy: true }]);
+    // An entry's repaint, and a selection, are no whole paint.
+    hear({ type: 'updateEntryRows', entryRowId: A, rows: [dictRows()[1]] });
+    hear({ type: 'select', rowIds: [B] });
+    await settle(table);
+    expect(painted).toHaveLength(1);
+    // A replaceAll is.
+    hear(setRows(withoutB()));
+    await settle(table);
+    expect(painted.map((p) => p.rows)).toEqual([3, 2]);
+  });
+});
+
+describe('a listener that throws', () => {
+  it("costs the table nothing: the source is still told of its paint, and the other listeners hear it", async () => {
+    const opened = vi.fn();
+    const source = {
+      open: async () => ({ docUri: DOC, rows: dictRows(), columns: ['Name'], columnLabels: { Name: 'Name' } }),
+      children: async () => ({ rows: [] }),
+      matrix: async () => ({ message: '' }),
+      inspect: async () => ({ groups: [] }),
+      subscribe: () => () => {},
+      opened,
+    } as unknown as TableSource;
+    const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const table = document.createElement('dex-tree-table') as DexTreeTable;
+    document.body.append(table);
+    const handle = connectTable(table, source);
+    handles.push(handle);
+    const heard: number[] = [];
+    handle.on('painted', () => {
+      throw new Error('the app slipped');
+    });
+    handle.on('painted', (view) => void heard.push(view.rows.length));
+    await settle(table);
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(heard).toEqual([3]);
+    expect(table.rows).toHaveLength(3);
+    expect(String(said.mock.calls[0]?.[0])).toContain('the app slipped');
+    said.mockRestore();
+  });
 });
 
 describe('a selection across a repaint', () => {

@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // Every page loads with nothing going wrong (the shared fixture fails a test on a console
 // error, an uncaught exception or a failed request) and every icon on it draws.
-import { expect, PAGES, test } from './gallery';
+import { APP, expect, PAGES, test } from './gallery';
 
 // The pages whose widgets draw icons from the package, by the bundler's copies.
 const WITH_ICONS = new Set(['tree-table.html', 'hierarchy.html', 'composed.html', 'folder.html']);
@@ -34,6 +34,7 @@ for (const path of PAGES) {
 test('the index links every page', async ({ page }) => {
   await page.goto('index.html');
   const links = page.locator('.pages a');
-  await expect(links).toHaveCount(PAGES.length - 1);
-  for (const path of PAGES.slice(1)) await expect(page.locator(`.pages a[href="./${path}"]`)).toBeVisible();
+  const linked = [...PAGES.slice(1), APP];
+  await expect(links).toHaveCount(linked.length);
+  for (const path of linked) await expect(page.locator(`.pages a[href="./${path}"]`)).toBeVisible();
 });

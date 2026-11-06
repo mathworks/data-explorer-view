@@ -18,6 +18,8 @@ import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
+import { rawOfRow } from '../raw/rawOfRow.js';
+import { noRaw } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
@@ -81,6 +83,7 @@ class InPageDoc {
             children: (rowId) => this.children(rowId),
             matrix: async (nodeId) => this.matrix(nodeId),
             inspect: async (selection) => this.inspect(selection),
+            raw: async (rowId) => this.raw(rowId),
             subscribe: (listener) => {
                 this.listeners.add(listener);
                 return () => void this.listeners.delete(listener);
@@ -271,6 +274,17 @@ class InPageDoc {
         const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
         new InspectorSelection(show, (_uri, id) => this.find(id)).show(this.uri, rowIds);
         return view;
+    }
+    /**
+     * The Raw pane's answer for a row of the current read (rawOfRow), the file itself named by its
+     * uri or by the srcId its tree is under. Nothing to show for a document that did not read, a
+     * project, or one that is closed.
+     */
+    raw(rowId) {
+        const r = this.reading;
+        if (!r)
+            return noRaw();
+        return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
     }
 }
 /** Who hears a document's `dirty` change: each listener told on its own terms, once per change. */

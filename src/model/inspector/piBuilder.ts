@@ -35,8 +35,9 @@ export interface PropertyGroup {
   properties: PropertyRow[];
 }
 
-// Replicates the vendored two-step transform (PIController.convertToPIObject +
-// LitRenderer.setPIContent). graphture/usedBy extras are intentionally omitted.
+// The two steps the prototype's inspector took from a node to its page: the node's own object of
+// properties, then the groups of rows drawn from it. Its relationship and Used By extras are left
+// out.
 export function buildPropertyGroups(node: any): PropertyGroup[] {
   if (!node || typeof node.toPIObject !== 'function') return [];
   const raw = node.toPIObject();

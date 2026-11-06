@@ -44,6 +44,8 @@ import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
+import { rawOfRow } from '../raw/rawOfRow.js';
+import { noRaw, type RawView } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { refuseIfUnreadable, sourceWarnings, warningBanner, type WarningBanner } from '../rows/parseWarnings.js';
@@ -1192,6 +1194,13 @@ class MatView implements EditableTableSource {
     const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
     new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
     return view;
+  }
+
+  // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree as edited: the MAT-file, or the
+  // model whose Model Workspace this edits. Nothing once closed.
+  async raw(rowId: string): Promise<RawView> {
+    if (this.closed || this.doc.disposed) return noRaw();
+    return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId);
   }
 
   subscribe(listener: (change: TableChange) => void): () => void {

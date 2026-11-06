@@ -4,6 +4,4046 @@
   "modules": [
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/defineShellWidgets.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "defineShellWidgets",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "description": "Registers every element connectShell draws, under its default name: the widgets the documents,\nthe folder and a project are shown in, the shell's parts, the modules' views, the shell's\ninternal elements, and `<dex-app-shell>` with its views and actions. Call it once before\nconnectShell; a second call does nothing."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "defineShellWidgets",
+          "declaration": {
+            "name": "defineShellWidgets",
+            "module": "dist/widgets/app-shell/defineShellWidgets.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-about-panel.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's\nname) and the lines the app hands it, each a label and its value (the app's version, the\nversions it is built on). The app's words are drawn as text, never as markup.\n\nshow() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a\npress outside it, or close() closes it, and focus goes back to the button. It sends nothing.",
+          "name": "DexAboutPanel",
+          "members": [
+            {
+              "kind": "field",
+              "name": "heading",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data Explorer'",
+              "description": "The heading, the app's name, drawn in capitals as the Settings title is; also the dialog's accessible name.",
+              "attribute": "heading"
+            },
+            {
+              "kind": "field",
+              "name": "lines",
+              "type": {
+                "text": "{ label: string; value: string }[]"
+              },
+              "default": "[]",
+              "description": "The lines under the heading, in order: a label (Version) and its value (1.0.0)."
+            },
+            {
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Whether it is open: from show() until close(), Escape or a press outside it. The `open` attribute says the same, for styling.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "anchor",
+                  "type": {
+                    "text": "Rect"
+                  }
+                }
+              ],
+              "description": "Opens the popover beside `anchor`, the button that opened it, in viewport px (its\ngetBoundingClientRect()): to its right with their bottoms in line, or to its left when the\nright has no room, and inside the window. Open already, it moves; not on the page, it does\nnot open."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the popover; focus goes back to the button when the popover held it."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "heading",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data Explorer'",
+              "description": "The heading, the app's name, drawn in capitals as the Settings title is; also the dialog's accessible name.",
+              "fieldName": "heading"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-about-panel",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineAboutPanel",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-about-panel'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-about-panel>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexAboutPanel",
+          "declaration": {
+            "name": "DexAboutPanel",
+            "module": "dist/widgets/app-shell/dex-about-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAboutPanel",
+          "declaration": {
+            "name": "defineAboutPanel",
+            "module": "dist/widgets/app-shell/dex-about-panel.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-app-shell.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The frame of an app: a toolbar and a location bar across the top, a\nsidebar on each side with an activity bar beyond it, the documents in the center with a bottom\npanel under them, and a status bar at the foot of the center. The page fills it: its toolbar,\nlocation bar and status text as children in the `toolbar`, `location` and `status` slots, its\ndocuments as plain children, and the sides from `<dex-shell-view>` children, each a view with\nan activity button, and `<dex-shell-action>` children, buttons it answers itself.\n\nEach side shows one of its views and hides the rest. A press of a view's activity button, its\nshortcut, or toggleView shows the view, or closes its side when the view is the one shown; a\nview its shortcut shows takes the focus, and the focus in a view that is hidden goes to the\nview's button. A side's separator resizes it, dragged or by the arrow keys, and every side is\ndrawn no larger than the window leaves room for. A side with no views has no sidebar, and an\nactivity bar only for its actions. A change of the view shown, or of a side open or closed,\nsends `dex-shell-view-changed`; a press of an action sends `dex-shell-action`. With a\n`storage-key` the layout the person chose is kept in localStorage and read back by the next\nshell with that key.",
+          "name": "DexAppShell",
+          "members": [
+            {
+              "kind": "field",
+              "name": "storageKey",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The localStorage key the layout is kept under (which view each side shows, which sides are\nopen, and their sizes), read back as each side's views first arrive. Empty, the default,\nkeeps nothing. Attribute `storage-key`.",
+              "attribute": "storage-key"
+            },
+            {
+              "kind": "field",
+              "name": "layout",
+              "type": {
+                "text": "ShellLayoutState"
+              },
+              "description": "Which view each side shows, whether it is open, and its width or height, as drawn. A size the\nwindow has no room for is drawn smaller than the one the person chose, and as chosen again\nonce there is room; the size kept is the one chosen. Read-only: the buttons, the separators,\nshowView and toggleView change it.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "showView",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "view",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Shows the view with this id, opening its side if it was closed: what a command that brings a\nview forward does. Never closes a side. Sends `dex-shell-view-changed`, and keeps the layout,\nwhen that changes anything. A view appended in the same task is one too; an id no view has\ndoes nothing."
+            },
+            {
+              "kind": "method",
+              "name": "toggleView",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "view",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "What a press of the view's activity button does: shows it, or closes its side when it is the\nview shown. Sends `dex-shell-view-changed` and keeps the layout. An id no view has does nothing."
+            },
+            {
+              "kind": "method",
+              "name": "anchorOf",
+              "return": {
+                "type": {
+                  "text": "DOMRect | null"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "The box of the activity button of the view or the action with this id, in viewport px, for a\npopover to open against; null when the shell draws no button for the id."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-shell-view-changed",
+              "type": {
+                "text": "CustomEvent<ShellViewChangedDetail>"
+              },
+              "description": "A side shows another view, or was opened or closed: by its activity button, its chord, or\nshowView / toggleView. The side as it is now. Not sent for a resize, nor when the page's own\nchange of the views moves the layout."
+            },
+            {
+              "name": "dex-shell-action",
+              "type": {
+                "text": "CustomEvent<ShellActionDetail>"
+              },
+              "description": "An action's button, or its chord, was pressed: open what it stands for, against `anchor`."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "storage-key",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The localStorage key the layout is kept under (which view each side shows, which sides are\nopen, and their sizes), read back as each side's views first arrive. Empty, the default,\nkeeps nothing. Attribute `storage-key`.",
+              "fieldName": "storageKey"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-app-shell",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-activity-active",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-activity-fg",
+              "default": "#616161"
+            },
+            {
+              "name": "--dex-bg-activity-bar",
+              "description": "The app shell (data-explorer-view/app-shell): its activity bars, toolbar row, tab bar and the line a resizer shows under the pointer.",
+              "default": "#f0f0f0"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-bg-toolbar",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-shell-resizer-hover",
+              "default": "#0078d4"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineAppShell",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-app-shell'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-app-shell>`, or under `tag`, and the parts it is given and draws:\n`<dex-shell-view>`, `<dex-shell-action>` and `<dex-icon>`. The parts first, so the views of a\npage are upgraded before the shell reads them. The layout's alone: what connectShell builds in it\nis defined, this with it, by defineShellWidgets()."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexAppShell",
+          "declaration": {
+            "name": "DexAppShell",
+            "module": "dist/widgets/app-shell/dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAppShell",
+          "declaration": {
+            "name": "defineAppShell",
+            "module": "dist/widgets/app-shell/dex-app-shell.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-confirm-dialog.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A question with buttons, asked in the page for a host that has no dialogs of its own (a\nbrowser page): \"Save changes to x before closing?\", \"x changed on disk\". show() opens it and\nresolves to the id of the button pressed; Escape, a click outside it and close() resolve to the\nquestion's `cancelId`, and focus goes back where it was. It opens focused on the primary\nbutton, never on a danger one, and Tab stays among its buttons while it is open. It sends no\nevents: the promise is the answer.\n\nIt paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later\nin the document is on top: append it last in the body, outside any element that makes a\nstacking context of its own.",
+          "name": "DexConfirmDialog",
+          "members": [
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "Promise<string>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "type": {
+                    "text": "ConfirmOptions"
+                  }
+                }
+              ],
+              "description": "Opens the dialog with `options` and resolves to the id of the button pressed, or to\n`options.cancelId` on Escape, a click on the backdrop, close(), or the element leaving the\npage. A second show() while one is open answers the first with the first's `cancelId` and\nasks the second in its place. Focus opens on the first primary button, or with none on the\nfirst that is not a danger one, and returns, when the dialog closes, to the element that had\nit when the first of these questions was asked. On an element that is not on the page it\nresolves to `cancelId` at once."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the dialog, answering show() with its `cancelId`; does nothing while closed."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-confirm-dialog",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-hover",
+              "default": "#005a9e"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineConfirmDialog",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-confirm-dialog'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-confirm-dialog>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexConfirmDialog",
+          "declaration": {
+            "name": "DexConfirmDialog",
+            "module": "dist/widgets/app-shell/dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineConfirmDialog",
+          "declaration": {
+            "name": "defineConfirmDialog",
+            "module": "dist/widgets/app-shell/dex-confirm-dialog.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-doc-tabs.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`.\n\nA preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the\nkeyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),\nkeeps the active tab in view, and offers a … button listing every tab. The arrow keys move the\nfocus along the tabs, and Home and End to either end.",
+          "name": "DexDocTabs",
+          "members": [
+            {
+              "kind": "field",
+              "name": "tabs",
+              "type": {
+                "text": "DocTab[]"
+              },
+              "default": "[]",
+              "description": "The tabs, in order: plain data, which the app replaces as files open, close and move. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "active",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
+              "attribute": "active",
+              "reflects": true
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-tab-select",
+              "type": {
+                "text": "CustomEvent<TabSelectDetail>"
+              },
+              "description": "Show this tab: a click on it, Enter or Space on it, or its item in the … menu. Sent for the active tab too."
+            },
+            {
+              "name": "dex-tab-close",
+              "type": {
+                "text": "CustomEvent<TabCloseDetail>"
+              },
+              "description": "Close this tab: its ×, a middle click on it, or Delete (or Backspace) on it."
+            },
+            {
+              "name": "dex-tab-pin",
+              "type": {
+                "text": "CustomEvent<TabPinDetail>"
+              },
+              "description": "Keep this tab, no longer a preview: a double-click on it, whether it is a preview or not. Its\ntwo clicks have each sent `dex-tab-select` first."
+            },
+            {
+              "name": "dex-tab-move",
+              "type": {
+                "text": "CustomEvent<TabMoveDetail>"
+              },
+              "description": "Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "active",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
+              "fieldName": "active"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-doc-tabs",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-tabbar",
+              "default": "#f0f0f0"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-hover",
+              "default": "#005a9e"
+            },
+            {
+              "name": "--dex-color-modified",
+              "description": "The Status column's \"Modified\".",
+              "default": "#b45309"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineDocTabs",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-doc-tabs'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-doc-tabs>`, or under `tag`, and the `<dex-icon>` its tabs draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexDocTabs",
+          "declaration": {
+            "name": "DexDocTabs",
+            "module": "dist/widgets/app-shell/dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineDocTabs",
+          "declaration": {
+            "name": "defineDocTabs",
+            "module": "dist/widgets/app-shell/dex-doc-tabs.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-explorer.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The open files, as the app shell's Explorer lists them: Root first, then each kind of file\nunder a heading of its own (Simulink Models, Data Dictionaries, MAT-Files, Projects, Other,\nalways in that order, and a heading only over files), each file with a twisty that opens it\nonto its sections.\n\nIt draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open`\nfor it, unpinned; a double-click or Enter sends it pinned; a right-click on a file sends\n`dex-explorer-menu`. Which file a row is, what opening it means and which row is the current\none are the app's: the row `selected` names is highlighted, and a click changes nothing of it.\nWhich files are open in the tree (their twisty) is the element's own, but for one thing: a\n`selected` that moves to a section of a closed file opens that file, at once or as soon as the\nfile lists the section, and the row `selected` moves to is scrolled into view. A file that\nleaves `files` is forgotten, so it comes back closed, and a focused row that leaves passes the\nfocus to the next row.\n\nThe arrow keys walk the rows (the headings are no rows): Right opens a file or goes into it,\nLeft closes it or goes from a section to its file, Home and End go to the first and the last.",
+          "name": "DexExplorer",
+          "members": [
+            {
+              "kind": "field",
+              "name": "files",
+              "type": {
+                "text": "ExplorerFile[]"
+              },
+              "default": "[]",
+              "description": "The open files, in the order each heading lists them. Replacing them keeps open each file\nstill here (by its `id`) and forgets the rest. Default none: Root alone."
+            },
+            {
+              "kind": "field",
+              "name": "selected",
+              "type": {
+                "text": "ExplorerSelection | null"
+              },
+              "default": "null",
+              "description": "The row to highlight: Root, a file, or a section of a file. Null, the default, highlights\nnone. The app sets it; the element never changes it, and setting it sends nothing. Moved to\nanother row, it scrolls that row into view once it is drawn; moved to a section of a closed\nfile, it opens the file, then or once a later `files` lists the section. The user may close\nit again, and it stays closed until `selected` next moves to one of its sections."
+            },
+            {
+              "kind": "field",
+              "name": "rootLabel",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Root'",
+              "description": "What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`.",
+              "attribute": "root-label"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-explorer-open",
+              "type": {
+                "text": "CustomEvent<ExplorerOpenDetail>"
+              },
+              "description": "Open this row: Root, a file or a section. Unpinned for a click, pinned for a double-click or\nEnter. A request: the explorer changes nothing itself, not even `selected`."
+            },
+            {
+              "name": "dex-explorer-menu",
+              "type": {
+                "text": "CustomEvent<ExplorerMenuDetail>"
+              },
+              "description": "Show this file's menu at this point of the viewport: a file's row was right-clicked. A request."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "root-label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Root'",
+              "description": "What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`.",
+              "fieldName": "rootLabel"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-explorer",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-selection-fg",
+              "description": "The ink on a selected row, whose surface is --dex-color-accent-bg.",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineExplorer",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-explorer'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-explorer>`, or under `tag`, and the `<dex-icon>` its rows draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexExplorer",
+          "declaration": {
+            "name": "DexExplorer",
+            "module": "dist/widgets/app-shell/dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineExplorer",
+          "declaration": {
+            "name": "defineExplorer",
+            "module": "dist/widgets/app-shell/dex-explorer.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-location-bar.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The location bar: Back, Forward and Up, then a breadcrumb of where the user is, one segment\nfor each place on the way down to it (\"Root › dd.sldd › Design Data\"). It draws the segments\nit is given, the last one as the current place, and turns each press into a request,\n`dex-location-go`; it keeps no history and works out no path, so the app decides what each\nrequest does, and says by `canBack`, `canForward` and `canUp` which buttons can be used. A\npath too long for the bar shrinks its segments, each label ending in an ellipsis.",
+          "name": "DexLocationBar",
+          "members": [
+            {
+              "kind": "field",
+              "name": "segments",
+              "type": {
+                "text": "LocationSegment[]"
+              },
+              "default": "[]",
+              "description": "The places on the way to where the user is, the first at the top and the last the current place. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "canBack",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Back can be used: there is a place to go back to. Off, the default, disables it. Attribute `can-back`.",
+              "attribute": "can-back"
+            },
+            {
+              "kind": "field",
+              "name": "canForward",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Forward can be used: the user went back, and can go forward again. Off, the default, disables it. Attribute `can-forward`.",
+              "attribute": "can-forward"
+            },
+            {
+              "kind": "field",
+              "name": "canUp",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.",
+              "attribute": "can-up"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-location-go",
+              "type": {
+                "text": "CustomEvent<LocationGoDetail>"
+              },
+              "description": "The user asked to move: Back, Forward or Up was pressed (only while `canBack`, `canForward`\nor `canUp` says it can be), or a segment was, the last one included. The bar changes nothing\nitself; the app moves, and gives it the new segments."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "can-back",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Back can be used: there is a place to go back to. Off, the default, disables it. Attribute `can-back`.",
+              "fieldName": "canBack"
+            },
+            {
+              "name": "can-forward",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Forward can be used: the user went back, and can go forward again. Off, the default, disables it. Attribute `can-forward`.",
+              "fieldName": "canForward"
+            },
+            {
+              "name": "can-up",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`.",
+              "fieldName": "canUp"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-location-bar",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-disabled",
+              "default": "#999"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineLocationBar",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-location-bar'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-location-bar>`, or under `tag`, and the `<dex-icon>` its buttons and segments draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexLocationBar",
+          "declaration": {
+            "name": "DexLocationBar",
+            "module": "dist/widgets/app-shell/dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineLocationBar",
+          "declaration": {
+            "name": "defineLocationBar",
+            "module": "dist/widgets/app-shell/dex-location-bar.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-settings-panel.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The shell's Settings popover, opened from the gear of an activity bar: the theme (Light, Dark,\nHi-Con, Auto) and the toolbar's density (Normal, Compact), each a row of segments that is a\nradio group. It shows `settings` and asks for a change: a click, or an arrow key inside a\ngroup, sends `dex-settings-change` with the whole new record and changes nothing by itself. The\napp applies the settings, keeps them, and sets `settings` back; the popover stays open, so the\nthemes can be tried one after another.\n\nshow() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),\nfocused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes\nback to the button.",
+          "name": "DexSettingsPanel",
+          "members": [
+            {
+              "kind": "field",
+              "name": "settings",
+              "type": {
+                "text": "ShellSettings"
+              },
+              "default": "DEFAULT_SETTINGS",
+              "description": "The settings shown: which segment of each row is checked. The app sets it, at first and\nafter each `dex-settings-change` it applies; the panel never changes it itself."
+            },
+            {
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Whether it is open: from show() until close(), Escape or a press outside it. The `open` attribute says the same, for styling.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "anchor",
+                  "type": {
+                    "text": "Rect"
+                  }
+                }
+              ],
+              "description": "Opens the popover beside `anchor`, the button that opened it, in viewport px (its\ngetBoundingClientRect()): to its right with their bottoms in line, or to its left when the\nright has no room, and inside the window. Focus goes to the chosen theme. Open already, it\nmoves; not on the page, it does not open."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the popover, sending nothing; focus goes back to the button when the popover held it."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-settings-change",
+              "type": {
+                "text": "CustomEvent<SettingsChangeDetail>"
+              },
+              "description": "A segment other than the checked one was chosen, by a click or an arrow key: apply these\nsettings, keep them, and set `settings` to them. The popover stays open."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-settings-panel",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineSettingsPanel",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-settings-panel'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-settings-panel>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexSettingsPanel",
+          "declaration": {
+            "name": "DexSettingsPanel",
+            "module": "dist/widgets/app-shell/dex-settings-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineSettingsPanel",
+          "declaration": {
+            "name": "defineSettingsPanel",
+            "module": "dist/widgets/app-shell/dex-settings-panel.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-shell-view.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "One view of the app shell: what the page shows in one of its sides (the left or the right\nsidebar, or the bottom panel), and what the shell needs to give it an activity button. Its\nchildren are the view's content; it is a column as wide and as tall as the side it is in, and\nscrolls what does not fit.\n\nThe shell draws the view's button (its `icon`, with `label` and `shortcut` as the tooltip), in\nthe order the views are in the page, shows the view when the button is pressed, and heads the\nside with its label. A view the side does not show is `hidden`, and stays in the page, so its\ncontent keeps its state (a scroll position, a tree's open rows) for when it is shown again. The\nview puts itself in the shell's slot for its side: a page writes only `side`. Shown by its\nshortcut, it takes the focus: its first control, or itself when it has none (it takes the focus\nfrom a script, and is no stop for Tab).",
+          "name": "DexShellView",
+          "members": [
+            {
+              "kind": "field",
+              "name": "side",
+              "type": {
+                "text": "ShellSide"
+              },
+              "default": "'left'",
+              "description": "The side the view is on: `left`, `right` or `bottom`. Default `left`. Attribute `side`.",
+              "attribute": "side",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "view",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The view's id, which the shell's `showView`, `toggleView` and `anchorOf` take, its events name\nand its kept layout holds. One view per id: a second view with an id already given is drawn\nnowhere. A view without one is not drawn. Attribute `view`.",
+              "attribute": "view",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the view is called: its button's tooltip and accessible name, and its side's header. Attribute `label`.",
+              "attribute": "label",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "icon",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the icon its activity button draws (`<dex-icon>`'s `iconId`). Attribute `icon`.",
+              "attribute": "icon",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "shortcut",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The keyboard chord that shows the view, or closes its side when it is shown, as a press of its\nbutton does, written as the shell's chords are (`Mod+Shift+E`: Mod is Command on macOS and\nCtrl elsewhere). Its tooltip names it in the platform's words. Text that is not a chord is no\nshortcut, and the tooltip then names none. A chord with no Mod, Ctrl or Alt (a bare key, or\nShift and a key) works in a text field too, where the key would type: the shell hears the\npress on the window, and only a field that prevents its default keeps it. Default none.\nAttribute `shortcut`.",
+              "attribute": "shortcut",
+              "reflects": true
+            }
+          ],
+          "attributes": [
+            {
+              "name": "side",
+              "type": {
+                "text": "ShellSide"
+              },
+              "default": "'left'",
+              "description": "The side the view is on: `left`, `right` or `bottom`. Default `left`. Attribute `side`.",
+              "fieldName": "side"
+            },
+            {
+              "name": "view",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The view's id, which the shell's `showView`, `toggleView` and `anchorOf` take, its events name\nand its kept layout holds. One view per id: a second view with an id already given is drawn\nnowhere. A view without one is not drawn. Attribute `view`.",
+              "fieldName": "view"
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the view is called: its button's tooltip and accessible name, and its side's header. Attribute `label`.",
+              "fieldName": "label"
+            },
+            {
+              "name": "icon",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the icon its activity button draws (`<dex-icon>`'s `iconId`). Attribute `icon`.",
+              "fieldName": "icon"
+            },
+            {
+              "name": "shortcut",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The keyboard chord that shows the view, or closes its side when it is shown, as a press of its\nbutton does, written as the shell's chords are (`Mod+Shift+E`: Mod is Command on macOS and\nCtrl elsewhere). Its tooltip names it in the platform's words. Text that is not a chord is no\nshortcut, and the tooltip then names none. A chord with no Mod, Ctrl or Alt (a bare key, or\nShift and a key) works in a text field too, where the key would type: the shell hears the\npress on the window, and only a field that prevents its default keeps it. Default none.\nAttribute `shortcut`.",
+              "fieldName": "shortcut"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-shell-view",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            }
+          ]
+        },
+        {
+          "kind": "class",
+          "description": "An activity button of the app shell that is no view: Settings or About, say, which open a\npopover of the page's. The shell draws it at the end of its side's activity bar, after the\nviews, and a press of it (or of its `shortcut`) sends `dex-shell-action` from the shell with the\nbutton's box, for the page to open its popover against. The element itself draws nothing, and\nits children are never shown.",
+          "name": "DexShellAction",
+          "members": [
+            {
+              "kind": "field",
+              "name": "side",
+              "type": {
+                "text": "'left' | 'right'"
+              },
+              "default": "'left'",
+              "description": "The activity bar the button is in: `left` or `right`. Default `left`. Attribute `side`.",
+              "attribute": "side",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "action",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The action's id: `dex-shell-action`'s `actionId`, and what the shell's `anchorOf` takes. An\naction without one is not drawn. Attribute `action`.",
+              "attribute": "action",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the action is called: its button's tooltip and accessible name. Attribute `label`.",
+              "attribute": "label",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "icon",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the icon its button draws (`<dex-icon>`'s `iconId`). Attribute `icon`.",
+              "attribute": "icon",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "shortcut",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The keyboard chord that presses the button, written as a view's `shortcut` is, and like one\nheard in a text field too when it has no Mod, Ctrl or Alt. Default none. Attribute `shortcut`.",
+              "attribute": "shortcut",
+              "reflects": true
+            }
+          ],
+          "attributes": [
+            {
+              "name": "side",
+              "type": {
+                "text": "'left' | 'right'"
+              },
+              "default": "'left'",
+              "description": "The activity bar the button is in: `left` or `right`. Default `left`. Attribute `side`.",
+              "fieldName": "side"
+            },
+            {
+              "name": "action",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The action's id: `dex-shell-action`'s `actionId`, and what the shell's `anchorOf` takes. An\naction without one is not drawn. Attribute `action`.",
+              "fieldName": "action"
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the action is called: its button's tooltip and accessible name. Attribute `label`.",
+              "fieldName": "label"
+            },
+            {
+              "name": "icon",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The id of the icon its button draws (`<dex-icon>`'s `iconId`). Attribute `icon`.",
+              "fieldName": "icon"
+            },
+            {
+              "name": "shortcut",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The keyboard chord that presses the button, written as a view's `shortcut` is, and like one\nheard in a text field too when it has no Mod, Ctrl or Alt. Default none. Attribute `shortcut`.",
+              "fieldName": "shortcut"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-shell-action",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineShellView",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-shell-view'"
+            }
+          ],
+          "description": "Registers the element as `<dex-shell-view>`, or under `tag`. defineAppShell calls it."
+        },
+        {
+          "kind": "function",
+          "name": "defineShellAction",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-shell-action'"
+            }
+          ],
+          "description": "Registers the element as `<dex-shell-action>`, or under `tag`. defineAppShell calls it."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexShellView",
+          "declaration": {
+            "name": "DexShellView",
+            "module": "dist/widgets/app-shell/dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexShellAction",
+          "declaration": {
+            "name": "DexShellAction",
+            "module": "dist/widgets/app-shell/dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineShellView",
+          "declaration": {
+            "name": "defineShellView",
+            "module": "dist/widgets/app-shell/dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineShellAction",
+          "declaration": {
+            "name": "defineShellAction",
+            "module": "dist/widgets/app-shell/dex-shell-view.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-toast-host.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The shell's toasts, in the bottom-right corner of the window: show() adds one at the bottom\nof the stack. A 'status' or 'info' toast goes by itself after its `ms`; a 'warning' or an\n'error' stays until its × is pressed, since what it says has to be read. A toast the pointer\nis on, or whose × has focus, waits for the user, and is timed afresh once they leave it. At\nmost three are shown, and a fourth takes the oldest away. A screen reader hears each one as it\nis shown, politely for 'status' and 'info' and at once for 'warning' and 'error'. It sends no\nevents: what it shows is the app's business, and closing one changes nothing but the screen.",
+          "name": "DexToastHost",
+          "members": [
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "toast",
+                  "type": {
+                    "text": "Toast"
+                  }
+                }
+              ],
+              "description": "Shows a toast at the bottom of the stack. 'status' and 'info' go by themselves after `ms`\n(default 4000); 'warning' and 'error' stay until closed, whatever `ms` says. At most three\nare shown: a fourth takes the oldest away."
+            },
+            {
+              "kind": "method",
+              "name": "clear",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Takes every toast away, stops every timer, and empties what a screen reader would read."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-toast-host",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-color-warning",
+              "default": "#d83b01"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineToastHost",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-toast-host'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-toast-host>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexToastHost",
+          "declaration": {
+            "name": "DexToastHost",
+            "module": "dist/widgets/app-shell/dex-toast-host.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineToastHost",
+          "declaration": {
+            "name": "defineToastHost",
+            "module": "dist/widgets/app-shell/dex-toast-host.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-toolbar.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A row of buttons, the items an app hands it: each an icon over a small label (beside it with\n`compact`), the items of a group together with a separator between groups, and the `end` items\npushed to the right. A click on an item that is not disabled sends `dex-toolbar-action` with its\nid; a disabled item is greyed and sends nothing. Each item's tooltip is its `title`, or its label\nand shortcut.\n\nThe toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and\nwrap at either end; Home and End go to the first and the last; Enter and Space press the one the\nkeyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit\nopen in a table's cell stays open too (the table commits one as its editor loses the focus), and\nthe app commits it, with connectTable's `handle.commitEdit()`, before it acts on\n`dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`\nas what they can do changes, and does what `dex-toolbar-action` asks.",
+          "name": "DexToolbar",
+          "members": [
+            {
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "ToolbarItem[]"
+              },
+              "default": "[]",
+              "description": "The buttons, in order: the `start` items from the left, then the `end` items from the right\nedge, each side in the order given. Replace the array to change them; an item keeps its\nbutton, and the keyboard's place on it, while its `id` stays, and an item that goes while the\nkeyboard is on it hands the focus to the one that takes its place. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The compact layout: each icon (14px rather than 18) beside its label, in a lower row.\nAttribute `compact`, reflected so a page's stylesheet can follow it.",
+              "attribute": "compact",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Toolbar'",
+              "description": "What a screen reader calls the toolbar, so a page with more than one can tell them apart.\nDefault `Toolbar`. Attribute `label`.",
+              "attribute": "label"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-toolbar-action",
+              "type": {
+                "text": "CustomEvent<ToolbarActionDetail>"
+              },
+              "description": "An item that is not disabled was pressed, by a click, Enter or Space: its `id`. A name of its\nown, not the context menu's `dex-action`, so each event has one declaration and a page that\nlistens on the document tells a toolbar press from a menu choice."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The compact layout: each icon (14px rather than 18) beside its label, in a lower row.\nAttribute `compact`, reflected so a page's stylesheet can follow it.",
+              "fieldName": "compact"
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Toolbar'",
+              "description": "What a screen reader calls the toolbar, so a page with more than one can tell them apart.\nDefault `Toolbar`. Attribute `label`.",
+              "fieldName": "label"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-toolbar",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-toolbar",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineToolbar",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-toolbar'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-toolbar>`, or under `tag`, and the `<dex-icon>` its buttons draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexToolbar",
+          "declaration": {
+            "name": "DexToolbar",
+            "module": "dist/widgets/app-shell/dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineToolbar",
+          "declaration": {
+            "name": "defineToolbar",
+            "module": "dist/widgets/app-shell/dex-toolbar.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/index.js",
+      "declarations": [],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexAppShell",
+          "declaration": {
+            "name": "DexAppShell",
+            "module": "./dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAppShell",
+          "declaration": {
+            "name": "defineAppShell",
+            "module": "./dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "AppShellEventMap",
+          "declaration": {
+            "name": "AppShellEventMap",
+            "module": "./dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellActionDetail",
+          "declaration": {
+            "name": "ShellActionDetail",
+            "module": "./dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellViewChangedDetail",
+          "declaration": {
+            "name": "ShellViewChangedDetail",
+            "module": "./dex-app-shell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexShellAction",
+          "declaration": {
+            "name": "DexShellAction",
+            "module": "./dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexShellView",
+          "declaration": {
+            "name": "DexShellView",
+            "module": "./dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineShellAction",
+          "declaration": {
+            "name": "defineShellAction",
+            "module": "./dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineShellView",
+          "declaration": {
+            "name": "defineShellView",
+            "module": "./dex-shell-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexToolbar",
+          "declaration": {
+            "name": "DexToolbar",
+            "module": "./dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineToolbar",
+          "declaration": {
+            "name": "defineToolbar",
+            "module": "./dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ToolbarActionDetail",
+          "declaration": {
+            "name": "ToolbarActionDetail",
+            "module": "./dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ToolbarEventMap",
+          "declaration": {
+            "name": "ToolbarEventMap",
+            "module": "./dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ToolbarItem",
+          "declaration": {
+            "name": "ToolbarItem",
+            "module": "./dex-toolbar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexDocTabs",
+          "declaration": {
+            "name": "DexDocTabs",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineDocTabs",
+          "declaration": {
+            "name": "defineDocTabs",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DocTab",
+          "declaration": {
+            "name": "DocTab",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DocTabsEventMap",
+          "declaration": {
+            "name": "DocTabsEventMap",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TabCloseDetail",
+          "declaration": {
+            "name": "TabCloseDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TabMoveDetail",
+          "declaration": {
+            "name": "TabMoveDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TabPinDetail",
+          "declaration": {
+            "name": "TabPinDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TabSelectDetail",
+          "declaration": {
+            "name": "TabSelectDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexLocationBar",
+          "declaration": {
+            "name": "DexLocationBar",
+            "module": "./dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineLocationBar",
+          "declaration": {
+            "name": "defineLocationBar",
+            "module": "./dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LocationBarEventMap",
+          "declaration": {
+            "name": "LocationBarEventMap",
+            "module": "./dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LocationGoDetail",
+          "declaration": {
+            "name": "LocationGoDetail",
+            "module": "./dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LocationSegment",
+          "declaration": {
+            "name": "LocationSegment",
+            "module": "./dex-location-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexExplorer",
+          "declaration": {
+            "name": "DexExplorer",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineExplorer",
+          "declaration": {
+            "name": "defineExplorer",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerEventMap",
+          "declaration": {
+            "name": "ExplorerEventMap",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerFile",
+          "declaration": {
+            "name": "ExplorerFile",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerGroup",
+          "declaration": {
+            "name": "ExplorerGroup",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerMenuDetail",
+          "declaration": {
+            "name": "ExplorerMenuDetail",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerOpenDetail",
+          "declaration": {
+            "name": "ExplorerOpenDetail",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerSection",
+          "declaration": {
+            "name": "ExplorerSection",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExplorerSelection",
+          "declaration": {
+            "name": "ExplorerSelection",
+            "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexSettingsPanel",
+          "declaration": {
+            "name": "DexSettingsPanel",
+            "module": "./dex-settings-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineSettingsPanel",
+          "declaration": {
+            "name": "defineSettingsPanel",
+            "module": "./dex-settings-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SettingsChangeDetail",
+          "declaration": {
+            "name": "SettingsChangeDetail",
+            "module": "./dex-settings-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SettingsPanelEventMap",
+          "declaration": {
+            "name": "SettingsPanelEventMap",
+            "module": "./dex-settings-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexAboutPanel",
+          "declaration": {
+            "name": "DexAboutPanel",
+            "module": "./dex-about-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineAboutPanel",
+          "declaration": {
+            "name": "defineAboutPanel",
+            "module": "./dex-about-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexToastHost",
+          "declaration": {
+            "name": "DexToastHost",
+            "module": "./dex-toast-host.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineToastHost",
+          "declaration": {
+            "name": "defineToastHost",
+            "module": "./dex-toast-host.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "Toast",
+          "declaration": {
+            "name": "Toast",
+            "module": "./dex-toast-host.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexConfirmDialog",
+          "declaration": {
+            "name": "DexConfirmDialog",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineConfirmDialog",
+          "declaration": {
+            "name": "defineConfirmDialog",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConfirmButton",
+          "declaration": {
+            "name": "ConfirmButton",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConfirmOptions",
+          "declaration": {
+            "name": "ConfirmOptions",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexRawViewer",
+          "declaration": {
+            "name": "DexRawViewer",
+            "module": "./modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineRawViewer",
+          "declaration": {
+            "name": "defineRawViewer",
+            "module": "./modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RawCopyDetail",
+          "declaration": {
+            "name": "RawCopyDetail",
+            "module": "./modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RawViewerEventMap",
+          "declaration": {
+            "name": "RawViewerEventMap",
+            "module": "./modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexSearchPanel",
+          "declaration": {
+            "name": "DexSearchPanel",
+            "module": "./modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineSearchPanel",
+          "declaration": {
+            "name": "defineSearchPanel",
+            "module": "./modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SearchOpenDetail",
+          "declaration": {
+            "name": "SearchOpenDetail",
+            "module": "./modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SearchPanelEventMap",
+          "declaration": {
+            "name": "SearchPanelEventMap",
+            "module": "./modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "SearchQueryDetail",
+          "declaration": {
+            "name": "SearchQueryDetail",
+            "module": "./modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexGalleryPanel",
+          "declaration": {
+            "name": "DexGalleryPanel",
+            "module": "./modules/dex-gallery-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineGalleryPanel",
+          "declaration": {
+            "name": "defineGalleryPanel",
+            "module": "./modules/dex-gallery-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "GalleryAddDetail",
+          "declaration": {
+            "name": "GalleryAddDetail",
+            "module": "./modules/dex-gallery-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "GalleryPanelEventMap",
+          "declaration": {
+            "name": "GalleryPanelEventMap",
+            "module": "./modules/dex-gallery-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexRelationshipGraph",
+          "declaration": {
+            "name": "DexRelationshipGraph",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineRelationshipGraph",
+          "declaration": {
+            "name": "defineRelationshipGraph",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "GraphExpandDetail",
+          "declaration": {
+            "name": "GraphExpandDetail",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "GraphOpenDetail",
+          "declaration": {
+            "name": "GraphOpenDetail",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "GraphSelectedDetail",
+          "declaration": {
+            "name": "GraphSelectedDetail",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RelationshipGraphEventMap",
+          "declaration": {
+            "name": "RelationshipGraphEventMap",
+            "module": "./modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexCommandWindow",
+          "declaration": {
+            "name": "DexCommandWindow",
+            "module": "./modules/dex-command-window.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCommandWindow",
+          "declaration": {
+            "name": "defineCommandWindow",
+            "module": "./modules/dex-command-window.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CommandRunDetail",
+          "declaration": {
+            "name": "CommandRunDetail",
+            "module": "./modules/dex-command-window.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CommandWindowEventMap",
+          "declaration": {
+            "name": "CommandWindowEventMap",
+            "module": "./modules/dex-command-window.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexLogPanel",
+          "declaration": {
+            "name": "DexLogPanel",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineLogPanel",
+          "declaration": {
+            "name": "defineLogPanel",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LogEntry",
+          "declaration": {
+            "name": "LogEntry",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LogFilter",
+          "declaration": {
+            "name": "LogFilter",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LogFilterChangedDetail",
+          "declaration": {
+            "name": "LogFilterChangedDetail",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LogLevel",
+          "declaration": {
+            "name": "LogLevel",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LogPanelEventMap",
+          "declaration": {
+            "name": "LogPanelEventMap",
+            "module": "./modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexCommandPalette",
+          "declaration": {
+            "name": "DexCommandPalette",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCommandPalette",
+          "declaration": {
+            "name": "defineCommandPalette",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CommandPaletteEventMap",
+          "declaration": {
+            "name": "CommandPaletteEventMap",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PaletteCommand",
+          "declaration": {
+            "name": "PaletteCommand",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PaletteRunDetail",
+          "declaration": {
+            "name": "PaletteRunDetail",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineShellWidgets",
+          "declaration": {
+            "name": "defineShellWidgets",
+            "module": "./defineShellWidgets.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "connectShell",
+          "declaration": {
+            "name": "connectShell",
+            "module": "./connect/connectShell.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "installFileDrop",
+          "declaration": {
+            "name": "installFileDrop",
+            "module": "./connect/drop.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CloseAnswer",
+          "declaration": {
+            "name": "CloseAnswer",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ConnectShellOptions",
+          "declaration": {
+            "name": "ConnectShellOptions",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellCommand",
+          "declaration": {
+            "name": "ShellCommand",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellHandle",
+          "declaration": {
+            "name": "ShellHandle",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellHost",
+          "declaration": {
+            "name": "ShellHost",
+            "module": "./connect/types.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-command-palette.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The shell's command palette: a box at the top of the window, over the page, in which a few\ntyped letters find a command. show() opens it with the commands to offer; the list follows\nthe typing, labels that begin with the query first, then those whose words it begins, then\nthose that merely hold its letters in order (the letters matched are drawn in bold), and the\ncommands run lately come first among equals and first of all before anything is typed.\nArrowUp and ArrowDown move the active row, wrapping; Enter or a click runs it, which closes\nthe palette and sends `dex-palette-run`. A disabled command is greyed and runs on neither, and\nthe list opens on the first that can run. Escape, a click outside it and close() close it,\nsending nothing.\n\nIt is a modal, as `<dex-confirm-dialog>` is: while it is open Tab stays in its input, no key\npressed in it reaches the page, a press in it keeps the focus in its input, and Escape is heard\nwherever the focus is, but for a key pressed in another modal opened over it (an element with\n`aria-modal=\"true\"`, such as a confirm dialog a command asked), which is that modal's. When it\ncloses the focus goes back where it was, before `dex-palette-run` is sent, so a command that\nmoves the focus itself (showing the Explorer) keeps it there. It paints at z-index 10000, as\nthe dialogs do: append it last in the body, outside any element that makes a stacking context\nof its own.",
+          "name": "DexCommandPalette",
+          "members": [
+            {
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Whether it is open: from show() until a command runs, Escape, a click outside it or close(). The `open` attribute says the same, for styling.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "commands",
+                  "type": {
+                    "text": "PaletteCommand[]"
+                  }
+                }
+              ],
+              "description": "Opens the palette over the page with `commands` (a list that is not an array is none), an\nempty query and the focus in its input, on the first command that can run. Open already, it\ntakes the new commands and starts the query afresh, and the focus will still go back where it\nwas before the first show(). Not on the page, it does not open."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the palette, sending nothing; does nothing while closed."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-palette-run",
+              "type": {
+                "text": "CustomEvent<PaletteRunDetail>"
+              },
+              "description": "A command was run, by Enter on its row or a click on it: do it. The palette has closed, and\nthe focus is back where it was before the palette opened. Never sent for a disabled command."
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-command-palette",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-disabled",
+              "default": "#999"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-input-bg",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-input-border",
+              "default": "#c8c8c8"
+            },
+            {
+              "name": "--dex-input-fg",
+              "description": "A text field (the project page's section filters).",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-input-placeholder-fg",
+              "default": "#767676"
+            },
+            {
+              "name": "--dex-selection-fg",
+              "description": "The ink on a selected row, whose surface is --dex-color-accent-bg.",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineCommandPalette",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-command-palette'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-command-palette>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexCommandPalette",
+          "declaration": {
+            "name": "DexCommandPalette",
+            "module": "dist/widgets/app-shell/modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCommandPalette",
+          "declaration": {
+            "name": "defineCommandPalette",
+            "module": "dist/widgets/app-shell/modules/dex-command-palette.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-command-window.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A MATLAB-style command window: the output of the commands run so far over a `>>` prompt. It runs\nnothing itself. Enter shows the line after the prompt, keeps it in the history and sends\n`dex-command-run`; the app runs the line (the model's runCommand, over its documents) and hands\nthe answer to `appendOutput()`, whose lines are drawn as text in their kind's colour (output, an\nerror, a note). ArrowUp and ArrowDown recall the lines run, newest first, only those beginning\nwith what is typed when there is something typed, as MATLAB's do; Escape empties the prompt. The\noutput keeps its newest `maxLines` lines, and scrolls to the newest.",
+          "name": "DexCommandWindow",
+          "members": [
+            {
+              "kind": "field",
+              "name": "maxLines",
+              "default": "5000",
+              "description": "The most lines the output keeps; past it the oldest go, so a long session does not grow the\npage without bound. Default 5000. Attribute `max-lines`.",
+              "attribute": "max-lines",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "heading",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data Explorer'",
+              "description": "The app the welcome's first line names, \"<heading> — Command Window\". Default 'Data Explorer'.\nAttribute `heading`.",
+              "attribute": "heading"
+            },
+            {
+              "kind": "method",
+              "name": "appendOutput",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "output",
+                  "type": {
+                    "text": "CommandOutput"
+                  }
+                }
+              ],
+              "description": "Show a command's answer: its lines, after the ones there, or in place of every line where the\nanswer says `clear`. Not `append`, which every element has already, for its child nodes."
+            },
+            {
+              "kind": "method",
+              "name": "clear",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Empty the output, the welcome lines included. The prompt and its history stay."
+            },
+            {
+              "kind": "method",
+              "name": "focusInput",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Give the prompt the keyboard (once it is drawn, when called before)."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-command-run",
+              "type": {
+                "text": "CustomEvent<CommandRunDetail>"
+              },
+              "description": "Enter was pressed on a line that is not blank: run it. The window has shown the line after the\nprompt, kept it in its history and emptied the prompt; the app runs it and hands the answer to\n`appendOutput()`."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "max-lines",
+              "default": "DEFAULT_MAX_LINES",
+              "description": "The most lines the output keeps; past it the oldest go, so a long session does not grow the\npage without bound. Default 5000. Attribute `max-lines`.",
+              "fieldName": "maxLines"
+            },
+            {
+              "name": "heading",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data Explorer'",
+              "description": "The app the welcome's first line names, \"<heading> — Command Window\". Default 'Data Explorer'.\nAttribute `heading`.",
+              "fieldName": "heading"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-command-window",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineCommandWindow",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-command-window'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-command-window>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexCommandWindow",
+          "declaration": {
+            "name": "DexCommandWindow",
+            "module": "dist/widgets/app-shell/modules/dex-command-window.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCommandWindow",
+          "declaration": {
+            "name": "defineCommandWindow",
+            "module": "dist/widgets/app-shell/modules/dex-command-window.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-gallery-panel.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The app shell's Gallery panel: the Add gallery's tiles as a palette that is always open, under\na heading naming the file an add lands in (\"Add to plant.sldd\"). A click on a tile sends\n`dex-gallery-add` with its class and section, for the app to add one entry to the active file\n(a document's `addEntry`); the panel adds nothing itself.\n\n`classes` and `sections` are the Add gallery's, forwarded: a dictionary's every tile by\ndefault, a MAT-file's or a model's classes where they are given. While `disabled`, a note says\nwhy (`note`: what to open, by default), and the tiles are shown but take no press and no focus.",
+          "name": "DexGalleryPanel",
+          "members": [
+            {
+              "kind": "field",
+              "name": "classes",
+              "type": {
+                "text": "readonly string[] | null"
+              },
+              "default": "null",
+              "description": "The classes a MAT-file or a model's workspace can take a new variable of (a TableView's\n`add.classes`), or null for a dictionary's every tile. The Add gallery's `classes`, forwarded.\nDefault null. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "sections",
+              "type": {
+                "text": "readonly string[] | null"
+              },
+              "default": "null",
+              "description": "With `classes`, the sections beside the file's variables whose every tile is offered too (a\nTableView's `addSections`: a model's `config`). The Add gallery's `sections`, forwarded.\nDefault null: none. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "target",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The name of the file an add lands in, the active one: the heading reads \"Add to\" it. Default\nempty, and the heading reads \"Add\". Attribute `target`.",
+              "attribute": "target"
+            },
+            {
+              "kind": "field",
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the active file takes no new entry (none is open, or it is a project): a note says to\nopen a dictionary, a MAT-file or a model, and the tiles are shown faded and send nothing.\nDefault false. Attribute `disabled`.",
+              "attribute": "disabled"
+            },
+            {
+              "kind": "field",
+              "name": "note",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Open a dictionary, a MAT-file or a model to add entries.'",
+              "description": "What the note says while `disabled`: why no entry can be added, as the app knows it (\"plant.mdl\ntakes no edits.\"). Default 'Open a dictionary, a MAT-file or a model to add entries.'.\nAttribute `note`.",
+              "attribute": "note"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-gallery-add",
+              "type": {
+                "text": "CustomEvent<GalleryAddDetail>"
+              },
+              "description": "A tile was clicked: add one entry of its class, in its section, to the active file. Not sent\nwhile the panel is disabled. The Add gallery's own `dex-add-tile` does not leave the panel.\nA request."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "target",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The name of the file an add lands in, the active one: the heading reads \"Add to\" it. Default\nempty, and the heading reads \"Add\". Attribute `target`.",
+              "fieldName": "target"
+            },
+            {
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the active file takes no new entry (none is open, or it is a project): a note says to\nopen a dictionary, a MAT-file or a model, and the tiles are shown faded and send nothing.\nDefault false. Attribute `disabled`.",
+              "fieldName": "disabled"
+            },
+            {
+              "name": "note",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Open a dictionary, a MAT-file or a model to add entries.'",
+              "description": "What the note says while `disabled`: why no entry can be added, as the app knows it (\"plant.mdl\ntakes no edits.\"). Default 'Open a dictionary, a MAT-file or a model to add entries.'.\nAttribute `note`.",
+              "fieldName": "note"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-gallery-panel",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineGalleryPanel",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-gallery-panel'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-gallery-panel>`, or under `tag`, after the `<dex-add-gallery>` it\ndraws (and the `<dex-icon>` the gallery's tiles draw)."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexGalleryPanel",
+          "declaration": {
+            "name": "DexGalleryPanel",
+            "module": "dist/widgets/app-shell/modules/dex-gallery-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineGalleryPanel",
+          "declaration": {
+            "name": "defineGalleryPanel",
+            "module": "dist/widgets/app-shell/modules/dex-gallery-panel.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-log-panel.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The shell's Log, in the bottom panel: what the app did and what went wrong, a line each, oldest\nfirst. appendEntry() adds a line (its time as HH:MM:SS, its level in words and in colour, its\nmessage) and clear() takes them all away; the latest thousand are kept, the oldest dropped.\n\nA toolbar above the lines filters them by level (All, Warnings, Errors: a radio group, whose\narrow keys move and choose) and clears them. The filter narrows what is shown, never what is\nkept, and is the `filter` property: the app may set it, and a choice in the toolbar sets it and\nsends `dex-log-filter-changed`. Clear sends `dex-log-cleared`; clear() from the app sends\nnothing.\n\nThe lines are a log region (`role=\"log\"`), which a screen reader reads out as lines arrive, and\na Tab stop, so the keyboard can scroll it. A change of filter marks the region busy until its\nnew lines are drawn, so they are not all read out. It keeps the newest line in view as lines\narrive, until the user scrolls up to read an older one; scrolled back to the bottom, it\nfollows again, as it does after a clear or a change of filter.\nIt fills the height it is given (a bottom panel's view) and scrolls the lines within it.",
+          "name": "DexLogPanel",
+          "members": [
+            {
+              "kind": "field",
+              "name": "filter",
+              "type": {
+                "text": "LogFilter"
+              },
+              "default": "'all'",
+              "description": "Which lines are shown, by the least level: `all` (the default), `warning` (warnings and\nerrors) or `error`. A choice in the toolbar sets it and sends `dex-log-filter-changed`; set\nby the app it sends nothing. A value not one of these is `all`. Attribute `filter`.",
+              "attribute": "filter",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "appendEntry",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "entry",
+                  "type": {
+                    "text": "LogEntry"
+                  }
+                }
+              ],
+              "description": "Adds a line at the bottom, dropping the oldest once there are a thousand. Its time is the\nentry's `at`, or now; its level is the entry's, or 'info' for one not known. Not `append`:\nthat is the DOM's own, which puts nodes in the element."
+            },
+            {
+              "kind": "method",
+              "name": "clear",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Takes every line away, sending nothing."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-log-filter-changed",
+              "type": {
+                "text": "CustomEvent<LogFilterChangedDetail>"
+              },
+              "description": "The user chose another level in the toolbar; `filter` is set to it already. Keep it, if the app keeps such things."
+            },
+            {
+              "name": "dex-log-cleared",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "The user pressed Clear, and every line is gone. No detail."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "filter",
+              "type": {
+                "text": "LogFilter"
+              },
+              "default": "'all'",
+              "description": "Which lines are shown, by the least level: `all` (the default), `warning` (warnings and\nerrors) or `error`. A choice in the toolbar sets it and sends `dex-log-filter-changed`; set\nby the app it sends nothing. A value not one of these is `all`. Attribute `filter`.",
+              "fieldName": "filter"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-log-panel",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-error",
+              "default": "#d32f2f"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-warning",
+              "default": "#d83b01"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            }
+          ]
+        },
+        {
+          "kind": "variable",
+          "name": "level"
+        },
+        {
+          "kind": "function",
+          "name": "defineLogPanel",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-log-panel'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-log-panel>`, or under `tag`."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexLogPanel",
+          "declaration": {
+            "name": "DexLogPanel",
+            "module": "dist/widgets/app-shell/modules/dex-log-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineLogPanel",
+          "declaration": {
+            "name": "defineLogPanel",
+            "module": "dist/widgets/app-shell/modules/dex-log-panel.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-raw-viewer.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "RAW_HIGHLIGHT_LIMIT",
+          "description": "The longest JSON or XML text the pane colours, in characters: a longer one is drawn as plain\ntext. A span per token of a record of megabytes would take the page longer to lay out than the\nrecord takes to read."
+        },
+        {
+          "kind": "variable",
+          "name": "RAW_DRAW_LIMIT",
+          "description": "How much of a text the pane draws, in characters: 1 MB, then a line saying how much more there\nis, as the hex dump stops at 64 KB. Copy sends the whole text all the same."
+        },
+        {
+          "kind": "class",
+          "description": "The Raw pane: what the file holds for the selected row, unrendered, as `TableSource.raw`\nanswers it. A JSON or XML text is coloured (keys, strings, numbers, tags, attributes, comments,\neach with its `--dex-syntax-*` token), a value's bytes are a hex dump, and either is drawn in a\nmonospaced, scrollable, selectable block under a header naming its format and what it is for\n(`label`: the row's name, or the file's). The text is drawn as text, never as markup, and its\nfirst megabyte alone (RAW_DRAW_LIMIT), then a line saying how much more there is.\n\nCopy sends `dex-raw-copy` with the whole text (the dump, for bytes): the app puts it on the\nclipboard, as only it may. A RawView with nothing to show draws its reason as a muted note; no\nRawView at all (`raw` null), a note asking for a selection; and `loading`, a note that the answer\nis on its way, in place of the last one. The pane knows nothing of documents: the app hands it\neach answer.",
+          "name": "DexRawViewer",
+          "members": [
+            {
+              "kind": "field",
+              "name": "raw",
+              "type": {
+                "text": "RawView | null"
+              },
+              "default": "null",
+              "description": "What to show: `TableSource.raw`'s answer for the selected row. Null, the default, is no\nselection, and draws a note asking for one. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "loading",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The answer for a new selection is on its way: the pane says Loading… in place of the last one,\nwhich is no longer the selection's. Set it while `raw()` is asked. Default false. Attribute\n`loading`.",
+              "attribute": "loading"
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What `raw` is for, named in the header and in the text's accessible name: the selected row's\nname, or the file's for its own summary. Default empty: no name. Attribute `label`.",
+              "attribute": "label"
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-raw-copy",
+              "type": {
+                "text": "CustomEvent<RawCopyDetail>"
+              },
+              "description": "Copy was pressed: put `text`, the whole text the pane shows (past what it draws of a long one;\na value's hex dump, for its bytes), on the clipboard. A request: the pane copies nothing itself."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "loading",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The answer for a new selection is on its way: the pane says Loading… in place of the last one,\nwhich is no longer the selection's. Set it while `raw()` is asked. Default false. Attribute\n`loading`.",
+              "fieldName": "loading"
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What `raw` is for, named in the header and in the text's accessible name: the selected row's\nname, or the file's for its own summary. Default empty: no name. Attribute `label`.",
+              "fieldName": "label"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-raw-viewer",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-badge",
+              "default": "rgba(128, 128, 128, 0.18)"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-syntax-comment",
+              "description": "Syntax colours (dex-raw-viewer's JSON and XML) — light / VS Code palette",
+              "default": "#008000"
+            },
+            {
+              "name": "--dex-syntax-keyword",
+              "default": "#0451a5"
+            },
+            {
+              "name": "--dex-syntax-literal",
+              "default": "#0451a5"
+            },
+            {
+              "name": "--dex-syntax-number",
+              "default": "#098658"
+            },
+            {
+              "name": "--dex-syntax-string",
+              "default": "#a31515"
+            },
+            {
+              "name": "--dex-syntax-title",
+              "default": "#795e26"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineRawViewer",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-raw-viewer'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-raw-viewer>`, or under `tag`, and the `<dex-icon>` its Copy button draws."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "RAW_HIGHLIGHT_LIMIT",
+          "declaration": {
+            "name": "RAW_HIGHLIGHT_LIMIT",
+            "module": "dist/widgets/app-shell/modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RAW_DRAW_LIMIT",
+          "declaration": {
+            "name": "RAW_DRAW_LIMIT",
+            "module": "dist/widgets/app-shell/modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexRawViewer",
+          "declaration": {
+            "name": "DexRawViewer",
+            "module": "dist/widgets/app-shell/modules/dex-raw-viewer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineRawViewer",
+          "declaration": {
+            "name": "defineRawViewer",
+            "module": "dist/widgets/app-shell/modules/dex-raw-viewer.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-relationship-graph.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right,\neach a box of its kind's colour, a file referenced and not open dashed, and the edges between\nthem. Every box starts closed. An open box lists the blocks and variables that take\npart, a model's workspace variables under a divider, and every other box the items of its own\nthose reach (a model open shows, in a dictionary, the variables its blocks read), with an edge\nfrom each block to each variable it reads, labelled with the block parameter. The edges run under\nthe boxes; what the selection reaches is drawn over them. The graph comes from\n`buildRelationshipGraph`; where it is drawn, from `layoutGraph`.\n\nA click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges\nreach, dimming the rest; a click on the background clears it. A double-click asks to open the\nfile (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names\nit, for the app to look for. A box's − or + asks to hide or show its\nitems (`dex-graph-expand`); the app answers by setting `expanded`. The wheel, the + and − buttons\nand a drag of the background zoom and pan; the fit button and fit() show the whole graph, and\nreveal() brings one box or item to the middle. A Legend, closed at first, names the kinds.\n\nThe keyboard: the canvas is one stop of the tab order; the arrows move the selection to the\nnearest box that way, Enter opens the selected box or item, Space shows or hides the selected\nbox's items, + and − zoom and 0 fits.",
+          "name": "DexRelationshipGraph",
+          "members": [
+            {
+              "kind": "field",
+              "name": "graph",
+              "type": {
+                "text": "RelationshipGraph | null"
+              },
+              "default": "null",
+              "description": "The graph to draw, from `buildRelationshipGraph`. Null, the default, or one with no boxes,\ndraws a note saying what to open. A new graph whose boxes are other than the last one's is\nfitted to the canvas; one with the same boxes (rebuilt after an edit) keeps the view."
+            },
+            {
+              "kind": "field",
+              "name": "selected",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "The id of the box or item to select: a box's id (a file's uri, for a file given) or an item's,\nas `graphIdOf` gives it. It is lit with what its edges reach, and the rest is dimmed. Null, the\ndefault, selects nothing. A click changes it and sends `dex-graph-selected`; setting it sends\nnothing. Attribute `selected`.",
+              "attribute": "selected"
+            },
+            {
+              "kind": "field",
+              "name": "expanded",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "The ids of the boxes that are open. An open box shows all its items, and each other box the\nitems of its own an open box's edges reach: a model open shows its blocks and, in each data file\nthey read, only the variables they read. None, the default, the graph starts with: the files\nand the links between them. The app sets it, in answer to `dex-graph-expand`; the element never\nchanges it."
+            },
+            {
+              "kind": "method",
+              "name": "fit",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Scales and moves the view so the whole graph shows, centred, at no more than its own size and\nno less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.\nCalled with a draw to come (just after `graph` or `expanded` was set), it fits what that draw\nlays out; before the element has a size (not on the page yet, or hidden), once it has one."
+            },
+            {
+              "kind": "method",
+              "name": "reveal",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ],
+              "description": "Moves the view so the box or item `id` is at the middle of the canvas, at the scale it has; an\nitem of a closed box brings its box. Changes neither the selection nor which boxes are open:\nan app revealing a row sets `selected` (and `expanded`) too, and may call this straight after,\nsince with a draw to come it reveals where that draw puts the row. An id the graph does not\nhold moves nothing."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-graph-selected",
+              "type": {
+                "text": "CustomEvent<GraphSelectedDetail>"
+              },
+              "description": "A box or an item was clicked, or chosen with an arrow key, and is now `selected`; or the\nbackground was clicked and nothing is (`id` null). Sent again each time one is chosen."
+            },
+            {
+              "name": "dex-graph-open",
+              "type": {
+                "text": "CustomEvent<GraphOpenDetail>"
+              },
+              "description": "Open this file, at this row: a box or an item was double-clicked, or Enter pressed on it. For a\nghost, `uri` is empty and `ref` names the file to look for. A request."
+            },
+            {
+              "name": "dex-graph-expand",
+              "type": {
+                "text": "CustomEvent<GraphExpandDetail>"
+              },
+              "description": "Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`\nto include the box, or to leave it out. The graph changes nothing itself."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "selected",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "The id of the box or item to select: a box's id (a file's uri, for a file given) or an item's,\nas `graphIdOf` gives it. It is lit with what its edges reach, and the rest is dimmed. Null, the\ndefault, selects nothing. A click changes it and sends `dex-graph-selected`; setting it sends\nnothing. Attribute `selected`.",
+              "fieldName": "selected"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-relationship-graph",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-bg-tertiary",
+              "default": "#f5f5f5"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-disabled",
+              "default": "#999"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-graph-edge-data-link",
+              "default": "#7c8a60"
+            },
+            {
+              "name": "--dex-graph-edge-model-ref",
+              "default": "#6788a4"
+            },
+            {
+              "name": "--dex-graph-edge-param-usage",
+              "default": "#8d7ea4"
+            },
+            {
+              "name": "--dex-graph-edge-sldd-ref",
+              "default": "#658d72"
+            },
+            {
+              "name": "--dex-graph-edge-ws-usage",
+              "default": "#618d7e"
+            },
+            {
+              "name": "--dex-graph-ghost-fg",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-graph-item-bg",
+              "default": "rgba(0, 0, 0, 0.04)"
+            },
+            {
+              "name": "--dex-graph-item-border",
+              "default": "rgba(0, 0, 0, 0.1)"
+            },
+            {
+              "name": "--dex-graph-mat-bg",
+              "default": "#f4f0e8"
+            },
+            {
+              "name": "--dex-graph-mat-border",
+              "default": "#918267"
+            },
+            {
+              "name": "--dex-graph-mat-selected",
+              "default": "#7d653e"
+            },
+            {
+              "name": "--dex-graph-model-bg",
+              "description": "The relationship graph (dex-relationship-graph): each kind of box's surface, border and selected border, each kind of edge (the legend's swatches too), the items inside a box (a model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues darkened until every line and border is 3:1 against the canvas.",
+              "default": "#e8f0f7"
+            },
+            {
+              "name": "--dex-graph-model-border",
+              "default": "#6c8899"
+            },
+            {
+              "name": "--dex-graph-model-selected",
+              "default": "#436e8a"
+            },
+            {
+              "name": "--dex-graph-sldd-bg",
+              "default": "#e8f4ec"
+            },
+            {
+              "name": "--dex-graph-sldd-border",
+              "default": "#6a8c7a"
+            },
+            {
+              "name": "--dex-graph-sldd-selected",
+              "default": "#3e7456"
+            },
+            {
+              "name": "--dex-graph-ws-item-bg",
+              "default": "rgba(107, 155, 139, 0.08)"
+            },
+            {
+              "name": "--dex-graph-ws-item-border",
+              "default": "rgba(107, 155, 139, 0.25)"
+            }
+          ]
+        },
+        {
+          "kind": "variable",
+          "name": "id"
+        },
+        {
+          "kind": "function",
+          "name": "defineRelationshipGraph",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-relationship-graph'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-relationship-graph>`, or under `tag`, and the `<dex-icon>` its boxes draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexRelationshipGraph",
+          "declaration": {
+            "name": "DexRelationshipGraph",
+            "module": "dist/widgets/app-shell/modules/dex-relationship-graph.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineRelationshipGraph",
+          "declaration": {
+            "name": "defineRelationshipGraph",
+            "module": "dist/widgets/app-shell/modules/dex-relationship-graph.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/dex-search-panel.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The app shell's Search panel: a search box, the scope it searches under it, and the matches\ngrouped by file (each group headed by the file's name and how many it holds, each row an\nentry's icon, its name with the match marked, and where it is in the file). It asks and\ndraws: a pause in the typing sends `dex-search-query`, the app sets `results` in answer, and\nEnter or a click on a result sends `dex-search-open`.\n\nThe focus stays in the box: Down and Up move the active result through the rows as drawn,\nstopping at the ends, and the results are a listbox the box names its active row of. Each new\n`results` makes the first row the active one, scrolled into view. Enter opens nothing while\n`searching`, nor before the pause (it asks at once instead). Escape empties the box and asks\nfor the empty query at once; on an empty box it is the page's. A count says how many results\nthere are, and when the list stopped at its cap (MAX_SEARCH_RESULTS); \"No matches\" when a query\nhas none, and \"Searching…\" while `searching`.",
+          "name": "DexSearchPanel",
+          "members": [
+            {
+              "kind": "field",
+              "name": "results",
+              "type": {
+                "text": "SearchItem[]"
+              },
+              "default": "[]",
+              "description": "The matches to show for the query in the box, in the order the app gives them (searchEntries'\nitems: by name, then by file). They are drawn grouped by file, each file where its first\nresult is. Shown only while the box holds a query. Default none. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "query",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the box holds. The user's typing sets it (and asks for it, once the typing pauses); an\napp that sets it, to restore a search, asks for nothing, and sets `results` itself. Default\nempty. Attribute `query`.",
+              "attribute": "query"
+            },
+            {
+              "kind": "field",
+              "name": "searching",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the app is still working out the results of the query: \"Searching…\" stands in for\nthe count, and the list is marked busy. Default false. Attribute `searching`.",
+              "attribute": "searching"
+            },
+            {
+              "kind": "field",
+              "name": "scope",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the search covers, said under the box: \"Open files and the folder\", say. Default\nempty, which draws no line. Attribute `scope`.",
+              "attribute": "scope"
+            },
+            {
+              "kind": "method",
+              "name": "focusInput",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Puts the focus in the box, its text selected so the next keystroke types over it."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-search-query",
+              "type": {
+                "text": "CustomEvent<SearchQueryDetail>"
+              },
+              "description": "Search for this: the typing paused (150 ms), Escape emptied the box, or Enter came before the\npause. Answer by setting `results` (and `searching` while they are worked out). An empty\nquery asks for none. A request."
+            },
+            {
+              "name": "dex-search-open",
+              "type": {
+                "text": "CustomEvent<SearchOpenDetail>"
+              },
+              "description": "Open this result: reveal `revealName` in the file `sourceUri`. Enter or a click. A request."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "query",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the box holds. The user's typing sets it (and asks for it, once the typing pauses); an\napp that sets it, to restore a search, asks for nothing, and sets `results` itself. Default\nempty. Attribute `query`.",
+              "fieldName": "query"
+            },
+            {
+              "name": "searching",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the app is still working out the results of the query: \"Searching…\" stands in for\nthe count, and the list is marked busy. Default false. Attribute `searching`.",
+              "fieldName": "searching"
+            },
+            {
+              "name": "scope",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "What the search covers, said under the box: \"Open files and the folder\", say. Default\nempty, which draws no line. Attribute `scope`.",
+              "fieldName": "scope"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-search-panel",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-badge",
+              "default": "rgba(128, 128, 128, 0.18)"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
+            },
+            {
+              "name": "--dex-color-accent-bg",
+              "default": "#cde4f7"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-color-text-secondary",
+              "default": "#555"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-input-placeholder-fg",
+              "default": "#767676"
+            },
+            {
+              "name": "--dex-match-highlight-bg",
+              "description": "A search match inside text.",
+              "default": "rgba(234, 92, 0, 0.33)"
+            },
+            {
+              "name": "--dex-selection-fg",
+              "description": "The ink on a selected row, whose surface is --dex-color-accent-bg.",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineSearchPanel",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-search-panel'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-search-panel>`, or under `tag`, and the `<dex-icon>` its rows draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexSearchPanel",
+          "declaration": {
+            "name": "DexSearchPanel",
+            "module": "dist/widgets/app-shell/modules/dex-search-panel.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineSearchPanel",
+          "declaration": {
+            "name": "defineSearchPanel",
+            "module": "dist/widgets/app-shell/modules/dex-search-panel.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/modules/relationship-graph.styles.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "relationshipGraphStyles",
+          "default": "css` :host { display: block; position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 120px; background: var(--dex-bg-tertiary, #f5f5f5); font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); color: var(--dex-color-text, #333); } /* The canvas is the whole host; the world inside it is the graph at its own size, moved and scaled by the view. */ .canvas { position: absolute; inset: 0; overflow: hidden; outline: none; cursor: grab; touch-action: none; } .canvas.panning { cursor: grabbing; } .canvas:focus-visible { box-shadow: inset var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4)); } .empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: var(--dex-font-size, 13px); color: var(--dex-color-text-muted, #666); cursor: default; } .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; } svg.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; } path.edge { fill: none; stroke-width: 1.5; transition: opacity 0.15s ease, stroke-width 0.15s ease; } /* The edges under the boxes take the pointer, so one can be picked out by hovering it. The ones over the boxes never do: they would take the clicks meant for the items under them. */ .under path.edge { stroke-width: 1.2; opacity: 0.8; pointer-events: stroke; } .under path.edge:hover { stroke-width: 2.5; opacity: 1; } .over path.edge, path.stub { stroke-width: 1.8; } path.stub { fill: none; } path.edge.dim, path.stub.dim { opacity: 0.2; } .model-ref { stroke: var(--dex-graph-edge-model-ref, #6788a4); fill: var(--dex-graph-edge-model-ref, #6788a4); } .sldd-ref { stroke: var(--dex-graph-edge-sldd-ref, #658d72); fill: var(--dex-graph-edge-sldd-ref, #658d72); } .data-link { stroke: var(--dex-graph-edge-data-link, #7c8a60); fill: var(--dex-graph-edge-data-link, #7c8a60); } .param-usage { stroke: var(--dex-graph-edge-param-usage, #8d7ea4); fill: var(--dex-graph-edge-param-usage, #8d7ea4); } .ws-usage { stroke: var(--dex-graph-edge-ws-usage, #618d7e); fill: var(--dex-graph-edge-ws-usage, #618d7e); } /* The markers' shapes are filled, not stroked. */ marker * { stroke-width: 0; } /* A label is read as text, so it is inked as text, not in its edge's colour: an 8px word in a mid-tone purple on the canvas could not be read. */ text.edge-label { font-size: 8px; fill: var(--dex-color-text-secondary, #555); } .box { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 6px; cursor: pointer; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.12)); transition: opacity 0.15s ease; } .box:hover { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18)); } .box.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .box.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .box.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } /* Selected: a darker border, a pixel wider by a ring outside it, so nothing inside moves. */ .box.model.selected { border-color: var(--dex-graph-model-selected, #436e8a); box-shadow: 0 0 0 1px var(--dex-graph-model-selected, #436e8a); } .box.sldd.selected { border-color: var(--dex-graph-sldd-selected, #3e7456); box-shadow: 0 0 0 1px var(--dex-graph-sldd-selected, #3e7456); } .box.mat.selected { border-color: var(--dex-graph-mat-selected, #7d653e); box-shadow: 0 0 0 1px var(--dex-graph-mat-selected, #7d653e); } .box.ghost { border-style: dashed; } .box.ghost .label { color: var(--dex-graph-ghost-fg, #666); } .box.dim { opacity: 0.2; } .head { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 8px; font-size: 11px; } .box.open .head, .box.partial .head { height: 28px; } .label, .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } dex-icon { flex-shrink: 0; } button.toggle { flex-shrink: 0; width: 16px; height: 16px; padding: 0; border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 3px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); font: inherit; font-size: 12px; font-weight: 600; line-height: 1; cursor: pointer; opacity: 0.6; } .box:hover button.toggle, .box.selected button.toggle, button.toggle:hover { opacity: 1; } .item { position: absolute; box-sizing: border-box; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--dex-graph-item-border, rgba(0, 0, 0, 0.1)); border-radius: 3px; background: var(--dex-graph-item-bg, rgba(0, 0, 0, 0.04)); font-size: 10px; transition: opacity 0.15s ease; } .item.workspace { background: var(--dex-graph-ws-item-bg, rgba(107, 155, 139, 0.08)); border-color: var(--dex-graph-ws-item-border, rgba(107, 155, 139, 0.25)); } .item.selected { border-color: var(--dex-color-accent, #0078d4); box-shadow: 0 0 0 1px var(--dex-color-accent, #0078d4); } .item.dim { opacity: 0.25; } /* The line between a model's blocks and its workspace variables, named on its left. */ .divider { position: absolute; left: 8px; right: 8px; height: 0; border-top: 1px dashed var(--dex-border-color, #d0d0d0); } .divider span { position: absolute; left: 50%; bottom: 1px; transform: translateX(-50%); font-size: 8px; color: var(--dex-color-text-muted, #666); white-space: nowrap; } .zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; } .zoom button, .legend-toggle { border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 4px; background: var(--dex-bg-primary, #fff); color: var(--dex-color-text-secondary, #555); cursor: pointer; font-family: inherit; } .zoom button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; font-size: 14px; font-weight: 600; } .zoom button:hover, .legend-toggle:hover { background: var(--dex-bg-hover, #e8e8e8); } .zoom button:active { background: var(--dex-bg-active, #e0e0e0); } .legend { position: absolute; left: 8px; bottom: 8px; max-height: calc(100% - 16px); overflow: auto; font-size: 10px; color: var(--dex-color-text-secondary, #555); } .legend-toggle { display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 10px; font-weight: 600; } .legend-toggle::before { content: '\\\\25B6'; font-size: 8px; } .legend-toggle[aria-expanded='true']::before { content: '\\\\25BC'; } .legend-content { display: flex; flex-direction: column; gap: 5px; margin: 4px 0 0; padding: 6px 10px; list-style: none; background: var(--dex-bg-primary, #fff); border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); } /* Hidden while the legend is closed, and still there for the toggle's aria-controls to name. */ .legend-content[hidden] { display: none; } .legend-content li { display: flex; align-items: center; gap: 6px; } .swatch { flex-shrink: 0; } .swatch.line { width: 20px; height: 0; border-top: 2px solid; } .swatch.line.model-ref { border-color: var(--dex-graph-edge-model-ref, #6788a4); } .swatch.line.sldd-ref { border-color: var(--dex-graph-edge-sldd-ref, #658d72); } .swatch.line.data-link { border-color: var(--dex-graph-edge-data-link, #7c8a60); } .swatch.line.param-usage { border-color: var(--dex-graph-edge-param-usage, #8d7ea4); } .swatch.line.ws-usage { border-color: var(--dex-graph-edge-ws-usage, #618d7e); } .swatch.file { width: 14px; height: 10px; box-sizing: border-box; border: 1.5px solid; border-radius: 2px; } .swatch.file.model { background: var(--dex-graph-model-bg, #e8f0f7); border-color: var(--dex-graph-model-border, #6c8899); } .swatch.file.sldd { background: var(--dex-graph-sldd-bg, #e8f4ec); border-color: var(--dex-graph-sldd-border, #6a8c7a); } .swatch.file.mat { background: var(--dex-graph-mat-bg, #f4f0e8); border-color: var(--dex-graph-mat-border, #918267); } .swatch.file.ghost { background: var(--dex-bg-secondary, #f8f8f8); border-color: var(--dex-color-text-disabled, #999); border-style: dashed; } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } @media (prefers-reduced-motion: reduce) { path.edge, .box, .item { transition: none; } } /* Forced colours paint no SVG stroke and no background of their own: the boxes take the system's ink for a border, the edges its text colour, and a selection its highlight. */ @media (forced-colors: active) { .box, .item { border-color: CanvasText; } path.edge, marker * { stroke: CanvasText; fill: CanvasText; } path.edge { fill: none; } .box.selected, .item.selected { outline: 2px solid Highlight; } .canvas:focus-visible { outline: 2px solid CanvasText; outline-offset: -2px; } } `",
+          "description": "The look of `<dex-relationship-graph>`: a grey canvas, a box per file in its kind's colour (a\nmodel blue, a dictionary green, a MAT-file sand) with a soft shadow, a file not open dashed, the\nitems of an open box in pale rows, a model's workspace variables under a dashed divider, edges in\ntheir kind's colour with a dot where they leave and an arrowhead where they arrive, and the zoom\nbuttons and the Legend floating over the corners.\n\nEvery colour is a `--dex-graph-*` token (or a shared one) so each theme sets its own; SVG takes a\nstroke and a fill from CSS as any element takes a colour, so the edges and markers are themed by\nclass rather than by attribute."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "relationshipGraphStyles",
+          "declaration": {
+            "name": "relationshipGraphStyles",
+            "module": "dist/widgets/app-shell/modules/relationship-graph.styles.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/popover.styles.js",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "popoverStyles",
+          "default": "css` :host { display: none; position: fixed; z-index: 10000; } :host([open]) { display: block; } .popover { box-sizing: border-box; max-width: 100vw; max-height: 100vh; overflow: auto; padding: 12px; background: var(--dex-bg-primary, #fff); border: 1px solid var(--dex-border-color, #d0d0d0); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); color: var(--dex-color-text, #333); font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); font-size: 12px; white-space: nowrap; /* The card takes focus when it has nothing focusable of its own (About): a ring round the whole card would only say that it opened. */ outline: none; } /* The card's title in capitals, as the side bars' section titles are (EXPLORER): SETTINGS, and the About card's heading. */ .title { margin-bottom: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--dex-color-text-secondary, #555); } `",
+          "description": "The look the shell's popovers share (`<dex-settings-panel>`, `<dex-about-panel>`): a small card\nfloating beside the activity-bar button that opened it.\n\nThe host is the fixed box show() places, in viewport px; it is shrink-wrapped round the card, so\nwhat show() measures is the card's size. Nothing shows until show(): the host is `display: none`\nwithout the `open` attribute, and the card itself is not rendered.\n\nThe card is capped at the viewport and scrolls inside: placeBeside puts a card bigger than the\nwindow at its top left corner, and the cap is what keeps the rest of it reachable there."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "popoverStyles",
+          "declaration": {
+            "name": "popoverStyles",
+            "module": "dist/widgets/app-shell/popover.styles.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/popover.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "Opens and closes a popover element: show(), close(), and the `open` attribute on the host. The\nhost renders its card while `open` is true and nothing otherwise; the controller asks it to\nrender again whenever that changes.",
+          "name": "PopoverController",
+          "members": [
+            {
+              "kind": "field",
+              "name": "_open",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "private",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "_anchor",
+              "type": {
+                "text": "Rect | null"
+              },
+              "privacy": "private",
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "_returnFocusTo",
+              "type": {
+                "text": "HTMLElement | null"
+              },
+              "privacy": "private",
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "_focusPending",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "private",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Whether the popover is open: from show() until close(), Escape or a press outside it.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "show",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "anchor",
+                  "type": {
+                    "text": "Rect"
+                  }
+                }
+              ],
+              "description": "Opens the popover beside `anchor`, in viewport px (the opening button's\ngetBoundingClientRect()), or moves it there when it is open already. A popover that is not\non the page does not open."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Closes the popover. Focus goes back to what had it before show() when the popover holds it,\nand is left alone when it does not: an app closing the popover while someone types elsewhere\nmust not pull them away."
+            },
+            {
+              "kind": "method",
+              "name": "hostUpdated",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Places the popover after each render while it is open, and gives focus to it after the first."
+            },
+            {
+              "kind": "method",
+              "name": "hostDisconnected",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "A popover taken off the page closes, and its document listeners go with it."
+            },
+            {
+              "kind": "method",
+              "name": "_place",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "anchor",
+                  "type": {
+                    "text": "Rect"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "_onKeyDown",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_onPointerDown",
+              "privacy": "private"
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "PopoverController",
+          "declaration": {
+            "name": "PopoverController",
+            "module": "dist/widgets/app-shell/popover.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/context-menu/dex-context-menu.js",
       "declarations": [
         {
@@ -2094,6 +6134,67 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/shared/textField.js",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "isTextField",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "el",
+              "type": {
+                "text": "Element | null | undefined"
+              }
+            }
+          ],
+          "description": "Whether `el` takes typing: a text input (any input but a checkbox, a radio and the ones that are\nbuttons or pickers), a textarea, a select, whose letters pick an option, or an editable element."
+        },
+        {
+          "kind": "function",
+          "name": "focusIsInTextField",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "doc",
+              "default": "document",
+              "type": {
+                "text": "Document"
+              }
+            }
+          ],
+          "description": "Whether the focus, inside shadow roots too, is in a field that takes typing: for a command that\ncomes with no key event to read (a menu's or a toolbar's Undo), which is the field's own then."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "isTextField",
+          "declaration": {
+            "name": "isTextField",
+            "module": "dist/widgets/shared/textField.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "focusIsInTextField",
+          "declaration": {
+            "name": "focusIsInTextField",
+            "module": "dist/widgets/shared/textField.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/shared/virtualWindow.js",
       "declarations": [
         {
@@ -2178,7 +6279,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The `+ Add` gallery: a popover of tiles, one per kind of entry a dictionary's sections take\n(or per class a MAT-file takes), grouped by section. A click on a tile sends `dex-add-tile`;\nthe table turns it into `dex-add-entry`. Its Keep open box pins it open across adds\n(`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab\nstop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.",
+          "description": "The `+ Add` gallery: a popover of tiles, one per kind of entry a dictionary's sections take\n(or per class a MAT-file takes), grouped by section. A click on a tile sends `dex-add-tile`;\nthe table turns it into `dex-add-entry`. Its Keep open box pins it open across adds\n(`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab\nstop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.\nWith `inline` it is drawn in place instead (`<dex-gallery-panel>` draws it so): no Keep open\nbox, no focus taken, Escape left to the page.",
           "name": "DexAddGallery",
           "members": [
             {
@@ -2190,6 +6291,16 @@
               "default": "false",
               "description": "Whether an add keeps the popover open.\n\nOwned by the table, not here, so the choice survives closing and reopening within a\nsession: a user who pins is telling you about their next several minutes, not about\nthis one popover. Default false. Attribute `pinned`.",
               "attribute": "pinned"
+            },
+            {
+              "kind": "field",
+              "name": "inline",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather\nthan as the table's `+ Add` popover. Default false: the popover.\n\nInline, it is open for as long as it is shown, so it draws no header row and no Keep open\nbox, which could change nothing; takes no focus when it first draws, since it is drawn beside\nthe table the user is working in, and taking the keyboard from them is the opposite of what a\npopover's first focus is for; leaves Escape to the page, as there is nothing to close; and is\na group rather than a dialog. Attribute `inline`.",
+              "attribute": "inline"
             },
             {
               "kind": "field",
@@ -2242,6 +6353,15 @@
               "default": "false",
               "description": "Whether an add keeps the popover open.\n\nOwned by the table, not here, so the choice survives closing and reopening within a\nsession: a user who pins is telling you about their next several minutes, not about\nthis one popover. Default false. Attribute `pinned`.",
               "fieldName": "pinned"
+            },
+            {
+              "name": "inline",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather\nthan as the table's `+ Add` popover. Default false: the popover.\n\nInline, it is open for as long as it is shown, so it draws no header row and no Keep open\nbox, which could change nothing; takes no focus when it first draws, since it is drawn beside\nthe table the user is working in, and taking the keyboard from them is the opposite of what a\npopover's first focus is for; leaves Escape to the page, as there is nothing to close; and is\na group rather than a dialog. Attribute `inline`.",
+              "fieldName": "inline"
             }
           ],
           "superclass": {
