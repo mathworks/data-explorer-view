@@ -262,13 +262,16 @@ async function save() {
   another and the original goes.
 - `dragOut: true` lets a table's rows be dragged out of it, onto another part of
   the page that takes them (the app shell's Explorer, onto an open file): the
-  box at the pointer goes with them, and a document that may not be edited lets
-  its rows go too, as a copy (a workspace's read-only documents can). What takes
+  box at the pointer goes with them, saying what the element under it says a
+  drop would do (its `data-drop-hint`, a refusal with `data-drop-refused`), and
+  a document that may not be edited lets its rows go too, as a copy (a
+  workspace's read-only documents can). What takes
   them drops them through the target document's handle, as its own rows would:
   `handle.dropDecision(rowId, mode)` predicts the drop there (`rowId` null is
   the document as a whole: the section the entries came from, else the first
   that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
-  document, settling with whether it was refused and why.
+  document, settling once the document is done with it, with whether it was
+  refused and why.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own
