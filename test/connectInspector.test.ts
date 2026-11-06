@@ -249,6 +249,56 @@ describe('following another feed', () => {
   });
 });
 
+describe('writing a change back', () => {
+  // A feed that takes edits (a table's handle does) is handed each change of an editable row as a
+  // cell edit of the page's row, the row's key its column. One that takes none, as the VS Code
+  // extension's inspectorFeed, is never asked: its pages have no editable rows anyway.
+  function feedOf(pages: { rowId?: string; groups: { title: string; properties: object[] }[] }[]) {
+    const edits: unknown[] = [];
+    let send: (page: (typeof pages)[number]) => void = () => {};
+    const feed = {
+      onPage: (listener: typeof send) => ((send = listener), listener(pages[0]), () => (send = () => {})),
+      matrix: async (nodeId: string) => ({ nodeId, message: 'none' }),
+      edit: (edit: unknown) => void edits.push(edit),
+    };
+    return { feed, edits, send: (page: (typeof pages)[number]) => send(page) };
+  }
+  const change = (pi: HTMLElement, detail: object) =>
+    pi.dispatchEvent(new CustomEvent('dex-property-changed', { detail, bubbles: true, composed: true }));
+
+  it("hands the feed each change as a cell edit of the page's row, its key the column", async () => {
+    const page = { rowId: 'r1', groups: [{ title: 'G', properties: [{ name: 'Data Scope', value: 'Auto', editable: true, key: 'dataScope' }] }] };
+    const { feed, edits, send } = feedOf([page]);
+    const pi = document.createElement('dex-property-inspector');
+    document.body.append(pi);
+    const inspector = connectInspector(pi, feed as never);
+    cleanups.push(() => inspector.dispose());
+    change(pi, { propName: 'Data Scope', key: 'dataScope', newValue: 'Exported', oldValue: 'Auto' });
+    expect(edits).toEqual([{ rowId: 'r1', columnId: 'dataScope', oldValue: 'Auto', newValue: 'Exported' }]);
+    // The row of the page shown now, which the next page changes.
+    send({ ...page, rowId: 'r2' });
+    change(pi, { propName: 'Data Scope', key: 'dataScope', newValue: 'Imported', oldValue: 'Auto' });
+    expect(edits.at(-1)).toEqual({ rowId: 'r2', columnId: 'dataScope', oldValue: 'Auto', newValue: 'Imported' });
+  });
+
+  it('writes nothing for a change with no key, a page with no row, a feed it no longer follows, or after dispose', async () => {
+    const { feed, edits, send } = feedOf([{ rowId: 'r1', groups: [{ title: 'G', properties: [] }] }]);
+    const pi = document.createElement('dex-property-inspector');
+    document.body.append(pi);
+    const inspector = connectInspector(pi, feed as never);
+    change(pi, { propName: 'Value', newValue: '2', oldValue: '1' });
+    send({ groups: [] });
+    change(pi, { propName: 'Value', key: 'Value', newValue: '2', oldValue: '1' });
+    send({ rowId: 'r1', groups: [{ title: 'G', properties: [] }] });
+    inspector.follow(null);
+    change(pi, { propName: 'Value', key: 'Value', newValue: '2', oldValue: '1' });
+    inspector.follow(feed as never);
+    inspector.dispose();
+    change(pi, { propName: 'Value', key: 'Value', newValue: '2', oldValue: '1' });
+    expect(edits).toEqual([]);
+  });
+});
+
 describe("across a channel, from a host's pages", () => {
   function hostPort() {
     const posted: unknown[] = [];

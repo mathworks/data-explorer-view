@@ -39,10 +39,9 @@
 // gesture's (its refusal, its selection) only the view it was made in.
 import { cloneForPaste, toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
 import { matCatalog } from '../ids/addCatalog.js';
-import { uriPathBasename } from '../ids/pathUtil.js';
+import { basename, uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
@@ -59,6 +58,7 @@ import {
   type ChildRows,
   type EditableTableSource,
   type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -1196,12 +1196,14 @@ class MatView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the tree as edited, as the Raw pane's: the MAT-file, or the
+  // model whose Model Workspace this edits. The file's page says it holds edits while its undo stack
+  // is off the save point.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.closed || this.doc.disposed) return { groups: [] };
+    const doc = this.doc;
+    const tree = { root: () => doc.root(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: doc.session, dirty: () => doc.options.index.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree as edited: the MAT-file, or the

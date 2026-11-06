@@ -20,7 +20,7 @@ import { dropDecision, type DragMode, type DropTarget } from '../../model/action
 import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import type { SectionRule } from '../../model/actions/sectionRules.js';
 import { sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
-import type { EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
+import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DragDescriptor } from '../../model/source/wire.js';
 import type { DexTreeTable } from './dex-tree-table.js';
 import {
@@ -109,6 +109,12 @@ export interface EditingWire {
   run(actionId: string): boolean;
   /** Settled once every cell edit handed to the source so far is the document's, or refused. */
   editsSettled(): Promise<void>;
+  /**
+   * A committed edit made outside the table (an inspector's row), written back as a cell edit is:
+   * settled once the source has it, or refused, which the table shows as it shows a cell's. It is
+   * one of the edits `editsSettled` waits for.
+   */
+  edit(edit: CellEdit): Promise<void>;
   /**
    * Undo or Redo, as its menu item does, where the document may be edited and its source does not
    * say there is nothing to undo (or redo); false where not.
@@ -494,17 +500,18 @@ export function wireEditing(host: EditingHost): EditingWire {
   // The cell edits the source is still writing (a source whose write finishes later returns its
   // promise), for commitEdit to wait on. A refusal is the source's to show: here it only settles.
   const writing = new Set<Promise<void>>();
-  host.listen('dex-edit-completed', (e) => {
-    const detail = (e as CustomEvent).detail;
-    const written = source?.edit({ rowId: detail.rowId, columnId: detail.columnId, oldValue: detail.oldValue, newValue: detail.newValue });
-    if (!written) return;
+  const write = (edit: CellEdit): Promise<void> => {
+    const written = source?.edit({ rowId: edit.rowId, columnId: edit.columnId, oldValue: edit.oldValue, newValue: edit.newValue });
+    if (!written) return Promise.resolve();
     const settled = Promise.resolve(written).then(
       () => undefined,
       () => undefined,
     );
     writing.add(settled);
     void settled.then(() => writing.delete(settled));
-  });
+    return settled;
+  };
+  host.listen('dex-edit-completed', (e) => void write((e as CustomEvent).detail));
 
   return {
     painting(view) {
@@ -606,6 +613,7 @@ export function wireEditing(host: EditingHost): EditingWire {
     can,
     run,
     editsSettled: () => Promise.all([...writing]).then(() => undefined),
+    edit: write,
     history,
     failed: refused,
   };

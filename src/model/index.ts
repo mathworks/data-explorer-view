@@ -35,7 +35,7 @@ export type { WarningBanner } from './rows/parseWarnings.js';
 
 // The property inspector's pages, and which row it shows.
 export { buildPropertyGroups } from './inspector/piBuilder.js';
-export type { PropertyGroup, PropertyRow } from './inspector/piBuilder.js';
+export type { PropertyGroup, PropertyGroupOptions, PropertyRow } from './inspector/piBuilder.js';
 export { InspectorSelection } from './inspector/inspectorSelection.js';
 export type { FindNode, Inspector } from './inspector/inspectorSelection.js';
 
@@ -85,6 +85,7 @@ export type {
   ClipboardStatus,
   EditableTableSource,
   EditHistory,
+  InspectOptions,
   InspectorFeed,
   InspectorView,
   MatrixPage,

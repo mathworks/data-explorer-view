@@ -14,6 +14,11 @@ export type { PropertyGroup, PropertyRow };
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
   propName: string;
+  /**
+   * The property's key (its row's `key`), which an edit of it names as its column; absent for a
+   * row that has none.
+   */
+  key?: string;
   newValue: string;
   oldValue: string;
 }
@@ -25,8 +30,9 @@ export interface PropertyNavigateDetail {
 
 /**
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
- * field (a change sends `dex-property-changed`), a link (on its name, or on its value; a click
- * sends `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
+ * field (a text, a choice from its `options`, or a text of several lines; a change sends
+ * `dex-property-changed`), a link (on its name, or on its value; a click sends
+ * `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
  * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
@@ -116,6 +122,13 @@ export class DexPropertyInspector extends LitElement {
       box-sizing: border-box;
     }
 
+    /* A text of lines: as high as two of them, and taller as the user drags it. */
+    textarea.prop-input {
+      display: block;
+      min-height: 36px;
+      resize: vertical;
+    }
+
     .prop-input:focus {
       border-color: var(--dex-color-accent, #0078d4);
       outline: none;
@@ -141,9 +154,11 @@ export class DexPropertyInspector extends LitElement {
   /** The groups shown, in order; none, the default, draws an empty panel. Property only. */
   @property({ attribute: false }) groups: PropertyGroup[] = [];
 
-  private _onPropertyChange(propName: string, newValue: string, oldValue: string): void {
+  // The key only where the row has one: a row without says what it always said.
+  private _onPropertyChange(prop: PropertyRow, newValue: string): void {
+    const { name: propName, key, value: oldValue } = prop;
     this.dispatchEvent(new CustomEvent<PropertyChangedDetail>('dex-property-changed', {
-      detail: { propName, newValue, oldValue },
+      detail: { propName, ...(key === undefined ? {} : { key }), newValue, oldValue },
       bubbles: true,
       composed: true,
     }));
@@ -163,10 +178,25 @@ export class DexPropertyInspector extends LitElement {
   // muted descriptor), so a link never reaches here.
   private _renderPropertyValue(prop: PropertyRow): unknown {
     if (prop.editable) {
+      const changed = (e: Event) => this._onPropertyChange(prop, (e.target as HTMLInputElement).value);
+      // A choice lists the value among its options, first where it is not one of them: a list shows
+      // its first option when none is chosen, and the value it does not list would read as that one
+      // and be written over with it. Each option's `selected` is live, so groups pushed again after a
+      // refused change put the list back on the value.
+      if (prop.options) {
+        const listed = prop.options.includes(prop.value) ? prop.options : [prop.value, ...prop.options];
+        return html`<select class="prop-input" @change=${changed}>
+          ${listed.map((option) => html`<option .value=${option} .selected=${live(option === prop.value)}>${option}</option>`)}
+        </select>`;
+      }
+      // An input keeps no line break, so a text that may hold lines is edited where it keeps them.
+      if (prop.multiline) {
+        return html`<textarea class="prop-input" rows="2" .value=${live(prop.value)} @change=${changed}></textarea>`;
+      }
       return html`<input
         class="prop-input"
         .value=${live(prop.value)}
-        @change=${(e: Event) => this._onPropertyChange(prop.name, (e.target as HTMLInputElement).value, prop.value)}
+        @change=${changed}
       />`;
     }
     // The type this value names, as a link to its definition — the same jump the table's
@@ -174,8 +204,9 @@ export class DexPropertyInspector extends LitElement {
     // above so there is one navigation channel out of this component.
     //
     // Below the editable check on purpose: an anchor wrapped around an <input> is not a
-    // thing, and Data Type is read-only everywhere today, so a row that claims both is a
-    // contradiction to resolve rather than to render half of.
+    // thing. Data Type is read-only in core; the one row that can claim both is an alias's Base
+    // Type, editable where the page asked for editable rows, and its field holds the very name
+    // the link would go to.
     if (prop.valueLink) {
       const target = prop.valueLink;
       return html`<a class="prop-link" href="#" @click=${(e: Event) => this._onLinkClick(e, target)}

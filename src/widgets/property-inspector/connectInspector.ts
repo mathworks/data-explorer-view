@@ -2,9 +2,10 @@
 //
 // A property inspector that follows a feed of pages: a connected table's handle (its selection,
 // inspected) or the pages a host sends (inspectorFeed). It shows each page, says when there is
-// nothing to show, opens the variable editor on its Value row's matrix glyph and fills it, and
-// hands a clicked cross-reference to the app. The feed can change (follow()): one inspector beside
-// several tables shows the active one's.
+// nothing to show, opens the variable editor on its Value row's matrix glyph and fills it, hands a
+// clicked cross-reference to the app, and hands a change of an editable row to a feed that takes
+// edits (`edit`: a table's handle). The feed can change (follow()): one inspector beside several
+// tables shows the active one's.
 //
 // The VS Code extension's inspector webview (its pi-main.ts) with the extension taken out: the
 // same rules, so that the extension, which uses this over its own channel, shows its inspector as
@@ -80,6 +81,8 @@ export function connectInspector(
   // the table beside it opened in the same editor.
   let openedHere = false;
   let disposed = false;
+  // The row of the page on screen, which a change of one of its fields is an edit of.
+  let shownRowId: string | undefined;
 
   const setEmpty = (isEmpty: boolean): void => {
     const empty = options.empty;
@@ -106,14 +109,24 @@ export function connectInspector(
     const target = e.detail?.sourceId;
     if (typeof target === 'string' && target !== '') for (const listener of [...navigate]) listener(target);
   };
+  // A change of an editable row: a cell edit of the page's row, its key the column, for the feed to
+  // write back. A feed that takes no edits has pages with no editable rows, and is asked nothing.
+  const onChanged = (e: HTMLElementEventMap['dex-property-changed']): void => {
+    const detail = e.detail as Partial<typeof e.detail> | undefined;
+    const feed = following;
+    if (!feed?.edit || shownRowId === undefined || typeof detail?.key !== 'string' || detail.key === '') return;
+    feed.edit({ rowId: shownRowId, columnId: detail.key, oldValue: String(detail.oldValue ?? ''), newValue: String(detail.newValue ?? '') });
+  };
   inspector.addEventListener('dex-matrix-open', onOpen);
   inspector.addEventListener('dex-property-navigate', onNavigate);
+  inspector.addEventListener('dex-property-changed', onChanged);
 
   const show = (page: InspectorView): void => {
     // Each page replaces every row a grid opened from here was anchored to.
     if (openedHere) variableEditor?.close();
     openedHere = false;
     const groups = Array.isArray(page.groups) ? page.groups : [];
+    shownRowId = typeof page.rowId === 'string' && groups.length > 0 ? page.rowId : undefined;
     inspector.groups = groups;
     setEmpty(groups.length === 0);
   };
@@ -134,6 +147,7 @@ export function connectInspector(
       openedHere = false;
       following = next;
       if (next) variableEditor = editorFor(next);
+      shownRowId = undefined;
       inspector.groups = [];
       setEmpty(true);
       stop = next ? next.onPage(show) : () => {};
@@ -144,6 +158,7 @@ export function connectInspector(
       stop();
       inspector.removeEventListener('dex-matrix-open', onOpen);
       inspector.removeEventListener('dex-property-navigate', onNavigate);
+      inspector.removeEventListener('dex-property-changed', onChanged);
       navigate.clear();
       made?.remove();
     },

@@ -66,8 +66,7 @@ import {
 } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildSectionRowId } from '../ids/sectionRowId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
@@ -84,6 +83,7 @@ import {
   type ChildRows,
   type EditableTableSource,
   type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -1465,12 +1465,12 @@ export class JsonView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the tree the text says now, as the Raw pane's: the file's
+  // page says it holds edits while its text does.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.disposed) return { groups: [] };
+    const tree = { root: () => this.liveModel(), fileIds: [this.uri], find: this.findForRead, name: this.name, sources: this.session, dirty: () => this.doc.text.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree the text says now, as an edit

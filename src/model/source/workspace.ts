@@ -15,8 +15,7 @@
 // through the Doc's save half (`serialize`, `saved`).
 import { createSession, exceedsTextSyncLimit, extOf, isEditableJsonSlddBytes, isZipBytes } from 'data-explorer-core';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
@@ -38,7 +37,7 @@ import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
-import type { ChildRows, EditableTableSource, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
+import type { ChildRows, EditableTableSource, InspectOptions, InspectorView, MatrixPage, TableChange, TableSource, TableView } from './tableSource.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 
 export type { DocKind } from './readDocument.js';
@@ -295,7 +294,7 @@ class InPageDoc implements HeldDoc {
       open: async () => this.open(),
       children: (rowId) => this.children(rowId),
       matrix: async (nodeId) => this.matrix(nodeId),
-      inspect: async (selection) => this.inspect(selection),
+      inspect: async (selection, options) => this.inspect(selection, options),
       raw: async (rowId, options) => this.raw(rowId, options),
       subscribe: (listener) => {
         this.listeners.add(listener);
@@ -482,14 +481,16 @@ class InPageDoc implements HeldDoc {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  private inspect(selection: string | readonly string[]): InspectorView {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    // The inspector's own rule for which row a selection shows (the first, unless it is a section
-    // heading), with this document's lookup.
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.find(id)).show(this.uri, rowIds);
-    return view;
+  /**
+   * The inspector's page for a selection (inspectTree), off the current read: the file itself named
+   * by its uri or by the srcId its tree is under, as the Raw pane's is. It never holds edits, and
+   * takes none, so it has no row to edit whatever `options` asks.
+   */
+  private inspect(selection: string | readonly string[], options?: InspectOptions): InspectorView {
+    const r = this.reading;
+    if (!r) return { groups: [] };
+    const tree = { root: () => r.node, fileIds: [this.uri, r.srcId], find: (id: string) => this.find(id), name: this.name, sources: this.shared.registry.session };
+    return inspectTree(tree, selection, { ...options, editable: false });
   }
 
   /**

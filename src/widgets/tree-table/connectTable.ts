@@ -26,6 +26,8 @@ import { localLinkName, parseLinkTarget, type LinkTarget } from '../../model/ids
 import {
   isEditable,
   isSourceClosed,
+  type CellEdit,
+  type InspectOptions,
   type InspectorFeed,
   type InspectorView,
   type MatrixPage,
@@ -33,6 +35,7 @@ import {
   type TableSource,
   type TableView,
 } from '../../model/source/tableSource.js';
+import { usedByGroup } from '../../model/inspector/inspectorPages.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
 import { wireEditing, type EditingRun, type EditingWire, type TableTextView } from './editingWire.js';
 import type { MenuRow } from './menuItems.js';
@@ -149,6 +152,22 @@ export interface ConnectTableOptions {
    * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
    */
   copyText?: boolean;
+  /**
+   * The pages an inspector following this table (its handle) is sent past the first selected
+   * row's properties: the file's own page while no row is selected (what it is, where, whether it
+   * holds edits, and the open files it references and is referenced by, as links), a section
+   * heading's (its entries counted by type), a selection of several rows' ("3 selected"), and a
+   * row's Usage links as a group of their own. Default false: the first row's properties alone,
+   * and nothing for no row or a section heading, as the VS Code extension's inspector shows them.
+   */
+  inspectorPages?: boolean;
+  /**
+   * With `editing`: the inspector's rows are editable where the document takes an edit of the
+   * property, and a change of one (`dex-property-changed`, which connectInspector hands to
+   * `handle.edit`) is written back as a cell edit is, a refusal shown in the table's dialog. Not
+   * where the document may not be edited. Default false: every row is read-only.
+   */
+  inspectorEditing?: boolean;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -284,6 +303,20 @@ export interface TableHandle extends InspectorFeed {
    */
   undo(): void;
   redo(): void;
+  /**
+   * With `editing` and `inspectorEditing`: write back a change of an inspector's editable row, as
+   * a cell edit of `rowId` is (connectInspector calls it); a refusal is shown in the table's
+   * dialog, and the page is sent again either way, so a field the source refused shows what the
+   * document holds. `commitEdit()` waits for it. Nothing without the options, or where the
+   * document may not be edited.
+   */
+  edit(edit: CellEdit): void;
+  /**
+   * Ask the source for the inspector's page again, for a change the table does not hear of: that
+   * the document now holds edits, or none, on the file's page (`inspectorPages`). A listener is sent
+   * it only if it is not the page last sent.
+   */
+  refreshInspector(): void;
   /** Stop: the table keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -806,6 +839,25 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const send = (page: InspectorView): void => {
     for (const listener of [...pageListeners]) listener(page);
   };
+  // The selection the inspector shows: the one the table last said, or, with `inspectorPages`, none
+  // (the file's page) until it says one.
+  const toInspect = (): readonly string[] | null => inspected ?? (options.inspectorPages ? [] : null);
+  // What the source is asked past the first row's properties: the pages, and editable rows where
+  // the document may be edited now. No options at all without either, as the source was always asked.
+  const inspectOptions = (): InspectOptions | undefined => {
+    const pages = !!options.inspectorPages;
+    const editable = !!options.inspectorEditing && !!editing?.editable();
+    return pages || editable ? { pages, editable } : undefined;
+  };
+  // The page for `rowIds`, and with `inspectorPages` its row's Usage links as a group of their own,
+  // as the table's cell holds them.
+  const pageOf = async (rowIds: readonly string[]): Promise<InspectorView> => {
+    const asked = inspectOptions();
+    const page = await (asked ? source.inspect(rowIds, asked) : source.inspect(rowIds));
+    if (!options.inspectorPages || page.rowId === undefined || rowIds.length !== 1) return page;
+    const usedBy = usedByGroup(table.rows.find((r) => r.ID === page.rowId));
+    return usedBy ? { ...page, groups: [...page.groups, usedBy] } : page;
+  };
   /** Whether the grid open on the inspector's row would show other cells for `rowId`'s. */
   const cellsChanged = async (rowId: string): Promise<boolean> => {
     if (!shown?.cells) return false;
@@ -817,7 +869,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const inspect = (rowIds: readonly string[], refresh: boolean): void => {
     if (pageListeners.size === 0) return;
     const ask = ++asking;
-    void source.inspect(rowIds).then(async (page) => {
+    void pageOf(rowIds).then(async (page) => {
       if (ask !== asking || disposed) return;
       if (page.rowId === undefined) {
         if (refresh) return;
@@ -832,7 +884,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     }, () => {});
   };
   const refreshInspector = (): void => {
-    if (inspected) inspect(inspected, true);
+    const rowIds = toInspect();
+    if (rowIds) inspect(rowIds, true);
   };
   const followSelection = (rowIds: string[]): void => {
     inspected = rowIds;
@@ -889,13 +942,24 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     redo() {
       editing?.history('redo');
     },
+    edit(change) {
+      if (disposed || !editing || !options.inspectorEditing || !editing.editable()) return;
+      void editing.edit(change).then(() => {
+        if (disposed) return;
+        // Sent again whatever it now says: a field the source refused still holds what was typed.
+        shown = null;
+        refreshInspector();
+      });
+    },
+    refreshInspector,
     onPage(listener) {
       pageListeners.add(listener);
       // What is selected now, told to this listener alone: the page the others were last sent is
       // not sent again, and an inspector that follows this table once more has nothing shown.
-      if (inspected) {
+      const selection = toInspect();
+      if (selection) {
         const at = asking;
-        void source.inspect(inspected).then(
+        void pageOf(selection).then(
           (page) => {
             if (disposed || at !== asking || !pageListeners.has(listener)) return;
             listener(page.rowId === undefined ? { groups: [] } : page);

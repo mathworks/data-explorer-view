@@ -115,6 +115,28 @@ export interface InspectorView {
 }
 
 /**
+ * What the inspector asks of a selection past its first row's properties (`TableSource.inspect`).
+ * Each is off by default, and a source across a message channel has no word for either: it answers
+ * as without them.
+ */
+export interface InspectOptions {
+  /**
+   * Pages for more than one row: the file itself, for no row selected or the document's own uri as
+   * the row (what it is, where, whether it holds edits, and the open files it references and is
+   * referenced by, as links); a section heading (its entries, counted by type); and a selection of
+   * several rows ("3 selected", counted by type). Each page's `rowId` is the row it is of: the
+   * document's uri, the section's row, the selection's first row.
+   */
+  pages?: boolean;
+  /**
+   * A row's properties editable where core offers an editor of them (PropertyGroupOptions'
+   * `editable`), each keyed by the property an edit names, for an inspector that writes a change
+   * back as a cell edit. For a document whose view may be edited; nothing else is.
+   */
+  editable?: boolean;
+}
+
+/**
  * What a property inspector follows: each page it should show, as the selection or the document
  * changes, and the cells of a matrix one of its rows describes. A connected table's handle is one
  * (its selection, inspected); `inspectorFeed(port)` is another (the pages a host sends).
@@ -127,6 +149,12 @@ export interface InspectorFeed {
   onPage(listener: (view: InspectorView) => void): () => void;
   /** The cells of the matrix an inspector row's `matrix` describes, by its `nodeId`. */
   matrix(nodeId: string): Promise<MatrixPage>;
+  /**
+   * Write back a change of an editable row of the page shown (`dex-property-changed`), as a cell
+   * edit of the page's row (`rowId`) is: `columnId` is the row's `key`. Optional: a feed whose pages
+   * have no editable rows has none, and the inspector writes nothing.
+   */
+  edit?(edit: CellEdit): void;
 }
 
 /**
@@ -200,9 +228,10 @@ export interface TableSource {
   /**
    * What the property inspector shows for a table's selection: the properties of its FIRST row,
    * or nothing when that row is a section heading, or none is selected. A row id alone is a
-   * selection of one.
+   * selection of one. `options` asks for more (InspectOptions): pages for the file, a section and
+   * several rows, and editable rows; a source that has neither answers as without them.
    */
-  inspect(selection: string | readonly string[]): Promise<InspectorView>;
+  inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView>;
   /**
    * What the Raw pane shows for a row: the record the file holds for it, as JSON or as XML, the
    * bytes a value was read from, as a dump, or why there is none (a row that is not there among

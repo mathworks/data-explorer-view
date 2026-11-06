@@ -300,6 +300,57 @@ describe('editing a property', () => {
     expect((el.shadowRoot!.querySelector('input.prop-input') as HTMLInputElement).value).toBe('99');
   });
 
+  it("names the row's key in the event, for a row that has one, as the edit's column", async () => {
+    // The key is what the document's setter takes ('dataScope'); the name is what the panel reads
+    // ('Data Scope'), which no setter knows.
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'Data Scope', value: 'Auto', editable: true, key: 'dataScope' }] }]);
+    const seen: unknown[] = [];
+    el.addEventListener('dex-property-changed', (e) => seen.push((e as CustomEvent).detail));
+    const input = el.shadowRoot!.querySelector('input.prop-input') as HTMLInputElement;
+    input.value = 'Exported';
+    input.dispatchEvent(new Event('change'));
+    expect(seen).toEqual([{ propName: 'Data Scope', key: 'dataScope', newValue: 'Exported', oldValue: 'Auto' }]);
+  });
+
+  it('offers a choice in a list, the value among its options, and reports the one chosen', async () => {
+    const choice: PropertyGroup[] = [
+      { title: 'G', properties: [{ name: 'Data Scope', value: 'Auto', editable: true, key: 'dataScope', options: ['Exported', 'Auto', 'Imported'] }] },
+    ];
+    const el = await makeInspector(choice);
+    const select = el.shadowRoot!.querySelector('select.prop-input') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(['Exported', 'Auto', 'Imported']);
+    expect(select.value).toBe('Auto');
+    const seen: unknown[] = [];
+    el.addEventListener('dex-property-changed', (e) => seen.push((e as CustomEvent).detail));
+    select.value = 'Imported';
+    select.dispatchEvent(new Event('change'));
+    expect(seen).toEqual([{ propName: 'Data Scope', key: 'dataScope', newValue: 'Imported', oldValue: 'Auto' }]);
+    // Refused: the same groups again put the list back on the value.
+    await setGroups(el, structuredClone(choice));
+    expect((el.shadowRoot!.querySelector('select.prop-input') as HTMLSelectElement).value).toBe('Auto');
+  });
+
+  it('lists a value that is not among the options first, so the list shows what the property holds', async () => {
+    // A list shows its first option when none is selected: the value outside the list, shown as
+    // another, would be written over with it as soon as the list was left.
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'S', value: 'Custom', editable: true, key: 'S', options: ['Auto', 'Exported'] }] }]);
+    const select = el.shadowRoot!.querySelector('select.prop-input') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(['Custom', 'Auto', 'Exported']);
+    expect(select.value).toBe('Custom');
+  });
+
+  it('edits a text of lines in a field of several lines, its lines kept', async () => {
+    const el = await makeInspector([{ title: 'G', properties: [{ name: 'Description', value: 'one\ntwo', editable: true, key: 'Description', multiline: true }] }]);
+    expect(el.shadowRoot!.querySelector('input')).toBeNull();
+    const area = el.shadowRoot!.querySelector('textarea.prop-input') as HTMLTextAreaElement;
+    expect(area.value).toBe('one\ntwo');
+    const seen: unknown[] = [];
+    el.addEventListener('dex-property-changed', (e) => seen.push((e as CustomEvent).detail));
+    area.value = 'one\ntwo\nthree';
+    area.dispatchEvent(new Event('change'));
+    expect(seen).toEqual([{ propName: 'Description', key: 'Description', newValue: 'one\ntwo\nthree', oldValue: 'one\ntwo' }]);
+  });
+
   it('prefers the link rendering when a property is both a link and editable', async () => {
     // A cross-reference is not user-typeable; offering an input would invite an
     // edit the host cannot apply.
