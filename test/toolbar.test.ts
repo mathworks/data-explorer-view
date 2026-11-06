@@ -72,9 +72,9 @@ const tabStops = (el: DexToolbar): string[] =>
     .map((b) => labelOf(b)!);
 
 // A key pressed where the keyboard is: on the focused button, or the first when none is.
-function press(el: DexToolbar, key: string): KeyboardEvent {
+function press(el: DexToolbar, key: string, init: KeyboardEventInit = {}): KeyboardEvent {
   const at = el.shadowRoot!.activeElement ?? buttons(el)[0]!;
-  const e = new KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true });
+  const e = new KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true, ...init });
   at.dispatchEvent(e);
   return e;
 }
@@ -133,6 +133,19 @@ describe('the row', () => {
       { id: 'c', label: 'C', group: 'g' },
     ]);
     expect(row(el)).toEqual(['A', 'B', '|', 'C', '<->']);
+  });
+
+  it("counts an empty group as no group, and keeps the items' order even where it splits a group", async () => {
+    // The toolbar sorts nothing: a group handed over in two runs is drawn as two, a separator on
+    // either side of what came between. An app gives a group's items together.
+    const el = await toolbar([
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B', group: '' },
+      { id: 'c', label: 'C', group: 'g' },
+      { id: 'd', label: 'D', group: 'h' },
+      { id: 'e', label: 'E', group: 'g' },
+    ]);
+    expect(row(el)).toEqual(['A', 'B', '|', 'C', '|', 'D', '|', 'E', '<->']);
   });
 
   it('is a toolbar to a screen reader, its separators separators and the spacer nothing', async () => {
@@ -301,6 +314,30 @@ describe('the keyboard', () => {
     expect(focused(el)).toBe('Delete');
   });
 
+  it('leaves an arrow key with Alt, Ctrl or Cmd to the page', async () => {
+    // The shell's Back, Forward and Up are Alt+Left, Alt+Right and Alt+Up, and they must work with
+    // the keyboard on the toolbar too: a chord is not a move along the row.
+    const el = await toolbar(TS_ROW);
+    button(el, 'Copy').focus();
+    for (const mod of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) {
+        const e = press(el, key, mod);
+        expect(e.defaultPrevented, `${Object.keys(mod)[0]}+${key}`).toBe(false);
+        expect(focused(el)).toBe('Copy');
+      }
+    }
+  });
+
+  it('has one tab stop even where two items share an id', async () => {
+    // Ids are to be unique; a slip in an app's list must still not split the row's one stop in two.
+    const el = await toolbar([
+      { id: 'a', label: 'A1' },
+      { id: 'a', label: 'A2' },
+      { id: 'b', label: 'B' },
+    ]);
+    expect(tabStops(el)).toEqual(['A1']);
+  });
+
   it('takes the arrow keys, Home and End from the page, and leaves Enter and Space to the button', async () => {
     // A native <button> activates itself on Enter and on Space (as a click, which is what sends
     // dex-toolbar-action), and a disabled one through aria-disabled still does, to the click handler that
@@ -371,13 +408,38 @@ describe('new items', () => {
     expect(heard.map((e) => e.detail.actionId)).toEqual(['undo']);
   });
 
-  it('without the item that had the tab stop give it back to the first', async () => {
+  it('without the item that had the tab stop give it back to the first, the focus being elsewhere', async () => {
     const el = await toolbar(TS_ROW);
     button(el, 'Delete').focus();
     await el.updateComplete;
+    // The user has gone back to the page (the table) since.
+    const table = document.createElement('button');
+    document.body.append(table);
+    table.focus();
     el.items = TS_ROW.filter((item) => item.id !== 'delete');
     await el.updateComplete;
     expect(tabStops(el)).toEqual(['Open']);
+    // And the toolbar does not pull the focus back to itself.
+    expect(document.activeElement).toBe(table);
+  });
+
+  it('without the item the keyboard is on move the focus to the one that took its place', async () => {
+    // Left where it was, the focus would fall to the page's body with its button, and the keyboard
+    // user would have to find the toolbar again.
+    const el = await toolbar(TS_ROW);
+    button(el, 'Copy').focus();
+    await el.updateComplete;
+    el.items = TS_ROW.filter((item) => item.id !== 'copy');
+    await el.updateComplete;
+    expect(focused(el)).toBe('Paste');
+    expect(tabStops(el)).toEqual(['Paste']);
+    // The last item gone, the one before it.
+    button(el, 'Delete').focus();
+    await el.updateComplete;
+    el.items = TS_ROW.filter((item) => item.id !== 'copy' && item.id !== 'delete');
+    await el.updateComplete;
+    expect(focused(el)).toBe('Paste');
+    expect(tabStops(el)).toEqual(['Paste']);
   });
 });
 

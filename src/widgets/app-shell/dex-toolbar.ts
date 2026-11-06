@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { defineElement } from '../shared/define.js';
@@ -27,8 +27,10 @@ export interface ToolbarItem {
   /** Greyed, and a click sends nothing. It stays where the keyboard can reach it. */
   disabled?: boolean;
   /**
-   * Items of one group sit together; a separator goes between two neighbours of different groups
-   * on the same side. Items with no group are one group.
+   * The item's group. A separator goes wherever two neighbours on the same side have different
+   * groups. The items keep the order given, so an app gives a group's items together: a group
+   * handed over in two runs is drawn as two. No group and `''` are the same: one group more, so
+   * items with none sit together with no separator between them.
    */
   group?: string;
   /**
@@ -43,6 +45,12 @@ export interface ToolbarActionDetail {
   actionId: string;
 }
 
+/** The items as the row draws them: the start side, then the end side, each in the order given. */
+function sidesOf(items: unknown): { start: ToolbarItem[]; end: ToolbarItem[] } {
+  const all = Array.isArray(items) ? (items as ToolbarItem[]) : [];
+  return { start: all.filter((item) => item.align !== 'end'), end: all.filter((item) => item.align === 'end') };
+}
+
 /**
  * A row of buttons, the items an app hands it: each an icon over a small label (beside it with
  * `compact`), the items of a group together with a separator between groups, and the `end` items
@@ -52,9 +60,11 @@ export interface ToolbarActionDetail {
  *
  * The toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and
  * wrap at either end; Home and End go to the first and the last; Enter and Space press the one the
- * keyboard is on. A mouse press takes no focus: it stays where the user was working. The toolbar
- * knows nothing of files or tables: the app gives it new `items` as what they can do changes, and
- * does what `dex-toolbar-action` asks.
+ * keyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit
+ * open in a table's cell stays open too (the table commits one as its editor loses the focus), and
+ * the app commits it, with connectTable's `handle.commitEdit()`, before it acts on
+ * `dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`
+ * as what they can do changes, and does what `dex-toolbar-action` asks.
  *
  * @tagname dex-toolbar
  */
@@ -166,7 +176,8 @@ export class DexToolbar extends LitElement {
   /**
    * The buttons, in order: the `start` items from the left, then the `end` items from the right
    * edge, each side in the order given. Replace the array to change them; an item keeps its
-   * button, and the keyboard's place on it, while its `id` stays. Default none.
+   * button, and the keyboard's place on it, while its `id` stays, and an item that goes while the
+   * keyboard is on it hands the focus to the one that takes its place. Default none.
    */
   @property({ attribute: false }) items: ToolbarItem[] = [];
   /**
@@ -183,6 +194,33 @@ export class DexToolbar extends LitElement {
   // The item the keyboard was last on, by id: the row's one tab stop while it is there, so Tab
   // away and back returns to it. Null, or an id no item has any more, makes it the first.
   @state() private _focusId: string | null = null;
+  // The button the focus goes to once the row is drawn, by its place in the row, or -1: set when
+  // new items drop the one the focus is on.
+  private _refocusAt = -1;
+
+  // New items without the one the focus is on would take its button away, and the focus would
+  // fall to the page's body: the keyboard user would have to find the toolbar again. So the focus
+  // goes to the item that takes its place (the one before it, when it was the last). Only while
+  // the focus is in the toolbar: anywhere else it is the user's, and only the tab stop moves.
+  // Decided here, before the old buttons go, and the stop set now so the redraw already has it.
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    if (!changed.has('items') || !this._focusId || !this.shadowRoot?.activeElement) return;
+    const { start, end } = sidesOf(this.items);
+    const ordered = [...start, ...end];
+    if (ordered.length === 0 || ordered.some((item) => item.id === this._focusId)) return;
+    const before = sidesOf(changed.get('items'));
+    const was = [...before.start, ...before.end].findIndex((item) => item.id === this._focusId);
+    const at = Math.min(Math.max(0, was), ordered.length - 1);
+    this._focusId = ordered[at]!.id;
+    this._refocusAt = at;
+  }
+
+  protected override updated(): void {
+    if (this._refocusAt < 0) return;
+    const at = this._refocusAt;
+    this._refocusAt = -1;
+    this.renderRoot.querySelectorAll<HTMLButtonElement>('button')[at]?.focus();
+  }
 
   private _press(item: ToolbarItem): void {
     // aria-disabled leaves the button pressable, by the mouse and by Enter or Space: this is
@@ -199,6 +237,9 @@ export class DexToolbar extends LitElement {
   // button turns them into the click that presses it, in every browser and for every assistive
   // technology, and a handler of ours would have to fire the action itself and refuse the click.
   private _onKeydown(e: KeyboardEvent): void {
+    // A chord is the page's, not a move along the row: the shell's Back, Forward and Up are
+    // Alt+Left, Alt+Right and Alt+Up, and must work with the keyboard on the toolbar too.
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const all = [...this.renderRoot.querySelectorAll<HTMLButtonElement>('button')];
     if (all.length === 0) return;
     const at = all.indexOf((e.target as Element).closest('button') as HTMLButtonElement);
@@ -261,25 +302,24 @@ export class DexToolbar extends LitElement {
   // now enabled moves no button: the focus stays on the element it was on. The separator is part
   // of the item after it, which is why none can come first, and the spacer between the two sides
   // is why none is drawn across them.
-  private _side(items: ToolbarItem[], tabStop: string | undefined) {
+  private _side(items: ToolbarItem[], tabStop: ToolbarItem | undefined) {
     return repeat(
       items,
       (item) => item.id,
       (item, i) => html`
-        ${i > 0 && items[i - 1]!.group !== item.group
+        ${i > 0 && (items[i - 1]!.group ?? '') !== (item.group ?? '')
           ? html`<div class="separator" role="separator" aria-orientation="vertical"></div>`
           : nothing}
-        ${this._button(item, item.id === tabStop)}
+        ${this._button(item, item === tabStop)}
       `,
     );
   }
 
   override render() {
-    const items = Array.isArray(this.items) ? this.items : [];
-    const start = items.filter((item) => item.align !== 'end');
-    const end = items.filter((item) => item.align === 'end');
+    const { start, end } = sidesOf(this.items);
     const ordered = [...start, ...end];
-    const tabStop = ordered.some((item) => item.id === this._focusId) ? this._focusId! : ordered[0]?.id;
+    // One item, not one id: two items an app gave the same id would otherwise both be the stop.
+    const tabStop = ordered.find((item) => item.id === this._focusId) ?? ordered[0];
     return html`
       <div class="bar" role="toolbar" aria-label=${this.label} @keydown=${this._onKeydown}>
         ${this._side(start, tabStop)}
