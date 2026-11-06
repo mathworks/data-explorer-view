@@ -109,6 +109,8 @@ export function locationOf(
     }
     const several: LocationStep = {
       label: `<${rowIds.length} selected>`,
+      // Heard as words: the brackets read aloud as "less than" and "greater than".
+      ariaLabel: `${rowIds.length} rows selected`,
       icon: SEVERAL_ICON,
       place: { tabId: tab.id, rowId: first },
       selection: [...rowIds],

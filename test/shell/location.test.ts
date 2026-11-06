@@ -103,6 +103,8 @@ describe('locationOf', () => {
     ]);
     // The count's segment is where the user is: it names the rows, which a press on it keeps.
     expect(at.segments[3]).toMatchObject({ place: { tabId: 't1', rowId: 'e:Bus' }, selection: ['e:Bus', 'e:Bus/a'] });
+    // Heard as words, not as "less than 2 selected greater than".
+    expect(at.segments[3]!.ariaLabel).toBe('2 rows selected');
     expect(at.up).toEqual({ tabId: 't1', rowId: 'section:design' });
   });
 

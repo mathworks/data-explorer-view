@@ -99,6 +99,14 @@ describe('the breadcrumb', () => {
     expect(segments(el).map((b) => b.getAttribute('aria-description'))).toEqual([null, 'selected in the graph']);
   });
 
+  it("names a segment to a screen reader as its ariaLabel says, where its label reads badly aloud", async () => {
+    // "<3 selected>" is heard as "less than 3 selected greater than": the segment says "3 rows selected".
+    const el = await bar({ segments: [...PATH, { label: '<3 selected>', ariaLabel: '3 rows selected' }] });
+    expect(segments(el)[3]!.getAttribute('aria-label')).toBe('3 rows selected');
+    expect(labels(el)[3]).toBe('<3 selected>');
+    expect(segments(el)[1]!.hasAttribute('aria-label')).toBe(false);
+  });
+
   it('gives a segment its title as a tooltip, and one without none', async () => {
     const el = await bar({ segments: PATH });
     expect(segments(el).map((b) => b.getAttribute('title'))).toEqual([null, '/work/dd.sldd', null]);
