@@ -96,3 +96,21 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
     table('delete', 'Delete', 'delete', 'delete'),
   ];
 }
+
+/** A tab, as the toolbar's state reads it: its document's edits, and its table's menu. */
+interface StateTab {
+  dirty?: boolean;
+  doc?: { editable: boolean };
+  handle?: { can(id: string): boolean };
+}
+
+/** The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or not. */
+export function toolbarStateOf(active: StateTab | undefined, tabs: readonly StateTab[], canOpenFolder: boolean, mac: boolean): ToolbarState {
+  return {
+    canOpenFolder,
+    active: active ? { editable: !!active.doc?.editable, dirty: !!active.dirty } : null,
+    anyDirty: tabs.some((t) => t.dirty),
+    can: (id) => !!active?.handle?.can(id),
+    mac,
+  };
+}

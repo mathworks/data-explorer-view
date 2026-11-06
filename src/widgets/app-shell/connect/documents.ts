@@ -10,7 +10,8 @@
 
 import type { Doc } from '../../../model/source/workspace.js';
 import { projectPageMessage } from '../../../model/source/projectPage.js';
-import { sourceUri } from '../../../model/source/sourceUri.js';
+import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
+import { isSupportedPath } from 'data-explorer-core';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
 import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
@@ -21,7 +22,7 @@ import type { DexVariableEditor } from '../../variable-editor/dex-variable-edito
 import type { DocTab } from '../dex-doc-tabs.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
-import { folderOf } from './links.js';
+import { folderOf, projectLinkPath } from './links.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 
@@ -159,4 +160,21 @@ export async function paintProject(tab: OpenTab, page: DexProjectPage, folder: F
   } catch (err) {
     page.error = `Failed to read ${tab.name}: ${message(err)}`;
   }
+}
+
+/**
+ * Follow a link on a project's page, `link` from the project's folder `root`: a file this app shows
+ * opens in a tab (a project on its page), a component row opens the project in its folder, and the
+ * rest (a folder, a script) is shown in the OS file manager.
+ */
+export async function followProjectLink(
+  root: string,
+  link: ProjectOpenDetail,
+  on: { folder(): FolderView | undefined; open(path: string): Promise<unknown>; reveal(path: string): Promise<void> | undefined },
+): Promise<void> {
+  const path = projectLinkPath(root, link.path);
+  const project = link.preferProject ? await on.folder()?.projectIn(path) : undefined;
+  if (project) await on.open(uriPath(project));
+  else if (isSupportedPath(path)) await on.open(path);
+  else await on.reveal(path);
 }

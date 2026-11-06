@@ -12,6 +12,9 @@
 // the tab a reload question was waiting about).
 
 import type { ConfirmOptions, DexConfirmDialog } from '../dex-confirm-dialog.js';
+import { reloadQuestion } from './reload.js';
+import { closeAnswerOf, closeQuestion } from './saving.js';
+import type { CloseAnswer, ShellHost } from './types.js';
 
 /** The in-page questions, as connectShell asks them. */
 export interface Questions {
@@ -43,5 +46,30 @@ export function inPageQuestions(dialog: DexConfirmDialog, beforeAsking: () => vo
     recheck() {
       if (shownStill && !shownStill()) dialog.close();
     },
+  };
+}
+
+/**
+ * The shell's two questions: the host's own where it has them (a native dialog), the in-page ones
+ * where it has none. The answer to a reload question is said in the Log (`log`): reloaded, the
+ * edits are gone; kept, the next save writes over the other program's change, which is worth a
+ * warning. A reload question that waits its turn is dropped for a tab no longer `open`.
+ */
+export function shellPrompts<T extends { name: string }>(
+  host: ShellHost,
+  questions: Questions,
+  options: { open(tab: T): boolean; log(level: 'info' | 'warning', message: string): void },
+): { confirmClose(names: string[]): Promise<CloseAnswer>; confirmReload(tab: T): Promise<boolean> } {
+  return {
+    confirmClose: (names) => (host.confirmClose ? host.confirmClose(names) : questions.ask(closeQuestion(names)).then(closeAnswerOf)),
+    confirmReload: (tab) =>
+      (host.confirmReload
+        ? host.confirmReload(tab.name)
+        : questions.ask(reloadQuestion(tab.name), () => options.open(tab)).then((id) => id === 'reload')
+      ).then((reload) => {
+        if (reload) options.log('info', `${tab.name} changed on disk: reloaded, its unsaved edits dropped`);
+        else options.log('warning', `${tab.name} changed on disk: its unsaved edits kept over the change`);
+        return reload;
+      }),
   };
 }

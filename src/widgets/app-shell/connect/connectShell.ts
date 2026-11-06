@@ -13,15 +13,14 @@
 // Explorer's sections and Root, the location bar and its history, the settings, the chords).
 // The rules themselves are the modules beside this one; this file orchestrates. Several are pieces
 // of it moved out: what it builds (parts.ts), a tab's document and its widgets (documents.ts), the
-// settings and popovers (popovers.ts), the history (navigation.ts), the in-page questions
-// (questions.ts), the Explorer's file menu (fileMenu.ts) and the folder shown (shownFolder.ts).
+// settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
+// the parts' requests (requests.ts), the document commands (carryOut.ts), the folder shown
+// (shownFolder.ts), and the modules' views (modules.ts: Raw, Search, the Gallery, the Terminal).
 
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
-import { isEditable } from '../../../model/source/tableSource.js';
-import { namesOfRows } from '../../../model/search/openDocNames.js';
-import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
+import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
@@ -30,8 +29,8 @@ import type { LogLevel } from '../modules/dex-log-panel.js';
 import {
   clearSelection,
   connectDocument,
-  copyText,
   docTabOf,
+  followProjectLink,
   newProjectPage,
   newTable,
   paintProject,
@@ -39,35 +38,27 @@ import {
   type OpenTab,
 } from './documents.js';
 import { explorerFiles } from './explorerFiles.js';
-import { connectFileMenu } from './fileMenu.js';
 import type { FolderView } from './folder.js';
 import { installKeys, onMac } from './keys.js';
-import { linkDestination, projectLinkPath } from './links.js';
+import { linkDestination } from './links.js';
 import { locationOf, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
+import { connectModules } from './modules.js';
 import { buildShell } from './parts.js';
-import { connectGalleryPane } from './galleryPane.js';
-import { connectRawPane } from './rawPane.js';
-import { connectSearchPane } from './searchPane.js';
-import { connectTerminal } from './terminal.js';
+import { connectRequests } from './requests.js';
 import { rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
-import { inPageQuestions } from './questions.js';
-import { ReloadGate, reloadQuestion } from './reload.js';
-import { Saver, closeAnswerOf, closeQuestion, settle } from './saving.js';
+import { inPageQuestions, shellPrompts } from './questions.js';
+import { ReloadGate } from './reload.js';
+import { Saver, settle } from './saving.js';
 import { TabList } from './tabs.js';
 import { systemThemeFromMedia } from './theme.js';
-import { tableActionOf, toolbarItems, type ToolbarState } from './toolbarItems.js';
+import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
+import { carryOut, type CarryOutContext } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
-import { SHELL_VIEWS, viewOfCommand } from './views.js';
-import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
-
-const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
-  'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-  'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
-  ...SHELL_VIEWS.map((v) => v.command),
-]);
+import { viewOfCommand } from './views.js';
+import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -88,18 +79,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   let disposed = false;
   const stops: (() => void)[] = [];
-  const listen = <K extends keyof HTMLElementEventMap>(target: HTMLElement, type: K, listener: (e: HTMLElementEventMap[K]) => void): void => {
-    target.addEventListener(type, listener);
-    stops.push(() => target.removeEventListener(type, listener));
-  };
-
   const tabs = new TabList<OpenTab>();
   let nextId = 0;
+  // The Log, which every part of the shell writes to.
+  const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
   // The Usage column is filled from the shown folder's session (ws.setUsage when one is shown).
   // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
-  // document says the table cannot show is a toast, as it stands.
-  // Every notice is a line of the Log too, which keeps what a toast lets go by.
-  const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
+  // document says the table cannot show is a toast, as it stands, and a line of the Log, which
+  // keeps what a toast lets go by.
   const ws = createWorkspace({
     editing: true,
     notify(notice) {
@@ -133,19 +120,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // The shell's confirm dialog, one question at a time (questions.ts), for a host with none.
   const questions = inPageQuestions(confirm, () => popovers.closeAll());
-  // The host's own questions where it has them; the shell's confirm dialog where it has none.
-  const confirmClose = (names: string[]): Promise<CloseAnswer> =>
-    host.confirmClose ? host.confirmClose(names) : questions.ask(closeQuestion(names)).then(closeAnswerOf);
-  const confirmReload = (tab: OpenTab): Promise<boolean> =>
-    (host.confirmReload
-      ? host.confirmReload(tab.name)
-      : questions.ask(reloadQuestion(tab.name), () => isOpen(tab)).then((id) => id === 'reload')
-    ).then((reload) => {
-      // What was done about it, in the Log: the answer is the user's, and its toast-less cost is not.
-      if (reload) log('info', `${tab.name} changed on disk: reloaded, its unsaved edits dropped`);
-      else log('warning', `${tab.name} changed on disk: its unsaved edits kept over the change`);
-      return reload;
-    });
+  // The host's own questions where it has them, the in-page ones where it has none, each reload
+  // answer said in the Log.
+  const { confirmClose, confirmReload } = shellPrompts<OpenTab>(host, questions, { open: (tab) => isOpen(tab), log });
   const isOpen = (tab: OpenTab): boolean => !disposed && tabs.items.includes(tab);
 
   // --- Painting ----------------------------------------------------------------------------------
@@ -210,16 +187,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   }
 
   // What the toolbar's buttons, and the palette's rows for them, can do now.
-  const toolbarState = (): ToolbarState => {
-    const active = tabs.active;
-    return {
-      canOpenFolder: !!host.pickFolder,
-      active: active ? { editable: !!active.doc?.editable, dirty: !!active.dirty } : null,
-      anyDirty: tabs.items.some((t) => t.dirty),
-      can: (id) => !!active?.handle?.can(id),
-      mac: onMac(),
-    };
-  };
+  const toolbarState = (): ToolbarState => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac());
 
   function refresh(): void {
     const active = tabs.active;
@@ -237,15 +205,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     location.canBack = nav.canBack;
     location.canForward = nav.canForward;
     location.canUp = nav.canUp;
-    rawPane.refresh();
-    galleryPane.refresh();
+    modules.refresh();
   }
-
-  /** Whether the view `id` is on screen: the one its side shows, on a side that is open. */
-  const viewShown = (id: string): boolean => {
-    const side = SHELL_VIEWS.find((v) => v.view === id)?.side;
-    return !!side && shell.layout[side].open && shell.layout[side].view === id;
-  };
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
   // everything that follows the active tab follows this one; the user has been here.
@@ -283,7 +244,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
-    if (!fromCommand) await terminal.idle();
+    if (!fromCommand) await modules.idle();
     // A cell editor still open holds what the user typed: the save takes it.
     await tab.handle?.commitEdit();
     const writes = as || !!tab.doc?.dirty;
@@ -333,17 +294,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // --- Opening -----------------------------------------------------------------------------------
 
-  // A link on a project's page: a file this app shows opens in a tab (a project on its page), a
-  // component row opens the project in its folder, and the rest (a folder, a script) is shown in
-  // the OS file manager.
-  async function followProjectLink(root: string, link: ProjectOpenDetail): Promise<void> {
-    const path = projectLinkPath(root, link.path);
-    const project = link.preferProject ? await folderNow()?.projectIn(path) : undefined;
-    if (project) await open(uriPath(project), { preview: true });
-    else if (isSupportedPath(path)) await open(path, { preview: true });
-    else await host.reveal?.(path);
-  }
-
   /**
    * Open the file at `path` in a tab, or go to its tab. `preview`: the file is only being looked at
    * (a click in the folder's tree, a search pick, a link), so it takes the place of the preview tab
@@ -390,7 +340,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       const revealIn = host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
       // A link that cannot be followed says why on the page, and in the Log.
       const follow = (root: string, link: ProjectOpenDetail) =>
-        followProjectLink(root, link).catch((err) => {
+        followProjectLink(root, link, { folder: folderNow, open: (to) => open(to, { preview: true }), reveal: (to) => host.reveal?.(to) }).catch((err) => {
           log('error', `Could not open ${link.path}: ${message(err)}`);
           throw err;
         });
@@ -501,7 +451,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
     const view = viewOfCommand(id);
     if (view) {
-      showView(view.view);
+      // A view brought forward; one with a box of its own (Search, the Terminal) takes the keyboard.
+      modules.show(view.view);
       return later();
     }
     if ((id === 'undo' || id === 'redo') && focusIsInTextField()) {
@@ -511,189 +462,67 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // A toolbar press takes no focus, so a cell editor still open is open now: what it holds is
     // the document's before anything acts on it.
     void Promise.resolve(tab?.handle?.commitEdit()).then(() => {
-      if (!disposed) carryOut(id, tab);
+      if (!disposed) carryOut(id, tab, carrying);
     });
   }
+  // What the document commands are carried out with (carryOut.ts).
+  const carrying: CarryOutContext = {
+    host,
+    tabs,
+    nav,
+    openPaths,
+    save,
+    close: (tab) => void requestClose(tab),
+    shown,
+    later,
+    failed,
+  };
 
-  // A view brought forward; one with a box of its own (Search, the Terminal) takes the keyboard.
-  function showView(view: string): void {
-    shell.showView(view);
-    if (viewShown(view)) return focusViewBox(view);
-    // Asked before the shell has read its views (in the task that connected it): it reads them in
-    // a microtask of the append, which runs before this one.
-    queueMicrotask(() => {
-      shell.showView(view);
-      focusViewBox(view);
-      later();
-    });
-  }
-  function focusViewBox(view: string): void {
-    if (view === 'search') parts.search.focusInput();
-    else if (view === 'terminal') parts.terminal.focusInput();
-  }
-
-  // A host's dialog that could not be shown (a browser's picker refused, SecurityError,
-  // NotAllowedError) says why; one the user cancelled (AbortError) is an answer, and says nothing.
-  function pickFailed(what: string, err: unknown): void {
-    if (err instanceof Error && err.name === 'AbortError') return;
-    failed(`Could not open ${what}: ${message(err)}`);
-  }
-
-  function carryOut(id: ShellCommand, tab: OpenTab | undefined): void {
-    const action = tableActionOf(id);
-    if (action && action !== 'undo' && action !== 'redo') {
-      tab?.handle?.run(action);
-      return;
-    }
-    switch (id) {
-      case 'open-file':
-        void host.pickFiles().then(openPaths, (err) => pickFailed('a file', err));
-        break;
-      case 'open-folder':
-        void host.pickFolder?.().catch((err) => pickFailed('a folder', err));
-        break;
-      case 'save':
-      case 'save-as':
-        if (tab) void save(tab, id === 'save-as');
-        break;
-      case 'save-all':
-        void tabs.items.filter((t) => t.dirty).reduce<Promise<unknown>>((prev, t) => prev.then(() => save(t)), Promise.resolve());
-        break;
-      case 'close-tab':
-        if (tab) void requestClose(tab);
-        break;
-      case 'undo':
-      case 'redo':
-        tab?.handle?.[id]();
-        break;
-      case 'next-tab':
-      case 'previous-tab':
-        if (tabs.cycle(id === 'next-tab' ? 1 : -1)) shown();
-        break;
-      case 'focus-filter':
-        tab?.table?.focusFilter();
-        break;
-      case 'back':
-      case 'forward':
-      case 'up':
-        nav[id]();
-        later();
-        break;
-    }
-  }
 
   // --- The modules' views ------------------------------------------------------------------------
 
-  // Raw: what the active document's file holds for the selected row, or for the file itself.
-  const rawPane = connectRawPane(parts.raw, {
-    target() {
-      const tab = tabs.active;
-      const doc = tab?.doc;
-      if (!tab || !doc) return null;
-      const raw = doc.table.raw?.bind(doc.table);
-      return { key: tab.id, ...(raw ? { raw } : {}), rowId: tab.selection[0] ?? doc.uri };
-    },
-    shown: () => viewShown('raw'),
-    copy: (text) => copyText(host, text),
-    failed,
-  });
-  stops.push(() => rawPane.dispose());
-
-  // Search: the open files' names, read off their tables' rows, and the folder's index.
-  const searchPane = connectSearchPane(parts.search, {
-    openRecords: () => tabs.items.flatMap((t) => (t.doc && t.table ? namesOfRows(t.table.rows, t.doc.uri, t.doc.kind) : [])),
-    folderNames: () => folderNow()?.session.names,
-    open: (uri, name) => openOn(uri, name),
-    failed,
-  });
-  searchPane.scope(null);
-  stops.push(() => searchPane.dispose());
-
-  // Gallery: the Add gallery's tiles for the active file, a tile adding one entry to it.
-  const galleryPane = connectGalleryPane(parts.gallery, {
-    target() {
-      const tab = tabs.active;
-      const doc = tab?.doc;
-      const handle = tab?.handle;
-      if (!tab || !doc || !handle) return tab ? { name: tab.name, view: undefined, editable: false, add: () => {} } : null;
-      const source = doc.table;
-      return {
-        name: tab.name,
-        view: handle.view,
-        editable: doc.editable && !!handle.view?.editable && isEditable(source),
-        // What a cell editor still open holds is the document's before the add.
-        add: async (entry) => {
-          await handle.commitEdit();
-          if (isEditable(source)) source.addEntry(entry);
-        },
-      };
-    },
-  });
-  stops.push(() => galleryPane.dispose());
-
-  // Terminal: the command window's lines, run one after another over the active document.
-  const terminal = connectTerminal(parts.terminal, {
+  // Raw, Search, the Gallery and the Terminal (modules.ts), over the active tab and the folder.
+  const modules = connectModules({
+    shell,
+    parts,
+    host,
     active: () => tabs.active,
     tabs: () => tabs.items,
+    folder: folderNow,
+    openOn,
     async save(tab) {
       if (await save(tab, false, true)) return `Saved ${tab.name}.`;
       throw new Error(`${tab.name} was not saved.`);
     },
+    failed,
+    later,
   });
-  stops.push(() => terminal.dispose());
+  stops.push(() => modules.dispose());
 
   // --- The parts' requests -----------------------------------------------------------------------
 
-  const tabOf = (id: string | null | undefined) => (id ? tabs.find((t) => t.id === id) : undefined);
-  const asked = (id: string): void => {
-    if (COMMANDS.has(id)) command(id as ShellCommand);
-  };
-  // The toolbar, and the welcome's buttons, which ask what the toolbar's Open and Folder ask.
-  listen(toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
-  listen(docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
-  listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
-  // A view the user shows by its button or its chord takes the keyboard as its command gives it.
-  listen(shell, 'dex-shell-view-changed', (e) => {
-    if (e.detail.open && e.detail.view) focusViewBox(e.detail.view);
-    // A view come on screen shows what it would have shown meanwhile.
-    later();
-  });
-  listen(shell, 'dex-shell-action', (e) => {
-    const { actionId, anchor } = e.detail;
-    if (actionId === 'settings' || actionId === 'about') popovers.toggle(actionId, anchor);
-  });
-  // The tab row's requests, each about a tab by its id; a move's index is the tab's place once moved.
-  const onTab = <K extends 'dex-tab-select' | 'dex-tab-close' | 'dex-tab-pin' | 'dex-tab-move'>(type: K, act: (tab: OpenTab, e: HTMLElementEventMap[K]) => void) =>
-    listen(strip, type, (e) => {
-      const tab = tabOf(e.detail.id);
-      if (tab) act(tab, e);
-    });
-  onTab('dex-tab-select', activate);
-  onTab('dex-tab-close', (tab) => void requestClose(tab));
-  onTab('dex-tab-pin', pin);
-  onTab('dex-tab-move', (tab, e) => tabs.move(tab, e.detail.index) && paint());
-  listen(location, 'dex-location-go', (e) => {
-    const { to } = e.detail;
-    if (typeof to !== 'number') return command(to);
-    nav.toStep(to);
-    later();
-  });
-  listen(explorer, 'dex-explorer-open', (e) => {
-    const { fileId, sectionId, pin: keep } = e.detail;
-    if (fileId === null) return showRoot();
-    const tab = tabOf(fileId);
-    if (!tab) return;
-    if (keep) pin(tab);
-    activate(tab);
-    if (sectionId !== undefined) tab.handle?.select([sectionId]);
-  });
-
-  // A file's menu in the Explorer: Save, Save As and Close for that file.
+  // Each part's request (requests.ts), a tab named by its id.
   stops.push(
-    connectFileMenu(explorer, menu, {
-      tabOf: (fileId) => tabOf(fileId),
-      save: (tab, as) => void save(tab, as),
+    connectRequests(shell, parts, {
+      command,
+      tabOf: (id) => tabs.find((t) => t.id === id),
+      activate,
       close: (tab) => void requestClose(tab),
+      save: (tab, as) => void save(tab, as),
+      pin,
+      move: (tab, index) => tabs.move(tab, index) && paint(),
+      showRoot,
+      toStep(index) {
+        nav.toStep(index);
+        later();
+      },
+      toggle: (id, anchor) => popovers.toggle(id, anchor),
+      viewChanged(view, open) {
+        // A view the user shows by its button or its chord takes the keyboard as its command gives
+        // it, and shows what it would have shown meanwhile.
+        if (open && view) modules.shown(view);
+        later();
+      },
     }),
   );
 
@@ -713,7 +542,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     open: openOn,
     shown(shown) {
       log('info', `Showing the folder ${shown.root}`);
-      searchPane.scope(basenameOf(shown.root));
+      modules.scope(basenameOf(shown.root));
       void ws.setUsage(shown.session.usage, shown.session.reposts);
       repaintProjects(shown);
       follow();
