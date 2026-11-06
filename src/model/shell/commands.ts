@@ -178,7 +178,8 @@ const HELP: readonly OutputLine[] = [
   out("  info <name>                    an entry's properties"),
   out("  json <name>                    an entry's raw data"),
   out('  set <name>[.<Column>] <value>  set a cell of the table'),
-  out('  add <class> [<name>]           add an entry of a class, by that name'),
+  out('  add <class> [<name>]           add an entry of a class, by that name,'),
+  out('      [--section <key>]          in that section: design, arch or config'),
   out('  rm <name>                      delete an entry'),
   out('  save                           save the document'),
   info('MATLAB syntax:'),
@@ -544,7 +545,9 @@ async function setCell(target: CommandTarget, path: string, value: string): Prom
   await target.edit({ rowId: row.ID, columnId: column, oldValue, newValue });
   const rows = target.rows();
   if (column === 'Name') {
-    return wasRenamed(rows, row, oldValue, newValue) ? [out(`Renamed "${oldValue}" to "${newValue}".`)] : [error(`"${name}" was not renamed.`)];
+    return wasRenamed(rows, row, oldValue, newValue)
+      ? [out(`Renamed "${oldValue}" to "${newValue}".`)]
+      : [error(`"${name}" was not renamed.`)];
   }
   // The row as the edit left it: a refused one, as it was, which is what the window says.
   const now = rows.find((r) => r.ID === row.ID) ?? lookup(rows, name).row;
@@ -554,22 +557,39 @@ async function setCell(target: CommandTarget, path: string, value: string): Prom
   return lines;
 }
 
-/** `add <class> [<name>]`: a new entry of the class, where the Add gallery's tile for it puts one, then named. */
+/**
+ * `add <class> [<name>] [--section <key>]`: a new entry of the class, where the Add gallery's tile
+ * for it puts one (the tile of `--section`, for a class offered in two sections), then named.
+ */
 async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
   const doc = activeDoc(target);
   if (!target.addEntry) return [error(`${doc.name} is read-only.`)];
   const choices = target.classes?.() ?? [];
   if (choices.length === 0) return [error(`Nothing can be added to ${doc.name}.`)];
   const takes = info(`It takes: ${[...new Set(choices.map((c) => c.className))].join(', ')}`);
-  const parts = /^(\S+)\s*(.*)$/.exec(args);
-  if (!parts) return [error('Usage: add <class> [<name>]'), takes];
+  const usage = [error('Usage: add <class> [<name>] [--section <key>]'), takes];
+  // The option anywhere after `add`, taken out of the line before the class and the name are read.
+  const option = /(?:^|\s)--section(?:\s+(\S+))?(?=\s|$)/.exec(args);
+  if (option && !option[1]) return usage;
+  const rest = option ? `${args.slice(0, option.index)} ${args.slice(option.index + option[0].length)}`.trim() : args;
+  const parts = /^(\S+)\s*(.*)$/.exec(rest);
+  if (!parts) return usage;
   const asked = parts[1]!;
   const name = unquote(parts[2]!);
-  // The first tile of the class, as the gallery lists them (Design Data's before Architectural
-  // Data's); a class typed in another case is still the class.
-  const choice =
-    choices.find((c) => c.className === asked) ?? choices.find((c) => c.className.toLowerCase() === asked.toLowerCase());
-  if (!choice) return [error(`${doc.name} cannot take a "${asked}".`), takes];
+  // The tiles of the class, in the gallery's order (Design Data's before Architectural Data's); a
+  // class typed in another case is still the class.
+  let tiles = choices.filter((c) => c.className === asked);
+  if (tiles.length === 0) tiles = choices.filter((c) => c.className.toLowerCase() === asked.toLowerCase());
+  if (tiles.length === 0) return [error(`${doc.name} cannot take a "${asked}".`), takes];
+  let choice = tiles[0]!;
+  const section = option?.[1];
+  if (section !== undefined) {
+    const sections = [...new Set(tiles.map((c) => c.section).filter((s) => s !== ''))];
+    if (sections.length === 0) return [error(`${doc.name} has no sections: leave out --section.`)];
+    const chosen = tiles.find((c) => c.section === section);
+    if (!chosen) return [error(`A "${choice.className}" goes in ${sections.join(' or ')} here, not in "${section}".`)];
+    choice = chosen;
+  }
   const before = new Set(target.rows().map((r) => r.ID));
   await target.addEntry({ section: choice.section, className: choice.className, rename: false });
   const created = target.rows().find((r) => !before.has(r.ID) && isEntry(r));

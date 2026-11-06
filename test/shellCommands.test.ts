@@ -169,7 +169,8 @@ function fake(options: FakeOptions = {}): Fake {
     if (edit.columnId === 'Name') {
       const oldId = r.ID;
       const newId = oldId.replace(/[^/]+$/, edit.newValue);
-      const moved = (id: string | null) => (id !== null && (id === oldId || id.startsWith(oldId + '/')) ? newId + id.slice(oldId.length) : id);
+      const moved = (id: string | null) =>
+        id !== null && (id === oldId || id.startsWith(oldId + '/')) ? newId + id.slice(oldId.length) : id;
       t.current = t.current.map((x) => ({
         ...x,
         ID: moved(x.ID)!,
@@ -190,7 +191,8 @@ function fake(options: FakeOptions = {}): Fake {
     let name = base;
     for (let i = 1; t.current.some((x) => x.Name.label === name); i++) name = base + i;
     const section = entry.section === '' ? null : `section:${entry.section}`;
-    const last = t.current.reduce((at, x, i) => (x.ID === section || (section !== null && x.parent === section) ? i : at), t.current.length - 1);
+    const inSection = (x: TreeTableRow) => x.ID === section || (section !== null && x.parent === section);
+    const last = t.current.reduce((at, x, i) => (inSection(x) ? i : at), t.current.length - 1);
     const added = row(`${U}/${entry.section}/${name}`, section, name, { Class: entry.className, Value: '[]', _valueEditable: true });
     t.current = [...t.current.slice(0, last + 1), added, ...t.current.slice(last + 1)];
   };
@@ -221,6 +223,7 @@ describe('help', () => {
       'json <name>',
       'set <name>[.<Column>] <value>',
       'add <class> [<name>]',
+      '[--section <key>]',
       'rm <name>',
       'save',
       '<name> = <value>',
@@ -569,6 +572,44 @@ describe('add', () => {
     ]);
   });
 
+  it('takes a class offered in two sections to the one --section names, wherever the option is', async () => {
+    const t = fake();
+    expect(await texts('add Simulink.Bus --section arch', t)).toEqual(['Created "Param" (Simulink.Bus).']);
+    expect(await texts('add Simulink.Bus b2 --section arch', t)).toEqual(['Created "b2" (Simulink.Bus).']);
+    expect(await texts('add --section design Simulink.Bus b3', t)).toEqual(['Created "b3" (Simulink.Bus).']);
+    expect(t.added.map((e) => [e.section, e.className])).toEqual([
+      ['arch', 'Simulink.Bus'],
+      ['arch', 'Simulink.Bus'],
+      ['design', 'Simulink.Bus'],
+    ]);
+    // The new entries are in Architectural Data, under its heading.
+    expect((await run('ls', t)).lines.filter((l) => l.kind === 'info').map((l) => l.text)).toEqual([
+      'Design Data',
+      'Architectural Data',
+      'Configurations',
+    ]);
+  });
+
+  it('refuses a section the class is not offered in, a document with no sections, and a missing key', async () => {
+    const t = fake();
+    expect((await run('add Simulink.Parameter --section arch', t)).lines).toEqual([
+      line('A "Simulink.Parameter" goes in design here, not in "arch".', 'error'),
+    ]);
+    expect((await run('add Simulink.Bus --section config', t)).lines).toEqual([
+      line('A "Simulink.Bus" goes in design or arch here, not in "config".', 'error'),
+    ]);
+    expect((await run('add Simulink.Bus --section', t)).lines).toEqual([
+      line('Usage: add <class> [<name>] [--section <key>]', 'error'),
+      line(`It takes: ${[...new Set(addChoicesOf({}).map((c) => c.className))].join(', ')}`, 'info'),
+    ]);
+    const mat = fake({ classes: [{ className: 'MatlabVariable', section: '', label: 'MATLAB Variable' }] });
+    expect((await run('add MatlabVariable --section design', mat)).lines).toEqual([
+      line('dd.sldd has no sections: leave out --section.', 'error'),
+    ]);
+    expect(t.added).toEqual([]);
+    expect(mat.added).toEqual([]);
+  });
+
   it('lists the classes the document takes when asked for one it does not', async () => {
     const classes: AddChoice[] = [
       { className: 'MatlabVariable', section: '', label: 'MATLAB Variable' },
@@ -580,7 +621,7 @@ describe('add', () => {
       line('It takes: MatlabVariable, Simulink.Parameter', 'info'),
     ]);
     expect((await run('add', t)).lines).toEqual([
-      line('Usage: add <class> [<name>]', 'error'),
+      line('Usage: add <class> [<name>] [--section <key>]', 'error'),
       line('It takes: MatlabVariable, Simulink.Parameter', 'info'),
     ]);
     expect(t.added).toEqual([]);
