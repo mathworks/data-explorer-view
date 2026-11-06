@@ -75,7 +75,6 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   let seen: ReturnType<typeof openFiles> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let building = false;
-  let asked = 0;
   let pendingReveal: { uri: string; name?: string } | null = null;
   let disposed = false;
 
@@ -98,13 +97,25 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
     el.reveal(id);
   };
 
+  // One build at a time: asked for while one runs, the graph is out of date, and is built once more
+  // when that one ends. A build of a folder that was let go for another meanwhile draws nothing and
+  // says nothing (its reader is closed, which rejects what it was asked): the next one draws the
+  // folder shown now.
   async function build(): Promise<void> {
-    const ask = ++asked;
+    if (building) {
+      outOfDate = true;
+      return;
+    }
     building = true;
     outOfDate = false;
+    const shownFolder = context.folder();
     try {
-      const folder = (await context.folder()?.graphSources()) ?? [];
-      if (disposed || ask !== asked) return;
+      const folder = (await shownFolder?.graphSources()) ?? [];
+      if (disposed) return;
+      if (context.folder() !== shownFolder) {
+        outOfDate = true;
+        return;
+      }
       // The open files as they are once the folder answered, an open file's bytes over the folder's.
       seen = openFiles(context.tabs());
       const open: RawSource[] = seen.map((f) => ({ uriString: f.uri, path: f.path, bytes: bufferOf(f.bytes) }));
@@ -116,9 +127,17 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       if (el.expanded.some((id) => !ids.has(id))) el.expanded = el.expanded.filter((id) => ids.has(id));
       showRevealed(graph);
     } catch (err) {
-      if (!disposed && ask === asked) context.failed(`Could not draw the graph: ${message(err)}`);
+      if (disposed) return;
+      if (context.folder() !== shownFolder) {
+        outOfDate = true;
+        return;
+      }
+      // What it was to reveal is not shown by a later build, long after it was asked for.
+      pendingReveal = null;
+      context.failed(`Could not draw the graph: ${message(err)}`);
     } finally {
-      if (ask === asked) building = false;
+      building = false;
+      if (!disposed && outOfDate && context.shown()) void build();
     }
   }
 

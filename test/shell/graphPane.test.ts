@@ -157,6 +157,61 @@ describe('the graph pane', () => {
     expect(el.expanded).toEqual([]);
   });
 
+  it('says nothing failed when the folder it was reading is let go for another, and draws the new one', async () => {
+    let rejectOld: (err: Error) => void = () => {};
+    const old = { graphSources: () => new Promise((_, reject) => (rejectOld = reject)) } as unknown as FolderView;
+    const next = { graphSources: async () => [sourceOf('shared_gain.slx')] } as unknown as FolderView;
+    let folder = old;
+    const { el, context, pane: p } = pane([], { folder: () => folder });
+    p.stale();
+    await pause();
+    // Another folder shown: the old one's reader is closed, which rejects what it was asked.
+    folder = next;
+    rejectOld(new Error('This folder reader is closed.'));
+    p.stale();
+    await pause();
+    expect(context.failed).not.toHaveBeenCalled();
+    expect(labels(el)).toEqual(['shared_gain.slx', 'ghost Params.SLDD']);
+  });
+
+  it('builds one graph at a time: a change while one builds is drawn by exactly one more, when it ends', async () => {
+    const asked: ((sources: RawSource[]) => void)[] = [];
+    const folder = { graphSources: () => new Promise<RawSource[]>((answer) => asked.push(answer)) } as unknown as FolderView;
+    const tabs = [tabOf('params.sldd')];
+    const { el, pane: p } = pane(tabs, { folder: () => folder });
+    p.refresh();
+    await pause();
+    expect(asked).toHaveLength(1);
+    // Two changes while it reads the folder.
+    tabs.push(tabOf('shadow_ws.slx'));
+    p.refresh();
+    await pause();
+    p.stale();
+    await pause();
+    expect(asked).toHaveLength(1);
+    asked[0]!([]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked).toHaveLength(2);
+    asked[1]!([]);
+    await pause();
+    expect(asked).toHaveLength(2);
+    expect(labels(el)).toEqual(['params.sldd', 'shadow_ws.slx']);
+  });
+
+  it('drops a reveal its build could not make, rather than making it on a later build', async () => {
+    let refuse = true;
+    const folder = { graphSources: async () => (refuse ? Promise.reject(new Error('EACCES')) : []) } as unknown as FolderView;
+    const { el, context, pane: p } = pane([tabOf('params.sldd')], { folder: () => folder });
+    p.reveal('file:///w/params.sldd');
+    await pause();
+    expect(context.failed).toHaveBeenCalledTimes(1);
+    refuse = false;
+    p.stale();
+    await pause();
+    expect(el.graph).not.toBeNull();
+    expect(el.reveal).not.toHaveBeenCalled();
+  });
+
   it('says a graph that could not be built, and builds nothing after dispose', async () => {
     const folder = { graphSources: async () => Promise.reject(new Error('the host went away')) } as unknown as FolderView;
     const { el, context, pane: p } = pane([tabOf('params.sldd')], { folder: () => folder });
