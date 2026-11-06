@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
-// Where the relationship graph is drawn: a rectangle for each box and each item of an open box,
-// and an orthogonal route for each edge. A port of the prototype's BipartiteLayout, which the
+// Where the relationship graph is drawn: a rectangle for each box and each item it shows, and an
+// orthogonal route for each edge whose ends show. A port of the prototype's BipartiteLayout, which the
 // look of the graph (graph-expanded.png, legend-expanded.png) comes from.
 //
 // TWO COLUMNS. The models on the left, as a tree of their model references: what a model
@@ -29,7 +29,7 @@
 //
 // Widths are estimated from the number of characters, not measured: the model has no DOM to
 // measure text with, and the widget draws names with an ellipsis where an estimate was short.
-import type { GraphBox, GraphEdge, RelationshipGraph } from './graphTypes.js';
+import type { GraphBox, GraphEdge, GraphItem, RelationshipGraph } from './graphTypes.js';
 
 /** A point of the canvas, in its own coordinates. */
 export interface GraphPoint {
@@ -50,10 +50,10 @@ export interface ItemLayout extends GraphRect {
   id: string;
 }
 
-/** Where a box is drawn, and its items when it is open. */
+/** Where a box is drawn, and the items it shows. */
 export interface BoxLayout extends GraphRect {
   id: string;
-  /** Its items, top to bottom; none while it is closed or has none. */
+  /** The items it shows, top to bottom: all of an open box's, of another those an open box reaches. */
   items: ItemLayout[];
   /** Where the line between a model's blocks and its workspace variables is drawn, when it shows both. */
   divider?: number;
@@ -121,17 +121,43 @@ function boxWidth(box: GraphBox): number {
   return clamp(Math.ceil(Math.max(label, content)), MIN_BOX_WIDTH, MAX_BOX_WIDTH);
 }
 
-/** The index of a box's first workspace item when blocks come before it, else -1: where its divider goes. */
-function dividerAt(box: GraphBox): number {
-  const at = box.items.findIndex((i) => i.group === 'workspace');
+/** The index of the first workspace item when blocks come before it, else -1: where a divider goes. */
+function dividerAt(items: readonly GraphItem[]): number {
+  const at = items.findIndex((i) => i.group === 'workspace');
   return at > 0 ? at : -1;
 }
 
-/** A box's height: a header alone when it is closed or empty, else its items under a narrower one. */
-function boxHeight(box: GraphBox, open: boolean): number {
-  if (!open) return BOX_HEADER;
-  const n = box.items.length;
-  return OPEN_HEADER + (n - 1) * ITEM_PITCH + ITEM_HEIGHT + (dividerAt(box) > 0 ? DIVIDER_GAP : 0) + ITEM_INSET;
+/** A box's height: a header alone when it shows no items, else the items it shows under a narrower one. */
+function boxHeight(items: readonly GraphItem[]): number {
+  const n = items.length;
+  if (n === 0) return BOX_HEADER;
+  return OPEN_HEADER + (n - 1) * ITEM_PITCH + ITEM_HEIGHT + (dividerAt(items) > 0 ? DIVIDER_GAP : 0) + ITEM_INSET;
+}
+
+/**
+ * The items that show, as ts showed them: all of an open box's, and of any other box those a usage
+ * edge joins to an item of an open box. So a model opened onto its blocks shows, in each data file
+ * they read, the variables they read and no others (graph-expanded.png: VehicleParams.sldd shows
+ * IdleSpeed and MaxSpeed), and a dictionary opened shows, in each model, the blocks that read it.
+ * Every item showing, as every box once did, is the picture that struck usage edges through other
+ * boxes' items; a closed graph is files and their links alone.
+ */
+function shownItems(graph: RelationshipGraph, expanded: ReadonlySet<string>): Set<string> {
+  const boxOf = new Map<string, string>();
+  const shown = new Set<string>();
+  for (const box of graph.boxes) {
+    for (const item of box.items) {
+      boxOf.set(item.id, box.id);
+      if (expanded.has(box.id)) shown.add(item.id);
+    }
+  }
+  for (const e of graph.edges) {
+    const [from, to] = [boxOf.get(e.from), boxOf.get(e.to)];
+    if (!from || !to || from === to) continue;
+    if (expanded.has(from)) shown.add(e.to);
+    if (expanded.has(to)) shown.add(e.from);
+  }
+  return shown;
 }
 
 /**
@@ -178,7 +204,8 @@ function treeSlots(ids: readonly string[], edges: readonly GraphEdge[]): Map<str
 /** A box being placed: its graph box, size and, once placed, its rectangle and row. */
 interface Placed {
   box: GraphBox;
-  open: boolean;
+  /** The items it shows, in its order. */
+  items: GraphItem[];
   width: number;
   height: number;
   x: number;
@@ -239,15 +266,17 @@ function route(points: GraphPoint[]): GraphPoint[] {
 }
 
 /**
- * The layout of `graph` with the boxes `expanded` names open (a box with no items draws closed
- * whatever it says). Pure: the same graph and the same open boxes give the same layout.
+ * The layout of `graph` with the boxes `expanded` names open: each shows its items, and each other
+ * box the items of its own those reach (shownItems). Pure: the same graph and the same open boxes
+ * give the same layout.
  */
 export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<string>): GraphLayout {
   if (graph.boxes.length === 0) return { boxes: [], edges: [], width: 0, height: 0 };
 
+  const shown = shownItems(graph, expanded);
   const nodes: Placed[] = graph.boxes.map((box) => {
-    const open = expanded.has(box.id) && box.items.length > 0;
-    return { box, open, width: boxWidth(box), height: boxHeight(box, open), x: 0, y: 0, rowBottom: 0 };
+    const items = box.items.filter((i) => shown.has(i.id));
+    return { box, items, width: boxWidth(box), height: boxHeight(items), x: 0, y: 0, rowBottom: 0 };
   });
   const models = nodes.filter((n) => n.box.kind === 'model');
   const sldds = nodes.filter((n) => n.box.kind !== 'model' && n.box.kind !== 'mat');
@@ -277,10 +306,10 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
     const layout: BoxLayout = { id: n.box.id, x: n.x, y: n.y, width: n.width, height: n.height, items: [] };
     rects.set(n.box.id, layout);
     rowBottom.set(n.box.id, n.rowBottom);
-    if (!n.open) return layout;
-    const at = dividerAt(n.box);
+    if (n.items.length === 0) return layout;
+    const at = dividerAt(n.items);
     const itemWidth = n.width - 2 * ITEM_INSET - (hasWorkspace(n.box) ? WS_LANE : 0);
-    layout.items = n.box.items.map((item, i) => {
+    layout.items = n.items.map((item, i) => {
       const r: ItemLayout = {
         id: item.id,
         x: n.x + ITEM_INSET,

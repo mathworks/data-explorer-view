@@ -39,6 +39,9 @@ const graphOf = (names: string[] = NAMES): RelationshipGraph =>
   );
 const GRAPH = graphOf();
 const idOf = (label: string): string => GRAPH.boxes.find((b) => b.label === label)!.id;
+// Every box with items, open: the picture the tests about items are drawn over.
+const ALL = GRAPH.boxes.filter((b) => b.items.length > 0).map((b) => b.id);
+const openAll = (el: DexRelationshipGraph): void => void (el.expanded = ALL);
 const itemIdOf = (box: string, name: string): string => GRAPH.boxes.find((b) => b.label === box)!.items.find((i) => i.name === name)!.id;
 
 async function graph(g: RelationshipGraph | null = GRAPH, setup?: (el: DexRelationshipGraph) => void): Promise<DexRelationshipGraph> {
@@ -109,9 +112,9 @@ describe('what it draws', () => {
   });
 
   it('draws a box per file where the layout put it, of its kind, with its icon', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     expect(labels(el)).toEqual(NAMES);
-    const layout = layoutGraph(GRAPH, new Set(GRAPH.boxes.filter((b) => b.items.length).map((b) => b.id)));
+    const layout = layoutGraph(GRAPH, new Set(ALL));
     for (const b of layout.boxes) {
       const box = boxEl(el, b.id);
       expect([box.style.left, box.style.top, box.style.width, box.style.height]).toEqual([`${b.x}px`, `${b.y}px`, `${b.width}px`, `${b.height}px`]);
@@ -121,20 +124,29 @@ describe('what it draws', () => {
     expect(boxEl(el, idOf('chained.sldd')).querySelector('dex-icon')!.iconId).toBe('simulink_database');
   });
 
-  it('opens every box with items by default, and only those `expanded` names once it is set', async () => {
+  it('opens no box at first, as ts, and then the boxes `expanded` names, with what they reach in the others', async () => {
+    // Closed, a graph is its files and the links between them (relationship-graph-root.png).
     const el = await graph();
-    expect(sr(el).querySelectorAll('.item')).toHaveLength(8);
+    expect(el.expanded).toEqual([]);
+    expect(sr(el).querySelectorAll('.item')).toHaveLength(0);
+    expect(sr(el).querySelectorAll('.box.open')).toHaveLength(0);
+    const shown = () => [...sr(el).querySelectorAll<HTMLElement>('.item')].map((i) => i.dataset.id);
+    // The model open: its blocks, and in each data file only the variable they read, the data
+    // files staying closed (graph-expanded.png).
+    el.expanded = [idOf('caseRefs.slx')];
+    await el.updateComplete;
+    expect(shown()).toHaveLength(8);
     expect(itemEl(el, itemIdOf('caseRefs.slx', 'Gain1')).textContent!.trim()).toBe('Gain1');
+    expect(boxEl(el, idOf('CaseBp.mat')).classList.contains('open')).toBe(false);
+    expect(boxEl(el, idOf('CaseBp.mat')).classList.contains('partial')).toBe(true);
+    // A MAT-file open: its variable, and in the model the block that reads it.
     el.expanded = [idOf('CaseBp.mat')];
     await el.updateComplete;
-    expect([...sr(el).querySelectorAll<HTMLElement>('.item')].map((i) => i.dataset.id)).toEqual([itemIdOf('CaseBp.mat', 'Bp')]);
-    el.expanded = [];
-    await el.updateComplete;
-    expect(sr(el).querySelectorAll('.item')).toHaveLength(0);
+    expect(shown()).toEqual([itemIdOf('caseRefs.slx', 'Const1'), itemIdOf('CaseBp.mat', 'Bp')]);
   });
 
   it('draws each edge the layout routes, by kind, and labels a usage with its parameter', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     const paths = [...sr(el).querySelectorAll<SVGPathElement>('path.edge')];
     expect(paths).toHaveLength(GRAPH.edges.length);
     const kinds = paths.map((p) => [...p.classList].find((c) => c !== 'edge' && c !== 'dim'));
@@ -163,6 +175,44 @@ describe('what it draws', () => {
   });
 });
 
+describe('the layers', () => {
+  // Edges between boxes run under them, so a long one passes behind the boxes in its way rather
+  // than through their items (the review's render of a large graph, every box open). A usage's two
+  // short ends, from its item to its own box's border, are drawn over, so it still visibly leaves
+  // its block and reaches its variable; a workspace usage, which never leaves its box, is drawn
+  // over whole; and what a selection reaches comes to the top.
+  const under = (el: DexRelationshipGraph, kind: string) => sr(el).querySelectorAll(`svg.under path.edge.${kind}`).length;
+  const over = (el: DexRelationshipGraph, kind: string) => sr(el).querySelectorAll(`svg.over path.edge.${kind}`).length;
+
+  it('draws every edge between boxes under them, and the two ends of each usage over them', async () => {
+    const el = await graph(GRAPH, openAll);
+    expect([under(el, 'param-usage'), under(el, 'data-link'), under(el, 'sldd-ref')]).toEqual([4, 3, 1]);
+    expect(over(el, 'param-usage')).toBe(0);
+    expect(sr(el).querySelectorAll('svg.over path.stub.param-usage')).toHaveLength(8);
+    expect(sr(el).querySelectorAll('svg.over text.edge-label')).toHaveLength(4);
+  });
+
+  it("draws a workspace usage over its model's box, whole", async () => {
+    const files = ['shadow_ws.slx', 'params.sldd'].map((n) => {
+      const b = readFileSync(join(ROOT, 'test/fixtures', n));
+      return { uriString: `mem:///w/${n}`, path: `/w/${n}`, bytes: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer };
+    });
+    const g = buildRelationshipGraph(files);
+    const el = await graph(g, (e) => (e.expanded = [g.boxes[0]!.id]));
+    expect([over(el, 'ws-usage'), under(el, 'ws-usage')]).toEqual([1, 0]);
+  });
+
+  it('brings the edges of what is selected to the top, whole', async () => {
+    const el = await graph(GRAPH, openAll);
+    el.selected = itemIdOf('caseRefs.slx', 'Gain2');
+    await el.updateComplete;
+    expect([over(el, 'param-usage'), under(el, 'param-usage')]).toEqual([1, 3]);
+    el.selected = idOf('caseRefs.slx');
+    await el.updateComplete;
+    expect([over(el, 'param-usage'), over(el, 'data-link'), under(el, 'sldd-ref')]).toEqual([4, 3, 1]);
+  });
+});
+
 describe('choosing', () => {
   const selected = heard('dex-graph-selected');
 
@@ -179,7 +229,7 @@ describe('choosing', () => {
   });
 
   it("lights a selected box's items, the items its edges reach and their boxes", async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     boxEl(el, idOf('CaseBp.mat')).click();
     await el.updateComplete;
     expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
@@ -188,7 +238,7 @@ describe('choosing', () => {
   });
 
   it('selects an item on a click, not its box, and lights only what it reaches', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     itemEl(el, itemIdOf('caseRefs.slx', 'Gain2')).click();
     await el.updateComplete;
     expect(selected).toEqual([{ id: itemIdOf('caseRefs.slx', 'Gain2') }]);
@@ -217,7 +267,7 @@ describe('choosing', () => {
   });
 
   it('highlights what the app selects, and says nothing', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     el.selected = itemIdOf('CaseBp.mat', 'Bp');
     await el.updateComplete;
     expect(itemEl(el, itemIdOf('CaseBp.mat', 'Bp')).classList.contains('selected')).toBe(true);
@@ -235,7 +285,7 @@ describe('opening and the toggle', () => {
   const selected = heard('dex-graph-selected');
 
   it('asks to open a box on a double-click, and an item by the name its table reveals it by', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     boxEl(el, idOf('chained.sldd')).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
     itemEl(el, itemIdOf('caseRefs.slx', 'Gain3')).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
     expect(opened).toEqual([{ uri: 'mem:///w/chained.sldd' }, { uri: 'mem:///w/caseRefs.slx', name: '3' }]);
@@ -271,9 +321,10 @@ describe('opening and the toggle', () => {
     await el.updateComplete;
     expect(expand).toEqual([
       { id: idOf('caseRefs.slx'), expanded: false },
+      // Showing what the open model reaches is not being open: its + still opens it whole.
       { id: idOf('CaseBp.mat'), expanded: true },
     ]);
-    expect(sr(el).querySelectorAll('.item')).toHaveLength(4);
+    expect(sr(el).querySelectorAll('.item')).toHaveLength(8);
     // A toggle is not a click on its box.
     expect(selected).toEqual([]);
     // A box with no items has none.
@@ -328,7 +379,7 @@ describe('the view', () => {
   it('fits the whole graph in the canvas, from its button or fit()', async () => {
     const el = await graph();
     sized(el, 500, 300);
-    const layout = layoutGraph(GRAPH, new Set(GRAPH.boxes.filter((b) => b.items.length).map((b) => b.id)));
+    const layout = layoutGraph(GRAPH, new Set());
     for (const fit of [() => el.fit(), () => button(el, 'Fit to view').click()]) {
       button(el, 'Zoom in').click();
       fit();
@@ -372,16 +423,16 @@ describe('the view', () => {
     el.graph = GRAPH;
     el.reveal(idOf('chained.sldd'));
     await el.updateComplete;
-    const box = layoutGraph(GRAPH, new Set(GRAPH.boxes.filter((b) => b.items.length).map((b) => b.id))).boxes.find((b) => b.id === idOf('chained.sldd'))!;
+    const box = layoutGraph(GRAPH, new Set()).boxes.find((b) => b.id === idOf('chained.sldd'))!;
     const v = view(el);
     expect(v.x + (box.x + box.width / 2) * v.scale).toBeCloseTo(400, 6);
     expect(v.y + (box.y + box.height / 2) * v.scale).toBeCloseTo(300, 6);
   });
 
   it('reveals a box or an item at the middle of the canvas', async () => {
-    const el = await graph();
+    const el = await graph(GRAPH, openAll);
     sized(el, 800, 600);
-    const layout = layoutGraph(GRAPH, new Set(GRAPH.boxes.filter((b) => b.items.length).map((b) => b.id)));
+    const layout = layoutGraph(GRAPH, new Set(ALL));
     for (const id of [idOf('CaseBp.mat'), itemIdOf('caseRefs.slx', 'Gain1')]) {
       el.reveal(id);
       await el.updateComplete;
@@ -442,7 +493,7 @@ describe('the keyboard', () => {
     expect(key(el, 'Enter').defaultPrevented).toBe(true);
     key(el, ' ');
     expect(opened).toEqual([{ uri: 'mem:///w/caseRefs.slx' }]);
-    expect(expand).toEqual([{ id: idOf('caseRefs.slx'), expanded: false }]);
+    expect(expand).toEqual([{ id: idOf('caseRefs.slx'), expanded: true }]);
   });
 
   it('zooms with + and -', async () => {

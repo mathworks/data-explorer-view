@@ -78,9 +78,8 @@ const EDGE_LABELS: Readonly<Record<GraphEdgeKind, string>> = {
   'ws-usage': 'Workspace Usage',
 };
 const BOX_LABELS: Readonly<Record<GraphBoxKind, string>> = { model: 'Model', sldd: 'Dictionary', mat: 'MAT-File' };
-// A usage is drawn over the boxes, since it joins items inside them; a reference and a data link
-// under them, since they join boxes and would otherwise cross the boxes beside them.
-const OVER: ReadonlySet<GraphEdgeKind> = new Set(['param-usage', 'ws-usage']);
+// The edges that join two items, whose ends are inside boxes.
+const USAGE: ReadonlySet<GraphEdgeKind> = new Set(['param-usage', 'ws-usage']);
 
 /** The view: where the canvas's origin is drawn, and at what scale. */
 interface View {
@@ -117,10 +116,12 @@ function pathOf(points: readonly GraphPoint[]): string {
  * How the open models, dictionaries and MAT-files connect, as the prototype's relationship graph
  * draws it: the models on the left as a tree of their references, the data files on the right,
  * each a box of its kind's colour, a file referenced and not open dashed, and the edges between
- * them. An open box lists the blocks and variables that take part, a model's workspace variables
- * under a divider, with an edge from each block to each variable it reads, labelled with the
- * block parameter. The graph comes from `buildRelationshipGraph`; where it is drawn, from
- * `layoutGraph`.
+ * them. Every box starts closed, as ts's did. An open box lists the blocks and variables that take
+ * part, a model's workspace variables under a divider, and every other box the items of its own
+ * those reach (a model open shows, in a dictionary, the variables its blocks read), with an edge
+ * from each block to each variable it reads, labelled with the block parameter. The edges run under
+ * the boxes; what the selection reaches is drawn over them. The graph comes from
+ * `buildRelationshipGraph`; where it is drawn, from `layoutGraph`.
  *
  * A click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges
  * reach, dimming the rest; a click on the background clears it. A double-click asks to open the
@@ -153,10 +154,13 @@ export class DexRelationshipGraph extends LitElement {
    */
   @property({ type: String }) selected: string | null = null;
   /**
-   * The ids of the boxes whose items show. Null, the default, shows every box's that has any. The
-   * app sets it, in answer to `dex-graph-expand`; the element never changes it.
+   * The ids of the boxes that are open. An open box shows all its items, and each other box the
+   * items of its own an open box's edges reach: a model open shows its blocks and, in each data file
+   * they read, only the variables they read, as ts did. None, the default, as ts started: the files
+   * and the links between them. The app sets it, in answer to `dex-graph-expand`; the element never
+   * changes it.
    */
-  @property({ attribute: false }) expanded: string[] | null = null;
+  @property({ attribute: false }) expanded: string[] = [];
 
   @state() private _view: View = { x: 0, y: 0, scale: 1 };
   @state() private _legendOpen = false;
@@ -226,8 +230,7 @@ export class DexRelationshipGraph extends LitElement {
       this._domIds = new Map();
       return;
     }
-    const open = Array.isArray(this.expanded) ? this.expanded : graph.boxes.filter((b) => b.items.length > 0).map((b) => b.id);
-    this._layout = layoutGraph(graph, new Set(open));
+    this._layout = layoutGraph(graph, this._expanded());
     this._boxLayouts = new Map(this._layout.boxes.map((b) => [b.id, b]));
     this._rects = new Map<string, GraphRect>();
     this._domIds = new Map();
@@ -410,8 +413,13 @@ export class DexRelationshipGraph extends LitElement {
     this.dispatchEvent(new CustomEvent<GraphOpenDetail>('dex-graph-open', { detail, bubbles: true, composed: true }));
   }
 
+  private _expanded(): Set<string> {
+    return new Set(Array.isArray(this.expanded) ? this.expanded : []);
+  }
+
+  // Open, as `expanded` says: a box showing what an open box reaches is not open, and its + opens it.
   private _isOpen(id: string): boolean {
-    return (this._boxLayouts.get(id)?.items.length ?? 0) > 0;
+    return this._expanded().has(id);
   }
 
   private _toggle(id: string): void {
@@ -549,24 +557,78 @@ export class DexRelationshipGraph extends LitElement {
     return box ? `Selected ${box.label}, ${BOX_LABELS[box.kind] ?? box.kind}${box.ghost ? ', not open' : ''}` : '';
   }
 
-  private _renderEdges(edges: readonly EdgeLayout[], reach: Reach | null, over: boolean) {
+  // THE LAYERS. An edge between two boxes runs UNDER the boxes, so one that has to pass a box on
+  // its way passes behind it, not through its items: with every item of a large graph shown, usages
+  // drawn over the boxes struck through row after row of other boxes' items. Over the boxes go only
+  // what joins a thing to its own box, and what the selection reaches:
+  //
+  //   - a usage's two ends, each from its item to its own box's border (a stub), with the dot, the
+  //     arrowhead and the parameter's label, so it still visibly leaves its block and reaches its
+  //     variable;
+  //   - a workspace usage whole, which never leaves its model's box and under it would not show;
+  //   - every edge the selection reaches, whole, so what it is joined to is drawn on top.
+  private _onTop(edge: GraphEdge, reach: Reach | null): boolean {
+    return edge.kind === 'ws-usage' || (reach !== null && reach.edges.has(edge.id));
+  }
+
+  private _dim(edge: GraphEdge, reach: Reach | null): string {
+    return reach !== null && !reach.edges.has(edge.id) ? ' dim' : '';
+  }
+
+  private _renderUnder(edges: readonly EdgeLayout[], reach: Reach | null) {
     return edges.map((e) => {
       const edge = this._edges.get(e.id);
-      if (!edge || OVER.has(edge.kind) !== over) return nothing;
-      const dim = reach !== null && !reach.edges.has(e.id) ? ' dim' : '';
+      if (!edge || this._onTop(edge, reach)) return nothing;
+      // A usage's dot and arrowhead are inside the boxes, so its stubs over them carry them.
+      const ends = !USAGE.has(edge.kind);
+      return svg`<path
+        class="edge ${edge.kind}${this._dim(edge, reach)}"
+        d=${pathOf(e.points)}
+        marker-start=${ends ? `url(#dex-graph-dot-${edge.kind})` : nothing}
+        marker-end=${ends ? `url(#dex-graph-arrow-${edge.kind})` : nothing}
+      ></path>`;
+    });
+  }
+
+  private _renderOver(edges: readonly EdgeLayout[], reach: Reach | null) {
+    return edges.map((e) => {
+      const edge = this._edges.get(e.id);
+      if (!edge) return nothing;
+      const dim = this._dim(edge, reach);
       const start = e.points[0]!;
-      return svg`
-        <path
+      const label =
+        edge.label && !dim ? svg`<text class="edge-label" x=${start.x + 4} y=${start.y - 3}>${edge.label}</text>` : nothing;
+      if (this._onTop(edge, reach)) {
+        return svg`<path
           class="edge ${edge.kind}${dim}"
           d=${pathOf(e.points)}
           marker-start="url(#dex-graph-dot-${edge.kind})"
           marker-end="url(#dex-graph-arrow-${edge.kind})"
-        ></path>
-        ${over && edge.label && !dim
-          ? svg`<text class="edge-label ${edge.kind}" x=${start.x + 4} y=${start.y - 3}>${edge.label}</text>`
-          : nothing}
+        ></path>${label}`;
+      }
+      if (!USAGE.has(edge.kind)) return nothing;
+      const from = this._stub(e.points, 'start', edge.from);
+      const to = this._stub(e.points, 'end', edge.to);
+      return svg`
+        ${from ? svg`<path class="stub ${edge.kind}${dim}" d=${pathOf(from)} marker-start="url(#dex-graph-dot-${edge.kind})"></path>` : nothing}
+        ${to ? svg`<path class="stub ${edge.kind}${dim}" d=${pathOf(to)} marker-end="url(#dex-graph-arrow-${edge.kind})"></path>` : nothing}
+        ${label}
       `;
     });
+  }
+
+  // The part of a route inside the box of the item at one of its ends: from the item to where the
+  // route's first (or last) segment crosses that box's border, or the whole segment when it does
+  // not leave the box. Null for an end that is no item.
+  private _stub(points: readonly GraphPoint[], end: 'start' | 'end', id: string): GraphPoint[] | null {
+    const box = this._rects.get(this._items.get(id)?.boxId ?? '');
+    if (!box || points.length < 2) return null;
+    const n = points.length;
+    const [at, next] = end === 'start' ? [points[0]!, points[1]!] : [points[n - 1]!, points[n - 2]!];
+    const x = next.x > at.x ? Math.min(next.x, box.x + box.width) : Math.max(next.x, box.x);
+    const y = next.y > at.y ? Math.min(next.y, box.y + box.height) : Math.max(next.y, box.y);
+    const border = { x: next.x === at.x ? at.x : x, y: next.y === at.y ? at.y : y };
+    return end === 'start' ? [at, border] : [border, at];
   }
 
   // A dot where an edge leaves and an arrowhead where it arrives, one pair per kind, filled with
@@ -586,12 +648,14 @@ export class DexRelationshipGraph extends LitElement {
 
   private _renderBox(b: BoxLayout, reach: Reach | null) {
     const box = this._boxes.get(b.id)!;
-    const open = b.items.length > 0;
+    const open = this._isOpen(b.id) && box.items.length > 0;
     const classes = [
       'box',
       box.kind,
       box.ghost ? 'ghost' : '',
       open ? 'open' : '',
+      // Not open, and showing the items an open box reaches.
+      !open && b.items.length > 0 ? 'partial' : '',
       this.selected === b.id ? 'selected' : '',
       reach && !reach.boxes.has(b.id) ? 'dim' : '',
     ].filter(Boolean).join(' ');
@@ -728,11 +792,11 @@ export class DexRelationshipGraph extends LitElement {
           })}
         >
           <svg class="edges under" width=${layout.width} height=${layout.height} aria-hidden="true">
-            ${this._markers()} ${this._renderEdges(layout.edges, reach, false)}
+            ${this._markers()} ${this._renderUnder(layout.edges, reach)}
           </svg>
           ${layout.boxes.map((b) => this._renderBox(b, reach))}
           <svg class="edges over" width=${layout.width} height=${layout.height} aria-hidden="true">
-            ${this._renderEdges(layout.edges, reach, true)}
+            ${this._renderOver(layout.edges, reach)}
           </svg>
         </div>
       </div>

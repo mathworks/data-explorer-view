@@ -92,11 +92,17 @@ export const relationshipGraphStyles = css`
     opacity: 1;
   }
 
-  .over path.edge {
+  .over path.edge,
+  path.stub {
     stroke-width: 1.8;
   }
 
-  path.edge.dim {
+  path.stub {
+    fill: none;
+  }
+
+  path.edge.dim,
+  path.stub.dim {
     opacity: 0.2;
   }
 
@@ -130,10 +136,11 @@ export const relationshipGraphStyles = css`
     stroke-width: 0;
   }
 
+  /* A label is read as text, so it is inked as text, not in its edge's colour: an 8px word in a
+     mid-tone purple on the canvas could not be read. */
   text.edge-label {
     font-size: 8px;
-    stroke: none;
-    opacity: 0.9;
+    fill: var(--dex-color-text-secondary, #555);
   }
 
   .box {
@@ -202,7 +209,8 @@ export const relationshipGraphStyles = css`
     font-size: 11px;
   }
 
-  .box.open .head {
+  .box.open .head,
+  .box.partial .head {
     height: 28px;
   }
 

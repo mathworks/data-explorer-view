@@ -46,6 +46,23 @@ const onBoundary = (p: { x: number; y: number }, r: GraphRect): boolean =>
   ((Math.abs(p.x - r.x) < EPS || Math.abs(p.x - right(r)) < EPS) && between(p.y, r.y, bottom(r))) ||
   ((Math.abs(p.y - r.y) < EPS || Math.abs(p.y - bottom(r)) < EPS) && between(p.x, r.x, right(r)));
 
+/**
+ * The items each box shows, as ts showed them: every item of an open box; of any other box, those a
+ * usage edge joins to an item of an open box (a dictionary shows the variables an open model's
+ * blocks read, and a model the blocks that read an open dictionary's variables).
+ */
+function shownBy(g: RelationshipGraph, expanded: ReadonlySet<string>): Set<string> {
+  const boxOf = new Map(g.boxes.flatMap((b) => b.items.map((i) => [i.id, b.id] as const)));
+  const shown = new Set(g.boxes.filter((b) => expanded.has(b.id)).flatMap((b) => b.items.map((i) => i.id)));
+  for (const e of g.edges) {
+    const [from, to] = [boxOf.get(e.from), boxOf.get(e.to)];
+    if (!from || !to || from === to) continue;
+    if (expanded.has(from)) shown.add(e.to);
+    if (expanded.has(to)) shown.add(e.from);
+  }
+  return shown;
+}
+
 /** Every invariant at once, with the edge or box at fault named. */
 function checkInvariants(g: RelationshipGraph, expanded: ReadonlySet<string>, layout: GraphLayout): void {
   const boxes = layout.boxes;
@@ -57,12 +74,13 @@ function checkInvariants(g: RelationshipGraph, expanded: ReadonlySet<string>, la
     }
   }
   const rects = new Map<string, GraphRect>();
+  const shown = shownBy(g, expanded);
   for (const b of boxes) {
     rects.set(b.id, b);
     const box = g.boxes.find((x) => x.id === b.id)!;
-    const open = expanded.has(b.id) && box.items.length > 0;
-    expect(b.items.map((i) => i.id), b.id).toEqual(open ? box.items.map((i) => i.id) : []);
-    if (!open) expect(b.height, b.id).toBe(BOX_HEADER);
+    // In the box's own order, whichever of them show.
+    expect(b.items.map((i) => i.id), b.id).toEqual(box.items.filter((i) => shown.has(i.id)).map((i) => i.id));
+    if (b.items.length === 0) expect(b.height, b.id).toBe(BOX_HEADER);
     for (let i = 0; i < b.items.length; i++) {
       expect(inside(b.items[i]!, b), `${b.items[i]!.id} outside ${b.id}`).toBe(true);
       for (let j = i + 1; j < b.items.length; j++) expect(overlap(b.items[i]!, b.items[j]!)).toBe(false);
@@ -128,12 +146,31 @@ describe('the fixtures', () => {
     const kinds = (l: GraphLayout) => l.edges.map((e) => g.edges.find((x) => x.id === e.id)!.kind);
     expect(kinds(open).filter((k) => k === 'param-usage')).toHaveLength(4);
     expect(kinds(closed).filter((k) => k === 'param-usage')).toHaveLength(0);
-    // One box open and the dictionaries closed: the model's items show, and no usage edge has a
-    // second end to reach.
+    // The model open and the data files closed: its blocks show, and in each data file the
+    // variables they read (graph-expanded.png's VehicleParams.sldd shows only IdleSpeed and
+    // MaxSpeed), so every usage edge out of the model is drawn.
     const one = layoutGraph(g, new Set([model]));
-    expect(one.boxes[0]!.items).toHaveLength(4);
-    expect(kinds(one).filter((k) => k === 'param-usage')).toHaveLength(0);
+    expect(one.boxes.map((b) => b.items.length)).toEqual([4, 1, 1, 1, 1]);
+    expect(kinds(one).filter((k) => k === 'param-usage')).toHaveLength(4);
     checkInvariants(g, new Set([model]), one);
+  });
+
+  it("shows in a closed box only what an open box's edges reach, and the edges between them alone", () => {
+    // usageorder: two models read one dictionary. The dictionary open shows its variable and, in
+    // each model, the blocks that read it; ctrlA open shows its blocks, the variable they read, and
+    // not plantB's block, which reads it too but is in a closed box reached from no open one.
+    const g = buildRelationshipGraph(['ctrlA.slx', 'plantB.slx', 'sharedParams.sldd'].map((n) => file('test-integration/fixtures/usageorder', n)));
+    const [ctrlA, plantB, shared] = g.boxes.map((b) => b.id);
+    const items = (l: GraphLayout) => l.boxes.map((b) => b.items.length);
+    const dict = layoutGraph(g, new Set([shared!]));
+    expect(items(dict)).toEqual([2, 1, 1]);
+    expect(dict.edges.filter((e) => g.edges.find((x) => x.id === e.id)!.kind === 'param-usage')).toHaveLength(3);
+    const model = layoutGraph(g, new Set([ctrlA!]));
+    expect(items(model)).toEqual([2, 0, 1]);
+    expect(model.edges.filter((e) => g.edges.find((x) => x.id === e.id)!.kind === 'param-usage')).toHaveLength(2);
+    checkInvariants(g, new Set([shared!]), dict);
+    checkInvariants(g, new Set([ctrlA!]), model);
+    checkInvariants(g, new Set([plantB!, shared!]), layoutGraph(g, new Set([plantB!, shared!])));
   });
 
   it("routes a block's edge to its own workspace inside its box, on the items' right", () => {
