@@ -97,6 +97,9 @@ export type {
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+// A document's sections and the entries right under each heading, read off its table.
+export { readEntries } from './source/entries.js';
+export type { EntrySection } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
