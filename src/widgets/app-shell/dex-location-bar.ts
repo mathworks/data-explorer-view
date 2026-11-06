@@ -19,6 +19,12 @@ export interface LocationSegment {
    * a bar narrow enough to clip it. None, the default, shows none.
    */
   title?: string;
+  /**
+   * A place only looked at, not gone to (a file selected in a graph): drawn dimmed after the
+   * current place, which is the segment before it. A press on it asks to go there, as on any.
+   * Off, the default, is a place on the way to where the user is.
+   */
+  preview?: boolean;
 }
 
 /** What `dex-location-go` carries: where the user asked to go. */
@@ -169,6 +175,11 @@ export class DexLocationBar extends LitElement {
       flex-shrink: 0;
     }
 
+    /* Dimmed, and still legible: the text keeps a 4.5:1 contrast at this opacity, light and dark. */
+    .segment.preview {
+      opacity: 0.7;
+    }
+
     .label {
       min-width: 0;
       overflow: hidden;
@@ -209,17 +220,17 @@ export class DexLocationBar extends LitElement {
 
   // A segment, behind a separator unless it is the first. The separator sits inside the item,
   // since a list holds only items; it is hidden from a screen reader, which hears the list.
-  // The last one is the current place, and asks to go there all the same: what a press on it
-  // does (back up to the list from an entry, say) is the app's call.
-  private _segment(segment: LocationSegment, index: number, last: boolean) {
+  // The last one but a preview is the current place, and asks to go there all the same: what a
+  // press on it does (back up to the list from an entry, say) is the app's call.
+  private _segment(segment: LocationSegment, index: number, current: boolean) {
     return html`
       <li>
         ${index > 0 ? html`<span class="separator" aria-hidden="true">›</span>` : nothing}
         <button
           type="button"
-          class="segment"
+          class=${segment.preview ? 'segment preview' : 'segment'}
           title=${segment.title ?? nothing}
-          aria-current=${last ? 'location' : nothing}
+          aria-current=${current ? 'location' : nothing}
           @click=${() => this._go(index)}
         >
           ${segment.icon ? html`<dex-icon .iconId=${segment.icon} .size=${14}></dex-icon>` : nothing}
@@ -230,7 +241,8 @@ export class DexLocationBar extends LitElement {
   }
 
   override render() {
-    const last = this.segments.length - 1;
+    let last = this.segments.length - 1;
+    while (last > 0 && this.segments[last]!.preview) last--;
     return html`
       <nav aria-label="Location">
         <div class="history">

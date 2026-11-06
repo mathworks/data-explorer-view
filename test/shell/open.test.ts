@@ -95,16 +95,19 @@ describe('the shell opens files as tabs', () => {
     await until(() => !!tableOf('params.sldd')!.columns?.includes('UsedBy'));
   });
 
-  it('closing a tab activates its neighbour and the inspector shows its empty text', async () => {
+  it("closing a tab activates its neighbour and the inspector shows that file's page; none is left, its empty text", async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'rt_bin.sldd': 'rt_bin.sldd' });
     await open(page, 'params.sldd', 'rt_bin.sldd');
     page.command('close-tab');
     await until(() => tabNames().length === 1);
     await until(() => !!activeTab()?.textContent?.includes('params.sldd'));
-    expect(inspectorNote().hidden).toBe(false);
+    const inspector = document.querySelector('dex-property-inspector')!;
+    await until(() => inspector.groups[0]?.properties[0]?.value === 'params.sldd');
+    expect(inspectorNote().hidden).toBe(true);
     page.command('close-tab');
     await until(() => tabNames().length === 0);
     await until(welcomeShown);
+    expect(inspectorNote().hidden).toBe(false);
     expect(document.title).toBe('Data Explorer');
   });
 

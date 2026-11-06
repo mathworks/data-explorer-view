@@ -77,6 +77,17 @@ describe('locationOf', () => {
     expect(at.up).toEqual({ tabId: 't1', rowId: 'missing' });
   });
 
+  it('at Root with a file previewed: Root, then the file dimmed, which is no place to go up from', () => {
+    const at = locationOf(null, null, rowOf, 'Root', { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', title: '/w/plant.sldd' });
+    expect(at.segments).toEqual([
+      { label: 'Root', icon: 'simulink_folder', place: { tabId: null, rowId: null } },
+      { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', title: '/w/plant.sldd', preview: true, place: { tabId: null, rowId: null } },
+    ]);
+    expect(at.up).toBeNull();
+    // A tab shown has no preview: it is where the user is.
+    expect(locationOf(TAB, null, rowOf, 'Root', { label: 'plant.sldd' }).segments.map((s) => s.label)).toEqual(['Root', 'params.sldd']);
+  });
+
   it('names Root as the app does', () => {
     expect(locationOf(null, null, rowOf, 'Workspace').segments[0]!.label).toBe('Workspace');
   });

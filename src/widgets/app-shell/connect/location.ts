@@ -5,7 +5,8 @@
 // where no document is shown. The path is Root, then the file, then the selected row's parents
 // from the top down to the row ("Root › params.sldd › Design Data › Kp"), each segment the place
 // a press on it goes to. Up is one step back along that path: the row's parent, then the file,
-// then Root.
+// then Root. At Root, a file selected in the relationship graph follows it, dimmed: a place only
+// looked at, which the shell opens when it is pressed.
 //
 // Pure: the rows are looked up through a function (connectShell's reads the active tab's rows),
 // and a row it cannot find ends the path where it is, so a row the table has not been sent yet
@@ -42,16 +43,19 @@ const ROOT_ICON = 'simulink_folder';
 
 /**
  * The bar's segments for `rowId` in `tab` (or the file, for null; or Root, for no tab), and the
- * place Up goes to (null at Root, which has nothing above it).
+ * place Up goes to (null at Root, which has nothing above it). `preview`, at Root: the file
+ * selected in the graph, a dimmed segment after Root whose place is Root still (the shell opens
+ * its file when it is pressed).
  */
 export function locationOf(
   tab: LocationTab | null,
   rowId: string | null,
   rowOf: (rowId: string) => TreeTableRow | undefined,
   rootLabel = 'Root',
+  preview?: LocationSegment,
 ): { segments: LocationStep[]; up: ShellPlace | null } {
   const root: LocationStep = { label: rootLabel, icon: ROOT_ICON, place: { tabId: null, rowId: null } };
-  if (!tab) return { segments: [root], up: null };
+  if (!tab) return { segments: preview ? [root, { ...preview, preview: true, place: root.place }] : [root], up: null };
   const group = fileGroupOf(tab.path);
   const file: LocationStep = {
     label: tab.name,

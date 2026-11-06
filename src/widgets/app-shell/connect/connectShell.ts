@@ -20,7 +20,7 @@
 
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
-import { isEditable } from '../../../model/source/tableSource.js';
+import { isEditable, type InspectorFeed } from '../../../model/source/tableSource.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
 import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
@@ -40,12 +40,13 @@ import {
   type OpenTab,
 } from './documents.js';
 import { ranNote } from './editingNotes.js';
-import { explorerFiles } from './explorerFiles.js';
+import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
+import type { LocationSegment } from '../dex-location-bar.js';
 import type { FolderView } from './folder.js';
-import { connectGraphPane } from './graphPane.js';
+import { connectGraphPane, type SelectedFile } from './graphPane.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination } from './links.js';
-import { locationOf, type ShellPlace } from './location.js';
+import { locationOf, type LocationStep, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { connectModules } from './modules.js';
 import { buildShell } from './parts.js';
@@ -65,6 +66,25 @@ import { viewOfCommand } from './views.js';
 import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** A feed of the one page of a file selected in the graph: it has no matrix, and takes no edit. */
+function pageFeed(file: SelectedFile): InspectorFeed {
+  const page = { ...(file.box.uri ? { rowId: file.box.uri } : {}), groups: file.groups };
+  return {
+    onPage(listener) {
+      listener(page);
+      return () => {};
+    },
+    matrix: async (nodeId) => ({ nodeId, message: 'This file has no value to show as a table.' }),
+  };
+}
+
+/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path. */
+function previewOf(file: SelectedFile | undefined): LocationSegment | undefined {
+  if (!file) return undefined;
+  const { box } = file;
+  return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}) };
+}
 
 /**
  * Fill an empty `<dex-app-shell>` with the app, over `options.host`, and return the handle the host
@@ -117,11 +137,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   };
   const failed = (text: string): void => say('error', text);
 
-  // The inspector follows the active tab's table, or none (its empty text).
+  // The inspector follows the active tab's table, or at Root the page of the file selected in the
+  // graph, or none (its empty text). A link on it goes where a table's link goes: through the folder
+  // shown, to the file its tree shows for the name the link holds; at Root, to the graph's file.
   const inspector = connectInspector(parts.inspector, null, { variableEditor: editor, empty: parts.inspectorEmpty });
-  inspector.on('navigate', (target) => {
-    if (tabs.active) void navigate(tabs.active, parseLinkTarget(target));
-  });
+  inspector.on('navigate', (target) => void followInspectorLink(target));
+  async function followInspectorLink(target: string): Promise<void> {
+    const from = tabs.active;
+    if (!from) return graph.openLink(target);
+    const link = parseLinkTarget(target);
+    const uri = await Promise.resolve(folderNow()?.resolveLink(link, sourceUri(from.path))).catch(() => undefined);
+    if (isOpen(from)) await navigate(from, link, uri ?? undefined);
+  }
   // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
   const folderNow = (): FolderView | undefined => folders.current;
   // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
@@ -169,12 +196,24 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     },
   });
   const visit = (): void => nav.visit();
+  // The location bar's segments as last drawn: what a press on one names.
+  let located: readonly LocationStep[] = [];
 
   // The inspector and the folder's tree follow the active tab.
   const follow = () => {
-    inspector.follow(tabs.active?.handle ?? null);
+    followInspector();
     if (tabs.active) folderNow()?.reveal(sourceUri(tabs.active.path));
   };
+
+  // The inspector's feed: the active tab's table; at Root, a page of the file selected in the graph
+  // (the same feed while it is the same page), or none.
+  let rootPage: { file: SelectedFile; feed: InspectorFeed } | null = null;
+  function followInspector(): void {
+    if (tabs.active) return inspector.follow(tabs.active.handle ?? null);
+    const file = tabs.items.length > 0 ? graph.selectedFile() : null;
+    if (file !== rootPage?.file) rootPage = file ? { file, feed: pageFeed(file) } : null;
+    inspector.follow(rootPage?.feed ?? null);
+  }
 
   function paint(): void {
     const active = tabs.active;
@@ -212,6 +251,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   function refresh(): void {
     const active = tabs.active;
+    // First: at Root, the location bar draws the file the inspector shows.
+    followInspector();
     toolbar.items = toolbarItems(toolbarState());
     explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
     // The rows the active table holds now: its paint, the entries repainted since, the children
@@ -220,8 +261,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const rowId = here().rowId;
     const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
     explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-    const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel);
+    const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file));
     nav.located(at);
+    located = at.segments;
     location.segments = at.segments;
     location.canBack = nav.canBack;
     location.canForward = nav.canForward;
@@ -389,6 +431,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           tab.dirty = dirty;
           // An edit keeps a preview tab: it is not the user's to lose by looking at another file.
           if (dirty) tab.preview = false;
+          // The file's page says whether it holds edits; its table hears nothing of a save.
+          tab.handle?.refreshInspector();
           paint();
         }),
       );
@@ -532,6 +576,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     open: openOn,
     notOpen: (ref) => say('info', `${ref} is not open`),
     failed,
+    // Its selection is the inspector's page at Root, and the location bar's dimmed file.
+    selected: later,
   });
   stops.push(() => graph.dispose());
 
@@ -549,7 +595,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       move: (tab, index) => tabs.move(tab, index) && paint(),
       showRoot,
       toStep(index) {
-        nav.toStep(index);
+        // The dimmed file at Root opens, as a double-click on its box does; any other is a place.
+        if (located[index]?.preview) graph.openSelected();
+        else nav.toStep(index);
         later();
       },
       toggle: (id, anchor) => popovers.toggle(id, anchor),

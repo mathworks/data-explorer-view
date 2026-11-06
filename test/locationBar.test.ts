@@ -84,6 +84,15 @@ describe('the breadcrumb', () => {
     expect(segments(el).map((b) => b.getAttribute('aria-current'))).toEqual([null, null, 'location']);
   });
 
+  it('dims a previewed segment, and marks the place before it as the current one', async () => {
+    // A file selected in the graph at Root is a place previewed, not gone to: Root is where the
+    // user is, and the file is drawn after it, dimmed, for a press to go to.
+    const el = await bar({ segments: [{ label: 'Root' }, { label: 'plant.sldd', preview: true }] });
+    expect(segments(el).map((b) => b.classList.contains('preview'))).toEqual([false, true]);
+    expect(segments(el).map((b) => b.getAttribute('aria-current'))).toEqual(['location', null]);
+    expect(getComputedStyle(segments(el)[1]!).opacity).toBe('0.7');
+  });
+
   it('gives a segment its title as a tooltip, and one without none', async () => {
     const el = await bar({ segments: PATH });
     expect(segments(el).map((b) => b.getAttribute('title'))).toEqual([null, '/work/dd.sldd', null]);

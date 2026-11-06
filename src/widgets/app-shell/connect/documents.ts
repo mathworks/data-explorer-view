@@ -131,6 +131,10 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     readOnlyMenu: true,
     copyText: true,
     undoChords: true,
+    // The inspector beside it shows the file's page while no row is selected, a section's, several
+    // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
+    inspectorPages: true,
+    inspectorEditing: true,
     errorDialog: wiring.dialog,
     // The host's clipboard, or the page's for a host without one, asked at each copy.
     copy: (text) => copyText(host, text),
