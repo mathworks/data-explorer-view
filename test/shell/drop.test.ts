@@ -123,12 +123,14 @@ describe("the shell's documents, while files are dragged over the page", () => {
     await until(() => docsArea().dropping);
     window.dispatchEvent(fileDrag('drop', ['plant.sldd']));
     await until(() => !docsArea().dropping);
-    // A dashed outline in the accent, over the panels and the welcome, which takes no pointer.
+    // A dashed outline in the accent, over the panels and the welcome of the focused pane (where
+    // the files open), which takes no pointer.
     const css = cssOf(DexShellDocs.styles);
-    const cue = /:host\(\[dropping\]\) \.panels::after \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const cue = /:host\(\[dropping\]\) \.pane\.focused \.panels::after \{([^}]*)\}/.exec(css)?.[1] ?? '';
     expect(cue).toContain('border: 2px dashed var(--dex-color-accent, #0078d4);');
     expect(cue).toContain('pointer-events: none;');
-    expect(css).toMatch(/@media \(forced-colors: active\) \{ :host\(\[dropping\]\) \.panels::after \{ border-color: Highlight;/);
+    expect(css).toMatch(/@media \(forced-colors: active\) \{ :host\(\[dropping\]\) \.pane\.focused \.panels::after, \.landing \{ border-color: Highlight;/);
+    expect(docsArea().shadowRoot!.querySelector('.pane')!.classList.contains('focused')).toBe(true);
   });
 
   it('follow a drop installed on the shell, or on an element around it', async () => {
