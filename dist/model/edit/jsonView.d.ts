@@ -39,8 +39,6 @@ export declare class JsonView implements EditableTableSource {
     private paintedMark;
     /** Whether the last change this table saw was an undo or a redo. */
     private lastByHistory;
-    /** Structural edits, one text state at a time (queueStructural). */
-    private structuralChain;
     constructor(doc: JsonDocument, table?: JsonTableOptions);
     private get session();
     private emit;
@@ -168,12 +166,14 @@ export declare class JsonView implements EditableTableSource {
     private transferAdapter;
     private transferDeps;
     /**
-     * Structural edits, one text state at a time. Every one reads the text when it starts and writes
-     * at the end, with an await between: two in flight at once would compute offsets over a text the
-     * other moved. So each waits for the write in front of it; none is dropped, and one that fails
-     * does not poison the chain. A cell edit is not queued.
+     * Every edit of this table, a cell edit as much as a structural one, in its turn on the
+     * document's queue of writes (writeQueue.ts), behind every edit in front of it from this table,
+     * the document's other tables, and a move out of it. A cell edit with nothing in front of it
+     * (`now`) runs in the run it is sent in, so it paints before anything else happens, as it always
+     * has. One whose table closed while it waited does nothing, as one sent after the close does: it
+     * has nowhere to paint, and would read back into the registry the tree the close released.
      */
-    private queueStructural;
+    private queueWrite;
     delete(rowIds: readonly string[]): void;
     addChild(rowId: string): void;
     paste(rowId: string): void;
@@ -181,14 +181,16 @@ export declare class JsonView implements EditableTableSource {
     addEntry(msg: NewEntry): void;
     /**
      * Create ONE new default entry from the Add gallery: a paste with no source, always narrow. Through
-     * queueStructural, never directly.
+     * queueWrite, never directly.
      */
     private applyAddEntry;
     /**
      * Remove named entries from THIS document on behalf of another document's paste or drop (a
      * cross-file move), as one write. Refused for a text that does not parse: the move's paste half
      * has landed, so the user is left with a copy rather than a mangled original. Every outcome is
-     * ANSWERED, never posted: the table the paste landed in reports it.
+     * ANSWERED, never posted: the table the paste landed in reports it. Run in its turn on the
+     * document's queue, so it reads the text every edit in front of it has written; by then the last
+     * table of the document may have closed, which answers as a close before the paste does.
      */
     private deleteFromSourceDocument;
     private repaintTables;
