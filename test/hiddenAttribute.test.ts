@@ -36,17 +36,28 @@ const cssOf = (styles: unknown): string =>
 describe('the hidden attribute', () => {
   it('finds every widget', () => {
     expect(WIDGETS.map((w) => w.name).sort()).toEqual([
+      'DexAboutPanel',
       'DexAddGallery',
+      'DexAppShell',
       'DexColumnFilter',
+      'DexConfirmDialog',
       'DexContextMenu',
+      'DexDocTabs',
       'DexErrorDialog',
+      'DexExplorer',
       'DexFilterBar',
       'DexHierarchy',
       'DexIcon',
+      'DexLocationBar',
       'DexMatrixGrid',
       'DexMatrixOpen',
       'DexProjectPage',
       'DexPropertyInspector',
+      'DexSettingsPanel',
+      'DexShellAction',
+      'DexShellView',
+      'DexToastHost',
+      'DexToolbar',
       'DexTreeTable',
       'DexVariableEditor',
     ]);

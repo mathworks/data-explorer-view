@@ -77,9 +77,9 @@ const MODULES = sourceFiles(join(ROOT, 'src')).map((rel) => `src/${rel}`).map((f
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 25 events from 13 widgets: a parse that found none would pass everything below.
+    // 36 events from 24 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(25);
+    expect(new Set(names).size).toBe(36);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
