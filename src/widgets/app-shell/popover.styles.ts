@@ -32,7 +32,7 @@ export const popoverStyles = css`
     overflow: auto;
     padding: 12px;
     background: var(--dex-bg-primary, #fff);
-    border: 1px solid var(--dex-border-color-light, #e0e0e0);
+    border: 1px solid var(--dex-border-color, #d0d0d0);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     color: var(--dex-color-text, #333);

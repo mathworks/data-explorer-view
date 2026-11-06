@@ -106,12 +106,13 @@ export class DexSettingsPanel extends LitElement {
       background: var(--dex-bg-hover, #e8e8e8);
     }
 
-    /* theme.css has no token for ink on the accent, so it is white in every theme, as
-       the prototype drew it: 4.5:1 on the light accent and 7.9:1 on the high-contrast one,
-       but 2.75:1 on the dark one, which an ink token would fix. */
+    /* The ink is the card's own surface, not white. theme.css has no token for ink on the
+       accent, and white, which the prototype drew, is 2.75:1 on the dark set's light accent.
+       The surface is white on the light and high-contrast accents (4.5:1, 7.9:1) and near-black
+       on the dark one (6.1:1): AA in every set. */
     .segments button[aria-checked='true'] {
       background: var(--dex-color-accent, #0078d4);
-      color: #fff;
+      color: var(--dex-bg-primary, #fff);
     }
 
     /* Over its neighbours, so the ring is not painted under the next segment's surface. */
