@@ -33,7 +33,7 @@ export interface SideState {
 export type ShellLayoutState = Record<ShellSide, SideState>;
 
 /** The size a side starts at, in px, before anyone drags its sash: the prototype's sizes. */
-export const SIDE_DEFAULTS: Record<ShellSide, number> = Object.freeze({ left: 220, right: 240, bottom: 150 });
+export const SIDE_DEFAULTS: Record<ShellSide, number> = Object.freeze({ left: 200, right: 200, bottom: 150 });
 
 /**
  * The least size a side can be dragged to, in px: the prototype's. Below it a sidebar's names

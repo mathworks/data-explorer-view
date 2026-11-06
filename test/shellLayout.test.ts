@@ -33,7 +33,7 @@ const FIRST: ShellLayoutState = {
 describe('initialLayout', () => {
   it('shows and opens the first view of each side by default', () => {
     expect(initialLayout(VIEWS, null)).toEqual(FIRST);
-    expect(SIDE_DEFAULTS).toEqual({ left: 220, right: 240, bottom: 150 });
+    expect(SIDE_DEFAULTS).toEqual({ left: 200, right: 200, bottom: 150 });
     expect(SIDE_MIN).toEqual({ left: 140, right: 120, bottom: 60 });
   });
 

@@ -191,7 +191,7 @@ describe('the activity buttons', () => {
     expect(part(shell, 'nav.activity.right')).toBeNull();
     expect(part(shell, 'aside.side.right')).toBeNull();
     expect(part(shell, ".resizer[data-side='right']")).toBeNull();
-    expect(shell.layout.right).toEqual({ view: null, open: false, size: 240 });
+    expect(shell.layout.right).toEqual({ view: null, open: false, size: 200 });
   });
 });
 
@@ -583,13 +583,13 @@ describe('resizing', () => {
     left.focus();
     left.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
     await settle(shell);
-    expect(shell.layout.left.size).toBe(236);
-    expect(part(shell, 'aside.side.left')!.style.width).toBe('236px');
-    expect(sash(shell, 'left').getAttribute('aria-valuenow')).toBe('236');
+    expect(shell.layout.left.size).toBe(216);
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('216px');
+    expect(sash(shell, 'left').getAttribute('aria-valuenow')).toBe('216');
 
     shell.remove();
     const again = await mount(standard(), 'shell-test');
-    expect(again.layout.left.size).toBe(236);
+    expect(again.layout.left.size).toBe(216);
   });
 
   it('moves each separator the way its side grows: the right one left, the bottom one up', async () => {
@@ -600,16 +600,16 @@ describe('resizing', () => {
     key('bottom', 'ArrowUp');
     key('left', 'ArrowLeft');
     await settle(shell);
-    expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([204, 256, 166]);
+    expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([184, 216, 166]);
   });
 
   it('follows a drag of the separator, held to the side minimum, and keeps the size when it ends', async () => {
     const shell = await mount(standard(), 'shell-test');
     const left = sash(shell, 'left');
-    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
-    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 307, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 287, clientY: 300, bubbles: true }));
     await settle(shell);
-    expect(shell.layout.left.size).toBe(270);
+    expect(shell.layout.left.size).toBe(250);
     left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: -500, clientY: 300, bubbles: true }));
     await settle(shell);
     expect(shell.layout.left.size).toBe(140);
@@ -633,16 +633,16 @@ describe('resizing', () => {
     };
     drag('right', { clientX: 700, clientY: 300 }, { clientX: 670, clientY: 310 });
     drag('bottom', { clientX: 400, clientY: 500 }, { clientX: 420, clientY: 480 });
-    expect([shell.layout.right.size, shell.layout.bottom.size]).toEqual([270, 170]);
+    expect([shell.layout.right.size, shell.layout.bottom.size]).toEqual([230, 170]);
   });
 
   it('leaves the center 200 px of the room it shares with the side', async () => {
     const shell = await mount();
-    // An 842 px main area: two 37 px activity bars, two 4 px separators and the 240 px right side
+    // An 802 px main area: two 37 px activity bars, two 4 px separators and the 200 px right side
     // leave the left side and the center 520 px, so the side grows to 320 px at most.
-    layOut({ '.main': { width: 842, height: 600 } });
+    layOut({ '.main': { width: 802, height: 600 } });
     const left = sash(shell, 'left');
-    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     left.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 900, clientY: 300, bubbles: true }));
     expect(shell.layout.left.size).toBe(320);
@@ -652,12 +652,12 @@ describe('resizing', () => {
     // A measure lays the page out, and a drag moves many times a second; no move changes the
     // main area's box, so the one its pointerdown measured holds for the whole drag.
     const shell = await mount();
-    const measures = layOut({ '.main': { width: 842, height: 600 } });
+    const measures = layOut({ '.main': { width: 802, height: 600 } });
     const left = sash(shell, 'left');
-    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
     const atDown = measures.mock.calls.length;
     expect(atDown).toBeGreaterThan(0);
-    for (const clientX of [270, 290, 900]) left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX, clientY: 300, bubbles: true }));
+    for (const clientX of [250, 270, 900]) left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX, clientY: 300, bubbles: true }));
     expect(measures.mock.calls.length).toBe(atDown);
     // Fitted all the same, to the box measured at the start: 320 at most, as above.
     expect(shell.layout.left.size).toBe(320);
@@ -668,12 +668,12 @@ describe('resizing', () => {
     for (const end of ['pointercancel', 'lostpointercapture']) {
       const shell = await mount(standard(), `shell-${end}`);
       const left = sash(shell, 'left');
-      left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
-      left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 297, clientY: 300, bubbles: true }));
+      left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
+      left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 277, clientY: 300, bubbles: true }));
       left.dispatchEvent(new PointerEvent(end, { pointerId: 1, bubbles: true }));
-      expect(JSON.parse(localStorage.getItem(`shell-${end}`)!).left.size, end).toBe(260);
+      expect(JSON.parse(localStorage.getItem(`shell-${end}`)!).left.size, end).toBe(240);
       left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 400, clientY: 300, bubbles: true }));
-      expect(shell.layout.left.size, end).toBe(260);
+      expect(shell.layout.left.size, end).toBe(240);
       shell.remove();
     }
   });
@@ -681,14 +681,14 @@ describe('resizing', () => {
   it('keeps the size a drag got to when the shell is removed in the middle of it, and drags no more', async () => {
     const shell = await mount(standard(), 'shell-test');
     const left = sash(shell, 'left');
-    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
-    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 307, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 287, clientY: 300, bubbles: true }));
     shell.remove();
-    expect(JSON.parse(localStorage.getItem('shell-test')!).left.size).toBe(270);
+    expect(JSON.parse(localStorage.getItem('shell-test')!).left.size).toBe(250);
     document.body.append(shell);
     await settle(shell);
     sash(shell, 'left').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 500, clientY: 300, bubbles: true }));
-    expect(shell.layout.left.size).toBe(270);
+    expect(shell.layout.left.size).toBe(250);
   });
 
   it('ends a drag whose side closes under it, and takes the next drag, on another separator', async () => {
@@ -696,26 +696,26 @@ describe('resizing', () => {
     // with it, and the pointer's capture: no pointerup will come from there.
     const shell = await mount();
     const left = sash(shell, 'left');
-    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
-    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 287, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
+    left.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 267, clientY: 300, bubbles: true }));
     shell.toggleView('explorer');
     await settle(shell);
     const right = sash(shell, 'right');
     right.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 100, clientY: 300, bubbles: true }));
-    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([250, 240]);
+    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([230, 200]);
     right.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 700, clientY: 300, bubbles: true }));
     right.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 680, clientY: 300, bubbles: true }));
-    expect(shell.layout.right.size).toBe(260);
+    expect(shell.layout.right.size).toBe(220);
   });
 
   it("resizes from the drag's own separator only", async () => {
     // Without a capture, the pointer can cross another separator: its moves are not the drag's.
     const shell = await mount();
-    sash(shell, 'left').dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 257, clientY: 300, bubbles: true }));
+    sash(shell, 'left').dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, button: 0, clientX: 237, clientY: 300, bubbles: true }));
     sash(shell, 'right').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 400, clientY: 300, bubbles: true }));
-    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([220, 240]);
-    sash(shell, 'left').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 277, clientY: 300, bubbles: true }));
-    expect(shell.layout.left.size).toBe(240);
+    expect([shell.layout.left.size, shell.layout.right.size]).toEqual([200, 200]);
+    sash(shell, 'left').dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: 257, clientY: 300, bubbles: true }));
+    expect(shell.layout.left.size).toBe(220);
   });
 });
 
@@ -739,11 +739,11 @@ describe('fitting to the window', () => {
     layOut(WINDOW);
     resized(shell);
     await settle(shell);
-    // Left: 1000 - 74 - 8 - the right side's 240 = 678 shared with the center, so 478. Bottom:
-    // 700 - 28 - 4 = 668 shared with the documents, so 468. The right side's 240 fits as it is.
-    expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([478, 240, 468]);
-    expect(part(shell, 'aside.side.left')!.style.width).toBe('478px');
-    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('478');
+    // Left: 1000 - 74 - 8 - the right side's 200 = 718 shared with the center, so 518. Bottom:
+    // 700 - 28 - 4 = 668 shared with the documents, so 468. The right side's 200 fits as it is.
+    expect([shell.layout.left.size, shell.layout.right.size, shell.layout.bottom.size]).toEqual([518, 200, 468]);
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('518px');
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('518');
     expect(sash(shell, 'bottom').getAttribute('aria-valuemax')).toBe('468');
     // The window's size is not the person's choice.
     expect(localStorage.getItem('shell-test')).toBe(text);
@@ -756,9 +756,9 @@ describe('fitting to the window', () => {
     layOut(WINDOW);
     resized(shell);
     await settle(shell);
-    expect(shell.layout.left.size).toBe(478);
+    expect(shell.layout.left.size).toBe(518);
 
-    // Closing the right side gives the left its separator and its 240 px: 1000 - 74 - 4 = 922, so 722.
+    // Closing the right side gives the left its separator and its 200 px: 1000 - 74 - 4 = 922, so 722.
     button(shell, 'Properties').click();
     await settle(shell);
     expect(shell.layout.left.size).toBe(722);
@@ -781,12 +781,12 @@ describe('fitting to the window', () => {
     await settle(shell);
     const step = (key: string) => sash(shell, 'left').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
     step('ArrowRight');
-    expect(shell.layout.left.size).toBe(478);
+    expect(shell.layout.left.size).toBe(518);
     expect(kept().left.size).toBe(1200);
     // A step the room allows is the person's size from then on.
     step('ArrowLeft');
-    expect(shell.layout.left.size).toBe(462);
-    expect(kept().left.size).toBe(462);
+    expect(shell.layout.left.size).toBe(502);
+    expect(kept().left.size).toBe(502);
   });
 
   it('states the largest size again when the window is resized, though no drawn size changes', async () => {
@@ -795,13 +795,13 @@ describe('fitting to the window', () => {
     layOut(WINDOW);
     resized(shell);
     await settle(shell);
-    // 1000 - 74 - 8 - 240 = 678 shared, so 478 at most; the side's 220 fits, and stays.
-    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('478');
+    // 1000 - 74 - 8 - 200 = 718 shared, so 518 at most; the side's 200 fits, and stays.
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('518');
     layOut({ '.main': { width: 1400, height: 700 } });
     resized(shell);
     await settle(shell);
-    expect(shell.layout.left.size).toBe(220);
-    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('878');
+    expect(shell.layout.left.size).toBe(200);
+    expect(sash(shell, 'left').getAttribute('aria-valuemax')).toBe('918');
   });
 
   it('fits each side against what the one before it left, when both overflow', async () => {
@@ -824,9 +824,9 @@ describe('fitting to the window', () => {
     layOut(WINDOW);
     expect(shell.layout.left).toEqual({ view: 'explorer', open: false, size: 1200 });
     shell.toggleView('explorer');
-    expect(shell.layout.left).toEqual({ view: 'explorer', open: true, size: 478 });
+    expect(shell.layout.left).toEqual({ view: 'explorer', open: true, size: 518 });
     await settle(shell);
-    expect(part(shell, 'aside.side.left')!.style.width).toBe('478px');
+    expect(part(shell, 'aside.side.left')!.style.width).toBe('518px');
   });
 
   it('watches the main area, stops once the shell is removed, and watches again when it is back', async () => {
