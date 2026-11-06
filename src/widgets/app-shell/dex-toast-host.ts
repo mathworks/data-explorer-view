@@ -39,9 +39,11 @@ const MAX_SHOWN = 3;
 /**
  * The shell's toasts, in the bottom-right corner of the window: show() adds one at the bottom
  * of the stack. A 'status' or 'info' toast goes by itself after its `ms`; a 'warning' or an
- * 'error' stays until its × is pressed, since what it says has to be read. At most three are
- * shown, and a fourth takes the oldest away. It sends no events: what it shows is the app's
- * business, and closing one changes nothing but the screen.
+ * 'error' stays until its × is pressed, since what it says has to be read. A toast the pointer
+ * is on, or whose × has focus, waits for the user, and is timed afresh once they leave it. At
+ * most three are shown, and a fourth takes the oldest away. A screen reader hears each one as it
+ * is shown, politely for 'status' and 'info' and at once for 'warning' and 'error'. It sends no
+ * events: what it shows is the app's business, and closing one changes nothing but the screen.
  *
  * @tagname dex-toast-host
  */
@@ -93,13 +95,11 @@ export class DexToastHost extends LitElement {
     }
 
     /* A message can quote a long path or a source's whole reason: it wraps anywhere rather than
-       widening the toast past the window, and past a few lines it scrolls, so the × stays in
-       reach. */
+       widening the toast past the window, and takes as many lines as it needs. Not a scroll box:
+       nothing in it takes focus, so a keyboard could never scroll it. */
     .message {
       flex: 1 1 auto;
       min-width: 0;
-      max-height: 10em;
-      overflow: auto;
       overflow-wrap: anywhere;
       white-space: pre-line;
     }
@@ -124,6 +124,16 @@ export class DexToastHost extends LitElement {
       background: var(--dex-bg-hover, #e8e8e8);
       color: var(--dex-color-text, #333);
     }
+
+    /* The live regions: heard, not seen (as the hierarchy's sr-only text). */
+    .live {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
   `];
 
   // Oldest first, which is also top to bottom on screen.
@@ -132,6 +142,9 @@ export class DexToastHost extends LitElement {
   // The timer of each toast that goes by itself, by key. Only while connected: a timer that
   // outlived the host would fire into an element nobody sees.
   private _timers = new Map<number, ReturnType<typeof setTimeout>>();
+  // The toasts the pointer is on, and the one whose × has focus: held, with no timer running.
+  private _pointerOn = new Set<number>();
+  private _focusIn = new Set<number>();
 
   /**
    * Shows a toast at the bottom of the stack. 'status' and 'info' go by themselves after `ms`
@@ -139,24 +152,27 @@ export class DexToastHost extends LitElement {
    * are shown: a fourth takes the oldest away.
    */
   show(toast: Toast): void {
-    const key = this._nextKey++;
-    const shown = [...this._shown, { key, toast }];
-    for (const gone of shown.splice(0, Math.max(0, shown.length - MAX_SHOWN))) this._stopTimer(gone.key);
+    const entry: Shown = { key: this._nextKey++, toast };
+    const shown = [...this._shown, entry];
+    for (const gone of shown.splice(0, Math.max(0, shown.length - MAX_SHOWN))) this._forget(gone.key);
     this._shown = shown;
-    if (this.isConnected) this._startTimer({ key, toast });
+    if (this.isConnected) this._startTimer(entry);
+    this._announce(entry);
   }
 
-  /** Takes every toast away, and stops every timer. */
+  /** Takes every toast away, stops every timer, and empties what a screen reader would read. */
   clear(): void {
-    for (const key of [...this._timers.keys()]) this._stopTimer(key);
+    for (const { key } of this._shown) this._forget(key);
     this._shown = [];
+    for (const region of this.shadowRoot?.querySelectorAll('.live') ?? []) region.replaceChildren();
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
     // Put back on the page (a shell that re-parents the host disconnects it first): each toast
-    // that goes by itself is timed again, in full, so none of them stays for good.
-    for (const shown of this._shown) if (!this._timers.has(shown.key)) this._startTimer(shown);
+    // that goes by itself is timed again, in full, so none of them stays for good; one the user
+    // is still on waits for them, as ever (_startTimer).
+    for (const shown of this._shown) this._startTimer(shown);
   }
 
   override disconnectedCallback(): void {
@@ -166,6 +182,7 @@ export class DexToastHost extends LitElement {
 
   private _startTimer({ key, toast }: Shown): void {
     if (toast.level !== 'status' && toast.level !== 'info') return;
+    if (this._timers.has(key) || this._pointerOn.has(key) || this._focusIn.has(key)) return;
     this._timers.set(key, setTimeout(() => this._dismiss(key), toast.ms ?? DEFAULT_MS));
   }
 
@@ -174,25 +191,77 @@ export class DexToastHost extends LitElement {
     this._timers.delete(key);
   }
 
-  private _dismiss(key: number): void {
+  private _forget(key: number): void {
     this._stopTimer(key);
+    this._pointerOn.delete(key);
+    this._focusIn.delete(key);
+  }
+
+  private _dismiss(key: number): void {
+    this._forget(key);
     this._shown = this._shown.filter((shown) => shown.key !== key);
   }
 
+  // WCAG 2.2.1, a time limit the user can stop: a toast the pointer is on, or whose × has focus,
+  // never goes by itself, or the click or the Enter meant for its × would land on whatever lay
+  // under it. Once the user has left it on both counts it is timed again, in full, since the
+  // time it had left was spent on something else.
+  private _hold(key: number, by: Set<number>): void {
+    by.add(key);
+    this._stopTimer(key);
+  }
+
+  private _release(key: number, by: Set<number>): void {
+    by.delete(key);
+    const shown = this._shown.find((s) => s.key === key);
+    if (shown && this.isConnected) this._startTimer(shown);
+  }
+
+  // A live region is read when what it holds changes; one put on the page with its text already
+  // in it, as each toast was, is not reliably read at all. So the two regions are there, empty,
+  // from the first render, and each message is written into the one for its level as a line of
+  // its own: the old line taken away and a new one put in, so the same message twice ("Saved
+  // a.sldd" after each save) is a change the second time too.
+  private _announce(shown: Shown): void {
+    const role = shown.toast.level === 'warning' || shown.toast.level === 'error' ? 'alert' : 'status';
+    const region = this.shadowRoot?.querySelector(`.live[role="${role}"]`);
+    if (!region) {
+      // Shown before the first render (in the task that put the host on the page): written once
+      // the regions are there, if the toast is still up by then.
+      if (!this.hasUpdated) {
+        this.updateComplete.then(() => {
+          if (this._shown.includes(shown)) this._announce(shown);
+        });
+      }
+      return;
+    }
+    const line = document.createElement('div');
+    line.textContent = shown.toast.message;
+    region.replaceChildren(line);
+  }
+
   override render() {
-    // Keyed, so each toast keeps its own element while the ones above it go. By position, taking
-    // the top toast away would write each remaining message into the element above it: a live
-    // region whose text changes is read out again, so every alert below would be announced a
-    // second time, and a focused × would move onto another toast.
-    return html`${repeat(this._shown, (shown) => shown.key, ({ key, toast }) => html`
-      <div
-        class="toast ${toast.level}"
-        role=${toast.level === 'warning' || toast.level === 'error' ? 'alert' : 'status'}
-      >
-        <span class="message">${toast.message}</span>
-        <button type="button" class="dismiss" aria-label="Dismiss" @click=${() => this._dismiss(key)}>×</button>
-      </div>
-    `)}`;
+    // The toasts carry no live role: the regions say each one once, and a toast that was a live
+    // region too would be read twice. Keyed, so each toast keeps its own element while the ones
+    // above it go. By position, taking the top toast away would write each remaining toast into
+    // the element above it: a focused × would move onto another toast, and the pointer resting on
+    // one would leave it held under another's key.
+    return html`
+      <div class="live" role="status"></div>
+      <div class="live" role="alert"></div>
+      ${repeat(this._shown, (shown) => shown.key, ({ key, toast }) => html`
+        <div
+          class="toast ${toast.level}"
+          @pointerenter=${() => this._hold(key, this._pointerOn)}
+          @pointerleave=${() => this._release(key, this._pointerOn)}
+          @focusin=${() => this._hold(key, this._focusIn)}
+          @focusout=${() => this._release(key, this._focusIn)}
+        >
+          <span class="message">${toast.message}</span>
+          <button type="button" class="dismiss" aria-label="Dismiss" @click=${() => this._dismiss(key)}>×</button>
+        </div>
+      `)}
+    `;
   }
 }
 

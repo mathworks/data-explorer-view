@@ -7,7 +7,9 @@
 // with "Saved" after a day's work; one the user has to read ('warning', 'error') must stay until
 // they close it, or a refusal flashes past while they look at the table. And whichever kind it
 // is, it must never outlive what owns it: a timer left running after clear() or after the host
-// left the page fires into nothing, or takes away a toast shown since.
+// left the page fires into nothing, or takes away a toast shown since. Around those: a toast the
+// user is on waits for them, and a screen reader hears every toast, once, through two live
+// regions that are there before any toast is.
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { DexToastHost, defineToastHost, type Toast } from '../src/widgets/app-shell/dex-toast-host.js';
 import type { Notice } from '../src/model/edit/hooks.js';
@@ -34,6 +36,10 @@ function toasts(el: DexToastHost): HTMLElement[] {
 
 function messages(el: DexToastHost): (string | null)[] {
   return toasts(el).map((t) => t.querySelector('.message')!.textContent);
+}
+
+function region(el: DexToastHost, role: 'status' | 'alert'): HTMLElement {
+  return el.shadowRoot!.querySelector<HTMLElement>(`.live[role="${role}"]`)!;
 }
 
 function dismiss(toast: HTMLElement): HTMLButtonElement {
@@ -139,17 +145,16 @@ describe('every toast', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each([
-    ['status', 'status'],
-    ['info', 'status'],
-    ['warning', 'alert'],
-    ['error', 'alert'],
-  ] as const)('a %s toast is announced as role="%s"', async (level, role) => {
-    // A screen reader says a status politely, when it is next idle, and an alert at once: a
-    // refusal must interrupt, a "Saved" must not.
+  it('is drawn with no live role of its own', async () => {
+    // The live regions below announce it; a toast that was a live region too would be read twice,
+    // and read again whenever the stack around it changed.
     const el = await makeHost();
-    await show(el, { level, message: 'x' });
-    expect(toasts(el)[0]!.getAttribute('role')).toBe(role);
+    await show(el, { level: 'error', message: 'x' });
+    await show(el, { level: 'status', message: 'y' });
+    for (const toast of toasts(el)) {
+      expect(toast.getAttribute('role')).toBeNull();
+      expect(toast.getAttribute('aria-live')).toBeNull();
+    }
   });
 
   it('shows the message as text, not markup', async () => {
@@ -158,6 +163,155 @@ describe('every toast', () => {
     await show(el, { level: 'error', message: '<img src=x onerror=alert(1)>' });
     expect(toasts(el)[0]!.querySelector('img')).toBeNull();
     expect(messages(el)).toEqual(['<img src=x onerror=alert(1)>']);
+    expect(region(el, 'alert').querySelector('img')).toBeNull();
+    expect(region(el, 'alert').textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+
+  it('keeps its message to as many lines as it takes, with no scroll box', async () => {
+    // A box that scrolled could not be reached by keyboard: nothing in it takes focus.
+    const el = await makeHost();
+    await show(el, { level: 'error', message: 'x' });
+    const style = getComputedStyle(toasts(el)[0]!.querySelector('.message')!);
+    // happy-dom reports a max-height nobody set as '' where a browser says 'none'.
+    expect(['none', '']).toContain(style.maxHeight);
+    expect(['visible', '']).toContain(style.overflow);
+  });
+});
+
+describe('what a screen reader hears', () => {
+  // A live region is heard when its content CHANGES; one inserted with its text already in it,
+  // as each toast was, is not reliably read at all. So the host keeps two regions from its first
+  // render, empty, and writes each toast's message into the one for its level.
+
+  it('has a status region and an alert region before any toast is shown', async () => {
+    const el = await makeHost();
+    expect(region(el, 'status').textContent).toBe('');
+    expect(region(el, 'alert').textContent).toBe('');
+  });
+
+  it.each([
+    ['status', 'status'],
+    ['info', 'status'],
+    ['warning', 'alert'],
+    ['error', 'alert'],
+  ] as const)('a %s toast is read out through the %s region', async (level, role) => {
+    // A status is said politely, when the reader is next idle, and an alert at once: a refusal
+    // must interrupt, a "Saved" must not.
+    const el = await makeHost();
+    await show(el, { level, message: 'Could not save a.sldd' });
+    expect(region(el, role).textContent).toBe('Could not save a.sldd');
+    expect(region(el, role === 'status' ? 'alert' : 'status').textContent).toBe('');
+  });
+
+  it('reads the same message twice when it is shown twice', async () => {
+    // "Saved a.sldd" after each save: the second write must be a change, or the second save is
+    // never heard. The region's old line is taken away and a new one put in.
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'Saved a.sldd' });
+    const first = region(el, 'status').firstElementChild;
+    await show(el, { level: 'status', message: 'Saved a.sldd' });
+    const lines = [...region(el, 'status').children];
+    expect(lines.length).toBe(1);
+    expect(lines[0]).not.toBe(first);
+    expect(lines[0]!.textContent).toBe('Saved a.sldd');
+  });
+
+  it('reads a toast shown before the host first rendered', async () => {
+    // The shell may show a notice in the same task that put the host on the page.
+    host = new DexToastHost();
+    document.body.appendChild(host);
+    host.show({ level: 'error', message: 'early' });
+    await host.updateComplete;
+    await Promise.resolve();
+    expect(region(host, 'alert').textContent).toBe('early');
+    expect(messages(host)).toEqual(['early']);
+  });
+
+  it('clear() empties both regions', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'a' });
+    await show(el, { level: 'error', message: 'b' });
+    el.clear();
+    expect(region(el, 'status').textContent).toBe('');
+    expect(region(el, 'alert').textContent).toBe('');
+  });
+});
+
+describe('a toast the user is on stays while they are', () => {
+  // WCAG 2.2.1: a time limit the user can stop. A toast that left while the pointer was on its ×,
+  // or while its × had focus, would take the click or the Enter meant for it to whatever lay
+  // under it.
+
+  it('waits while the pointer is on it, and goes its full time after the pointer leaves', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'a', ms: 1000 });
+    const toast = toasts(el)[0]!;
+    await vi.advanceTimersByTimeAsync(500);
+    toast.dispatchEvent(new PointerEvent('pointerenter'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(messages(el)).toEqual(['a']);
+    toast.dispatchEvent(new PointerEvent('pointerleave'));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(messages(el)).toEqual(['a']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(toasts(el)).toEqual([]);
+  });
+
+  it('waits while its × has focus, and goes its full time after focus leaves', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'info', message: 'a', ms: 1000 });
+    const button = dismiss(toasts(el)[0]!);
+    button.focus();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(messages(el)).toEqual(['a']);
+    button.blur();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(messages(el)).toEqual(['a']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(toasts(el)).toEqual([]);
+  });
+
+  it('waits until both the pointer and focus have left', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'a', ms: 1000 });
+    const toast = toasts(el)[0]!;
+    const button = dismiss(toast);
+    toast.dispatchEvent(new PointerEvent('pointerenter'));
+    button.focus();
+    toast.dispatchEvent(new PointerEvent('pointerleave'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(messages(el)).toEqual(['a']);
+    button.blur();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(toasts(el)).toEqual([]);
+  });
+
+  it('holds only the toast the user is on', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'a', ms: 1000 });
+    await show(el, { level: 'status', message: 'b', ms: 1000 });
+    toasts(el)[1]!.dispatchEvent(new PointerEvent('pointerenter'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(messages(el)).toEqual(['b']);
+  });
+
+  it('starts no timer for a warning or an error when the pointer leaves it', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'error', message: 'a' });
+    const toast = toasts(el)[0]!;
+    toast.dispatchEvent(new PointerEvent('pointerenter'));
+    toast.dispatchEvent(new PointerEvent('pointerleave'));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('is not timed again on reconnect while the user is still on it', async () => {
+    const el = await makeHost();
+    await show(el, { level: 'status', message: 'a', ms: 1000 });
+    toasts(el)[0]!.dispatchEvent(new PointerEvent('pointerenter'));
+    el.remove();
+    document.body.appendChild(el);
+    await el.updateComplete;
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
@@ -188,8 +342,8 @@ describe('the stack', () => {
   });
 
   it('keeps each toast in its own element while the ones above it go', async () => {
-    // Drawn by position, the top toast going would write each message below into the element
-    // above it, and a screen reader reads out again an alert whose text changes.
+    // Drawn by position, the top toast going would write each toast below into the element above
+    // it: a focused × would move onto another toast, and a hovered one hand its hold to another.
     const el = await makeHost();
     await show(el, { level: 'status', message: 'a', ms: 1000 });
     await show(el, { level: 'error', message: 'b' });
