@@ -78,8 +78,9 @@ Where it differs from the prototype it follows, and why:
   between two dictionaries in the right column, a link across the gap from a model.
 
 `focus()` gives the canvas the keyboard, where the arrow keys go from box to box; asked while
-there is no graph to draw yet, it gives it once there is, unless the focus has gone somewhere in
-the page meanwhile.
+there is no graph to draw yet (`graph` null), it gives it once there is, unless the focus has gone
+anywhere in the page meanwhile or the graph comes with nothing to draw: then the request is
+forgotten, and a draw much later takes no keyboard.
 
 What fits, in the app shell at 1440 by 900 (a graph about 900 by 610 pixels), for fifteen files
 (eight models one tree five leaves wide, five dictionaries one tree three wide, two MAT-files):

@@ -121,6 +121,19 @@ export class DexShellDocs extends LitElement {
   /** Files are dragged over the page, to be opened: the area is outlined as where they go. Attribute `dropping`. */
   @property({ type: Boolean, reflect: true }) dropping = false;
 
+  /**
+   * Gives the keyboard to the welcome's Open File…, once the welcome is drawn, unless the focus has
+   * gone somewhere in the page by then (anywhere but its body): for the shell, as the last file
+   * closes with the focus on its tab, whose row hides. Nothing while the welcome is not shown.
+   */
+  focusOpenFile(): void {
+    void this.updateComplete.then(() => {
+      const at = document.activeElement;
+      if (!this.welcome || (at && at !== document.body)) return;
+      this.renderRoot.querySelector<HTMLButtonElement>('.welcome button')?.focus();
+    });
+  }
+
   private _ask(actionId: string): void {
     this.dispatchEvent(new CustomEvent<ToolbarActionDetail>('dex-toolbar-action', {
       detail: { actionId },

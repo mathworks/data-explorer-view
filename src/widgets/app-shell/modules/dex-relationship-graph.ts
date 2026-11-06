@@ -255,8 +255,12 @@ export class DexRelationshipGraph extends LitElement {
   // A press on the background, until it is let go: a drag pans, a click clears the selection.
   private _press: { x: number; y: number; view: View; moved: boolean } | null = null;
   private _resize: ResizeObserver | null = null;
-  // focus() was called before there was a graph to draw (one still being built): given once there is.
+  // focus() was called before there was a graph to draw (one still being built): given once there is,
+  // unless the request has lapsed by then. It lapses as the focus goes anywhere in the page (a
+  // focusin, heard on the document while the request waits), and as the graph comes with nothing to
+  // draw: a request that waited for ever went off at the next draw, however much later.
   private _focusWhenDrawn = false;
+  private readonly _focusMoved = (): void => this._forgetFocus();
   // An object, so its `passive: false` reaches addEventListener: a wheel that zooms must be able to
   // stop the page from scrolling.
   private readonly _wheel = { handleEvent: (e: WheelEvent) => this._onWheel(e), passive: false };
@@ -277,6 +281,7 @@ export class DexRelationshipGraph extends LitElement {
     super.disconnectedCallback();
     this._resize?.disconnect();
     this._resize = null;
+    this._forgetFocus();
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
@@ -303,6 +308,8 @@ export class DexRelationshipGraph extends LitElement {
     // box opened before it, and lights over it.
     const selection = changed.has('selected');
     if (selection) this._selectedAt = ++this._stamp;
+    // A graph with nothing to draw is no graph still being built: the focus asked for lapses.
+    if (changed.has('graph') && this.graph && this._boxes.size === 0) this._forgetFocus();
     if (changed.has('graph') || changed.has('expanded')) this._noteOpened(watch && !selection);
     // A size known before the draw (the canvas is drawn already): the fit is done in this update.
     if (this._pending && this._size().width > 0) this._doPending();
@@ -409,22 +416,36 @@ export class DexRelationshipGraph extends LitElement {
 
   /**
    * Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
-   * there is no graph to draw yet (an app still building it), once there is, unless the focus has
-   * gone somewhere in the page by then (anywhere but its body).
+   * there is no graph to draw yet (`graph` null: an app still building it), once there is. Not if
+   * the focus has gone anywhere in the page meanwhile, even if it is back on the body by then, nor
+   * if the graph comes with nothing to draw: then the request is forgotten.
    */
   override focus(options?: FocusOptions): void {
     const canvas = this._focusableCanvas();
-    this._focusWhenDrawn = !canvas;
-    canvas?.focus(options);
+    if (canvas) {
+      this._forgetFocus();
+      canvas.focus(options);
+      return;
+    }
+    if (this._focusWhenDrawn) return;
+    this._focusWhenDrawn = true;
+    document.addEventListener('focusin', this._focusMoved, true);
   }
 
   protected override updated(): void {
     if (!this._focusWhenDrawn) return;
     const canvas = this._focusableCanvas();
     if (!canvas) return;
-    this._focusWhenDrawn = false;
+    this._forgetFocus();
     const at = document.activeElement;
     if (!at || at === document.body) canvas.focus();
+  }
+
+  // The focus asked for before there was a graph is not to be given.
+  private _forgetFocus(): void {
+    if (!this._focusWhenDrawn) return;
+    this._focusWhenDrawn = false;
+    document.removeEventListener('focusin', this._focusMoved, true);
   }
 
   // The canvas a drawn graph takes the keyboard on; none while it says there is nothing to draw.

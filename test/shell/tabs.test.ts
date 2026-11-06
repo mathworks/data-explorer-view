@@ -11,11 +11,13 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   activeTab,
+  docsArea,
   docTabs,
   dirtyTabs,
   edit,
   explorer,
   graph,
+  graphShown,
   locationBar,
   open,
   previewTabs,
@@ -215,6 +217,34 @@ describe('the tab row', () => {
     await until(() => docTabs().hidden);
     await settled();
     expect(document.activeElement).toBe(toolbar());
+  });
+
+  it("hidden as the last tab closes with the focus on it, gives the keyboard to the welcome's Open File…, and the graph drawn later none", async () => {
+    // With the Explorer off screen the keyboard went to the graph, which with no file open has
+    // nothing to draw: its request waited, and took the keyboard from the page's body once files
+    // were opened and Root drawn. The welcome is what fills the center then, and Open File… is
+    // what there is to do.
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd');
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    await until(() => !!tabNamed('params.sldd'));
+    tabNamed('params.sldd')!.focus();
+    page.command('close-tab');
+    await until(() => docTabs().hidden && tabNames().length === 0);
+    const welcomeOpen = () => docsArea().shadowRoot!.querySelector<HTMLButtonElement>('.welcome button');
+    await until(() => docsArea().shadowRoot!.activeElement === welcomeOpen());
+    expect(welcomeOpen()!.textContent!.trim()).toBe('Open File…');
+    expect(document.activeElement).toBe(docsArea());
+
+    // The user moves on (the focus back on the body), opens two files and goes to Root: the graph
+    // is drawn there and leaves the keyboard where it is.
+    welcomeOpen()!.blur();
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    page.command('show-graph');
+    await until(() => graphShown() && !!graph().shadowRoot?.querySelector('.canvas[tabindex]'));
+    await settled();
+    expect(graph().shadowRoot!.activeElement ?? null).toBeNull();
   });
 });
 

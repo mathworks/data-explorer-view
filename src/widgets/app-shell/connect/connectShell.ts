@@ -310,13 +310,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // The tab row hides at Root with the focus on one of its tabs (Alt+Up from a tab): rather than fall
   // to the page's body, the keyboard goes to the Explorer's Root row, where the user went, or, with
-  // the Explorer off screen, to the graph that fills the center where the row was (once it is drawn,
-  // if it is still being built).
+  // the Explorer off screen, to what fills the center where the row was: the graph (once it is
+  // drawn, if it is still being built), or with the last file closed the welcome's Open File….
   function rootTakesTheKeyboard(): void {
     (strip.shadowRoot?.activeElement as HTMLElement | null)?.blur();
     const left = shell.layout.left;
     if (left.open && left.view === 'explorer' && explorer.focusRow({ fileId: null })) return;
-    parts.graph.focus();
+    if (tabs.items.length === 0) docs.focusOpenFile();
+    else parts.graph.focus();
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and

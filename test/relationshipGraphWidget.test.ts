@@ -205,6 +205,52 @@ describe('focus()', () => {
     await late.updateComplete;
     expect(document.activeElement).toBe(other);
   });
+
+  it('forgets a request the focus has moved on from, though it is back on the body when the graph is drawn', async () => {
+    // A request that waited for ever went off at the next draw, however much later: the shell's,
+    // made with no file open, took the keyboard to the graph when files were opened and Root shown.
+    const el = await graph(null);
+    el.focus();
+    const other = document.body.appendChild(document.createElement('button'));
+    other.focus();
+    other.blur();
+    expect(document.activeElement).toBe(document.body);
+    el.graph = GRAPH;
+    await el.updateComplete;
+    expect(sr(el).activeElement ?? null).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('forgets a request when the graph comes with nothing to draw', async () => {
+    const el = await graph(null);
+    el.focus();
+    el.graph = { boxes: [], edges: [] };
+    await el.updateComplete;
+    el.graph = GRAPH;
+    await el.updateComplete;
+    expect(sr(el).activeElement ?? null).toBeNull();
+  });
+
+  it('listens to the page for the focus moving only while a request waits', async () => {
+    const add = vi.spyOn(document, 'addEventListener');
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const el = await graph(null);
+    el.focus();
+    el.focus();
+    const focusins = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === 'focusin').length;
+    expect(focusins(add)).toBe(1);
+    el.graph = GRAPH;
+    await el.updateComplete;
+    expect(sr(el).activeElement).toBe(canvas(el));
+    expect(focusins(remove)).toBe(1);
+    // Taken off the page with a request waiting: the listener goes with it.
+    const gone = await graph(null);
+    gone.focus();
+    gone.remove();
+    expect(focusins(remove)).toBe(2);
+    add.mockRestore();
+    remove.mockRestore();
+  });
 });
 
 describe('the layout', () => {
