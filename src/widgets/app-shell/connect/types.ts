@@ -188,10 +188,28 @@ export interface ShellNotice {
   text: string;
 }
 
+/** Where in a file a link from outside points (ShellHandle.openAt): an entry by its name, in a section by its label. */
+export interface OpenAtTarget {
+  /** The entry to select: its Name as the table shows it (`Kp`), or a block's key. Absent or '': none; the file opens as openPaths opens it. */
+  entry?: string;
+  /** The label of the section the entry is in, as its row in the table reads (`Design Data`, `Model Workspace`). Absent or '': any. */
+  section?: string;
+}
+
 /** A connected shell: what a host drives it by. */
 export interface ShellHandle {
   /** Open these files, in order, each in a tab of its own (kept, not a preview): the last named ends up active. */
   openPaths(paths: readonly string[]): Promise<void>;
+  /**
+   * Open the file at `path` in a tab of its own (kept, as openPaths keeps one), or go to its tab,
+   * then select the entry `at` names once the table has its rows: with `section`, the first
+   * top-level entry of that name under the section row of that label; without, as a link selects
+   * (an entry, then any row but a section's, then a block by its key). An entry the file has none
+   * of: the file stays open, and a toast says "No entry named Kp" (" in Model Elements" with a
+   * section). A file with no table (a project's page, a file that could not be read, which its tab
+   * says) selects nothing and says nothing more. Never rejects: what fails is said in the window.
+   */
+  openAt(path: string, at?: OpenAtTarget): Promise<void>;
   /** Show `root`, read across `port` (serveFolder's other end), in the Explorer, in place of a folder shown before. */
   showFolder(root: string, port: MessagePort): void;
   /** An open file changed on disk: a clean tab takes the change, a tab with unsaved edits asks first. */

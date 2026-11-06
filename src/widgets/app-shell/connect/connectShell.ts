@@ -22,6 +22,7 @@
 
 import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
+import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { isEditable, type InspectorFeed } from '../../../model/source/tableSource.js';
 import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
@@ -60,7 +61,7 @@ import { connectModules } from './modules.js';
 import { PaneRows, keepSplit, keptSplit, slotPanels } from './panes.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
-import { rowIn, sectionOf } from './rows.js';
+import { rowIn, rowOfEntry, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions, shellPrompts } from './questions.js';
@@ -72,7 +73,7 @@ import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { paletteCommands, type PaneCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
-import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
+import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -629,6 +630,52 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
 
+  // A link from outside the shell (the desktop app's data-explorer:// link, a page's #entry=): the
+  // file opened for good, as openPaths opens one, since the user asked for it by name; then the
+  // entry the link names, by its name and its section's label, selected once the table has its
+  // rows, as select() selects a row (the history and the location follow). A link names in words
+  // what the file held when it was made: an entry it holds no more is said, in a warning that stays
+  // until its × (the user followed the link to see a row, and has to read why none is shown). The
+  // caller waits on nothing it could say a failure with, so what fails is said here.
+  async function openAt(path: string, at: OpenAtTarget = {}): Promise<void> {
+    try {
+      const tab = await open(path);
+      // A page in plain JavaScript may hand anything: what is no string names nothing.
+      const entry = typeof at?.entry === 'string' ? at.entry : '';
+      const section = typeof at?.section === 'string' ? at.section : '';
+      if (entry === '') return;
+      const rows = await paintedRows(tab);
+      if (!rows || !isOpen(tab)) return;
+      const row = rowOfEntry(rows, entry, section);
+      if (row) tab.handle?.select([row.ID]);
+      else say('warning', `No entry named ${entry}${section ? ` in ${section}` : ''}`);
+    } catch (err) {
+      failed(`Could not open ${basenameOf(path)}: ${message(err)}`);
+    }
+  }
+
+  // The rows of `tab`'s table once its first whole paint is in: at once for a table painted
+  // already, else at its first `painted`. Null for a tab with no table connected (a project's page,
+  // a file that could not be read, whose banner says why) and for a tab closed, before or while it
+  // waits: its close runs its stops, this one among them.
+  function paintedRows(tab: OpenTab): Promise<readonly TreeTableRow[] | null> {
+    const handle = tab.handle;
+    if (!isOpen(tab) || !handle) return Promise.resolve(null);
+    if (handle.view) return Promise.resolve(handle.table.rows);
+    return new Promise((resolve) => {
+      const done = (rows: readonly TreeTableRow[] | null): void => {
+        off();
+        // Painted: no stop is left for the close to run. (A close empties the list before it runs them.)
+        const index = tab.stops.indexOf(stop);
+        if (index >= 0) tab.stops.splice(index, 1);
+        resolve(rows);
+      };
+      const off = handle.on('painted', () => done(handle.table.rows));
+      const stop = (): void => done(null);
+      tab.stops.push(stop);
+    });
+  }
+
   // A link into another file: open it (or go to its tab) and select the row it names. `uri` is
   // the file the folder's tree shows for it, when a folder is shown.
   async function navigate(from: OpenTab, link: LinkTarget, uri?: string): Promise<void> {
@@ -886,6 +933,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   return {
     openPaths: (paths) => (disposed ? Promise.resolve() : openPaths(paths)),
+    openAt: (path, at) => (disposed ? Promise.resolve() : openAt(path, at)),
     showFolder(root, port) {
       if (!disposed) folders.show(root, port);
     },

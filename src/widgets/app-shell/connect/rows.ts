@@ -1,7 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A table's rows by id, for what climbs a selected row's parents: the location bar's path, the
-// section the Explorer marks, and the name a relationship graph reveals a row by. DOM-free.
+// section the Explorer marks, and the name a relationship graph reveals a row by. And an entry as a
+// link from outside the shell names it (ShellHandle.openAt, a link copied from a row): by its name
+// and its section's label, in words a mail or a ticket carries, rather than by a row id. DOM-free.
 //
 // The rows are the table's own array (DexTreeTable.rows), which connectTable replaces whole on
 // every change: a whole paint, one entry's repaint, a lazy row's children answered and merged in.
@@ -57,4 +59,49 @@ export function graphNameOf(rows: readonly TreeTableRow[], rowId: string): strin
     row = rowIn(rows, row.parent);
   }
   return row && !isSectionRowId(row.ID) ? row.Name.label : undefined;
+}
+
+/**
+ * A top-level entry, as selectByName decides one (connectTable.ts, model/shell/commands.ts): its
+ * parent is a section row or, in a table with no section rows (a MAT-file's), it has no parent and
+ * is no section row itself.
+ */
+const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
+
+/**
+ * The entry the row `rowId` is in (itself, for an entry): its name, and its section's label where
+ * it is under one (a MAT-file's variables are under none). None for a section's own row, a row
+ * `rows` does not hold, or a parent chain that breaks off or loops.
+ */
+export function entryOf(rows: readonly TreeTableRow[], rowId: string): { entry: string; section?: string } | undefined {
+  const seen = new Set<string>();
+  let row = rowIn(rows, rowId);
+  while (row && !isEntry(row)) {
+    // No parent and no entry: a section's own row, which names no entry.
+    if (row.parent === null || seen.has(row.ID)) return undefined;
+    seen.add(row.ID);
+    row = rowIn(rows, row.parent);
+  }
+  if (!row) return undefined;
+  if (row.parent === null) return { entry: row.Name.label };
+  // Under a section the table does not hold: no label to name it by, as a chain broken off.
+  const section = rowIn(rows, row.parent);
+  return section ? { entry: row.Name.label, section: section.Name.label } : undefined;
+}
+
+/**
+ * The row ShellHandle.openAt selects for `entry`. With `section`: the first top-level entry
+ * labelled `entry` under the first section row labelled `section`. Without: selectByName's order
+ * (connectTable.ts:517): an entry, then any row, then a row whose `_blockKey` it is; never a
+ * section's own row, which is no entry. None for '' or no match.
+ */
+export function rowOfEntry(rows: readonly TreeTableRow[], entry: string, section?: string): TreeTableRow | undefined {
+  if (entry === '') return undefined;
+  const named = (r: TreeTableRow): boolean => r.Name?.label === entry && !isSectionRowId(r.ID);
+  // A section names where the entry is: a row nested in one, of the same name, is not what it means.
+  if (section) {
+    const heading = rows.find((r) => isSectionRowId(r.ID) && r.Name?.label === section);
+    return heading ? rows.find((r) => r.parent === heading.ID && named(r)) : undefined;
+  }
+  return rows.find((r) => named(r) && isEntry(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === entry && !isSectionRowId(r.ID));
 }
