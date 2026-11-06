@@ -143,7 +143,7 @@
   --dex-border-color: #3a3a3a;
   --dex-border-color-light: #333;
   --dex-focus-ring: 0 0 0 2px rgba(75, 163, 227, 0.4);
-  /* Source-code syntax tokens — dark / VS Code palette */
+  /* Syntax colours (dex-raw-viewer's JSON and XML) — dark / VS Code palette */
   --dex-syntax-comment: #6a9955;
   --dex-syntax-string: #ce9178;
   --dex-syntax-number: #b5cea8;

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DataModel } from 'data-explorer-core';
 import { createWorkspace, type Doc, type Workspace } from '../src/model/index.js';
+import { RAW_NOT_WRITTEN, rawOfRow } from '../src/model/raw/rawOfRow.js';
 import { NO_RAW_DATA, type RawView } from '../src/model/raw/rawView.js';
 
 const fixture = (rel: string): Uint8Array => new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${rel}`, import.meta.url))));
@@ -232,7 +233,54 @@ describe('a model', () => {
   });
 });
 
+describe('a large row of a compressed dictionary', () => {
+  // A row inside an entry, as core writes it (serializeXml), over a tree of one: the XML of a
+  // value of a quarter of a million elements, and one holding a long run of spaces. Each is
+  // answered in a moment, whole: the indent is measured line by line, and only trailing
+  // whitespace is trimmed off.
+  const tree = (written: string) => ({
+    root: () => ({ sourceFormat: 'xml' }),
+    fileIds: [],
+    find: () => ({ name: 'Big', serializeXml: () => written }),
+  });
+  const timed = (written: string): { view: RawView; ms: number } => {
+    const at = performance.now();
+    const view = rawOfRow(tree(written), 'binedit:file:///big.sldd/design/x/Big');
+    return { view, ms: performance.now() - at };
+  };
+
+  it('outdents an element of 200,000 lines', () => {
+    const lines = ['    <P Name="Big">', ...Array.from({ length: 200_000 }, () => '        <Element Class="double">1.0</Element>'), '    </P>'];
+    const { view, ms } = timed(`${lines.join('\n')}\n`);
+    expect(view.format).toBe('xml');
+    const out = view.format === 'xml' ? view.text.split('\n') : [];
+    expect(out).toHaveLength(200_002);
+    expect([out[0], out[1], out.at(-1)]).toEqual(['<P Name="Big">', '    <Element Class="double">1.0</Element>', '</P>']);
+    expect(ms).toBeLessThan(1500);
+  });
+
+  it('keeps a run of 80,000 spaces inside a value, and is quick about it', () => {
+    const written = `<P Name="Big" Class="char">${' '.repeat(80_000)}x</P>\n`;
+    const { view, ms } = timed(written);
+    expect(view).toEqual({ format: 'xml', text: written.trimEnd() });
+    expect(ms).toBeLessThan(500);
+  });
+});
+
 describe('every answer is total', () => {
+  it('says a row core will not write could not be written, which is not a row with nothing to show', () => {
+    const tree = (node: unknown) => ({ root: () => ({ sourceFormat: 'xml' }), fileIds: [], find: () => node });
+    const refusing = {
+      name: 'Big',
+      serializeXml: () => {
+        throw new Error('Cannot write "Big": it holds what no Dimension spells. Nothing was written.');
+      },
+    };
+    expect(RAW_NOT_WRITTEN).toBe("This row's raw form could not be written.");
+    expect(rawOfRow(tree(refusing), 'binedit:file:///big.sldd/design/x/Big')).toEqual({ format: 'none', reason: RAW_NOT_WRITTEN });
+    expect(rawOfRow(tree(null), 'binedit:file:///big.sldd/design/x/Big')).toEqual(none);
+  });
+
   it('has nothing to show for a row that is not there, or names no row at all', async () => {
     const doc = await open('params.sldd');
     for (const id of ['', 'file:///params.sldd/design/Nope', 'section:nope', 'file:///other.sldd', 'garbage']) {

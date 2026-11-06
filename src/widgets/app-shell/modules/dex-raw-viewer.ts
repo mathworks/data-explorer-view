@@ -9,35 +9,105 @@ import { buttonFocusRingStyles, tabindexFocusRingStyles } from '../../shared/foc
 import { highContrastStyles } from '../../shared/high-contrast.styles.js';
 import { formatHex, tokenizeJson, tokenizeXml, type RawToken, type RawView } from '../../../model/raw/rawView.js';
 
-/** What `dex-raw-copy` carries: the text the pane shows, which the app puts on the clipboard. */
+/** What `dex-raw-copy` carries: the whole text the pane shows, which the app puts on the clipboard. */
 export interface RawCopyDetail {
   text: string;
 }
 
 /**
  * The longest JSON or XML text the pane colours, in characters: a longer one is drawn as plain
- * text, all of it. A span per token of a record of megabytes would take the page longer to lay out
- * than the record takes to read.
+ * text. A span per token of a record of megabytes would take the page longer to lay out than the
+ * record takes to read.
  */
 export const RAW_HIGHLIGHT_LIMIT = 256 * 1024;
+
+/**
+ * How much of a text the pane draws, in characters: 1 MB, then a line saying how much more there
+ * is, as the hex dump stops at 64 KB. Copy sends the whole text all the same.
+ */
+export const RAW_DRAW_LIMIT = 1024 * 1024;
 
 /** The badge over each format. */
 const BADGES: Record<Exclude<RawView['format'], 'none'>, string> = { json: 'JSON', xml: 'XML', text: 'Text', hex: 'Hex' };
 
-/** What the pane draws for a RawView with something to show: its text, and its tokens where it colours them. */
+/** What the pane draws for a RawView with something to show, worked out once for it. */
 interface Shown {
   format: Exclude<RawView['format'], 'none'>;
+  /** The whole text, as Copy sends it: the dump, for bytes. */
   text: string;
-  tokens: RawToken[] | null;
+  /** What the block draws of it: the text, cut at the draw limit, or its runs, where it is coloured. */
+  body: string | unknown[];
+  /** The answer it was made from, to know the same answer when it comes again. */
+  from: RawView;
+}
+
+/** Whether two answers say the same: the same text in the same format, or the same bytes. */
+function sameAnswer(a: RawView, b: RawView): boolean {
+  if (a.format === 'hex' || b.format === 'hex') return a.format === b.format && (a as { bytes: unknown }).bytes === (b as { bytes: unknown }).bytes;
+  if (a.format === 'none' || b.format === 'none') return false;
+  return a.format === b.format && a.text === b.text;
+}
+
+const isHighSurrogate = (unit: number): boolean => unit >= 0xd800 && unit <= 0xdbff;
+
+/** How many characters `text` holds from `from` on, a pair of UTF-16 surrogates being one. */
+function charactersFrom(text: string, from: number): number {
+  let n = text.length - from;
+  for (let i = from; i + 1 < text.length; i++) if (isHighSurrogate(text.charCodeAt(i)) && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00) n--;
+  return n;
+}
+
+/**
+ * The part of `text` the block draws: all of it within RAW_DRAW_LIMIT, else up to the end of the
+ * last line that fits (where that is past half the limit; a chunk of XML can be one line) or the
+ * limit itself, never between the two halves of a character, then a line saying how many more
+ * characters there are.
+ */
+function drawnPart(text: string): string {
+  if (text.length <= RAW_DRAW_LIMIT) return text;
+  let end = text.lastIndexOf('\n', RAW_DRAW_LIMIT - 1) + 1;
+  if (end <= RAW_DRAW_LIMIT / 2) {
+    end = RAW_DRAW_LIMIT;
+    if (isHighSurrogate(text.charCodeAt(end - 1))) end--;
+  }
+  const more = charactersFrom(text, end);
+  return `${text.slice(0, end)}${text[end - 1] === '\n' ? '' : '\n'}… ${more.toLocaleString('en-US')} more ${more === 1 ? 'character' : 'characters'}`;
+}
+
+/**
+ * The tokens as the block draws them: each coloured one a span of its class, and every run of the
+ * others between them (punctuation, whitespace, an element's content) one text. The span's text is
+ * its `textContent`, not a child of its template, which would add a marker beside each one; the
+ * page holds a few nodes per coloured token and no more. Lit sets both as text, so nothing in a
+ * record is markup.
+ */
+function runsOf(tokens: RawToken[]): unknown[] {
+  const runs: unknown[] = [];
+  let plain = '';
+  for (const t of tokens) {
+    if (t.kind === 'text' || t.kind === 'punct') {
+      plain += t.text;
+      continue;
+    }
+    if (plain) runs.push(plain);
+    plain = '';
+    runs.push(html`<span class=${`t-${t.kind}`} .textContent=${t.text}></span>`);
+  }
+  if (plain) runs.push(plain);
+  return runs;
 }
 
 function shownOf(raw: RawView | null): Shown | null {
   if (!raw || raw.format === 'none') return null;
-  if (raw.format === 'hex') return { format: 'hex', text: formatHex(raw.bytes), tokens: null };
+  if (raw.format === 'hex') {
+    const dump = formatHex(raw.bytes);
+    return { format: 'hex', text: dump, body: dump, from: raw };
+  }
   // An app's data, which nothing checks as it runs: a text that is not a string is shown as one.
   const text = typeof raw.text === 'string' ? raw.text : String(raw.text);
-  if (raw.format === 'text' || text.length > RAW_HIGHLIGHT_LIMIT) return { format: raw.format, text, tokens: null };
-  return { format: raw.format, text, tokens: raw.format === 'json' ? tokenizeJson(text) : tokenizeXml(text) };
+  if (raw.format === 'text' || text.length > RAW_HIGHLIGHT_LIMIT) return { format: raw.format, text, body: drawnPart(text), from: raw };
+  const tokens = raw.format === 'json' ? tokenizeJson(text) : tokenizeXml(text);
+  return { format: raw.format, text, body: runsOf(tokens), from: raw };
 }
 
 /**
@@ -45,9 +115,10 @@ function shownOf(raw: RawView | null): Shown | null {
  * answers it. A JSON or XML text is coloured (keys, strings, numbers, tags, attributes, comments,
  * each with its `--dex-syntax-*` token), a value's bytes are a hex dump, and either is drawn in a
  * monospaced, scrollable, selectable block under a header naming its format. The text is drawn as
- * text, never as markup.
+ * text, never as markup, and its first megabyte alone (RAW_DRAW_LIMIT), then a line saying how
+ * much more there is.
  *
- * Copy sends `dex-raw-copy` with the text shown (the dump, for bytes): the app puts it on the
+ * Copy sends `dex-raw-copy` with the whole text (the dump, for bytes): the app puts it on the
  * clipboard, as only it may. A RawView with nothing to show draws its reason as a muted note; no
  * RawView at all (`raw` null), a note asking for a selection; and `loading`, a note that the answer
  * is on its way, in place of the last one. The pane knows nothing of documents: the app hands it
@@ -178,12 +249,15 @@ export class DexRawViewer extends LitElement {
    */
   @property({ type: Boolean }) loading = false;
 
-  // What `raw` draws as, worked out once for each `raw` rather than on every render: a dump and
-  // the tokens of a long record are the costly part.
+  // What `raw` draws as, worked out once for each answer rather than on every render: a dump and
+  // the tokens of a long record are the costly part. A source asked again for the same row answers
+  // a new RawView of the same text (or the same bytes), which keeps what was drawn.
   private _shown: Shown | null = null;
 
   protected override willUpdate(changed: PropertyValues<this>): void {
-    if (changed.has('raw')) this._shown = shownOf(this.raw);
+    if (!changed.has('raw')) return;
+    if (this._shown && this.raw && sameAnswer(this._shown.from, this.raw)) return;
+    this._shown = shownOf(this.raw);
   }
 
   private _copy(text: string): void {
@@ -196,11 +270,6 @@ export class DexRawViewer extends LitElement {
 
   // The text as runs: a coloured token in a span of its class, whitespace, punctuation and
   // content as the text they are. Lit sets each run as text, so nothing in a record is markup.
-  private _body(shown: Shown) {
-    if (!shown.tokens) return shown.text;
-    return shown.tokens.map((t) => (t.kind === 'text' || t.kind === 'punct' ? t.text : html`<span class="t-${t.kind}">${t.text}</span>`));
-  }
-
   override render() {
     if (this.loading) return html`<div class="note loading" role="status">Loading…</div>`;
     const shown = this._shown;
@@ -218,7 +287,7 @@ export class DexRawViewer extends LitElement {
           <span>Copy</span>
         </button>
       </div>
-      <pre tabindex="0" aria-label=${`Raw data, ${badge}`}>${this._body(shown)}</pre>
+      <pre tabindex="0" aria-label=${`Raw data, ${badge}`}>${shown.body}</pre>
     `;
   }
 }
@@ -236,8 +305,8 @@ export function defineRawViewer(tag = 'dex-raw-viewer'): void {
  */
 export interface RawViewerEventMap {
   /**
-   * Copy was pressed: put `text`, the text the pane shows (a value's hex dump, for its bytes), on
-   * the clipboard. A request: the pane copies nothing itself.
+   * Copy was pressed: put `text`, the whole text the pane shows (past what it draws of a long one;
+   * a value's hex dump, for its bytes), on the clipboard. A request: the pane copies nothing itself.
    */
   'dex-raw-copy': CustomEvent<RawCopyDetail>;
 }

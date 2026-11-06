@@ -3,15 +3,21 @@
 //
 // <dex-raw-viewer>: the Raw pane, which draws the RawView an app hands it (`TableSource.raw`'s
 // answer for the selected row) and asks the app to copy it. What it promises is what the user
-// reads and takes away: the text exactly as given (or the hex dump of the bytes), coloured by the
-// tokenizers and never parsed as markup, a badge naming what it is, a Copy button whose request
-// carries the very text shown, the reason when there is nothing to show, and a note when no row
+// reads and takes away: the text exactly as given (its first megabyte, of a longer one) or the hex
+// dump of the bytes, coloured by the tokenizers and never parsed as markup, a badge naming what it is, a Copy button whose request
+// carries the whole text shown, the reason when there is nothing to show, and a note when no row
 // is selected or the answer is on its way.
 //
 // happy-dom applies no stylesheet, so the colours are pinned by the token classes the text is
 // drawn in, and the theme tokens each class reads by the stylesheet's text.
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DexRawViewer, RAW_HIGHLIGHT_LIMIT, defineRawViewer, type RawCopyDetail } from '../src/widgets/app-shell/modules/dex-raw-viewer.js';
+import {
+  DexRawViewer,
+  RAW_DRAW_LIMIT,
+  RAW_HIGHLIGHT_LIMIT,
+  defineRawViewer,
+  type RawCopyDetail,
+} from '../src/widgets/app-shell/modules/dex-raw-viewer.js';
 import { formatHex, type RawView } from '../src/model/raw/rawView.js';
 
 beforeAll(() => defineRawViewer());
@@ -82,11 +88,60 @@ describe('the text', () => {
     expect(pre(xml)!.textContent).toBe('<script>alert(1)</script>');
   });
 
-  it('draws a text past the highlight limit uncoloured, all of it', async () => {
+  it('draws a text past the highlight limit uncoloured, all of it while it is under the draw limit', async () => {
     const text = `[${'1,'.repeat(RAW_HIGHLIGHT_LIMIT / 2)}1]`;
+    expect(text.length).toBeLessThan(RAW_DRAW_LIMIT);
     const el = await viewer({ format: 'json', text });
     expect(pre(el)!.textContent).toBe(text);
     expect(coloured(el)).toEqual([]);
+  });
+
+  it('draws the first megabyte of a longer text, to the end of a line, and says how much it left out', async () => {
+    expect(RAW_DRAW_LIMIT).toBe(1024 * 1024);
+    const line = `${'x'.repeat(99)}\n`;
+    const text = line.repeat(RAW_DRAW_LIMIT / 100 + 50);
+    const el = await viewer({ format: 'text', text });
+    const drawn = pre(el)!.textContent!;
+    const shown = Math.floor(RAW_DRAW_LIMIT / 100) * 100;
+    expect(drawn).toBe(`${text.slice(0, shown)}… ${(text.length - shown).toLocaleString('en-US')} more characters`);
+    expect(drawn.length).toBeLessThan(RAW_DRAW_LIMIT + 100);
+  });
+
+  it('cuts a longer text of one line at the limit, never inside a character', async () => {
+    // A long chunk can be one line; an emoji is two UTF-16 units, which the cut keeps together.
+    const text = `${'a'.repeat(RAW_DRAW_LIMIT - 1)}😀${'b'.repeat(10)}`;
+    const el = await viewer({ format: 'xml', text });
+    const drawn = pre(el)!.textContent!;
+    expect(drawn).toBe(`${'a'.repeat(RAW_DRAW_LIMIT - 1)}\n… 11 more characters`);
+  });
+
+  it('draws each coloured token as a span with its text, and every run between them as one text', async () => {
+    const el = await viewer({ format: 'json', text: '{"a": 1, "b": true}' });
+    const nodes = [...pre(el)!.childNodes].filter((n) => n.nodeType !== Node.COMMENT_NODE && n.textContent !== '');
+    expect(nodes.map((n) => (n.nodeType === Node.TEXT_NODE ? `text:${n.textContent}` : `${(n as Element).className}:${n.textContent}`))).toEqual([
+      'text:{', 't-key:"a"', 'text:: ', 't-number:1', 'text:, ', 't-key:"b"', 'text:: ', 't-literal:true', 'text:}',
+    ]);
+    // A span holds its text alone, with no marker beside it.
+    for (const span of pre(el)!.querySelectorAll('span')) expect(span.childNodes).toHaveLength(1);
+  });
+
+  it('keeps what it drew when the same answer comes again', async () => {
+    const text = '{\n  "a": [1, 2, 3]\n}';
+    const el = await viewer({ format: 'json', text });
+    const shown = (el as unknown as { _shown: unknown })._shown;
+    const span = pre(el)!.querySelector('span');
+    // A new RawView of the same text, as a source's next answer for the same row is.
+    el.raw = { format: 'json', text: `${text}` };
+    await el.updateComplete;
+    expect((el as unknown as { _shown: unknown })._shown).toBe(shown);
+    expect(pre(el)!.querySelector('span')).toBe(span);
+    const bytes = new Uint8Array([1, 2]);
+    el.raw = { format: 'hex', bytes };
+    await el.updateComplete;
+    const dump = (el as unknown as { _shown: unknown })._shown;
+    el.raw = { format: 'hex', bytes };
+    await el.updateComplete;
+    expect((el as unknown as { _shown: unknown })._shown).toBe(dump);
   });
 
   it('is a region the keyboard can scroll, named for what it shows', async () => {
@@ -116,6 +171,16 @@ describe('the text', () => {
 });
 
 describe('Copy', () => {
+  it('asks for the whole text, where the pane draws only the first megabyte of it', async () => {
+    const heard = copies();
+    const text = 'y'.repeat(RAW_DRAW_LIMIT + 5);
+    const el = await viewer({ format: 'text', text });
+    expect(pre(el)!.textContent!.endsWith('… 5 more characters')).toBe(true);
+    copyButton(el)!.click();
+    expect(heard).toHaveLength(1);
+    expect(heard[0]!.detail.text).toBe(text);
+  });
+
   it('asks the app to copy the text shown, and copies nothing itself', async () => {
     const heard = copies();
     const text = '{\n  "a": 1\n}';

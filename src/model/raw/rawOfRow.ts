@@ -22,13 +22,19 @@
 // section's name and size; a dictionary's core properties, references and size; a MAT-file's
 // header; a model's release, UUID, dictionary and the parts of its package.
 //
-// Total, as every answer of a TableSource is: a row that is not there, or a node core will not
-// write, has nothing to show.
+// Total, as every answer of a TableSource is: a row that is not there has nothing to show, and a
+// node core will not write says so.
 import { ModelBlockNode, entryRecord, sectionByName, serializeEntryToXml, textDictionaryJson } from 'data-explorer-core';
 import { isSectionRowId, sectionNameFromRowId } from '../ids/sectionRowId.js';
 import { noRaw, rawOfNode, rawOfValue, type RawView } from './rawView.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * What the Raw pane says for a row whose raw form core refused to write (its XML, its record): not
+ * NO_RAW_DATA, which is a row that has none, so that a failure does not pass for an empty answer.
+ */
+export const RAW_NOT_WRITTEN = "This row's raw form could not be written.";
 
 /**
  * A document's tree, as `rawOfRow` reads it: a read-only document's (source/workspace.ts), or an
@@ -50,7 +56,8 @@ export interface RawTree {
 
 /**
  * The raw form of the row `rowId` of the document `tree` is of, for the Raw pane: see the head
- * of this file for each kind of row. Nothing to show for a row that is not there.
+ * of this file for each kind of row. Nothing to show for a row that is not there (NO_RAW_DATA),
+ * and RAW_NOT_WRITTEN where core throws as it writes one.
  */
 export function rawOfRow(tree: RawTree, rowId: string): RawView {
   if (typeof rowId !== 'string' || rowId === '') return noRaw();
@@ -76,8 +83,9 @@ export function rawOfRow(tree: RawTree, rowId: string): RawView {
         return variableRaw(node);
     }
   } catch {
-    // A node core will not write, as its record or its XML: nothing to show for it.
-    return noRaw();
+    // A node core will not write, as its record or its XML, or a tree that cannot be had: said as
+    // a failure, not as a row with nothing to show.
+    return noRaw(RAW_NOT_WRITTEN);
   }
 }
 
@@ -117,22 +125,39 @@ function xmlRaw(node: any): RawView {
 
 /** The one `<Element …>` an `<Element>` wraps, or `xml` as it is where it wraps no one element. */
 function unwrapped(xml: string): string {
-  const wrapped = /^<Element>\n([\s\S]*)\n<\/Element>$/.exec(xml);
-  if (!wrapped) return xml;
-  const inner = outdented(wrapped[1]!);
+  const open = '<Element>\n';
+  const close = '\n</Element>';
+  if (xml.length < open.length + close.length || !xml.startsWith(open) || !xml.endsWith(close)) return xml;
+  const inner = outdented(xml.slice(open.length, xml.length - close.length));
   const outer = inner.split('\n').filter((line) => !line.startsWith(' '));
   return outer.length <= 2 && outer[0]!.startsWith('<Element') ? inner : xml;
 }
 
+/** How many spaces `line` starts with. */
+function indentOf(line: string): number {
+  let n = 0;
+  while (n < line.length && line.charCodeAt(n) === 0x20) n++;
+  return n;
+}
+
 /**
- * `text` with the indent every line has taken off, and no line break at its end: an entry's
+ * `text` with the indent every line has taken off, and no whitespace at its end: an entry's
  * `<Object>` comes out of the chunk four spaces in, and stands at the left edge alone.
+ *
+ * Linear in the text, whatever it holds. An entry can run to hundreds of thousands of lines, over
+ * which a spread into Math.min overflows the stack; and a value can hold a long run of spaces
+ * anywhere, from each of which a regular expression for the whitespace at the end scans again.
  */
 function outdented(text: string): string {
-  const lines = text.replace(/\s+$/, '').split('\n');
-  const indents = lines.filter((line) => line.trim() !== '').map((line) => /^ */.exec(line)![0].length);
-  const indent = indents.length ? Math.min(...indents) : 0;
-  return indent === 0 ? lines.join('\n') : lines.map((line) => line.slice(Math.min(indent, /^ */.exec(line)![0].length))).join('\n');
+  const lines = text.trimEnd().split('\n');
+  let indent = Infinity;
+  for (const line of lines) {
+    const n = indentOf(line);
+    // A line of whitespace alone sets no indent.
+    if (n < indent && line.trim() !== '') indent = n;
+  }
+  if (indent === 0 || indent === Infinity) return lines.join('\n');
+  return lines.map((line) => line.slice(Math.min(indent, indentOf(line)))).join('\n');
 }
 
 /**
