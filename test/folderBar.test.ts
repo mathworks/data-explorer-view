@@ -2,7 +2,7 @@
 // @vitest-environment happy-dom
 //
 // <dex-folder-bar>: the Folder view's top row, ↑ beside the workspace folder's path
-// ("Users › weiwang › delite › complex_dataflow"), then ⟳ and ⋯. It draws the segments it is given
+// ("Users › delite › complex_dataflow"), then ⟳ and ⋯. It draws the segments it is given
 // and asks for everything: going up, going to a segment, reading the folder again and showing its
 // menu are each a request (`dex-folder-up`, `dex-folder-go`, `dex-folder-refresh`,
 // `dex-folder-menu`), since re-rooting is the host's to do and may fail, and the bar never moves on
@@ -83,16 +83,47 @@ function key(target: Element, k: string, init: KeyboardEventInit = {}): Keyboard
 }
 
 // A box `room` px wide, holding each item still drawn at its own width: a segment 50 px, the …
-// item 20. Redrawn, so the bar measures again.
+// item 20, and 10 more for the › before either, where one is drawn (the … leading the path has
+// none). Measured as the styles stand at each read, so an item drawn otherwise than it was
+// measured shows. Redrawn, so the bar measures again.
 async function narrow(el: DexFolderBar, room: number): Promise<void> {
   const box = pathBox(el);
+  const width = (li: HTMLElement): number => {
+    const separator = li.querySelector('.separator');
+    const drawn = separator !== null && getComputedStyle(separator).display !== 'none';
+    return (li.classList.contains('more') ? 20 : 50) + (drawn ? 10 : 0);
+  };
   Object.defineProperty(box, 'clientWidth', { configurable: true, value: room });
   Object.defineProperty(box, 'scrollWidth', {
     configurable: true,
-    get: () => [...box.children].filter((li) => !(li as HTMLElement).hidden).reduce((w, li) => w + (li.classList.contains('more') ? 20 : 50), 0),
+    get: () => [...box.children].filter((li) => !(li as HTMLElement).hidden).reduce((w, li) => w + width(li as HTMLElement), 0),
   });
   el.segments = [...el.segments];
   await el.updateComplete;
+}
+
+// The box resized to `room` px, as a ResizeObserver hears it: stubbed by observing(), which hands
+// back the callbacks the bars made.
+function observing(): (() => void)[] {
+  const observers: (() => void)[] = [];
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        observers.push(callback);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    },
+  );
+  onTestFinished(() => vi.unstubAllGlobals());
+  return observers;
+}
+
+function resized(el: DexFolderBar, observers: (() => void)[], room: number): void {
+  Object.defineProperty(pathBox(el), 'clientWidth', { configurable: true, value: room });
+  for (const callback of observers) callback();
 }
 
 const rect = (x: number, y: number, width: number, height: number): DOMRect =>
@@ -394,7 +425,8 @@ describe('a path too long for the bar', () => {
   });
 
   it('folds the folders after the first into a … button, keeping as many of the last as fit', async () => {
-    // 200 px: the first (50), the … (20) and the last two (100); the five between are folded.
+    // 200 px: the first (50), the … and its › (30) and the last two with theirs (120); the five
+    // between are folded.
     const el = await bar({ segments: DEEP });
     await narrow(el, 200);
     expect(labels(el)).toEqual(['/', 'models', 'controllers']);
@@ -418,7 +450,7 @@ describe('a path too long for the bar', () => {
   });
 
   it('folds the first one too where the last two do not fit beside it, and then clips the current one', async () => {
-    // 90 px: the … and the last (70) fit; the first beside them would not.
+    // 90 px: the … leading (20) and the last (60) fit; the first beside them, with the …'s ›, would not.
     const el = await bar({ segments: DEEP });
     await narrow(el, 90);
     expect(labels(el)).toEqual(['controllers']);
@@ -438,30 +470,106 @@ describe('a path too long for the bar', () => {
   });
 
   it('unfolds again when the bar is widened, and folds as it is narrowed', async () => {
-    const observers: (() => void)[] = [];
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: () => void) {
-          observers.push(callback);
-        }
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {}
-      },
-    );
-    onTestFinished(() => vi.unstubAllGlobals());
+    const observers = observing();
     const el = await bar({ segments: DEEP });
     await narrow(el, 200);
     expect(labels(el)).toEqual(['/', 'models', 'controllers']);
     expect(observers.length).toBe(1);
-    Object.defineProperty(pathBox(el), 'clientWidth', { configurable: true, value: 1000 });
-    observers[0]!();
+    resized(el, observers, 1000);
     expect(labels(el)).toEqual(DEEP.map((s) => s.label));
     expect(moreItem(el).hidden).toBe(true);
-    Object.defineProperty(pathBox(el), 'clientWidth', { configurable: true, value: 250 });
-    observers[0]!();
+    resized(el, observers, 260);
     expect(labels(el)).toEqual(['/', 'plant', 'models', 'controllers']);
+  });
+
+  it('measures each fit from the whole path, not from how the last one drew the …', async () => {
+    // Folded at 60 px, the … leads the path with no › before it. Widened to 135 px, one short of
+    // the first folder (50), the … with its › (30) and the last (60): the first stays folded. Measured
+    // with the last fit's …, which had no ›, the first seemed to fit, the › came back with it, and
+    // the current folder was clipped beside it; each redraw then flipped between the two.
+    const observers = observing();
+    const el = await bar({ segments: DEEP });
+    await narrow(el, 60);
+    expect(labels(el)).toEqual(['controllers']);
+    expect(pathBox(el).classList.contains('squeezed')).toBe(true);
+    resized(el, observers, 135);
+    expect(labels(el)).toEqual(['controllers']);
+    expect(pathBox(el).classList.contains('squeezed')).toBe(false);
+    expect(moreItem(el).classList.contains('first')).toBe(true);
+    // And a redraw at that width draws the same.
+    el.segments = [...el.segments];
+    await el.updateComplete;
+    expect(labels(el)).toEqual(['controllers']);
+    expect(pathBox(el).classList.contains('squeezed')).toBe(false);
+    // Wide enough for the first again: the … has its › back.
+    resized(el, observers, 140);
+    expect(labels(el)).toEqual(['/', 'controllers']);
+    expect(moreItem(el).classList.contains('first')).toBe(false);
+    expect(pathBox(el).classList.contains('squeezed')).toBe(false);
+  });
+
+  it('measures again when forced colours come or go, and when a web font has loaded', async () => {
+    // Either redraws every label at another width with no resize of the box: forced colours border
+    // each segment, and a font that loads late sets the labels in other glyphs.
+    const queries: { query: string; listeners: Map<string, () => void> }[] = [];
+    vi.stubGlobal('matchMedia', (query: string) => {
+      const listeners = new Map<string, () => void>();
+      queries.push({ query, listeners });
+      return {
+        matches: false,
+        media: query,
+        addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+        removeEventListener: (type: string, listener: () => void) => listeners.get(type) === listener && listeners.delete(type),
+      };
+    });
+    onTestFinished(() => vi.unstubAllGlobals());
+    const fonts = new EventTarget();
+    Object.defineProperty(document, 'fonts', { configurable: true, value: fonts });
+    onTestFinished(() => void delete (document as { fonts?: unknown }).fonts);
+    const removed = vi.spyOn(fonts, 'removeEventListener');
+    const el = await bar({ segments: DEEP });
+    await narrow(el, 200);
+    expect(labels(el)).toEqual(['/', 'models', 'controllers']);
+    const forced = queries.find((q) => q.query === '(forced-colors: active)')!;
+    expect(forced.listeners.has('change')).toBe(true);
+    Object.defineProperty(pathBox(el), 'clientWidth', { configurable: true, value: 1000 });
+    forced.listeners.get('change')!();
+    expect(labels(el)).toEqual(DEEP.map((s) => s.label));
+    Object.defineProperty(pathBox(el), 'clientWidth', { configurable: true, value: 200 });
+    fonts.dispatchEvent(new Event('loadingdone'));
+    expect(labels(el)).toEqual(['/', 'models', 'controllers']);
+    // Taken out of the page, it listens to neither.
+    el.remove();
+    expect(forced.listeners.has('change')).toBe(false);
+    expect(removed).toHaveBeenCalledWith('loadingdone', expect.any(Function));
+  });
+
+  it('gives the keyboard to the … when a resize folds the segment it was on', async () => {
+    // A folded segment is not drawn, and the focus on it would fall to the page's body.
+    const observers = observing();
+    const el = await bar({ segments: DEEP });
+    await narrow(el, 1000);
+    const plant = segmentButtons(el).find((b) => b.textContent === 'plant')!;
+    plant.focus();
+    resized(el, observers, 200);
+    expect(labels(el)).not.toContain('plant');
+    expect(root(el).activeElement).toBe(moreButton(el));
+    // A segment still drawn keeps it.
+    resized(el, observers, 1000);
+    const models = segmentButtons(el).find((b) => b.textContent === 'models')!;
+    models.focus();
+    resized(el, observers, 200);
+    expect(root(el).activeElement).toBe(models);
+  });
+
+  it('gives the keyboard to the current folder when a resize unfolds the … it was on', async () => {
+    const observers = observing();
+    const el = await bar({ segments: DEEP });
+    await narrow(el, 200);
+    moreButton(el).focus();
+    resized(el, observers, 1000);
+    expect(moreItem(el).hidden).toBe(true);
+    expect(root(el).activeElement).toBe(current(el));
   });
 
   it('measures a new path afresh: a shorter one is drawn whole', async () => {

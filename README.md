@@ -70,7 +70,7 @@ defineVariableEditor();
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | [`<dex-project-page>`](docs/widgets/project-page.md), a project's page, and the HTML renderer and stylesheet it draws with |
 | `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
-| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
+| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [folder bar](docs/widgets/folder-bar.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
 | `data-explorer-view/browser-host` | `browserHost`, a `ShellHost` for a plain browser page with no backend (see [docs/browser-host.md](docs/browser-host.md)) |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
@@ -753,6 +753,7 @@ with its [views](docs/widgets/shell-view.md) and
 the [tab row](docs/widgets/doc-tabs.md), the
 [location bar](docs/widgets/location-bar.md), the
 [Explorer](docs/widgets/explorer.md), the
+[folder bar](docs/widgets/folder-bar.md), the
 [Settings](docs/widgets/settings-panel.md) and
 [About](docs/widgets/about-panel.md) popovers, the
 [toasts](docs/widgets/toast-host.md), the

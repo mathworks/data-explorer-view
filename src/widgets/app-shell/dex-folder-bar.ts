@@ -266,17 +266,30 @@ export class DexFolderBar extends LitElement {
   // button it was on have gone with the old path.
   private _refocus = false;
   private _resize: ResizeObserver | null = null;
+  // Forced colours, watched while the bar is in a page: see connectedCallback.
+  private _forcedColors: MediaQueryList | null = null;
+  private readonly _refit = (): void => this._fit();
 
+  // The labels' widths change with no resize of the box in two ways, and each is measured again:
+  // forced colours coming or going (each segment gains or loses a border), and a web font loading
+  // after the first draw (the labels set in its glyphs). Neither is there in every page: a test's
+  // DOM, a browser without the font loading API.
   override connectedCallback(): void {
     super.connectedCallback();
     // Back in a page after being taken out: watch the box again. The first time, firstUpdated does.
     if (this.hasUpdated) this._observe();
+    this._forcedColors = typeof matchMedia === 'function' ? matchMedia('(forced-colors: active)') : null;
+    this._forcedColors?.addEventListener('change', this._refit);
+    document.fonts?.addEventListener('loadingdone', this._refit);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this._resize?.disconnect();
     this._resize = null;
+    this._forcedColors?.removeEventListener('change', this._refit);
+    this._forcedColors = null;
+    document.fonts?.removeEventListener('loadingdone', this._refit);
   }
 
   protected override firstUpdated(): void {
@@ -317,13 +330,21 @@ export class DexFolderBar extends LitElement {
   // never the current one, whose name is clipped instead once nothing else is left to fold. Done
   // on the elements the template drew rather than through state, so a draw that measures is the
   // only draw (Lit has no update to schedule after the one it completed).
+  //
+  // Each fit starts from the whole path drawn as it would be, the … and its › included: measured
+  // with what the last fit left (a … leading the path, with no ›), a fold would be decided for a
+  // path narrower than the one then drawn.
   private _fit(): void {
     const box = this.renderRoot.querySelector<HTMLElement>('.path');
     const more = box?.querySelector<HTMLElement>('li.more');
-    if (!box || !more) return;
+    const fold = more?.querySelector<HTMLElement>('button');
+    if (!box || !more || !fold) return;
+    // Read before anything is hidden: a browser may blur a button the moment it is no longer drawn.
+    const focused = this.shadowRoot?.activeElement;
     const places = [...box.querySelectorAll<HTMLElement>('li.place')];
     for (const li of places) li.hidden = false;
     more.hidden = true;
+    more.classList.remove('first');
     box.classList.remove('squeezed');
     const order = places.length > 1 ? [...places.keys()].slice(1, -1).concat(0) : [];
     const folded: number[] = [];
@@ -331,13 +352,24 @@ export class DexFolderBar extends LitElement {
       if (box.scrollWidth <= box.clientWidth) break;
       more.hidden = false;
       places[at]!.hidden = true;
+      if (at === 0) more.classList.add('first');
       folded.push(at);
     }
-    more.classList.toggle('first', places[0]?.hidden ?? false);
     box.classList.toggle('squeezed', box.scrollWidth > box.clientWidth);
     const segments = this._list();
     this._folded = folded.sort((a, b) => a - b).map((at) => segments[at]!);
-    more.querySelector('button')!.title = this._folded.map((s) => s.label).join(' › ');
+    fold.title = this._folded.map((s) => s.label).join(' › ');
+    this._keepFocus(focused);
+  }
+
+  // The keyboard was on a segment this fit folded, or on the … it unfolded: neither is drawn now,
+  // and the focus would fall to the page's body. It goes to the … that holds the segment, or to the
+  // current folder once there is no … to go to.
+  private _keepFocus(focused: Element | null | undefined): void {
+    if (!(focused instanceof HTMLElement) || !focused.closest('li')?.hidden) return;
+    const more = this.renderRoot.querySelector<HTMLElement>('li.more');
+    const to = more && !more.hidden ? more.querySelector<HTMLElement>('button') : this.renderRoot.querySelector<HTMLElement>('.current');
+    to?.focus();
   }
 
   private _list(): FolderSegment[] {
