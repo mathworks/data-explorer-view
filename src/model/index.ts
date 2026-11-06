@@ -154,7 +154,7 @@ export { buildRelationshipGraph } from './graph/relationshipGraph.js';
 export { graphIdOf } from './graph/graphTypes.js';
 export type { GraphBox, GraphBoxKind, GraphEdge, GraphEdgeKind, GraphItem, RelationshipGraph } from './graph/graphTypes.js';
 export { layoutGraph } from './graph/layout.js';
-export type { BoxLayout, EdgeLayout, GraphLayout, GraphPoint, GraphRect, ItemLayout } from './graph/layout.js';
+export type { BoxLayout, EdgeLayout, GraphLayout, GraphLayoutStyle, GraphPoint, GraphRect, ItemLayout } from './graph/layout.js';
 
 // The command window's interpreter (the app shell's Terminal): a line run over a document, through
 // a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.

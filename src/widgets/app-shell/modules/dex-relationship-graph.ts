@@ -24,6 +24,7 @@ import {
   type BoxLayout,
   type EdgeLayout,
   type GraphLayout,
+  type GraphLayoutStyle,
   type GraphPoint,
   type GraphRect,
 } from '../../../model/graph/layout.js';
@@ -200,6 +201,16 @@ export class DexRelationshipGraph extends LitElement {
    * changes it.
    */
   @property({ attribute: false }) expanded: string[] = [];
+  /**
+   * How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down
+   * trees, what a file references side by side in the row under it. 'indented' draws each column
+   * as a file tree, one box a row, what a file references in the rows under it a step to the right,
+   * which draws a large set of files narrower and so at a larger scale: fifteen files that fit a
+   * 1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A change fits the graph
+   * afresh, its boxes being elsewhere; what is open and selected stays. A value it does not know is
+   * 'tree'. Attribute `layout`.
+   */
+  @property({ type: String }) layout: GraphLayoutStyle = 'tree';
 
   @state() private _view: View = { x: 0, y: 0, scale: 1 };
   @state() private _legendOpen = false;
@@ -256,7 +267,12 @@ export class DexRelationshipGraph extends LitElement {
     // Whether boxes were drawn before this, of these files: only then is a box newly open one the
     // user opened, rather than one the graph came with.
     let watch = this._layout !== null;
-    if (changed.has('graph') || changed.has('expanded')) this._relayout();
+    if (changed.has('graph') || changed.has('expanded') || changed.has('layout')) this._relayout();
+    // Another layout, after the first draw: every box is elsewhere, so the view is fitted afresh
+    // (over a fit still waiting, and not over a reveal or a zoom the app asked for with it).
+    if (changed.has('layout') && changed.get('layout') !== undefined && (this._pending === null || this._pending === 'fit')) {
+      this._pending = 'fit';
+    }
     if (changed.has('graph')) {
       const boxes = this._boxIds();
       // A reveal the app asked for with the new graph wins over the fit the new graph would get.
@@ -300,7 +316,7 @@ export class DexRelationshipGraph extends LitElement {
       this._domIds = new Map();
       return;
     }
-    this._layout = layoutGraph(graph, this._expanded());
+    this._layout = layoutGraph(graph, this._expanded(), this.layout === 'indented' ? 'indented' : 'tree');
     this._boxLayouts = new Map(this._layout.boxes.map((b) => [b.id, b]));
     this._rects = new Map<string, GraphRect>();
     this._domIds = new Map();
@@ -703,8 +719,10 @@ export class DexRelationshipGraph extends LitElement {
   }
 
   // The nearest box the arrow's way, from the selected box (or the box of the selected item); the
-  // first box when nothing is selected. Nearest by distance along the arrow, with distance across
-  // it counted double, so a box in line wins over a nearer one off to the side.
+  // first box when nothing is selected. That way is wholly past the selected box's side, so in an
+  // indented column of boxes of unlike widths Left and Right leave the column and Up and Down go
+  // along it. Nearest by distance along the arrow, with distance across it counted double, so a box
+  // in line wins over a nearer one off to the side.
   private _step(key: string): void {
     const boxes = this._layout!.boxes;
     const at = this.selected ? this._boxLayouts.get(this._items.get(this.selected)?.boxId ?? this.selected) : undefined;
@@ -721,10 +739,14 @@ export class DexRelationshipGraph extends LitElement {
       : [(p: GraphPoint) => from.y - p.y, (p: GraphPoint) => p.x - from.x];
     let best: BoxLayout | null = null;
     let bestScore = Infinity;
+    const past = (b: GraphRect): boolean =>
+      key === 'ArrowRight' ? b.x >= at.x + at.width
+      : key === 'ArrowLeft' ? b.x + b.width <= at.x
+      : key === 'ArrowDown' ? b.y >= at.y + at.height
+      : b.y + b.height <= at.y;
     for (const b of boxes) {
-      if (b.id === at.id) continue;
+      if (b.id === at.id || !past(b)) continue;
       const c = centre(b);
-      if (along(c) <= 1) continue;
       const score = along(c) + 2 * Math.abs(across(c));
       if (score < bestScore) [best, bestScore] = [b, score];
     }

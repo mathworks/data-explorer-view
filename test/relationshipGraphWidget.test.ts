@@ -180,6 +180,48 @@ describe('what it draws', () => {
   });
 });
 
+describe('the layout', () => {
+  // Two layouts of the same graph: the prototype's top-down trees, the default, and indented trees,
+  // which draw a large set narrower. The layout is the model's (layout.ts); the widget draws what it
+  // places, and fits the graph afresh when the layout changes, its boxes being elsewhere.
+  const placed = (el: DexRelationshipGraph) => [...sr(el).querySelectorAll<HTMLElement>('.box')].map((b) => [b.style.left, b.style.top]);
+  const at = (style: 'tree' | 'indented') => layoutGraph(GRAPH, new Set(), style).boxes.map((b) => [`${b.x}px`, `${b.y}px`]);
+
+  it("draws the prototype's trees by default, and indented trees when `layout` says so, by attribute or property", async () => {
+    const el = await graph();
+    expect(el.layout).toBe('tree');
+    expect(placed(el)).toEqual(at('tree'));
+    el.setAttribute('layout', 'indented');
+    await el.updateComplete;
+    expect(el.layout).toBe('indented');
+    expect(placed(el)).toEqual(at('indented'));
+    el.layout = 'tree';
+    await el.updateComplete;
+    expect(placed(el)).toEqual(at('tree'));
+    // A value it does not know is the default.
+    el.setAttribute('layout', 'radial');
+    await el.updateComplete;
+    expect(placed(el)).toEqual(at('tree'));
+  });
+
+  it('fits the graph afresh when the layout changes, and keeps what is open and selected', async () => {
+    const el = await graph(GRAPH, (e) => (e.expanded = [idOf('CaseBp.mat')]));
+    sized(el, 800, 600);
+    el.selected = idOf('CaseBp.mat');
+    el.fit();
+    button(el, 'Zoom in').click();
+    await el.updateComplete;
+    el.layout = 'indented';
+    await el.updateComplete;
+    const fitted = view(el);
+    el.fit();
+    await el.updateComplete;
+    expect(view(el)).toEqual(fitted);
+    expect(el.expanded).toEqual([idOf('CaseBp.mat')]);
+    expect(boxEl(el, idOf('CaseBp.mat')).classList.contains('selected')).toBe(true);
+  });
+});
+
 describe('the layers', () => {
   // Edges between boxes run under them, so a long one passes behind the boxes in its way rather
   // than through their items (the review's render of a large graph, every box open). A usage's two
@@ -918,6 +960,22 @@ describe('the keyboard', () => {
     key(el, 'ArrowDown');
     expect(selected.length).toBe(said);
     expect(el.selected).toBe(idOf('CaseBp.mat'));
+  });
+
+  it('moves along an indented column with Up and Down, and between the columns with Left and Right', async () => {
+    // Indented, the data files are one column: CaseParams.sldd, chained.sldd a step right under it,
+    // ExtraDict.sldd, the MAT-file. Left from a box of unlike width goes to the model, not to the box
+    // under it whose middle is a little to the left.
+    const el = await graph(GRAPH, (e) => ((e.expanded = []), (e.layout = 'indented')));
+    key(el, 'ArrowDown');
+    key(el, 'ArrowRight');
+    expect(selected.at(-1)).toEqual({ id: idOf('CaseParams.sldd') });
+    key(el, 'ArrowDown');
+    expect(selected.at(-1)).toEqual({ id: idOf('chained.sldd') });
+    key(el, 'ArrowDown');
+    expect(selected.at(-1)).toEqual({ id: idOf('ExtraDict.sldd') });
+    key(el, 'ArrowLeft');
+    expect(selected.at(-1)).toEqual({ id: idOf('caseRefs.slx') });
   });
 
   it('opens the selected box with Enter, and shows or hides its items with Space', async () => {

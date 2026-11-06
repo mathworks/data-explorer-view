@@ -23,7 +23,7 @@ const sourceOf = (name: string, bytes = bytesOf(name)): RawSource => ({ uriStrin
 /** The element, as the pane drives it: its properties, its zoom, the events it sends, and how many graphs it was given. */
 function stubGraph() {
   let graph: unknown = null;
-  const el = Object.assign(new EventTarget(), { expanded: [] as string[], selected: null as string | null, zoomToReach: vi.fn(), builds: 0 });
+  const el = Object.assign(new EventTarget(), { expanded: [] as string[], selected: null as string | null, layout: 'tree', zoomToReach: vi.fn(), builds: 0 });
   Object.defineProperty(el, 'graph', { get: () => graph, set: (g: unknown) => ((graph = g), el.builds++) });
   return el as unknown as DexRelationshipGraph & { zoomToReach: ReturnType<typeof vi.fn>; builds: number };
 }
@@ -191,6 +191,15 @@ describe('the graph pane', () => {
     resolveLink.mockResolvedValueOnce(null);
     open({ uri: '', ref: 'params.sldd' });
     await vi.waitFor(() => expect(context.notOpen).toHaveBeenCalledWith('params.sldd'));
+  });
+
+  it('draws the graph in the layout it is given, for a setting to choose', () => {
+    const { el, pane: p } = pane([tabOf('params.sldd')]);
+    expect(el.layout).toBe('tree');
+    p.setLayout('indented');
+    expect(el.layout).toBe('indented');
+    p.setLayout('tree');
+    expect(el.layout).toBe('tree');
   });
 
   it("shows and hides a box's items as it asks, and a box gone is open no more", async () => {

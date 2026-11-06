@@ -48,15 +48,34 @@ it reaches, for a "Show in Graph" from a table: the id of a file's box, or of an
 `graphIdOf(graph, uri, name)` (`data-explorer-view/model`). The app shell's Show in Graph selects
 it, opens its box, and zooms onto its reach.
 
-The look is the prototype's: two columns of top-down trees, what a file references in the row
-under it. What fits: the app shell at 1440 by 900 gives the graph about 900 by 610 pixels, and
-fifteen files (eight models one tree five leaves wide, five dictionaries one tree three wide, two
-MAT-files) draw about 1890 by 390. A fit stops at 0.7, where a label is near 8 pixels, and shows the
-models from the top left, to pan from; a model opened is zoomed to with the data its blocks read at
-0.77, both columns on the screen. Each file takes the width it needs in its tree, rather than the
-prototype's slot of the column's widest box, and the gap between the columns is as wide as the data
-links' lanes need rather than the prototype's 300 pixels: together they drew the same files 2170
-wide, a label 4 pixels at a fit.
+`layout` chooses how the columns are drawn: `tree`, the default, or `indented` (attribute or
+property). The app shell's graph pane sets it with `setLayout(layout)`.
+
+Where it differs from the prototype it follows, and why:
+
+- The default look is the prototype's: two columns of top-down trees, what a file references in
+  the row under it. Each file takes the width it needs in its tree rather than a slot as wide as
+  the column's widest box, and the gap between the columns is as wide as the data links' lanes need
+  (8 pixels a link, between 120 and 300) rather than 300: the prototype's slots and gap drew the
+  fifteen files of the table below 2170 pixels wide, a label 4 pixels at a fit.
+- `layout: 'indented'` draws each column as a file tree instead: one box a row, what a file
+  references in the rows under it a step to the right, a line down the referrer's left side. A large
+  set of files draws far narrower, so it reads at a larger scale; a column too long for a 1440 by 900
+  window is dealt into columns side by side, whole trees each, decided with every box closed.
+- A fit stops at 0.7, where a label is near 8 pixels; what does not fit then starts at the top
+  left, to pan from. A box opened is zoomed to with what it reaches at no less than that too.
+- A box opened lights the files it reaches along data links, dictionary references and usages, not
+  the models a model references: it is opened to see the data its blocks read, as the prototype's
+  expand lit the files a model links.
+
+What fits, in the app shell at 1440 by 900 (a graph about 900 by 610 pixels), for fifteen files
+(eight models one tree five leaves wide, five dictionaries one tree three wide, two MAT-files):
+
+| | `tree` | `indented` |
+|---|---|---|
+| Drawn | 1890 by 390 | 740 by 540 |
+| Fitted, closed | 0.7, the models; the data files off the screen to pan to | 1.0, both columns |
+| PowerTrain opened | 0.77, it and its three data files, both columns | 0.87, both columns |
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 

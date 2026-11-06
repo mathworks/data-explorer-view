@@ -1,9 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 // Where the relationship graph is drawn: a rectangle for each box and each item it shows, and an
 // orthogonal route for each edge whose ends show. A port of the prototype's two-column layout, which
-// the look of the graph comes from.
+// the look of the graph comes from, and the same two columns as indented trees.
 //
-// TWO COLUMNS. The models on the left, as trees of their model references: what a model
+// TWO COLUMNS OF TREES ('tree', the default). The models on the left, as trees of their model references: what a model
 // references in the row under it, side by side, the model centred over them. The dictionaries on
 // the right, as trees of their references, and the MAT-files under them. Trees sit side by side up
 // to a few boxes wide (three of models, two of data files), and the next starts a row of its own
@@ -13,15 +13,27 @@
 // merge into one line; a block reading its own model's workspace (ws-usage) is routed inside the
 // model's box, on the right of its items.
 //
+// TWO COLUMNS OF INDENTED TREES ('indented'). The same columns, each file a row of its own, what it
+// references in the rows under it, each shifted a step right of it, a line down its left side to
+// each, as a file tree draws it; a reference to a file drawn under another referrer runs round the
+// outside of its column. A column too long for the picture wraps into columns of its own, side by
+// side, whole trees each, decided with every box closed.
+//
 // WHAT FITS. The app shell at 1440 by 900 gives the graph about 900 by 610. Fifteen files (the
 // complex_dataflow set: eight models one tree five leaves wide, five dictionaries one tree three
-// wide, two MAT-files) draw 1890 by 390: the widget's fit stops at 0.7, where a label is near 8px,
-// and shows the models and the start of the gap, to pan from. A model opened is zoomed to with the
-// data its blocks read: PowerTrain and three data files at 0.77, both columns on the screen. The
-// prototype's slots and gap drew the same files 2170 wide; a fit to the window made a label 4px,
-// and at a readable scale the data files were off the screen. A wider picture still is the price of
-// the top-down trees: a tree is as wide as its leaves, and one model referencing four makes the
-// column four boxes wide.
+// wide, two MAT-files):
+//
+//   - in trees, draw 1890 by 390. The widget's fit stops at 0.7, where a label is near 8px, and
+//     shows the models and the start of the gap from the top left, the data files off the screen to
+//     pan to. PowerTrain opened is zoomed to with the three data files its blocks read at 0.77, both
+//     columns on the screen. A tree is as wide as its leaves: a model referencing four, one of
+//     which references two, makes the models' column five boxes wide, and that width is the price
+//     of the prototype's look;
+//   - indented, draw 740 by 540, and fit at 1.0, both columns on the screen; PowerTrain opened is
+//     zoomed to at 0.87, its seventeen blocks and variables the height to fit.
+//
+// The prototype's slots and gap drew the same files 2170 wide: a fit to the window made a label 4px,
+// and at a readable scale the data files were off the screen.
 //
 // WHAT CHANGED FROM THE PROTOTYPE, and why each is a change rather than a port:
 //
@@ -42,6 +54,8 @@
 //   - A cycle or a file two files reference is drawn once, under the first referrer to reach it, as
 //     the prototype did; an edge back up the tree or across one row is routed out of the rows rather
 //     than through the boxes, which the prototype's did not try to do.
+//   - The indented layout is not the prototype's at all: an app chooses it (the widget's `layout`)
+//     for a set of files the top-down trees draw too wide to read.
 //
 // Widths are estimated from the number of characters, not measured: the model has no DOM to
 // measure text with, and the widget draws names with an ellipsis where an estimate was short.
@@ -118,6 +132,24 @@ const SIBLING_GAP = 30;
 const LINK_LANE = 8;
 const MIN_COLUMN_GAP = 120;
 const MAX_COLUMN_GAP = 300;
+// The indented layout's: between the rows of one tree, between one tree and the next in a column,
+// and between the columns a long column wraps into; how far right of its referrer a file it
+// references is drawn, and how far in from the referrer's left edge the line down to it runs; and
+// the lanes round the outside of a column that a reference to a file drawn under another referrer
+// takes, the first this far out from the column and the rest a step further each.
+const INDENTED_ROW_GAP = 16;
+const TREE_GAP = 24;
+const WRAP_GAP = 40;
+const INDENT = 24;
+const TRUNK = 12;
+const LANE_PAD = 10;
+const LANE_STEP = 4;
+// The canvas a long indented column is wrapped for: about the app shell's centre in a 1440 by 900
+// window. And how much larger a wrap must let the picture be drawn there for it to be worth what it
+// costs: an edge to a box of a second run passes under the boxes of the first.
+const WRAP_WIDTH = 900;
+const WRAP_HEIGHT = 600;
+const WRAP_GAIN = 1.2;
 // How many of the column's widest boxes wide a row of trees side by side may be before the next
 // tree starts a row of its own under them: the models' column, and the data files'. Ten files
 // referencing nothing were ten roots in one row, and a fit to the window made every box unreadable.
@@ -185,6 +217,8 @@ function shownItems(graph: RelationshipGraph, expanded: ReadonlySet<string>): Se
   }
   return shown;
 }
+
+// --- The tree layout ----------------------------------------------------------------------
 
 /**
  * One column's files as trees of their references: each tree's root, and the files each file is
@@ -332,6 +366,149 @@ function placeColumn(nodes: Placed[], edges: readonly GraphEdge[], x0: number, y
   return nodes.reduce((low, n) => Math.max(low, n.y + n.height), y0);
 }
 
+// --- The indented layout ------------------------------------------------------------------
+
+/** A file in one column's indented trees: its depth, and the file it is drawn under (null for a root). */
+interface TreeNode {
+  id: string;
+  depth: number;
+  parent: string | null;
+}
+
+/**
+ * One column's files as trees of their references, each tree its files top to bottom: a file, then
+ * the trees of what it references, in the order it references them. The prototype's walk, kept as
+ * it was: the roots are the files nothing references, in order (the first file when every file is
+ * referenced, in a cycle); a file is drawn once, under the first file to reach it; and a file no
+ * root reaches starts a tree of its own.
+ */
+function indentedTrees(ids: readonly string[], edges: readonly GraphEdge[]): TreeNode[][] {
+  const inTree = new Set(ids);
+  const children = new Map<string, string[]>(ids.map((id) => [id, []]));
+  const referenced = new Set<string>();
+  for (const e of edges) {
+    if (!inTree.has(e.from) || !inTree.has(e.to) || e.from === e.to) continue;
+    children.get(e.from)!.push(e.to);
+    referenced.add(e.to);
+  }
+  const roots = ids.filter((id) => !referenced.has(id));
+  if (roots.length === 0 && ids.length > 0) roots.push(ids[0]!);
+  const visited = new Set<string>();
+  const trees: TreeNode[][] = [];
+  const tree = (root: string): void => {
+    const nodes: TreeNode[] = [];
+    const place = (id: string, depth: number, parent: string | null): void => {
+      visited.add(id);
+      nodes.push({ id, depth, parent });
+      // Visited is asked as each child comes up, not before the loop: a child an earlier sibling's
+      // tree reached is that tree's.
+      for (const kid of children.get(id)!) if (!visited.has(kid)) place(kid, depth + 1, id);
+    };
+    place(root, 0, null);
+    trees.push(nodes);
+  };
+  for (const root of roots) if (!visited.has(root)) tree(root);
+  for (const id of ids) if (!visited.has(id)) tree(id);
+  return trees;
+}
+
+/** One column of the indented layout: its trees, the files in them, and how they wrap. */
+interface Column {
+  trees: TreeNode[][];
+  nodes: Map<string, Placed>;
+}
+
+// What a column's trees take, each drawn closed: down, and across with their indents.
+const closedHeight = (tree: readonly TreeNode[]): number => tree.length * BOX_HEADER + (tree.length - 1) * INDENTED_ROW_GAP;
+const treeWidth = (column: Column, tree: readonly TreeNode[]): number =>
+  tree.reduce((w, n) => Math.max(w, n.depth * INDENT + column.nodes.get(n.id)!.width), 0);
+
+/** The trees in order, into runs of no more than `height` each (a tree taller alone keeps its whole height). */
+function wrap(column: Column, height: number): TreeNode[][][] {
+  const runs: TreeNode[][][] = [];
+  let used = 0;
+  for (const tree of column.trees) {
+    const h = closedHeight(tree);
+    if (runs.length === 0 || (used > 0 && used + TREE_GAP + h > height)) {
+      runs.push([]);
+      used = 0;
+    }
+    runs[runs.length - 1]!.push(tree);
+    used += (used > 0 ? TREE_GAP : 0) + h;
+  }
+  return runs;
+}
+
+/** How wide and tall a column is wrapped at `height`, its boxes closed. */
+function extent(column: Column, height: number): { width: number; height: number } {
+  const runs = wrap(column, height);
+  const widths = runs.map((run) => run.reduce((w, t) => Math.max(w, treeWidth(column, t)), 0));
+  const heights = runs.map((run) => run.reduce((h, t) => h + closedHeight(t), (run.length - 1) * TREE_GAP));
+  return { width: widths.reduce((a, w) => a + w, 0) + Math.max(0, runs.length - 1) * WRAP_GAP, height: Math.max(0, ...heights) };
+}
+
+/**
+ * The height both columns wrap at: of the heights a column's trees can end at, the one whose
+ * picture, its boxes closed, a WRAP_WIDTH by WRAP_HEIGHT canvas fits at the largest scale up to its
+ * own size, `across` and `down` the room beside and above and below the columns; one run a column
+ * unless a wrap draws it WRAP_GAIN times larger. So files that nearly fit at full size keep one run
+ * a column, however narrow, and the trees of a large folder are dealt into runs side by side; it is
+ * decided by the boxes closed so that opening one never moves another sideways.
+ */
+function wrapHeight(columns: readonly Column[], across: number, down: number): number {
+  const candidates = new Set<number>();
+  for (const column of columns) {
+    let h = -TREE_GAP;
+    for (const tree of column.trees) candidates.add((h += TREE_GAP + closedHeight(tree)));
+  }
+  const scaleAt = (height: number): number => {
+    const sizes = columns.map((c) => extent(c, height));
+    const width = across + sizes.reduce((w, e) => w + e.width, 0);
+    return Math.min(WRAP_WIDTH / width, WRAP_HEIGHT / (down + Math.max(...sizes.map((e) => e.height))), 1);
+  };
+  // Tallest first, so a tie keeps the fewest runs.
+  const heights = [...candidates].sort((a, b) => b - a);
+  const whole = scaleAt(heights[0]!);
+  let [best, bestScale] = [heights[0]!, whole];
+  for (const height of heights.slice(1)) {
+    const scale = scaleAt(height);
+    if (scale > bestScale + 1e-12) [best, bestScale] = [height, scale];
+  }
+  return bestScale >= whole * WRAP_GAIN ? best : heights[0]!;
+}
+
+/**
+ * Lay one column out from `x0`, `y0`, wrapped at `height`: each run of trees a column of its own,
+ * left to right; in a run, each file a row, as tall as its box, the rows of a tree INDENTED_ROW_GAP apart and
+ * the trees TREE_GAP apart; each file INDENT right of the one it is drawn under. Answers the right
+ * edge of the widest run, or `x0` for none.
+ */
+function placeIndented(column: Column, x0: number, y0: number, height: number): number {
+  let x = x0;
+  let right = x0;
+  for (const run of wrap(column, height)) {
+    let y = y0;
+    let width = 0;
+    run.forEach((tree, t) => {
+      if (t > 0) y += TREE_GAP;
+      tree.forEach((n, i) => {
+        const placed = column.nodes.get(n.id)!;
+        if (i > 0) y += INDENTED_ROW_GAP;
+        placed.x = x + n.depth * INDENT;
+        placed.y = y;
+        y += placed.height;
+        placed.rowBottom = y;
+        width = Math.max(width, n.depth * INDENT + placed.width);
+      });
+    });
+    right = x + width;
+    x = right + WRAP_GAP;
+  }
+  return right;
+}
+
+// --- Both -------------------------------------------------------------------------------
+
 // The widest of some boxes, no narrower than the least a box is.
 const widestOf = (ns: readonly Placed[]): number => ns.reduce((w, n) => Math.max(w, n.width), MIN_BOX_WIDTH);
 
@@ -365,27 +542,24 @@ function route(points: GraphPoint[]): GraphPoint[] {
   return points.filter((p, i) => i === 0 || p.x !== points[i - 1]!.x || p.y !== points[i - 1]!.y);
 }
 
-/**
- * The layout of `graph` with the boxes `expanded` names open: each shows its items, and each other
- * box the items of its own those reach (shownItems). Pure: the same graph and the same open boxes
- * give the same layout.
- */
-export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<string>): GraphLayout {
-  if (graph.boxes.length === 0) return { boxes: [], edges: [], width: 0, height: 0 };
+/** The layouts there are: the prototype's top-down trees (the default), and indented trees. */
+export type GraphLayoutStyle = 'tree' | 'indented';
 
-  const shown = shownItems(graph, expanded);
-  const nodes: Placed[] = graph.boxes.map((box) => {
-    const items = box.items.filter((i) => shown.has(i.id));
-    return { box, items, width: boxWidth(box), height: boxHeight(items), x: 0, y: 0, rowBottom: 0 };
-  });
+/** A lane round the outside of an indented column, and that side. */
+interface Lane {
+  x: number;
+  side: 'left' | 'right';
+}
+
+/**
+ * The tree layout's columns: each column's trees top-down (placeColumn), the models on the left,
+ * the data files right of them `gap` away, the MAT-files under the dictionaries. Answers the
+ * middle of the gap.
+ */
+function placeTrees(nodes: Placed[], kindOf: (kind: GraphEdge['kind']) => GraphEdge[], gap: number): number {
   const models = nodes.filter((n) => n.box.kind === 'model');
   const sldds = nodes.filter((n) => n.box.kind !== 'model' && n.box.kind !== 'mat');
   const mats = nodes.filter((n) => n.box.kind === 'mat');
-  // The left column, then the right one beside it (at the left edge when there are no models), the
-  // gap between them as wide as the data links' lanes need. Decided by the graph, not by what shows,
-  // so opening a box never moves the data files sideways.
-  const kindOf = (kind: GraphEdge['kind']) => graph.edges.filter((e) => e.kind === kind);
-  const gap = columnGap(kindOf('data-link').length);
   placeColumn(models, kindOf('model-ref'), PADDING, PADDING, MODEL_COLUMNS, widestOf(models));
   const leftRight = models.reduce((r, n) => Math.max(r, n.x + n.width), 0);
   const rightX = models.length > 0 ? leftRight + gap : PADDING;
@@ -395,6 +569,72 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
   const slddBottom = placeColumn(sldds, kindOf('sldd-ref'), rightX, PADDING, DATA_COLUMNS, dataWidest);
   // The MAT-files under the dictionaries, each a tree of one, wrapped as they are.
   placeColumn(mats, [], rightX, sldds.length > 0 ? slddBottom + ROW_GAP : PADDING, DATA_COLUMNS, dataWidest);
+  return models.length > 0 ? (leftRight + rightX) / 2 : rightX - gap / 2;
+}
+
+/**
+ * The indented layout's columns: the models' trees, and the dictionaries' then each MAT-file a tree
+ * of one, each column wrapped at the one height (wrapHeight), the data files `gap` right of the
+ * models. A reference that is not the one a file is drawn under takes a lane round the outside of
+ * its column: the models' on their left, the data files' on their right, where no other edge runs.
+ * Answers the middle of the gap, and those lanes by edge.
+ */
+function placeIndentedColumns(
+  nodes: Placed[],
+  kindOf: (kind: GraphEdge['kind']) => GraphEdge[],
+  gap: number,
+): { gapCenter: number; lanes: Map<string, Lane> } {
+  const byId = new Map(nodes.map((n) => [n.box.id, n]));
+  const idsOf = (test: (kind: GraphBox['kind']) => boolean) => nodes.filter((n) => test(n.box.kind)).map((n) => n.box.id);
+  const models: Column = { trees: indentedTrees(idsOf((k) => k === 'model'), kindOf('model-ref')), nodes: byId };
+  const data: Column = {
+    trees: [
+      ...indentedTrees(idsOf((k) => k !== 'model' && k !== 'mat'), kindOf('sldd-ref')),
+      ...idsOf((k) => k === 'mat').map((id) => [{ id, depth: 0, parent: null }]),
+    ],
+    nodes: byId,
+  };
+  const parentOf = new Map([...models.trees, ...data.trees].flat().map((n) => [n.id, n.parent]));
+  const offTree = (kind: GraphEdge['kind']) =>
+    kindOf(kind).filter((e) => byId.has(e.from) && byId.has(e.to) && e.from !== e.to && parentOf.get(e.to) !== e.from);
+  const leftLanes = offTree('model-ref');
+  const rightLanes = offTree('sldd-ref');
+  const room = (n: number): number => (n > 0 ? LANE_PAD + (n - 1) * LANE_STEP : 0);
+
+  const columns = [models, data].filter((c) => c.trees.length > 0);
+  const across = 2 * PADDING + room(leftLanes.length) + room(rightLanes.length) + (columns.length > 1 ? gap : 0);
+  const height = wrapHeight(columns, across, 2 * PADDING);
+  const modelsX = PADDING + room(leftLanes.length);
+  const leftRight = placeIndented(models, modelsX, PADDING, height);
+  const rightX = models.trees.length > 0 ? leftRight + gap : PADDING;
+  const dataRight = placeIndented(data, rightX, PADDING, height);
+
+  const lanes = new Map<string, Lane>();
+  leftLanes.forEach((e, k) => lanes.set(e.id, { x: modelsX - LANE_PAD - k * LANE_STEP, side: 'left' }));
+  rightLanes.forEach((e, k) => lanes.set(e.id, { x: dataRight + LANE_PAD + k * LANE_STEP, side: 'right' }));
+  return { gapCenter: models.trees.length > 0 ? (leftRight + rightX) / 2 : rightX - gap / 2, lanes };
+}
+
+/**
+ * The layout of `graph` with the boxes `expanded` names open: each shows its items, and each other
+ * box the items of its own those reach (shownItems), in the `style` given ('tree', the default, or
+ * 'indented'). Pure: the same graph, open boxes and style give the same layout.
+ */
+export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<string>, style: GraphLayoutStyle = 'tree'): GraphLayout {
+  if (graph.boxes.length === 0) return { boxes: [], edges: [], width: 0, height: 0 };
+
+  const shown = shownItems(graph, expanded);
+  const nodes: Placed[] = graph.boxes.map((box) => {
+    const items = box.items.filter((i) => shown.has(i.id));
+    return { box, items, width: boxWidth(box), height: boxHeight(items), x: 0, y: 0, rowBottom: 0 };
+  });
+  // The left column, then the right one beside it (at the left edge when there are no models), the
+  // gap between them as wide as the data links' lanes need. Decided by the graph, not by what shows,
+  // so opening a box never moves the data files sideways.
+  const kindOf = (kind: GraphEdge['kind']) => graph.edges.filter((e) => e.kind === kind);
+  const gap = columnGap(kindOf('data-link').length);
+  const indented = style === 'indented' ? placeIndentedColumns(nodes, kindOf, gap) : null;
+  const gapCenter = indented ? indented.gapCenter : placeTrees(nodes, kindOf, gap);
 
   // The boxes and their items, and every drawn thing's rectangle by id, for the routes.
   const rects = new Map<string, GraphRect>();
@@ -427,8 +667,9 @@ export function layoutGraph(graph: RelationshipGraph, expanded: ReadonlySet<stri
     rects,
     rowBottom,
     boxOf,
-    gapCenter: models.length > 0 ? (leftRight + rightX) / 2 : rightX - gap / 2,
+    gapCenter,
     gap,
+    lanes: indented?.lanes ?? null,
   });
 
   // The canvas: everything drawn, with the margin on the right and at the bottom too.
@@ -459,14 +700,23 @@ interface RouteContext {
   gapCenter: number;
   /** The gap's width. */
   gap: number;
+  /**
+   * In the indented layout, the lane round the outside of its column of each reference not drawn
+   * along its tree; null in the tree layout, whose references are routed between its rows.
+   */
+  lanes: Map<string, Lane> | null;
 }
 
 /**
  * The routes, in the order given. Each kind as the prototype routed it:
  *
- *   - a reference (model-ref, sldd-ref) leaves the bottom middle of the referrer and reaches the top
- *     middle of what it references, turning in the gap over the target's row; one back up the tree
- *     leaves the top and reaches the bottom, and one across a row passes under the row;
+ *   - a reference (model-ref, sldd-ref), in the tree layout, leaves the bottom middle of the
+ *     referrer and reaches the top middle of what it references, turning in the gap over the
+ *     target's row; one back up the tree leaves the top and reaches the bottom, and one across a row
+ *     passes under the row. In the indented layout, one to a file drawn under its referrer leaves the
+ *     referrer's bottom near its left edge, runs down and reaches the file's left side by its label,
+ *     as a file tree's lines do; any other leaves its side and reaches the file's on a lane of its
+ *     own round the outside of the column;
  *   - a data-link leaves its model's side and reaches its file's, on a lane of its own in the gap
  *     between the columns, at a port spread along each box's side so that two edges of one box do
  *     not leave at one point;
@@ -475,7 +725,7 @@ interface RouteContext {
  *   - a ws-usage from the block's right to the variable's right, on a lane in the box's own margin.
  */
 function routeEdges(edges: readonly GraphEdge[], at: RouteContext): EdgeLayout[] {
-  const { rects, rowBottom, boxOf, gapCenter, gap } = at;
+  const { rects, rowBottom, boxOf, gapCenter, gap, lanes: outside } = at;
   const rect = (id: string): GraphRect => rects.get(id)!;
   const byId = new Map(edges.map((e) => [e.id, e]));
   const of = (...kinds: GraphEdge['kind'][]) => edges.filter((e) => kinds.includes(e.kind));
@@ -546,6 +796,7 @@ function routeEdges(edges: readonly GraphEdge[], at: RouteContext): EdgeLayout[]
     switch (e.kind) {
       case 'model-ref':
       case 'sldd-ref':
+        if (outside) return { id: e.id, points: reference(s, t, outside.get(e.id)) };
         return { id: e.id, points: vertical(s, t, rowBottom.get(e.from) ?? bottom(s), rowBottom.get(e.to) ?? bottom(t)) };
       case 'ws-usage': {
         const { from, to } = portY.get(e.id)!;
@@ -607,4 +858,23 @@ function vertical(s: GraphRect, t: GraphRect, sRow: number, tRow: number): Graph
   }
   if (straight) return route([from, to]);
   return route([from, { x: sx, y }, { x: tx, y }, to]);
+}
+
+// Where a reference reaches a box, and leaves one by its side: by its label, the middle of a closed
+// box and of an open one's header.
+const headY = (r: GraphRect): number => r.y + (r.height === BOX_HEADER ? BOX_HEADER : OPEN_HEADER) / 2;
+
+/**
+ * A reference's route from `s` to `t` in the indented layout. Along the tree (no `lane`): down from `s`'s bottom, TRUNK in
+ * from its left edge, to the level of `t`'s label, and right to `t`'s left side, which is INDENT in
+ * from `s`'s. Round the outside: from the side of `s` to the lane, along it, and to the same side of
+ * `t`, each at its label.
+ */
+function reference(s: GraphRect, t: GraphRect, lane: Lane | undefined): GraphPoint[] {
+  if (!lane) {
+    const x = s.x + TRUNK;
+    return route([{ x, y: bottom(s) }, { x, y: headY(t) }, { x: t.x, y: headY(t) }]);
+  }
+  const [sx, tx] = lane.side === 'left' ? [s.x, t.x] : [right(s), right(t)];
+  return route([{ x: sx, y: headY(s) }, { x: lane.x, y: headY(s) }, { x: lane.x, y: headY(t) }, { x: tx, y: headY(t) }]);
 }

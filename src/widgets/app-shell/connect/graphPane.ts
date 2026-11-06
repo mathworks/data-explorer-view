@@ -21,6 +21,7 @@ import { graphFilePage } from '../../../model/inspector/inspectorPages.js';
 import type { PropertyGroup } from '../../../model/inspector/piBuilder.js';
 import { buildRelationshipGraph } from '../../../model/graph/relationshipGraph.js';
 import { graphIdOf, type GraphBox, type GraphEdgeKind, type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import type { GraphLayoutStyle } from '../../../model/graph/layout.js';
 import { buildSectionRowId } from '../../../model/ids/sectionRowId.js';
 import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import { sourceUri } from '../../../model/source/sourceUri.js';
@@ -102,6 +103,11 @@ export interface GraphPane {
    * referenced by `target`, its name, looked for from the selected file as a ghost is.
    */
   openLink(target: string): void;
+  /**
+   * Draw the graph in `layout`: 'tree', the prototype's top-down trees (the element's default), or
+   * 'indented'. For a setting to choose; the element lays the graph out again and fits it.
+   */
+  setLayout(layout: GraphLayoutStyle): void;
   dispose(): void;
 }
 
@@ -327,6 +333,9 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       if (box) return context.open(box.uri);
       const from = selectedFile()?.box;
       openRef(target, from && !from.ghost ? from.uri : undefined);
+    },
+    setLayout(layout) {
+      el.layout = layout;
     },
     dispose() {
       disposed = true;
