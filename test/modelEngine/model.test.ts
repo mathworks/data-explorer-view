@@ -144,19 +144,32 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.deepStrictEqual(rules.rules, []);
   });
 
-  it("opens a model Simulink did not package for viewing only, saying why in a user's words, not the package's", async () => {
-    // A package with no [Content_Types].xml, which names its parts: core's reason names that part,
-    // which means nothing to someone who only saved a model.
-    const parts = unzipSync(model('slxcases.slx'));
-    assert.ok(parts['[Content_Types].xml']);
-    delete parts['[Content_Types].xml'];
-    const o = await open('unpackaged.slx', zipSync(parts), { file: MODEL_FILE });
+  for (const part of ['[Content_Types].xml', '_rels/.rels']) {
+    it(`opens a model Simulink did not package (no ${part}) for viewing only, saying why in a user's words, not the package's`, async () => {
+      // The parts every package Simulink writes holds, which name its other parts: core's reason
+      // names the one missing, which means nothing to someone who only saved a model.
+      const parts = unzipSync(model('slxcases.slx'));
+      assert.ok(parts[part]);
+      delete parts[part];
+      const o = await open('unpackaged.slx', zipSync(parts), { file: MODEL_FILE });
+      const set = o.view.posts.find((p) => p.type === 'setRows');
+      assert.strictEqual(set.editable, false);
+      assert.strictEqual(
+        set.notice,
+        'Read-only: unpackaged.slx is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.',
+      );
+    });
+  }
+
+  it("keeps core's words for a part of a model's package that could not be read, which says which", async () => {
+    // A part named __proto__, which no reader holds under that name: listed, and not among the parts.
+    const zip = zipSync({ ...unzipSync(model('slxcases.slx')), XXXXXXXXX: new Uint8Array([1, 2]) });
+    const [from, to] = [new TextEncoder().encode('XXXXXXXXX'), new TextEncoder().encode('__proto__')];
+    for (let i = 0; i + from.length <= zip.length; i++) if (from.every((b, j) => zip[i + j] === b)) zip.set(to, i);
+    const o = await open('proto.slx', zip, { file: MODEL_FILE });
     const set = o.view.posts.find((p) => p.type === 'setRows');
     assert.strictEqual(set.editable, false);
-    assert.strictEqual(
-      set.notice,
-      'Read-only: unpackaged.slx is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.',
-    );
+    assert.strictEqual(set.notice, 'Read-only: Cannot edit "proto.slx": its part "__proto__" could not be read, so a save would lose it.');
   });
 
   it('edits the workspace of a model saved before R2019b, a whole MAT-file', async () => {
