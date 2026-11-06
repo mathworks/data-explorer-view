@@ -3,7 +3,7 @@
 //
 // What the status bar says of the active tab (<dex-shell-status>, which connectShell puts in the
 // shell's status slot): the file's format as a small uppercase pill ("SLDD"), its kind in words as
-// the pill's tooltip, and "Modified" in the warning colour while the tab holds unsaved edits. The
+// the pill's tooltip and what a screen reader hears of it, and "Modified" in the warning colour while the tab holds unsaved edits. The
 // words have to be read on the status bar in every theme: the warning ink is 4.05:1 on the light
 // bar itself, under WCAG AA's 4.5, so "Modified" sits on a chip of the page's surface, where it
 // is 4.6:1 or better; the pill's ink is the text's, on the badge's wash over the bar. happy-dom
@@ -76,15 +76,26 @@ function contrast(a: readonly number[], b: readonly number[]): number {
 describe('<dex-shell-status>', () => {
   it("draws the format as a pill, the kind in words its tooltip, and no Modified mark while there are no edits", async () => {
     const el = await mount({ format: 'SLDD', kind: 'Data dictionary' });
-    expect(pill(el)!.textContent).toBe('SLDD');
+    expect(pill(el)!.querySelector('[aria-hidden="true"]')!.textContent).toBe('SLDD');
     expect(pill(el)!.title).toBe('Data dictionary');
     expect(getComputedStyle(pill(el)!).textTransform).toBe('uppercase');
     expect(mark(el)).toBeNull();
   });
 
+  it('says the kind in words to a screen reader, in place of the format it would spell out', async () => {
+    // "SLDD Modified" was what a screen reader heard of the bar.
+    const el = await mount({ format: 'SLDD', kind: 'Data dictionary' });
+    const said = pill(el)!.querySelector<HTMLElement>('.sr-only')!;
+    expect(said.textContent).toBe('Data dictionary');
+    expect(getComputedStyle(said).position).toBe('absolute');
+    expect(getComputedStyle(said).width).toBe('1px');
+    // Shown, the format alone; heard, the kind alone.
+    expect([...pill(el)!.childNodes].filter((n) => n.nodeType === Node.ELEMENT_NODE).map((n) => (n as Element).className || (n as Element).getAttribute('aria-hidden'))).toEqual(['true', 'sr-only']);
+  });
+
   it('says Modified after the pill while the file holds edits', async () => {
     const el = await mount({ format: 'MAT', kind: 'MAT-file', modified: true });
-    expect([...el.shadowRoot!.querySelectorAll('span')].map((s) => s.textContent)).toEqual(['MAT', 'Modified']);
+    expect([pill(el)!.querySelector('[aria-hidden="true"]')!.textContent, mark(el)!.textContent]).toEqual(['MAT', 'Modified']);
   });
 
   it('draws nothing for no file, or one of no kind it names', async () => {
@@ -119,7 +130,9 @@ describe('statusOf', () => {
     expect(statusOf(tab('/w/m.slx', true))).toEqual({ format: 'SLX', kind: 'Simulink model', modified: true });
     expect(statusOf(tab('/w/old.mdl'))).toEqual({ format: 'MDL', kind: 'Simulink model', modified: false });
     expect(statusOf(tab('/w/ParamMat.mat'))).toEqual({ format: 'MAT', kind: 'MAT-file', modified: false });
-    expect(statusOf(tab('/w/p/matlab.toml'))).toEqual({ format: 'TOML', kind: 'Project', modified: false });
+    // A project by its kind: its file's extension (matlab.toml's, a .prj's) is no format a user knows it by.
+    expect(statusOf(tab('/w/p/matlab.toml'))).toEqual({ format: 'PROJECT', kind: 'Project', modified: false });
+    expect(statusOf(tab('/w/p/plant.prj'))).toEqual({ format: 'PROJECT', kind: 'Project', modified: false });
     expect(statusOf(undefined)).toEqual({ format: '', kind: '', modified: false });
     expect(statusOf(tab('/w/notes.txt', true))).toEqual({ format: '', kind: '', modified: false });
   });

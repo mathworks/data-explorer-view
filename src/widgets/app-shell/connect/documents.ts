@@ -88,13 +88,16 @@ export interface FileStatus {
 
 /**
  * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
- * extension (`SLDD`, `SLX`, `MDL`, `MAT`), its kind in words (`Data dictionary`), and whether it
- * holds unsaved edits. Nothing for no tab, or a file of no kind the shell names.
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
+ * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
+ * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
+ * shell names.
  */
 export function statusOf(tab: Pick<OpenTab, 'path' | 'dirty'> | undefined): FileStatus {
   const group = tab ? fileGroupOf(tab.path) : 'other';
   if (!tab || group === 'other') return { format: '', kind: '', modified: false };
-  return { format: extOf(tab.path).slice(1).toUpperCase(), kind: FILE_FORMATS[group], modified: !!tab.dirty };
+  const format = group === 'project' ? FILE_FORMATS.project.toUpperCase() : extOf(tab.path).slice(1).toUpperCase();
+  return { format, kind: FILE_FORMATS[group], modified: !!tab.dirty };
 }
 
 /**

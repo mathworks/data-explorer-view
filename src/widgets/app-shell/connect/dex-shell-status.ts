@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // What the status bar says of the active tab: its file's format as a small uppercase pill
-// ("SLDD"), with the kind of file in words as its tooltip ("Data dictionary"), and "Modified" in the
+// ("SLDD"), with the kind of file in words as its tooltip ("Data dictionary") and as what a screen
+// reader hears of it (which spelled the format out: "S L D D Modified"), and "Modified" in the
 // warning colour while the tab holds unsaved edits. An internal part of connectShell's, in the
 // shell's status slot. Text on its own could be neither a pill nor coloured on a strict page, which
 // refuses a style attribute, so the status draws itself.
@@ -56,6 +57,16 @@ export class DexShellStatus extends LitElement {
       font-weight: 600;
     }
 
+    /* What a screen reader hears of the pill, and no one sees. */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
     /* Forced colours paint both surfaces over with the page's: an outline keeps each a mark. */
     @media (forced-colors: active) {
       .format,
@@ -67,16 +78,18 @@ export class DexShellStatus extends LitElement {
 
   /** The file's format, as the pill says it (`SLDD`). Default empty: nothing is drawn. Attribute `format`. */
   @property({ type: String }) format = '';
-  /** The kind of file in words, the pill's tooltip (`Data dictionary`). Default empty: none. Attribute `kind`. */
+  /** The kind of file in words, the pill's tooltip and what a screen reader hears of it (`Data dictionary`). Default empty: the format. Attribute `kind`. */
   @property({ type: String }) kind = '';
   /** The file holds unsaved edits: Modified is drawn after the pill. Default false. Attribute `modified`. */
   @property({ type: Boolean }) modified = false;
 
   override render() {
     if (!this.format) return nothing;
-    return html`<span class="format" title=${this.kind || nothing}>${this.format}</span>${this.modified
-        ? html`<span class="modified">Modified</span>`
-        : nothing}`;
+    // Seen, the format; heard, the kind (or the format, for a status that names none).
+    const heard = this.kind || this.format;
+    return html`<span class="format" title=${this.kind || nothing}
+        ><span aria-hidden="true">${this.format}</span><span class="sr-only">${heard}</span></span
+      >${this.modified ? html`<span class="modified">Modified</span>` : nothing}`;
   }
 }
 
