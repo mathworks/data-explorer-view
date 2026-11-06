@@ -83,12 +83,11 @@ describe('the toolbar', () => {
     };
     const dictionary = await opened('params.sldd');
     expect(dictionary.enabled).toContain('save-as');
-    expect(dictionary.enabled).not.toEqual(expect.arrayContaining(['save']));
-    expect(['copy', 'cut', 'delete', 'save'].filter((id) => dictionary.enabled.includes(id))).toEqual([]);
+    expect(['copy', 'cut', 'delete', 'add-child', 'save'].filter((id) => dictionary.enabled.includes(id))).toEqual([]);
     expect(dictionary.sections).toBeGreaterThan(0);
     // A model kept for viewing only: no change follows its paint, which is all there is to draw from.
     const model = await opened('legacy_ctrl.mdl');
-    expect(['copy', 'delete', 'save', 'save-as'].filter((id) => model.enabled.includes(id))).toEqual([]);
+    expect(['copy', 'delete', 'add-child', 'save', 'save-as'].filter((id) => model.enabled.includes(id))).toEqual([]);
     expect(model.sections).toBeGreaterThan(0);
     expect(galleryPanel().note).toBe('legacy_ctrl.mdl takes no edits.');
     // Copy and Delete once a row is selected, as its menu has them.
