@@ -12,16 +12,28 @@
 //
 // DOM-free, and with no import at run time, so a main process that bundles it bundles nothing else.
 import type { SourceFile } from 'data-explorer-core';
+import type { FolderEntry } from '../hierarchy/folderEntries.js';
 import type { FolderHierarchyOptions } from '../hierarchy/folderHierarchy.js';
 import type { FolderFileList } from '../hierarchy/folderList.js';
 import type { GraphReader } from '../hierarchy/graphSources.js';
 import type { FolderHostMessage, TablePort } from './wire.js';
 
 /**
- * A folder and how to read it: the `files` and the `reader` a FolderHierarchy is given. Served
- * from where the files are (serveFolder), or given to a FolderHierarchy beside them.
+ * A folder and how to read it: the `files` and the `reader` a FolderHierarchy is given, and for
+ * a tree of every entry (FolderTree) its folders one level at a time. Served from where the files
+ * are (serveFolder), or given to a FolderHierarchy beside them.
  */
-export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'>;
+export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'> & {
+  /**
+   * One level of `dir`. Absent: the served folder answers an `entries` ask with `refused`.
+   *
+   * `dir` is the page's, not trusted: list only a folder this host serves (its root, or a folder
+   * inside it, by a path as these entries name them), and throw for any other, with the reason the
+   * page's call rejects with. A folder that cannot be read throws too (its permissions, gone). The
+   * order is the host's own: the page sorts (sortEntries).
+   */
+  entries?(dir: string): Promise<readonly FolderEntry[]>;
+};
 
 /** How serveFolder answers. */
 export interface ServeFolderOptions {
@@ -53,8 +65,12 @@ export interface FolderServer {
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
-/** The one reason a question is refused: it names nothing the host listed. */
+/** The reason a question about a file is refused: it names nothing the host listed. */
 const NOT_LISTED = 'Not a file of the folder.';
+/** The reason an `entries` ask is refused by a host that lists no entries (FolderReads.entries absent). */
+const NO_ENTRIES = 'This folder lists no entries.';
+/** The reason an `entries` ask is refused when its folder is not a path. */
+const NO_DIR = 'No folder named.';
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null;
@@ -72,6 +88,8 @@ interface TransferPort {
  *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
+ * - `entries` with what `folder.entries` lists of the question's `dir`, each entry's name, path
+ *   and kind alone, or `refused` when the folder lists no entries or `dir` is not a string;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
  *   hold (outside the folder, with `..`, a look-alike prefix, another scheme or spelling), none,
  *   one asked before any listing, an `ask` the wire does not have;
@@ -81,7 +99,9 @@ interface TransferPort {
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  * A project store is whatever the reader's `projectStore` answers for a listed file, which need
  * not be a project's marker: a reader decides which files have a store, and one that reads the
- * folder beside any file it is given lets the page read that much.
+ * folder beside any file it is given lets the page read that much. A folder's entries are the
+ * names `folder.entries` lists for a folder the page names, which is the host's to refuse
+ * (FolderReads.entries): no file is read for them.
  *
  * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
  * listens on the port (a table's, for one).
@@ -148,6 +168,14 @@ export function serveFolder(folder: FolderReads, port: TablePort, options: Serve
           const { files, truncated } = await list();
           return truncated ? { value: files, truncated: true } : { value: files };
         });
+      case 'entries': {
+        if (!folder.entries) return post({ type: 'folderAnswer', id, refused: NO_ENTRIES });
+        if (typeof m.dir !== 'string') return post({ type: 'folderAnswer', id, refused: NO_DIR });
+        const entries = folder.entries.bind(folder);
+        const dir = m.dir;
+        // Just what the wire carries, as a listing's files are: a host's entries may hold more.
+        return answer(id, async () => ({ value: (await entries(dir)).map(({ name, path, kind }) => ({ name, path, kind })) }));
+      }
       case 'version':
       case 'bytes':
       case 'projectStore': {

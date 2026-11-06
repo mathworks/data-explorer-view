@@ -20,6 +20,7 @@
 import type { SourceFile } from 'data-explorer-core';
 import type { DropFacts } from '../actions/dropFacts.js';
 import type { SectionRule } from '../actions/sectionRules.js';
+import type { FolderEntry } from '../hierarchy/folderEntries.js';
 import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
@@ -405,9 +406,15 @@ export type TableEditHostMessage =
 // with a prefix that looks like the folder's, of another scheme, or another spelling of a listed
 // one: nothing is decoded, resolved or normalised) is refused, and nothing is read for it. A
 // project store is answered only for a listed file, from beside it, by the host's reader.
+//
+// A FOLDER'S ENTRIES ARE THE HOST'S TO REFUSE. An `entries` ask names a folder by its path, which
+// no listing holds (the index lists files, and the folders it would name are any the user opens),
+// so it is matched against nothing here: the host's `entries` (FolderReads.entries) is what lists
+// only the folders it serves, and throws for any other, the error the page's call rejects with.
+// What it answers is names and kinds, never a file's bytes: those are still only a listed file's.
 
-/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
-export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
+/** What a `folderRequest` asks: the folder's files, a version, the bytes or the project store of one of them, or one level of a folder. */
+export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore' | 'entries';
 
 /**
  * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
@@ -419,14 +426,19 @@ export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
  *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
  *   and nothing is read: a page can have the host read only the files the host listed. So is a
  *   question asked before the host has listed the folder, and an `ask` of no other name.
+ * - `entries`: one level of the folder `dir`, as the host's `entries` lists it (FolderEntry[]),
+ *   asked whether or not the folder is listed. `refused` when the host lists no entries, or when
+ *   `dir` is not a string; an error when the host cannot list that folder, or will not.
  */
 export interface FolderRequestMessage {
   type: 'folderRequest';
   /** Which answer is this question's: no other question of the same reader waiting has it. */
   id: number;
   ask: FolderAsk;
-  /** The file asked about, by its uriString. Not on a `list`. */
+  /** The file asked about, by its uriString. Not on a `list` or an `entries`. */
   uri?: string;
+  /** The folder asked about, on an `entries` ask (its path, as the entries' paths are). */
+  dir?: string;
 }
 
 /**
@@ -434,18 +446,19 @@ export interface FolderRequestMessage {
  *
  * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
  * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
- * `projectStore`, a ProjectStore or null.
+ * `projectStore`, a ProjectStore or null; of `entries`, the folder's entries (`FolderEntry[]`,
+ * each its name, path and kind alone, in the host's order: the page sorts them).
  */
 export interface FolderAnswerMessage {
   type: 'folderAnswer';
   id: number;
-  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | null;
+  value?: SourceFile[] | string | ArrayBuffer | ProjectStore | FolderEntry[] | null;
   /** Why there is no value: what the host's listing or reading threw. The question rejects with it. */
   error?: string;
   /**
    * Why the host did not answer: the question names no file of its last listing (or asks what the
-   * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
-   * was not given.
+   * wire does not), or asks for entries the host does not list. Nothing was read. The page's call
+   * answers null, as a reader does for a file it was not given.
    */
   refused?: string;
   /**

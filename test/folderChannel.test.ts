@@ -16,6 +16,7 @@ import {
   folderFileList,
   folderReader,
   sourceUri,
+  type FolderEntry,
   type GraphReader,
   type TablePort,
 } from '../src/model/index.js';
@@ -283,6 +284,132 @@ describe('a listing cut short', () => {
       ['group', 'w'],
       ['notice', 'Only the first 2 files are shown'],
     ]);
+  });
+});
+
+describe('one level of a folder', () => {
+  // The Folder view's listing, beside the index's: a folder's entries, asked as a folder row
+  // opens. The host lists them however it reads a folder; the page has them in one order.
+  const listing = (dir: string): FolderEntry[] => [
+    { name: 'b.sldd', path: `${dir}/b.sldd`, kind: 'data' },
+    { name: 'notes.md', path: `${dir}/notes.md`, kind: 'other' },
+    { name: 'models', path: `${dir}/models`, kind: 'folder' },
+    { name: 'A.slx', path: `${dir}/A.slx`, kind: 'data' },
+  ];
+
+  it("answers the host's entries of the folder asked, sorted, and asks with the folder as the page names it", async () => {
+    const asked: string[] = [];
+    const folder: FolderReads = { ...memoryFolder({}), entries: async (dir) => (asked.push(dir), listing(dir)) };
+    const [host, page] = channel();
+    const server = serveFolder(folder, host);
+    // The page's end, recording what it sends: the request as the host's end receives it.
+    const sent: Record<string, unknown>[] = [];
+    const recording: TablePort = { postMessage: (m) => (sent.push(m as Record<string, unknown>), page.postMessage(m)), onMessage: (l) => page.onMessage(l) };
+    const reader = folderReader(recording);
+    stops.push(() => (server.dispose(), reader.dispose()));
+    // Before any listing: a folder's entries are not the index's files.
+    expect(await reader.entries('/w')).toEqual([
+      { name: 'models', path: '/w/models', kind: 'folder' },
+      { name: 'A.slx', path: '/w/A.slx', kind: 'data' },
+      { name: 'b.sldd', path: '/w/b.sldd', kind: 'data' },
+      { name: 'notes.md', path: '/w/notes.md', kind: 'other' },
+    ]);
+    // A path in another scheme, with what a uri would encode: across unchanged.
+    const odd = 'C:\\work\\my plant@corp #2';
+    expect((await reader.entries(odd))?.map((e) => e.path)).toEqual([`${odd}/models`, `${odd}/A.slx`, `${odd}/b.sldd`, `${odd}/notes.md`]);
+    expect(asked).toEqual(['/w', odd]);
+    expect(sent).toEqual([
+      { type: 'folderRequest', id: 1, ask: 'entries', dir: '/w' },
+      { type: 'folderRequest', id: 2, ask: 'entries', dir: odd },
+    ]);
+  });
+
+  it("carries only an entry's name, path and kind", async () => {
+    const extra = () => 'not cloneable';
+    const folder: FolderReads = {
+      ...memoryFolder({}),
+      entries: async () => [{ name: 'a.sldd', path: '/w/a.sldd', kind: 'data', stat: extra } as FolderEntry],
+    };
+    const { reader } = across(folder);
+    expect(await reader.entries('/w')).toEqual([{ name: 'a.sldd', path: '/w/a.sldd', kind: 'data' }]);
+  });
+
+  it('answers null from a host that lists no entries, which refuses the ask and reads nothing', async () => {
+    const { reader, page } = across(memoryFolder({}));
+    const raw: Record<string, unknown>[] = [];
+    stops.push(page.onMessage((m) => void raw.push(m as Record<string, unknown>)));
+    expect(await reader.entries('/w')).toBeNull();
+    expect(raw).toEqual([{ type: 'folderAnswer', id: 1, refused: 'This folder lists no entries.' }]);
+    expect(read).toEqual([]);
+  });
+
+  it('answers null from a host that has no `entries` ask at all, as one older than it refuses any', async () => {
+    // A host from before the ask: every ask it does not know is refused (wire.ts).
+    const [host, page] = channel();
+    const unlisten = host.onMessage((m) => {
+      const { id } = m as { id: number };
+      host.postMessage({ type: 'folderAnswer', id, refused: 'Not a file of the folder.' });
+    });
+    const reader = folderReader(page);
+    stops.push(() => (unlisten(), reader.dispose()));
+    expect(await reader.entries('/w')).toBeNull();
+  });
+
+  it("rejects with the host's message when its listing of the folder throws", async () => {
+    const folder: FolderReads = {
+      ...memoryFolder({}),
+      entries: async () => {
+        throw new Error("EACCES: permission denied, scandir '/w/locked'");
+      },
+    };
+    const { reader } = across(folder);
+    await expect(reader.entries('/w/locked')).rejects.toThrow("EACCES: permission denied, scandir '/w/locked'");
+  });
+
+  it('reads an answer in the shape it can use: entries of another shape are dropped, no list is a failure', async () => {
+    const [host, page] = channel();
+    let value: unknown = [
+      { name: 'b.sldd', path: '/w/b.sldd', kind: 'data' },
+      { name: 7, path: '/w/7', kind: 'data' },
+      { name: 'x', path: '/w/x', kind: 'symlink' },
+      { name: 'y' },
+      null,
+      { name: 'a', path: '/w/a', kind: 'folder' },
+    ];
+    const unlisten = host.onMessage((m) => {
+      const { id } = m as { id: number };
+      host.postMessage({ type: 'folderAnswer', id, value });
+    });
+    const reader = folderReader(page);
+    stops.push(() => (unlisten(), reader.dispose()));
+    expect(await reader.entries('/w')).toEqual([
+      { name: 'a', path: '/w/a', kind: 'folder' },
+      { name: 'b.sldd', path: '/w/b.sldd', kind: 'data' },
+    ]);
+    value = { name: 'a' };
+    await expect(reader.entries('/w')).rejects.toThrow("The folder's host sent no entries of the folder.");
+  });
+
+  it.each([
+    ['no folder', {}],
+    ['a number', { dir: 42 }],
+    ['an object', { dir: { path: '/w' } }],
+  ])('refuses a raw request with %s for the folder, and lists nothing', async (_why, dir) => {
+    const asked: unknown[] = [];
+    const folder: FolderReads = { ...memoryFolder({}), entries: async (d) => (asked.push(d), []) };
+    const [host, page] = channel();
+    const server = serveFolder(folder, host);
+    const answers = new Map<number, Record<string, unknown>>();
+    const unlisten = page.onMessage((m) => {
+      const a = m as Record<string, unknown>;
+      if (a?.type === 'folderAnswer' && typeof a.id === 'number') answers.set(a.id, a);
+    });
+    stops.push(() => (server.dispose(), unlisten()));
+    page.postMessage({ type: 'folderRequest', id: 1, ask: 'entries', ...dir });
+    page.postMessage({ type: 'folderRequest', id: 2, ask: 'entries', dir: '/w' });
+    await until(() => answers.has(2));
+    expect(answers.get(1)).toEqual({ type: 'folderAnswer', id: 1, refused: 'No folder named.' });
+    expect(asked).toEqual(['/w']);
   });
 });
 
