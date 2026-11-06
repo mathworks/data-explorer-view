@@ -74,6 +74,13 @@ export interface EditingWire {
   menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
   /** A menu item was chosen; false for one that is not the editing menu's. */
   act(actionId: string, anchorRowId: string | null): boolean;
+  /**
+   * Whether the editing menu for the current selection, anchored at its first row as a chord's is,
+   * offers `actionId` enabled, where the document may be edited.
+   */
+  can(actionId: string): boolean;
+  /** Do what that item does, as its chord would; false, and nothing done, where `can` is false. */
+  run(actionId: string): boolean;
   /** Settled once every cell edit handed to the source so far is the document's, or refused. */
   editsSettled(): Promise<void>;
   /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
@@ -216,6 +223,29 @@ export function wireEditing(host: EditingHost): EditingWire {
     return true;
   };
 
+  // The gesture the editing menu's item `actionId` stands for on the CURRENT selection, or undefined
+  // where that item is not one to do: the document may not be edited, or the menu for the selection
+  // omits the item (a section selection offers no Copy at all) or disables it. The primary selection
+  // anchors it, the way the right-clicked row anchors the menu's: it is what a paste targets the
+  // section of. With nothing selected the anchor is no row, and the menu for that offers only Paste
+  // (enabled only where the document is one target: an empty MAT-file pastes into the file, a
+  // dictionary has nowhere to put it) and Undo/Redo. The chords and the handle's run() and can() all
+  // ask this, so a toolbar button, its chord and its menu item cannot disagree; nothing here
+  // re-derives enablement, the menu for the selection IS the authority.
+  const gestureFor = (actionId: string): (() => void) | undefined => {
+    if (!editable) return undefined;
+    const anchorRowId = host.selectedRowIds()[0] ?? null;
+    const item = menuFor(anchorRowId).find((i) => i.id === actionId);
+    if (!item || item.disabled) return undefined;
+    return () => void act(actionId, anchorRowId);
+  };
+  const can = (actionId: string): boolean => gestureFor(actionId) !== undefined;
+  const run = (actionId: string): boolean => {
+    const gesture = gestureFor(actionId);
+    gesture?.();
+    return gesture !== undefined;
+  };
+
   // The predictor injected into the table: given the row under the cursor ('' for the
   // empty body) and the drag mode, run the pure dropDecision against the broadcast drag
   // descriptor and this document's section rules. Returns null when there's no active drag or
@@ -282,10 +312,11 @@ export function wireEditing(host: EditingHost): EditingWire {
   );
 
   // Cut/Copy/Paste/Delete keyboard shortcuts — the keyboard half of the menu's actions (whose
-  // labels advertise these chords). Enablement is not re-derived here: the menu for the current
-  // selection IS the authority, so the chord does exactly what clicking that item would, on
-  // exactly the same rows. Capture phase, so it runs before the table's own key handling;
-  // skipped while a cell editor or the filter input is focused (there the chord is text editing).
+  // labels advertise these chords). Enablement is not re-derived here: the chord is the gesture
+  // gestureFor finds for the current selection, so it does exactly what clicking that item would,
+  // on exactly the same rows, and what the handle's run() does. Capture phase, so it runs before
+  // the table's own key handling; skipped while a cell editor or the filter input is focused (there
+  // the chord is text editing).
   host.listen(
     'keydown',
     (e) => {
@@ -296,19 +327,13 @@ export function wireEditing(host: EditingHost): EditingWire {
       // While typing in the inline cell editor, the search box or the column filter, C/X/V
       // and Delete/Backspace are text editing — let the field handle them natively.
       if (isTypingInField(ev)) return;
-      // The primary selection anchors the gesture, the same way the right-clicked row does:
-      // it is what a paste targets the section of. With nothing selected the anchor is no row,
-      // and the menu for that offers only Paste — enabled only where the document is one
-      // target (an empty MAT-file pastes into the file), so a dictionary's Cmd+V with nothing
-      // selected still does nothing.
-      const anchorRowId = host.selectedRowIds()[0] ?? null;
-      // Absent (a section selection offers no Copy at all) or disabled → do nothing, and let
-      // the key through rather than swallowing it.
-      const item = menuFor(anchorRowId).find((i) => i.id === action);
-      if (!item || item.disabled) return;
+      // No gesture (the item absent or disabled) → do nothing, and let the key through rather
+      // than swallowing it. A dictionary's Cmd+V with nothing selected is such a key.
+      const gesture = gestureFor(action);
+      if (!gesture) return;
       ev.preventDefault();
       ev.stopPropagation();
-      act(action, anchorRowId);
+      gesture();
     },
     true,
   );
@@ -495,6 +520,8 @@ export function wireEditing(host: EditingHost): EditingWire {
     editable: () => editable,
     menuFor,
     act,
+    can,
+    run,
     editsSettled: () => Promise.all([...writing]).then(() => undefined),
     history,
   };

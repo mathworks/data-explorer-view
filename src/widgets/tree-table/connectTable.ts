@@ -234,6 +234,20 @@ export interface TableHandle extends InspectorFeed {
    */
   menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
   /**
+   * With `editing`: whether the editing menu's item `actionId` ('copy', 'cut', 'paste', 'delete',
+   * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
+   * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
+   * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
+   * source says (its clipboard, a repaint). False where the document may not be edited, for an item
+   * the app added (`menuItems`), and without `editing`.
+   */
+  can(actionId: string): boolean;
+  /**
+   * With `editing`: do what that item does, as its chord would, on the current selection; false
+   * (nothing done) when `can` is false. For an app's toolbar button.
+   */
+  run(actionId: string): boolean;
+  /**
    * Commit a cell editor still open in the table (a Name or Value editor) as Enter would, and settle
    * once the source has the edit, so that a save after it holds it: for an app's Save, and before it
    * closes a document. With no editor open, and without `editing`, it settles at once. An edit the
@@ -814,6 +828,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     },
     menuFor(anchorRowId, selection) {
       return editing ? editing.menuFor(anchorRowId, selection) : [];
+    },
+    can(actionId) {
+      return editing ? editing.can(actionId) : false;
+    },
+    run(actionId) {
+      return editing ? editing.run(actionId) : false;
     },
     commitEdit() {
       if (disposed) return Promise.resolve();
