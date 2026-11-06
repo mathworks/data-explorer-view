@@ -6,12 +6,14 @@
 // dictionaries they share is shown in the Explorer, served in this page by the host, as a folder
 // the user picked or dropped is (host.openFolder). A file or a folder dropped on the window opens
 // too. The theme is the shell's own: its Settings, kept in the page's storage with its layout.
+// About says what the app is built on, view's version (VIEW_VERSION) under a heading of its own.
 //
 // The page has no gallery header: the window is the app's, and the app's title is the page's.
 import 'data-explorer-view/theme.css';
 import { useIconAssets } from 'data-explorer-view/icon-assets';
 import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell } from 'data-explorer-view/app-shell';
 import { browserHost, type ListedFile } from 'data-explorer-view/browser-host';
+import { VIEW_VERSION } from 'data-explorer-view/model';
 import ctrlA from '../../../test-integration/fixtures/usageorder/ctrlA.slx?url';
 import plantB from '../../../test-integration/fixtures/usageorder/plantB.slx?url';
 import sharedParams from '../../../test-integration/fixtures/usageorder/sharedParams.sldd?url';
@@ -51,7 +53,7 @@ const app = connectShell(shell, {
   host,
   appName: 'Data Explorer',
   storageKey: 'gallery-app',
-  about: [{ label: 'Built on', value: 'data-explorer-view and data-explorer-core' }],
+  about: [{ label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' }],
 });
 installFileDrop(window, async (data) => app.openPaths(await host.openDropped(data)));
 addEventListener('beforeunload', (e) => {
