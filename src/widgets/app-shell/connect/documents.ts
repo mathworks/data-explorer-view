@@ -18,6 +18,7 @@ import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
 import type { DexProjectPage, ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectTable, type TableHandle } from '../../tree-table/connectTable.js';
 import type { DexTreeTable, RowSelectedDetail } from '../../tree-table/dex-tree-table.js';
+import type { EditingRun } from '../../tree-table/editingWire.js';
 import type { DexVariableEditor } from '../../variable-editor/dex-variable-editor.js';
 import type { DocTab } from '../dex-doc-tabs.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
@@ -79,6 +80,18 @@ export function statusOf(tab: OpenTab | undefined): string {
 }
 
 /**
+ * What a table's editing gesture did, as the prototype's toasts said it: Copy and Cut, a Paste of
+ * something, and Delete with how many entries it took. None for the rest, whose table shows them.
+ */
+export function ranNote({ actionId, count }: EditingRun): string | undefined {
+  if (actionId === 'copy') return 'Copied to clipboard';
+  if (actionId === 'cut') return 'Cut to clipboard';
+  if (actionId === 'paste' && count > 0) return 'Pasted';
+  if (actionId === 'delete' && count > 0) return count === 1 ? 'Entry deleted' : `${count} entries deleted`;
+  return undefined;
+}
+
+/**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
  * than clearing, so the selection goes as a click on no row takes it, the table's own event saying
  * so, which is what connectTable (its `select`, the inspector's feed) hears.
@@ -97,6 +110,8 @@ export function newTable(tab: OpenTab, storageKey: string, editable = false, tab
   const table = document.createElement('dex-tree-table');
   table.readonly = !editable;
   table.tableStyle = tableStyle;
+  // Shift+F10 and the ContextMenu key open the selected row's menu, as a right-click on it does.
+  table.keyboardMenu = true;
   // Before it is connected: the table reads its column choices from the key it has then.
   table.storageKey = storageKey;
   tab.panel.append(table);

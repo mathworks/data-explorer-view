@@ -20,6 +20,7 @@
 
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
+import { isEditable } from '../../../model/source/tableSource.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
 import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
@@ -32,6 +33,7 @@ import {
   connectDocument,
   docTabOf,
   newTable,
+  ranNote,
   repaintProjects,
   showProject,
   statusOf,
@@ -391,6 +393,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         }),
       );
       const handle = connectDocument(tab, doc, storageKey, wiring);
+      // Where the document's undo stack stands: the toolbar's Undo and Redo move with it, whether or
+      // not its table changes (a reload of the text it already held empties the stack).
+      const history = isEditable(doc.table) ? doc.table.history : undefined;
+      if (history) tab.stops.push(history.onChange(() => later()));
       tab.stops.push(
         handle.on('navigate', ({ link, uri: to }) => void navigate(tab, link, to)),
         handle.on('select', (rowIds) => {
@@ -399,6 +405,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           later();
         }),
         handle.on('copyFailed', (failure) => log('error', `Could not copy: ${failure.message}`)),
+        // What Copy, Cut, Paste and Delete did, from the toolbar, a chord or the menu, said briefly.
+        handle.on('ran', (run) => {
+          const note = ranNote(run);
+          if (note) say('info', note, 2000);
+        }),
         // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box) brought forward.
         handle.on('action', ({ actionId, rowId }) => {
           if (actionId !== SHOW_IN_GRAPH.id) return;

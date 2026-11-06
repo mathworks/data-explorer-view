@@ -220,6 +220,15 @@ async function save() {
   `handle.redo()` do what the items do, for an app's Edit menu, and
   `isTypingInField(event)` tells a key typed in one of the table's fields (its
   search box, a column filter, a cell editor), which the table leaves alone.
+- A document's table says where its undo stack stands (`doc.table.history`:
+  `canUndo`, `canRedo`, and `onChange` when either moves), so Undo and Redo
+  are offered only where there is a step: in the menu, by `handle.can('undo')`
+  for an app's toolbar, and by `handle.undo()`. A source that does not say (a
+  host's across a channel) has both offered wherever the document may be edited.
+- The handle's `ran` says each editing menu gesture the source took, from the
+  menu, a chord or `handle.run()`: its `actionId`, the `rowIds` it carried and
+  how many it acted on (`count`), a task later and not where the source refused
+  it, for an app's "Copied to clipboard" or "2 entries deleted".
 - A host that watches the file hears its own saves too. `writeAndStamp`
   answers the file's mtime+size as its write left them, read off the written
   file, so no other program's write can pass for it. On a change, stat the
@@ -604,6 +613,7 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
+| Shift+F10, the ContextMenu key | the menu of the table's selected row |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
 | Cmd/Ctrl+, | Settings |
 | Cmd/Ctrl+Shift+P, F1 | the command palette |
