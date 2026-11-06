@@ -2,7 +2,7 @@
 //
 // The Raw view's wiring: <dex-raw-viewer> shows what the active document's file holds for the
 // selected row, as the document answers it (TableSource.raw), and the file itself, its summary,
-// with no row selected. connectShell calls refresh() whenever what it shows may have moved (the
+// with no row selected, its header naming the row or the file. connectShell calls refresh() whenever what it shows may have moved (the
 // selection, the active tab, a change of the document's) and as its view comes on screen.
 //
 // An answer is asked for each refresh, and the last one asked is the one shown: a slow answer for
@@ -22,6 +22,8 @@ export interface RawTarget {
   raw?: (rowId: string) => Promise<RawView>;
   /** The selected row, or the document's own uri for the file itself. */
   rowId: string;
+  /** What the viewer's header names: the row's name, or the file's. */
+  label?: string;
 }
 
 /** What the pane reads and where its Copy goes. */
@@ -51,29 +53,26 @@ export function connectRawPane(viewer: DexRawViewer, context: RawPaneContext): {
       shownKey = null;
       viewer.loading = false;
       viewer.raw = null;
+      viewer.label = '';
       return;
     }
     const key = `${target.key}\n${target.rowId}`;
-    if (!target.raw) {
+    // Named with the answer it names, so a dropped answer's name is never shown over another's.
+    const show = (raw: RawView): void => {
       shownKey = key;
+      viewer.raw = raw;
+      viewer.label = target.label ?? '';
       viewer.loading = false;
-      viewer.raw = noRaw('This file has no raw data.');
-      return;
-    }
+    };
+    if (!target.raw) return show(noRaw('This file has no raw data.'));
     // A new row or file is loading; the same one asked again keeps its answer up meanwhile.
     if (key !== shownKey) viewer.loading = true;
     target.raw(target.rowId).then(
       (raw) => {
-        if (ask !== asked) return;
-        shownKey = key;
-        viewer.raw = raw;
-        viewer.loading = false;
+        if (ask === asked) show(raw);
       },
       (err) => {
-        if (ask !== asked) return;
-        shownKey = key;
-        viewer.raw = noRaw(message(err));
-        viewer.loading = false;
+        if (ask === asked) show(noRaw(message(err)));
       },
     );
   };

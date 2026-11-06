@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { LitElement, html, css, type PropertyValues } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from '../../shared/define.js';
 import { defineIcon } from '../../shared/dex-icon.js';
@@ -114,9 +114,9 @@ function shownOf(raw: RawView | null): Shown | null {
  * The Raw pane: what the file holds for the selected row, unrendered, as `TableSource.raw`
  * answers it. A JSON or XML text is coloured (keys, strings, numbers, tags, attributes, comments,
  * each with its `--dex-syntax-*` token), a value's bytes are a hex dump, and either is drawn in a
- * monospaced, scrollable, selectable block under a header naming its format. The text is drawn as
- * text, never as markup, and its first megabyte alone (RAW_DRAW_LIMIT), then a line saying how
- * much more there is.
+ * monospaced, scrollable, selectable block under a header naming its format and what it is for
+ * (`label`: the row's name, or the file's). The text is drawn as text, never as markup, and its
+ * first megabyte alone (RAW_DRAW_LIMIT), then a line saying how much more there is.
  *
  * Copy sends `dex-raw-copy` with the whole text (the dump, for bytes): the app puts it on the
  * clipboard, as only it may. A RawView with nothing to show draws its reason as a muted note; no
@@ -156,6 +156,14 @@ export class DexRawViewer extends LitElement {
       font-size: 10px;
       font-weight: 600;
       letter-spacing: 0.04em;
+    }
+
+    /* What the answer is for: as much of its name as fits, the rest in its tooltip. */
+    .label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .spacer {
@@ -248,6 +256,11 @@ export class DexRawViewer extends LitElement {
    * `loading`.
    */
   @property({ type: Boolean }) loading = false;
+  /**
+   * What `raw` is for, named in the header and in the text's accessible name: the selected row's
+   * name, or the file's for its own summary. Default empty: no name. Attribute `label`.
+   */
+  @property({ type: String }) label = '';
 
   // What `raw` draws as, worked out once for each answer rather than on every render: a dump and
   // the tokens of a long record are the costly part. A source asked again for the same row answers
@@ -281,13 +294,14 @@ export class DexRawViewer extends LitElement {
     return html`
       <div class="header">
         <span class="badge">${badge}</span>
+        ${this.label ? html`<span class="label" title=${this.label}>${this.label}</span>` : nothing}
         <span class="spacer"></span>
         <button type="button" class="copy" title="Copy the raw data" @click=${() => this._copy(shown.text)}>
           <dex-icon .iconId=${'copy'} .size=${14}></dex-icon>
           <span>Copy</span>
         </button>
       </div>
-      <pre tabindex="0" aria-label=${`Raw data, ${badge}`}>${shown.body}</pre>
+      <pre tabindex="0" aria-label=${this.label ? `Raw data of ${this.label}, ${badge}` : `Raw data, ${badge}`}>${shown.body}</pre>
     `;
   }
 }

@@ -150,6 +150,19 @@ describe('the text', () => {
     expect(pre(el)!.getAttribute('aria-label')).toBe('Raw data, JSON');
   });
 
+  it("names in its header, and in the region's name, what the answer is for", async () => {
+    const el = await viewer({ format: 'json', text: '{}' });
+    expect($(el, '.header .label')).toBeNull();
+    el.label = 'Kp';
+    await el.updateComplete;
+    expect($(el, '.header .label')!.textContent).toBe('Kp');
+    expect($(el, '.header .label')!.title).toBe('Kp');
+    expect(pre(el)!.getAttribute('aria-label')).toBe('Raw data of Kp, JSON');
+    const named = document.createElement('dex-raw-viewer');
+    named.setAttribute('label', 'params.sldd');
+    expect(named.label).toBe('params.sldd');
+  });
+
   it('colours each kind of token with its syntax token, and lets the text be selected', () => {
     const css = [DexRawViewer.styles].flat(Infinity).map((s) => (s as { cssText: string }).cssText).join('\n').replace(/\s+/g, ' ');
     for (const [kind, token] of [

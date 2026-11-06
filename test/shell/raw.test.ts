@@ -18,6 +18,7 @@ describe('the Raw view', () => {
     await open(page, 'params.sldd');
     await selectRow('params.sldd', 'Kp');
     await until(() => rawViewer().raw?.format === 'json' && textOfRaw(rawViewer().raw).includes('Kp'));
+    expect(rawViewer().label).toBe('Kp');
     const kp = textOfRaw(rawViewer().raw);
     await selectRow('params.sldd', 'Ki');
     await until(() => textOfRaw(rawViewer().raw).includes('Ki') && textOfRaw(rawViewer().raw) !== kp);
@@ -30,6 +31,7 @@ describe('the Raw view', () => {
     page.command('show-raw');
     await open(page, 'params.sldd', 'ParamMat.mat');
     await until(() => !!rawViewer().raw && rawViewer().raw!.format !== 'none');
+    expect(rawViewer().label).toBe('ParamMat.mat');
     const mat = rawViewer().raw;
     docTabs().dispatchEvent(new CustomEvent('dex-tab-select', { detail: { id: tabIdOf('params.sldd') }, bubbles: true, composed: true }));
     await until(() => rawViewer().raw !== mat && !!rawViewer().raw);

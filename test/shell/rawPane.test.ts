@@ -63,6 +63,28 @@ describe('connectRawPane', () => {
     expect([viewer.loading, viewer.raw]).toEqual([false, text('{"Kp": 1}')]);
   });
 
+  it('names what each answer is for as it is shown, and nothing with no document', async () => {
+    const { viewer, pane, at } = setUp();
+    const doc = heldDoc();
+    at({ key: 'd', raw: doc.raw, rowId: 'Kp', label: 'Kp' });
+    pane.refresh();
+    at({ key: 'd', raw: doc.raw, rowId: 'Ki', label: 'Ki' });
+    pane.refresh();
+    doc.asked[0]!.answer(text('{"Kp": 1}'));
+    await tick();
+    // Kp's answer was dropped, so its name is never shown over Ki's.
+    expect(viewer.label).toBe('');
+    doc.asked[1]!.answer(text('{"Ki": 2}'));
+    await tick();
+    expect(viewer.label).toBe('Ki');
+    at({ key: 'p', rowId: 'p', label: 'project.prj' });
+    pane.refresh();
+    expect(viewer.label).toBe('project.prj');
+    at(null);
+    pane.refresh();
+    expect(viewer.label).toBe('');
+  });
+
   it('keeps to the last row asked: an answer for one the selection moved past is dropped', async () => {
     const { viewer, pane, at } = setUp();
     const doc = heldDoc();

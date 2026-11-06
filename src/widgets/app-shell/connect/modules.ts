@@ -17,6 +17,7 @@ import type { FolderView } from './folder.js';
 import { connectGalleryPane } from './galleryPane.js';
 import type { ShellParts } from './parts.js';
 import { connectRawPane } from './rawPane.js';
+import { rowIn } from './rows.js';
 import { connectSearchPane } from './searchPane.js';
 import { connectTerminal } from './terminal.js';
 import type { ShellHost } from './types.js';
@@ -79,7 +80,10 @@ export function connectModules(context: ModulesContext): Modules {
       const doc = tab?.doc;
       if (!tab || !doc) return null;
       const answer = doc.table.raw?.bind(doc.table);
-      return { key: tab.id, ...(answer ? { raw: answer } : {}), rowId: tab.selection[0] ?? doc.uri };
+      const rowId = tab.selection[0];
+      // The row's name, or the file's for its own summary.
+      const label = (rowId === undefined ? undefined : rowIn(tab.table?.rows ?? [], rowId)?.Name.label) ?? tab.name;
+      return { key: tab.id, ...(answer ? { raw: answer } : {}), rowId: rowId ?? doc.uri, label };
     },
     shown: () => onScreen('raw'),
     copy: (text) => copyText(host, text),
