@@ -61,6 +61,7 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const log = document.createElement('dex-log-panel');
 
   const docs = document.createElement('dex-shell-docs');
+  // The first pane's row of tabs; a second pane's is made beside it as one comes (panes.ts).
   const strip = document.createElement('dex-doc-tabs');
   strip.slot = 'tabs';
   // Shown with the first file: with none, the welcome fills the center, and at Root the graph.

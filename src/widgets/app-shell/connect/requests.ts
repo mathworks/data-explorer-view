@@ -2,9 +2,10 @@
 //
 // What the shell's parts ask, and what connectShell does for each: the toolbar's buttons, the
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
-// the Settings and About buttons; the tab row's select, close, pin and move; the location bar's
-// Back, Forward, Up and segments; the Explorer's rows and its files' menus. Each part names a tab by
-// its id, and a request about a tab that has closed since does nothing.
+// the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
+// area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
+// segments; the Explorer's rows and its files' menus. Each part names a tab by its id, and a
+// request about a tab that has closed since does nothing.
 
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { OpenTab } from './documents.js';
@@ -35,8 +36,16 @@ export interface ShellRequests {
   close(tab: OpenTab): void;
   save(tab: OpenTab, as: boolean): void;
   pin(tab: OpenTab): void;
-  /** Move `tab` to `index`, its place once moved. */
-  move(tab: OpenTab, index: number): void;
+  /** Move `tab` to `index` of the pane `pane`, its place once moved: along its row, or into the other pane's. */
+  move(tab: OpenTab, index: number, pane: number): void;
+  /** The pane of a tab row (0 the left), or -1 for none of the panes' rows. */
+  paneOfRow(row: EventTarget | null): number;
+  /** The user is in the pane `pane` now: a press, or the keyboard's focus, came into it. */
+  focusPane(pane: number): void;
+  /** `tab` was dropped on the documents of the pane `pane`: move it there, or with `side`, into a new pane on that side. */
+  drop(tab: OpenTab, pane: number, side?: 'left' | 'right'): void;
+  /** The divider between the panes was moved: the left pane takes `ratio` of the width. */
+  resized(ratio: number): void;
   /** Show the Explorer's Root: no document. */
   showRoot(): void;
   /** Go to the location bar's segment `index`. */
@@ -66,16 +75,26 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
     const { actionId, anchor } = e.detail;
     if (actionId === 'settings' || actionId === 'about') on.toggle(actionId, anchor);
   });
-  // The tab row's requests, each about a tab by its id; a move's index is the tab's place once moved.
-  const onTab = <K extends 'dex-tab-select' | 'dex-tab-close' | 'dex-tab-pin' | 'dex-tab-move'>(type: K, act: (tab: OpenTab, e: HTMLElementEventMap[K]) => void) =>
-    listen(parts.strip, type, (e) => {
+  // The panes' tab rows' requests, heard on the documents' area they are in (a second pane's row
+  // comes and goes), each about a tab by its id, from the row of a pane; a move's index is the
+  // tab's place once moved, in the row it was dropped on.
+  const onTab = <K extends 'dex-tab-select' | 'dex-tab-close' | 'dex-tab-pin' | 'dex-tab-move'>(type: K, act: (tab: OpenTab, e: HTMLElementEventMap[K], pane: number) => void) =>
+    listen(parts.docs, type, (e) => {
+      const pane = on.paneOfRow(e.target);
       const tab = on.tabOf(e.detail.id);
-      if (tab) act(tab, e);
+      if (tab && pane >= 0) act(tab, e, pane);
     });
   onTab('dex-tab-select', (tab) => on.activate(tab));
   onTab('dex-tab-close', (tab) => on.close(tab));
   onTab('dex-tab-pin', (tab) => on.pin(tab));
-  onTab('dex-tab-move', (tab, e) => on.move(tab, e.detail.index));
+  onTab('dex-tab-move', (tab, e, pane) => on.move(tab, e.detail.index, pane));
+  // The documents' area: the pane the user is in, a tab dropped on a pane's documents, the divider.
+  listen(parts.docs, 'dex-pane-focus', (e) => on.focusPane(e.detail.pane));
+  listen(parts.docs, 'dex-pane-drop', (e) => {
+    const tab = on.tabOf(e.detail.id);
+    if (tab) on.drop(tab, e.detail.pane, e.detail.side);
+  });
+  listen(parts.docs, 'dex-panes-resized', (e) => on.resized(e.detail.ratio));
   listen(parts.location, 'dex-location-go', (e) => {
     const { to } = e.detail;
     if (typeof to === 'number') on.toStep(to);

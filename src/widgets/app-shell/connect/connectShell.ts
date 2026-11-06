@@ -2,10 +2,11 @@
 //
 // The app in a shell: open files as tabs, each a table connected to its document in one editing
 // workspace (a MAT-file, a dictionary and a .slx's Model Workspace take edits; a .mdl stays
-// read-only), the inspector following the active tab, one variable editor, menu and dialog for
-// them all; and around them the shell's parts, the toolbar, the location bar, the Explorer with
-// the folder under it, Settings, About and the toasts. The same code runs in the Electron app and
-// in a browser page: what differs is the host (types.ts), which a page hands in.
+// read-only), in one pane or two side by side, the inspector following the active tab (the tab of
+// the pane the user is in), one variable editor, menu and dialog for them all; and around them the
+// shell's parts, the toolbar, the location bar, the Explorer with the folder under it, Settings,
+// About and the toasts. The same code runs in the Electron app and in a browser page: what differs
+// is the host (types.ts), which a page hands in.
 //
 // Lifted from data-explorer-app src/renderer/app.ts and main.ts at 0983920, the app's renderer:
 // its rules, in its order, with its comments. What changed is where things are drawn (the shell's
@@ -16,7 +17,8 @@
 // settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
 // the parts' requests (requests.ts), the rows dropped on the Explorer (explorerDrop.ts), the
 // document commands (carryOut.ts), the folder shown (shownFolder.ts), the modules' views
-// (modules.ts: Raw, Search, the Gallery, the Terminal), and Root's relationship graph (graphPane.ts).
+// (modules.ts: Raw, Search, the Gallery, the Terminal), Root's relationship graph (graphPane.ts),
+// and the panes' rows and panels (panes.ts).
 
 import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
@@ -55,6 +57,7 @@ import { linkDestination } from './links.js';
 import { locationOf, type LocationStep, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { connectModules } from './modules.js';
+import { PaneRows, keepSplit, keptSplit, slotPanels } from './panes.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
 import { rowIn, sectionOf } from './rows.js';
@@ -112,7 +115,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   let disposed = false;
   const stops: (() => void)[] = [];
+  // The open tabs, in one pane or two (tabs.ts): the active tab is the one the focused pane shows.
   const tabs = new TabList<OpenTab>();
+  // Each pane's row of tabs, the first's the shell's own, a second's made as a second pane comes;
+  // and the divider between two panes where the user left it, kept with the layout.
+  const paneRows = new PaneRows(docs, strip);
+  const store = pageStorage();
+  docs.ratio = keptSplit(store, shell.storageKey);
   let nextId = 0;
   // The Log, which every part of the shell writes to.
   const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
@@ -242,7 +251,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   function paint(): void {
     const active = tabs.active;
-    for (const tab of tabs.items) tab.panel.hidden = tab !== active;
+    // Each pane its tab, side by side; at Root, none, and one pane, where the graph fills the area.
+    slotPanels(tabs, !!active);
+    docs.split = !!active && tabs.panes.length > 1;
+    docs.focusedPane = tabs.focused;
     // Root: the relationship graph while files are open, the welcome while none is.
     docs.welcome = tabs.items.length === 0;
     parts.graphPanel.hidden = !!active || tabs.items.length === 0;
@@ -279,12 +291,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // First: at Root, the location bar draws the file the inspector shows.
     followInspector();
     toolbar.items = toolbarItems(toolbarState());
-    // The tab row, each tab as its selection names it (the section it is in), here with what else
-    // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
-    strip.tabs = tabs.items.map((t) => docTabOf(t, titleOf(t.path)));
-    strip.active = active?.id ?? '';
-    if (!active && strip.shadowRoot?.activeElement) rootTakesTheKeyboard();
-    strip.hidden = !active;
+    // Each pane's tab row, each tab as its selection names it (the section it is in), here with what
+    // else follows a selection; hidden at Root, where the graph fills the center, and with no file open.
+    if (!active && paneRows.holdsFocus()) rootTakesTheKeyboard();
+    paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOf(t.path)));
     explorer.files = explorerFiles(
       tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })),
     );
@@ -313,7 +323,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // the Explorer off screen, to what fills the center where the row was: the graph (once it is
   // drawn, if it is still being built), or with the last file closed the welcome's Open File….
   function rootTakesTheKeyboard(): void {
-    (strip.shadowRoot?.activeElement as HTMLElement | null)?.blur();
+    paneRows.blur();
     const left = shell.layout.left;
     if (left.open && left.view === 'explorer' && explorer.focusRow({ fileId: null })) return;
     if (tabs.items.length === 0) docs.focusOpenFile();
@@ -321,12 +331,34 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
-  // everything that follows the active tab follows this one; the user has been here.
+  // everything that follows the active tab follows this one; the user has been here. Closed, the
+  // editor gives the keyboard back to its glyph in the table it was opened from, which may be in
+  // the other pane: that is no press of the user's there (showing, below).
+  let showing = 0;
   function shown(): void {
-    editor.close();
-    paint();
-    follow();
-    visit();
+    showing++;
+    try {
+      editor.close();
+      paint();
+      follow();
+      visit();
+    } finally {
+      showing--;
+    }
+  }
+
+  // The tabs moved between the panes, or a pane came or went: shown, if the active tab is another
+  // now (the tab moved is shown, and focused, where it went), else drawn again where they are.
+  function rearranged(before: OpenTab | undefined): void {
+    if (tabs.active !== before) shown();
+    else paint();
+  }
+
+  // The user is in the pane `pane`: a press or the focus came into it. Not at Root, where the graph
+  // fills the first pane's place, nor while the shell itself is moving the keyboard.
+  function focusPane(pane: number): void {
+    if (showing > 0 || !tabs.active) return;
+    if (tabs.focus(pane)) shown();
   }
 
   function activate(tab: OpenTab): void {
@@ -408,13 +440,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   function close(tab: OpenTab): void {
     release(tab);
     tab.panel.remove();
-    const wasActive = tab === tabs.active;
+    const before = tabs.active;
+    // A pane left with no tab goes, and the other is focused: its tab is then the active one.
     tabs.remove(tab);
     // Back must not land on a place that went with the tab, nor a question stay up about it.
     nav.forget(tab.id);
     questions.recheck();
-    if (wasActive) shown();
-    else paint();
+    rearranged(before);
   }
 
   // --- Opening -----------------------------------------------------------------------------------
@@ -437,10 +469,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       await existing.ready;
       return existing;
     }
-    const replaced = how.preview ? tabs.find((t) => !!t.preview && !t.dirty) : undefined;
-    const at = replaced ? tabs.items.indexOf(replaced) : -1;
-    // Its neighbour is active only until the new tab is: no place the user went to.
-    if (replaced) nav.quietly(() => close(replaced));
+    // One preview tab in each pane: the focused pane's, which the new tab goes into.
+    const replaced = how.preview ? tabs.panes[tabs.focused]?.items.find((t) => !!t.preview && !t.dirty) : undefined;
     const panel = document.createElement('section');
     panel.className = 'doc-panel';
     panel.setAttribute('role', 'tabpanel');
@@ -450,7 +480,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const name = isProjectFile(path) ? projectFallbackName(path) : basenameOf(path);
     const tab: OpenTab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], stops: [], ready: Promise.resolve() };
     tabs.add(tab);
-    if (at >= 0) tabs.move(tab, at);
+    // In the preview's place, which closes once the new tab is there, so the pane is never left
+    // without a tab (it would go); the preview was not the active tab by then, and its close is
+    // no place the user went to.
+    if (replaced) {
+      tabs.move(tab, tabs.panes[tabs.focused]!.items.indexOf(replaced));
+      nav.quietly(() => close(replaced));
+    }
     shown();
     // Until the file is shown (its table, its banner, its page), the panel says it is opening it.
     const note = openingNote(tab);
@@ -724,7 +760,20 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       close: (tab) => void requestClose(tab),
       save: (tab, as) => void save(tab, as),
       pin,
-      move: (tab, index) => tabs.move(tab, index) && paint(),
+      move(tab, index, pane) {
+        const before = tabs.active;
+        // Along its own row, the shown tab kept; into the other pane's, shown and focused there.
+        if (tabs.paneOf(tab) === pane) {
+          if (tabs.move(tab, index)) paint();
+        } else if (tabs.moveTo(tab, pane, index)) rearranged(before);
+      },
+      paneOfRow: (row) => paneRows.paneOf(row),
+      focusPane,
+      drop(tab, pane, side) {
+        const before = tabs.active;
+        if (side ? tabs.split(tab, side) : tabs.moveTo(tab, pane)) rearranged(before);
+      },
+      resized: (ratio) => keepSplit(store, shell.storageKey, ratio),
       showRoot,
       toStep(index) {
         // The dimmed file at Root opens, as a double-click on its box does; any other is a place.
