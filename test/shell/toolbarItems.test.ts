@@ -27,7 +27,9 @@ describe('toolbarItems', () => {
       ['undo', 'Undo', 'undo', 'history', 'end'],
       ['redo', 'Redo', 'redo', 'history', 'end'],
       ['add-child', 'Add Child', 'addBlockChild', 'add', 'end'],
-      ['cut', 'Cut', 'cut', 'clipboard', 'end'],
+      // The scissors glyph, not the menu's `cut` tile: that one is drawn in light greys with a
+      // dotted line, and beside Copy's solid tile an enabled Cut read as a disabled one.
+      ['cut', 'Cut', 'scissorToolUI', 'clipboard', 'end'],
       ['copy', 'Copy', 'copy', 'clipboard', 'end'],
       ['paste', 'Paste', 'paste', 'clipboard', 'end'],
       ['delete', 'Delete', 'delete', 'delete', 'end'],

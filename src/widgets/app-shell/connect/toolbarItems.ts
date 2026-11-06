@@ -90,7 +90,9 @@ export function toolbarItems(state: ToolbarState): ToolbarItem[] {
     table('undo', 'Undo', 'undo', 'history'),
     table('redo', 'Redo', 'redo', 'history'),
     table('add-child', 'Add Child', 'addBlockChild', 'add'),
-    table('cut', 'Cut', 'cut', 'clipboard'),
+    // The scissors alone: the `cut` tile the table's menu draws is light greys and a dotted line,
+    // which beside Copy's solid tile made an enabled Cut look disabled.
+    table('cut', 'Cut', 'scissorToolUI', 'clipboard'),
     table('copy', 'Copy', 'copy', 'clipboard'),
     table('paste', 'Paste', 'paste', 'clipboard'),
     table('delete', 'Delete', 'delete', 'delete'),
