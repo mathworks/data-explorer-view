@@ -295,7 +295,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
     explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
     const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
-    const at = locationOf(place, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
+    const at = locationOf(place, active?.selection ?? null, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
     nav.located(at);
     located = at.segments;
     location.segments = at.segments;

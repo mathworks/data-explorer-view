@@ -14,6 +14,7 @@ import {
   type LocationGoDetail,
   type LocationSegment,
 } from '../src/widgets/app-shell/dex-location-bar.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineLocationBar());
 
@@ -276,6 +277,44 @@ describe('the look a long path needs', () => {
   it('dims a button that cannot be used', async () => {
     const el = await bar();
     expect(getComputedStyle(navButton(el, 'Back')).opacity).toBe('0.35');
+  });
+});
+
+describe('the look', () => {
+  // The rules as text (happy-dom matches no :hover), comments taken out: a declaration a comment
+  // quotes is no rule.
+  const sheet = (): string =>
+    [DexLocationBar.styles]
+      .flat(Infinity)
+      .map((s) => (s as { cssText: string }).cssText)
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\s+/g, ' ');
+  // The declarations of the rule `selector` is one of the selectors of.
+  const rule = (selector: string): string => {
+    for (const [, selectors, body] of sheet().matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (selectors!.split(',').some((one) => one.trim() === selector)) return body!;
+    }
+    throw new Error(`no rule for ${selector}`);
+  };
+
+  it('fills Back, Forward and Up grey, darker under the pointer, so they read as buttons beside the path', async () => {
+    // The bar is --dex-bg-secondary; the buttons a step darker, and a step more when hovered or
+    // pressed, in each theme's own greys.
+    const el = await bar({ canBack: true });
+    expect(getComputedStyle(navButton(el, 'Back')).backgroundColor).toMatch(/^(#e8e8e8|rgb\(232, 232, 232\))$/);
+    expect(rule('.go')).toContain('background: var(--dex-bg-hover, #e8e8e8)');
+    expect(rule('.go:hover:not(:disabled)')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    expect(rule('.go:active:not(:disabled)')).toContain('background: var(--dex-bg-active, #e0e0e0)');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      const fills = ['--dex-bg-secondary', '--dex-bg-hover', '--dex-bg-active'].map((t) => tokens.get(t));
+      expect(new Set(fills).size, set).toBe(3);
+    }
+  });
+
+  it('sets the segments in a medium weight', async () => {
+    const el = await bar({ segments: PATH });
+    expect(getComputedStyle(segments(el)[1]!).fontWeight).toBe('500');
   });
 });
 

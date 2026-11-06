@@ -86,6 +86,8 @@ export class DexLocationBar extends LitElement {
       cursor: pointer;
     }
 
+    /* Filled, a step darker than the bar, so the three read as buttons beside the path's box; a
+       step more under the pointer. In forced colours the shared sheet draws their border. */
     .go {
       display: flex;
       align-items: center;
@@ -94,12 +96,10 @@ export class DexLocationBar extends LitElement {
       height: 24px;
       padding: 0;
       border-radius: 4px;
-    }
-
-    .go:hover:not(:disabled) {
       background: var(--dex-bg-hover, #e8e8e8);
     }
 
+    .go:hover:not(:disabled),
     .go:active:not(:disabled) {
       background: var(--dex-bg-active, #e0e0e0);
     }
@@ -156,6 +156,7 @@ export class DexLocationBar extends LitElement {
       padding: 0 4px;
       border-radius: 2px;
       white-space: nowrap;
+      font-weight: 500;
     }
 
     .segment:hover {
