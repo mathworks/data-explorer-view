@@ -21,6 +21,7 @@ import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
 import type { PropertyGroup } from '../inspector/piBuilder.js';
+import type { RawOptions } from '../raw/rawOfRow.js';
 import type { RawView } from '../raw/rawView.js';
 import type { ClipboardMode, DragDescriptor } from './wire.js';
 
@@ -210,9 +211,10 @@ export interface TableSource {
    *
    * Optional, and in the page alone: a workspace's documents answer it (raw/rawOfRow.ts says what,
    * for each kind of row); a source across a message channel has no message for it, and leaves it
-   * out.
+   * out. With `record`, a MAT-file's or a Model Workspace's variable answers the record a save
+   * writes rather than the bytes it was read from (RawOptions); a source may answer as without it.
    */
-  raw?(rowId: string): Promise<RawView>;
+  raw?(rowId: string, options?: RawOptions): Promise<RawView>;
   /** Hear every change after `open()`, until the returned function is called. */
   subscribe(listener: (change: TableChange) => void): () => void;
   /**

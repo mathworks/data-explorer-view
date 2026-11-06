@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DataModel } from 'data-explorer-core';
 import { createWorkspace, type Doc, type Workspace } from '../src/model/index.js';
 import { RAW_NOT_WRITTEN, rawOfRow } from '../src/model/raw/rawOfRow.js';
-import { NO_RAW_DATA, type RawView } from '../src/model/raw/rawView.js';
+import { HEX_LIMIT, NO_RAW_DATA, type RawView } from '../src/model/raw/rawView.js';
 
 const fixture = (rel: string): Uint8Array => new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${rel}`, import.meta.url))));
 
@@ -297,5 +297,31 @@ describe('every answer is total', () => {
     const doc = await ws.open(fixture('params.sldd'), 'params.sldd');
     doc.dispose();
     expect(await doc.table.raw!('file:///params.sldd/design/Kp')).toEqual(none);
+  });
+});
+
+describe("a variable's record, asked for in place of its bytes", () => {
+  // A MAT-file's variable as read, over a tree of one: its bytes, and the record its serialize()
+  // writes. The command window's json asks for the record; past HEX_LIMIT's bytes, whose record
+  // would run to many times their size, it is given the bytes as the Raw pane is.
+  const tree = (node: unknown) => ({ root: () => ({ sourceFormat: 'mat', children: [] }), fileIds: [], find: () => node });
+  const variable = (size: number, serialize: () => unknown = () => ({ name: 'v', value: 7 })) => ({
+    name: 'v',
+    _matVar: {},
+    _rawBytes: new Uint8Array(size),
+    serialize,
+  });
+
+  it('answers the record of a variable as read, and its bytes without the option', () => {
+    expect(rawOfRow(tree(variable(64)), 'binedit:file:///v.mat/v', { record: true })).toEqual({ format: 'json', text: '{\n  "name": "v",\n  "value": 7\n}' });
+    expect(rawOfRow(tree(variable(64)), 'binedit:file:///v.mat/v').format).toBe('hex');
+  });
+
+  it('answers the bytes of a variable too large to write out, or one whose record core will not write', () => {
+    expect(rawOfRow(tree(variable(HEX_LIMIT + 1)), 'binedit:file:///v.mat/v', { record: true }).format).toBe('hex');
+    const refusing = variable(64, () => {
+      throw new Error('no record');
+    });
+    expect(rawOfRow(tree(refusing), 'binedit:file:///v.mat/v', { record: true }).format).toBe('hex');
   });
 });

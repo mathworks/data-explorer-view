@@ -52,6 +52,19 @@ describe('the Terminal view', () => {
     expect(output()).toEqual(['Kp = 5', 'Created "Kz" (Simulink.Parameter).', 'Removed "Kz".']);
   });
 
+  it("takes a class by its short name, and prints a model workspace variable's value for json, not a count of its bytes", async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd', 'slxcases.slx': 'slxcases.slx' });
+    await open(page, 'params.sldd');
+    run('add Parameter Kz');
+    await until(() => names().includes('Kz'));
+    await open(page, 'slxcases.slx');
+    run('json tau');
+    await until(() => output().length >= 2);
+    expect(output()[0]).toBe('Created "Kz" (Simulink.Parameter).');
+    const record = JSON.parse(output().slice(1).join('\n'));
+    expect(record).toMatchObject({ name: 'tau', value: 0.25 });
+  });
+
   it('answers each line in the order it was run, an edit after an add landing on the new entry', async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd');

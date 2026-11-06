@@ -97,8 +97,12 @@ export interface CommandTarget {
   rows(): TreeTableRow[];
   /** The property inspector's page for a row (`TableSource.inspect`). */
   inspect(rowId: string): Promise<InspectorView>;
-  /** A row's raw data. Absent: `json` says there is none for this document. */
-  raw?(rowId: string): Promise<CommandRaw>;
+  /**
+   * A row's raw data (`TableSource.raw`). `json` asks with `record`: the record a save writes, as
+   * JSON, in place of the bytes a MAT-file's variable was read from. Absent: `json` says there is
+   * none for this document.
+   */
+  raw?(rowId: string, options?: { record?: boolean }): Promise<CommandRaw>;
   /** Write a cell edit back (`EditableTableSource.edit`). Absent: the document is read-only. */
   edit?(edit: CellEdit): void | Promise<void>;
   /** Create a new default entry (`EditableTableSource.addEntry`). */
@@ -188,8 +192,8 @@ const HELP: readonly OutputLine[] = [
   out("  info <name>                    an entry's properties"),
   out("  json <name>                    an entry's raw data"),
   out('  set <name>[.<Column>] <value>  set a cell of the table'),
-  out('  add <class> [<name>]           add an entry of a class, by that name,'),
-  out('      [--section <key>]          in that section: design, arch or config'),
+  out('  add <class> [<name>]           add an entry of a class (Simulink.Parameter, or Parameter),'),
+  out('      [--section <key>]          by that name, in that section: design, arch or config'),
   out('  rm <name>                      delete an entry'),
   out('  save                           save the document'),
   info('MATLAB syntax:'),
@@ -571,13 +575,17 @@ async function properties(target: CommandTarget, name: string): Promise<OutputLi
   return groups.flatMap((g) => [info(g.title), ...g.properties.map((p) => out(`  ${p.name.padEnd(width)}  ${p.value}`.trimEnd()))]);
 }
 
-/** `json <name>`: the row's raw text, line by line, or why there is none to show. */
+/**
+ * `json <name>`: the row's raw text, line by line, or why there is none to show. Its record, as the
+ * prototype printed a node's serialized form: a MAT-file's variable is its value as JSON, not the
+ * bytes the Raw pane dumps (which only a variable too large to write out still is).
+ */
 async function rawOf(target: CommandTarget, name: string): Promise<OutputLine[]> {
   if (!name) return [error('Usage: json <name>')];
   const doc = activeDoc(target);
   const row = findRow(target.rows(), name, doc);
   if (!target.raw) return [error(`Raw data is not available for ${doc.name}.`)];
-  const raw = await target.raw(row.ID);
+  const raw = await target.raw(row.ID, { record: true });
   if (typeof raw.text === 'string' && raw.text !== '') {
     const lines = raw.text.split(/\r?\n/);
     if (lines.at(-1) === '') lines.pop();
@@ -738,9 +746,15 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
   // Refused before anything is added: a rename to it would be, and leave a default-named entry.
   if (/\s/.test(name)) return [error(`"${name}" has a space in it, which a name cannot.`)];
   // The tiles of the class, in the gallery's order (Design Data's before Architectural Data's); a
-  // class typed in another case is still the class.
+  // class typed in another case is still the class, and so is its short name, the last part of its
+  // dotted name, as the prototype took `add Parameter x`: where two classes end in it, which.
   let tiles = choices.filter((c) => c.className === asked);
   if (tiles.length === 0) tiles = choices.filter((c) => c.className.toLowerCase() === asked.toLowerCase());
+  if (tiles.length === 0) {
+    tiles = choices.filter((c) => shortName(c.className) === asked.toLowerCase());
+    const meant = [...new Set(tiles.map((c) => c.className))];
+    if (meant.length > 1) return [error(`"${asked}" could be ${meant.join(' or ')}: give the class in full.`)];
+  }
   if (tiles.length === 0) return [error(`${doc.name} cannot take a "${asked}".`), takes];
   let choice = tiles[0]!;
   const section = option?.[1];
@@ -764,6 +778,9 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
     ? [out(`Created "${name}" (${choice.className}).`)]
     : [error(`Created "${made}" (${choice.className}), but could not name it "${name}".`)];
 }
+
+/** A class's short name, in lower case: the last part of its dotted name (`parameter` of `Simulink.Parameter`). */
+const shortName = (className: string): string => className.slice(className.lastIndexOf('.') + 1).toLowerCase();
 
 /** `rm <name>`: delete the row, an entry or a row inside one, as the table's Delete would. */
 async function remove(target: CommandTarget, name: string): Promise<OutputLine[]> {

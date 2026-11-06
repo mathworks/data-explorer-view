@@ -18,7 +18,7 @@ import { binaryEditSrcId } from '../ids/srcId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
-import { rawOfRow } from '../raw/rawOfRow.js';
+import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
@@ -296,7 +296,7 @@ class InPageDoc implements HeldDoc {
       children: (rowId) => this.children(rowId),
       matrix: async (nodeId) => this.matrix(nodeId),
       inspect: async (selection) => this.inspect(selection),
-      raw: async (rowId) => this.raw(rowId),
+      raw: async (rowId, options) => this.raw(rowId, options),
       subscribe: (listener) => {
         this.listeners.add(listener);
         return () => void this.listeners.delete(listener);
@@ -497,10 +497,10 @@ class InPageDoc implements HeldDoc {
    * uri or by the srcId its tree is under. Nothing to show for a document that did not read, a
    * project, or one that is closed.
    */
-  private raw(rowId: string): RawView {
+  private raw(rowId: string, options?: RawOptions): RawView {
     const r = this.reading;
     if (!r) return noRaw();
-    return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId);
+    return rawOfRow({ root: () => r.node, fileIds: [this.uri, r.srcId], find: (id) => this.find(id) }, rowId, options);
   }
 }
 

@@ -106,7 +106,7 @@ interface FakeOptions {
   refuseRemove?: boolean;
   save?: () => Promise<string>;
   /** false: no raw view at all. */
-  raw?: false | ((rowId: string) => Promise<CommandRaw>);
+  raw?: false | ((rowId: string, options?: { record?: boolean }) => Promise<CommandRaw>);
   inspect?: (rowId: string) => Promise<InspectorView>;
   /** null: no classes method. */
   classes?: AddChoice[] | null;
@@ -433,6 +433,18 @@ describe('json', () => {
     expect(out.lines.length).toBe(1001);
     expect(out.lines[999]).toEqual(line('line 1000'));
     expect(out.lines[1000]).toEqual(line('… 500 more lines.', 'info'));
+  });
+
+  it("asks for a row's record rather than its bytes: a MAT-file's variable prints its value", async () => {
+    const asked: unknown[] = [];
+    const t = fake({
+      raw: async (_rowId, options) => {
+        asked.push(options);
+        return options?.record ? { format: 'json', text: '{\n  "name": "Kp",\n  "value": 7\n}' } : { format: 'hex', bytes: new Uint8Array(300) };
+      },
+    });
+    expect(await texts('json Kp', t)).toEqual(['{', '  "name": "Kp",', '  "value": 7', '}']);
+    expect(asked).toEqual([{ record: true }]);
   });
 
   it('says why there is no text: none for the row, binary bytes, or no raw view at all', async () => {
@@ -766,6 +778,32 @@ describe('add', () => {
     ]);
     expect(t.added).toEqual([]);
     expect(mat.added).toEqual([]);
+  });
+
+  it("takes a class by its short name, the last part of its dotted name, in any case", async () => {
+    const t = fake();
+    expect(await texts('add Parameter x', t)).toEqual(['Created "x" (Simulink.Parameter).']);
+    expect(await texts('add bus', t)).toEqual(['Created "Param" (Simulink.Bus).']);
+    expect(await texts('add EnumTypeDefinition --section arch', t)).toEqual(['Created "Param1" (Simulink.data.dictionary.EnumTypeDefinition).']);
+    expect(t.added.map((e) => [e.section, e.className])).toEqual([
+      ['design', 'Simulink.Parameter'],
+      ['design', 'Simulink.Bus'],
+      ['arch', 'Simulink.data.dictionary.EnumTypeDefinition'],
+    ]);
+  });
+
+  it('asks which class a short name means where two classes end in it, and adds nothing', async () => {
+    const classes: AddChoice[] = [
+      { className: 'Simulink.Parameter', section: '', label: 'Simulink Parameter' },
+      { className: 'mpt.Parameter', section: '', label: 'mpt Parameter' },
+    ];
+    const t = fake({ classes });
+    expect((await run('add Parameter x', t)).lines).toEqual([
+      line('"Parameter" could be Simulink.Parameter or mpt.Parameter: give the class in full.', 'error'),
+    ]);
+    expect(t.added).toEqual([]);
+    // In full, either is taken.
+    expect(await texts('add mpt.Parameter y', t)).toEqual(['Created "y" (mpt.Parameter).']);
   });
 
   it('lists the classes the document takes when asked for one it does not', async () => {
