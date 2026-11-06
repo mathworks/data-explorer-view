@@ -11,9 +11,10 @@
 // its rules, in its order, with its comments. What changed is where things are drawn (the shell's
 // parts, not index.html's elements) and what the shell adds (the toolbar, preview tabs, the
 // Explorer's sections and Root, the location bar and its history, the settings, the chords).
-// The rules themselves are the modules beside this one; this file orchestrates. Three of them
-// are pieces of it moved out: what it builds (parts.ts), a tab's document and the widgets it is
-// shown in (documents.ts), and the settings and popovers (popovers.ts).
+// The rules themselves are the modules beside this one; this file orchestrates. Several are pieces
+// of it moved out: what it builds (parts.ts), a tab's document and its widgets (documents.ts), the
+// settings and popovers (popovers.ts), the history (navigation.ts), the in-page questions
+// (questions.ts), the Explorer's file menu (fileMenu.ts) and the folder shown (shownFolder.ts).
 
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
@@ -21,7 +22,7 @@ import { createWorkspace } from '../../../model/source/workspace.js';
 import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
-import { isTextField } from '../../shared/textField.js';
+import { focusIsInTextField } from '../../shared/textField.js';
 import type { DexAppShell } from '../dex-app-shell.js';
 import {
   clearSelection,
@@ -35,14 +36,14 @@ import {
 } from './documents.js';
 import { explorerFiles } from './explorerFiles.js';
 import { connectFileMenu } from './fileMenu.js';
-import { showFolder, type FolderView } from './folder.js';
-import { installSearch } from './folderSearch.js';
+import type { FolderView } from './folder.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination, projectLinkPath } from './links.js';
 import { locationOf, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { buildShell } from './parts.js';
 import { rowIn, sectionOf } from './rows.js';
+import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions } from './questions.js';
 import { ReloadGate, reloadQuestion } from './reload.js';
@@ -58,17 +59,6 @@ const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
 ]);
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-/**
- * Whether the focus, inside the widgets' shadow roots too, is in a field that takes text (by the
- * rule view's isTypingInField(event) keeps): for a menu's or the toolbar's Undo, which come with no
- * key event to read.
- */
-function typingInField(): boolean {
-  let el = document.activeElement;
-  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
-  return isTextField(el);
-}
 
 /**
  * Fill an empty `<dex-app-shell>` with the app, over `options.host`, and return the handle the host
@@ -104,9 +94,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   inspector.on('navigate', (target) => {
     if (tabs.active) void navigate(tabs.active, parseLinkTarget(target));
   });
-  // The folder in the Explorer: its hierarchy; a chosen file opens as a tab.
-  let folder: FolderView | undefined;
-  const wiring = { host, editor, menu, dialog, folder: () => folder };
+  // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
+  const folderNow = (): FolderView | undefined => folders.current;
+  const wiring = { host, editor, menu, dialog, folder: folderNow };
 
   const popovers = connectPopovers(shell, parts, {
     store: pageStorage(),
@@ -157,7 +147,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The inspector and the folder's tree follow the active tab.
   const follow = () => {
     inspector.follow(tabs.active?.handle ?? null);
-    if (tabs.active) folder?.reveal(sourceUri(tabs.active.path));
+    if (tabs.active) folderNow()?.reveal(sourceUri(tabs.active.path));
   };
 
   function paint(): void {
@@ -295,7 +285,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // the OS file manager.
   async function followProjectLink(root: string, link: ProjectOpenDetail): Promise<void> {
     const path = projectLinkPath(root, link.path);
-    const project = link.preferProject ? await folder?.projectIn(path) : undefined;
+    const project = link.preferProject ? await folderNow()?.projectIn(path) : undefined;
     if (project) await open(uriPath(project), { preview: true });
     else if (isSupportedPath(path)) await open(path, { preview: true });
     else await host.reveal?.(path);
@@ -345,7 +335,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const { path } = tab;
     if (isProjectFile(path)) {
       const revealIn = host.revealIn ?? (onMac() ? 'Finder' : 'the file manager');
-      await paintProject(tab, newProjectPage(tab, revealIn, followProjectLink), folder);
+      await paintProject(tab, newProjectPage(tab, revealIn, followProjectLink), folderNow());
       return;
     }
     const storageKey = `${key}:${uri}`;
@@ -426,7 +416,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The tab active when the command was given, whatever is active by the time it is carried out.
     const tab = tabs.active;
     if (id === 'settings' || id === 'about') return popovers.toggle(id);
-    if ((id === 'undo' || id === 'redo') && typingInField()) {
+    if ((id === 'undo' || id === 'redo') && focusIsInTextField()) {
       document.execCommand(id);
       return;
     }
@@ -479,15 +469,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         tab?.table?.focusFilter();
         break;
       case 'back':
-        nav.back();
-        later();
-        break;
       case 'forward':
-        nav.forward();
-        later();
-        break;
       case 'up':
-        nav.up();
+        nav[id]();
         later();
         break;
     }
@@ -506,23 +490,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const { actionId, anchor } = e.detail;
     if (actionId === 'settings' || actionId === 'about') popovers.toggle(actionId, anchor);
   });
-  listen(strip, 'dex-tab-select', (e) => {
-    const tab = tabOf(e.detail.id);
-    if (tab) activate(tab);
-  });
-  listen(strip, 'dex-tab-close', (e) => {
-    const tab = tabOf(e.detail.id);
-    if (tab) void requestClose(tab);
-  });
-  listen(strip, 'dex-tab-pin', (e) => {
-    const tab = tabOf(e.detail.id);
-    if (tab) pin(tab);
-  });
-  // The tab's place once moved, as the request means it.
-  listen(strip, 'dex-tab-move', (e) => {
-    const tab = tabOf(e.detail.id);
-    if (tab && tabs.move(tab, e.detail.index)) paint();
-  });
+  // The tab row's requests, each about a tab by its id; a move's index is the tab's place once moved.
+  const onTab = <K extends 'dex-tab-select' | 'dex-tab-close' | 'dex-tab-pin' | 'dex-tab-move'>(type: K, act: (tab: OpenTab, e: HTMLElementEventMap[K]) => void) =>
+    listen(strip, type, (e) => {
+      const tab = tabOf(e.detail.id);
+      if (tab) act(tab, e);
+    });
+  onTab('dex-tab-select', activate);
+  onTab('dex-tab-close', (tab) => void requestClose(tab));
+  onTab('dex-tab-pin', pin);
+  onTab('dex-tab-move', (tab, e) => tabs.move(tab, e.detail.index) && paint());
   listen(location, 'dex-location-go', (e) => {
     const { to } = e.detail;
     if (typeof to !== 'number') return command(to);
@@ -552,53 +529,26 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // --- The folder --------------------------------------------------------------------------------
 
-  const search = installSearch(
-    folderPart.searchInput,
-    folderPart.searchResults,
-    tree,
-    () => folder?.session.names,
-    (uri, name) => void open(uriPath(uri), { preview: true }).then((tab) => tab.handle?.selectByName(name)),
-  );
-
-  // What listens to the folder shown: let go of with it, when another is shown or the shell goes.
-  let folderStops: (() => void)[] = [];
-  const dropFolder = (): void => {
-    for (const stop of folderStops) stop();
-    folderStops = [];
-    folder?.dispose();
-    folder = undefined;
+  // Every open table is painted again, its Usage filled from the folder shown, and every
+  // project's page from its store, again when the folder says its marker changed (a matlab.toml
+  // saved).
+  const repaintProjects = (shown: FolderView, uris?: readonly string[]): void => {
+    for (const t of tabs.items) {
+      if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, shown);
+    }
   };
-
-  function showFolderIn(root: string, port: MessagePort): void {
-    dropFolder();
-    folderPart.hidden = false;
-    folderPart.root = root;
-    folderPart.note = '';
-    let note = 'No data files in this folder.';
-    folder = showFolder(tree, root, port, {
-      empty: (isEmpty) => (folderPart.note = isEmpty ? note : ''),
-      open: (uri) => void open(uriPath(uri), { preview: true }),
-      error: (text) => {
-        note = `This folder could not be read: ${text}`;
-        folderPart.note = note;
-      },
-    });
-    // Every open table is painted again, its Usage filled from this folder, and every project's
-    // page from its store, again when the folder says its marker changed (a matlab.toml saved).
-    void ws.setUsage(folder.session.usage, folder.session.reposts);
-    const shown = folder;
-    const repaint = (uris?: readonly string[]) => {
-      for (const t of tabs.items) {
-        if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, shown);
-      }
-    };
-    // The search reads the folder's names again each time the folder takes a change: its tree is
-    // built again once its names are read again.
-    folderStops = [folder.onChange(repaint), folder.session.hierarchy.subscribe(() => search.reset())];
-    repaint();
-    search.reset();
-    follow();
-  }
+  const folders = connectShownFolder(folderPart, tree, {
+    open: (uri, name) =>
+      void open(uriPath(uri), { preview: true }).then((tab) => {
+        if (name !== undefined) tab.handle?.selectByName(name);
+      }),
+    shown(shown) {
+      void ws.setUsage(shown.session.usage, shown.session.reposts);
+      repaintProjects(shown);
+      follow();
+    },
+    changed: repaintProjects,
+  });
 
   // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
   paint();
@@ -607,7 +557,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   return {
     openPaths: (paths) => (disposed ? Promise.resolve() : openPaths(paths)),
     showFolder(root, port) {
-      if (!disposed) showFolderIn(root, port);
+      if (!disposed) folders.show(root, port);
     },
     fileChanged(path) {
       // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
@@ -625,14 +575,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (disposed) return;
       disposed = true;
       for (const stop of stops.splice(0)) stop();
-      search.dispose();
       for (const tab of [...tabs.items]) {
         for (const stop of tab.stops.splice(0)) stop();
         tab.handle?.dispose();
         tab.doc?.dispose();
         host.closeFile?.(tab.path);
       }
-      dropFolder();
+      folders.dispose();
       inspector.dispose();
       ws.dispose();
       parts.remove();

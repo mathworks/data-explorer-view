@@ -28,3 +28,13 @@ export function isTextField(el: Element | null | undefined): boolean {
       return !!(el as HTMLElement).isContentEditable;
   }
 }
+
+/**
+ * Whether the focus, inside shadow roots too, is in a field that takes typing: for a command that
+ * comes with no key event to read (a menu's or a toolbar's Undo), which is the field's own then.
+ */
+export function focusIsInTextField(doc: Document = document): boolean {
+  let el = doc.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return isTextField(el);
+}
