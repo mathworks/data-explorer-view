@@ -252,7 +252,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     else document.title = title;
     // The window's edited mark (macOS), and the host's cue to ask before it closes.
     host.setEdited?.(tabs.items.some((t) => t.dirty));
-    status.textContent = statusOf(active);
+    Object.assign(status, statusOf(active));
     later();
   }
 

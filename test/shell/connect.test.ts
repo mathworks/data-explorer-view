@@ -51,7 +51,7 @@ describe('connectShell', () => {
       'dex-shell-view right right raw',
       'dex-shell-view bottom bottom terminal',
       'dex-shell-view bottom bottom log',
-      'span status',
+      'dex-shell-status status',
     ]);
     const content = (view: string) => [...page.shell.querySelector(`dex-shell-view[view="${view}"]`)!.children].map((el) => el.localName);
     expect(['gallery', 'search', 'raw', 'terminal', 'log'].map(content)).toEqual([

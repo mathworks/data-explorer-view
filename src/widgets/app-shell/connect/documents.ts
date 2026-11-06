@@ -11,7 +11,7 @@
 import type { Doc } from '../../../model/source/workspace.js';
 import { projectPageMessage } from '../../../model/source/projectPage.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
-import { isSupportedPath } from 'data-explorer-core';
+import { extOf, isSupportedPath } from 'data-explorer-core';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
 import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
@@ -79,10 +79,22 @@ export function docTabOf(tab: OpenTab, title = tab.path): DocTab {
   return { id: tab.id, ...shown, title, dirty: !!tab.dirty, preview: !!tab.preview };
 }
 
-/** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
-export function statusOf(tab: OpenTab | undefined): string {
+/** What the status bar says of a file: its format, as its pill names it (`SLDD`); its kind, in words; whether it holds edits. */
+export interface FileStatus {
+  format: string;
+  kind: string;
+  modified: boolean;
+}
+
+/**
+ * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), its kind in words (`Data dictionary`), and whether it
+ * holds unsaved edits. Nothing for no tab, or a file of no kind the shell names.
+ */
+export function statusOf(tab: Pick<OpenTab, 'path' | 'dirty'> | undefined): FileStatus {
   const group = tab ? fileGroupOf(tab.path) : 'other';
-  return group === 'other' ? '' : `${FILE_FORMATS[group]}${tab?.dirty ? ' · Modified' : ''}`;
+  if (!tab || group === 'other') return { format: '', kind: '', modified: false };
+  return { format: extOf(tab.path).slice(1).toUpperCase(), kind: FILE_FORMATS[group], modified: !!tab.dirty };
 }
 
 /**
