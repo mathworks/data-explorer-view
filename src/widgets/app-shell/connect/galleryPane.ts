@@ -5,7 +5,8 @@
 // a MAT-file's or a model's own classes, a model's configuration sets beside them), headed with the
 // file's name, and greyed for no file or one the page does not edit, which its note names. A tile
 // pressed adds one entry to that file, as the table's own `+ Add` does: through the document's
-// source, its Name open for a rename once it is there. connectShell calls refresh() as the active tab or its view changes.
+// source, its Name open for a rename once it is there; one that fails says why. connectShell calls
+// refresh() as the active tab or its view changes.
 
 import type { NewEntry, TableView } from '../../../model/source/tableSource.js';
 import type { DexGalleryPanel } from '../modules/dex-gallery-panel.js';
@@ -24,8 +25,18 @@ export interface GalleryTarget {
   add(entry: NewEntry): void | Promise<void>;
 }
 
+/** What the panel adds to, and where an add that failed is said. */
+export interface GalleryPaneContext {
+  /** The active file, or null for none. */
+  target(): GalleryTarget | null;
+  /** Say that something could not be done, in words for a person. */
+  failed(message: string): void;
+}
+
+const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
 /** Wire `panel` to the active file (`target()`, null for none); refresh() draws it as it is now. */
-export function connectGalleryPane(panel: DexGalleryPanel, context: { target(): GalleryTarget | null }): { refresh(): void; dispose(): void } {
+export function connectGalleryPane(panel: DexGalleryPanel, context: GalleryPaneContext): { refresh(): void; dispose(): void } {
   // The panel's own note, what to open, for no file and for one that has not said why.
   const opening = panel.note;
   const refresh = (): void => {
@@ -41,7 +52,13 @@ export function connectGalleryPane(panel: DexGalleryPanel, context: { target(): 
   const onAdd = (e: CustomEvent<{ className: string; section: string }>): void => {
     const target = context.target();
     if (!target?.editable) return;
-    void target.add({ className: e.detail.className, section: e.detail.section, rename: true });
+    // A cell editor's commit refused before it, or the add itself: said, not left unhandled.
+    const failed = (err: unknown): void => context.failed(`Could not add to ${target.name}: ${message(err)}`);
+    try {
+      void Promise.resolve(target.add({ className: e.detail.className, section: e.detail.section, rename: true })).catch(failed);
+    } catch (err) {
+      failed(err);
+    }
   };
   panel.addEventListener('dex-gallery-add', onAdd);
   refresh();

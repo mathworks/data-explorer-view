@@ -137,6 +137,7 @@ export function connectModules(context: ModulesContext): Modules {
         },
       };
     },
+    failed: context.failed,
   });
 
   // Terminal: the command window's lines, run one after another over the active document.
