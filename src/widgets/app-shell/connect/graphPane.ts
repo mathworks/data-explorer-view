@@ -77,13 +77,17 @@ export interface GraphPane {
   stale(): void;
   /** Something changed (a tab, Root shown): build again, REBUILD_MS after the first change, if the graph is shown and out of date. */
   refresh(): void;
-  /** Select and bring forward the box of the file `uri`, or its item `name` (opening its box), once the graph holds it. */
+  /**
+   * Select the box of the file `uri`, or its item `name`, once the graph holds it, its box opened
+   * onto its items, and zoom onto it and what it reaches.
+   */
   reveal(uri: string, name?: string): void;
   /**
-   * Select and bring forward what the row `rowId` of the file `uri` stands for, `rows` its table's:
-   * for a row of a model's External Data or Model References, the file it names (its box, or its
-   * ghost); for another row, its item (graphNameOf: a block by its key, anything in a variable by
-   * the variable), else the file's box; for none, the file's box. For a table's Show in Graph.
+   * Select and zoom onto what the row `rowId` of the file `uri` stands for, and what it reaches,
+   * `rows` its table's: for a row of a model's External Data or Model References, the file it names
+   * (its box, or its ghost, as it is); for another row, its item (graphNameOf: a block by its key,
+   * anything in a variable by the variable) in its box opened, else the file's box opened; for
+   * none, the file's box opened. For a table's Show in Graph.
    */
   showRow(uri: string, rows: readonly TreeTableRow[], rowId: string | null): void;
   /**
@@ -165,14 +169,21 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   const showRevealed = (graph: RelationshipGraph | null): void => {
     if (!pendingReveal || !graph) return;
     const { uri, name, ref } = pendingReveal;
-    const id = (ref === undefined ? null : referencedId(graph, uri, ref.name, ref.section)) ?? graphIdOf(graph, uri, name);
+    const referenced = ref === undefined ? null : referencedId(graph, uri, ref.name, ref.section);
+    const id = referenced ?? graphIdOf(graph, uri, name);
     pendingReveal = null;
     if (!id) return;
-    // An item is drawn in its box only while the box is open.
-    const box = graph.boxes.find((b) => b.items.some((i) => i.id === id));
+    // An item is drawn in its box only while the box is open. A file's own box is opened onto its
+    // items too, as the prototype's Show in Graph opened a model onto its blocks and what they read;
+    // the file a reference row names is shown as it is, being where the reference leads.
+    const box =
+      graph.boxes.find((b) => b.items.some((i) => i.id === id)) ??
+      (referenced === null ? graph.boxes.find((b) => b.id === id && b.items.length > 0) : undefined);
     if (box && !el.expanded.includes(box.id)) el.expanded = [...el.expanded, box.id];
     el.selected = id;
-    el.reveal(id);
+    // The view onto it and what it reaches, as its selection lights them, rather than onto it alone
+    // at whatever scale the view had.
+    el.zoomToReach(id);
     context.selected?.();
   };
 

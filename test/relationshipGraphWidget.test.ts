@@ -6,8 +6,10 @@
 // model (relationshipGraph.ts builds the graph, layout.ts places it), so what is pinned here is the widget's half: that it draws what the layout
 // placed, that a click highlights what the clicked thing reaches and says so, that a double-click
 // and Enter ask to open, that a box's toggle asks to show or hide its items and changes nothing
-// itself, and that zoom, pan, fit and reveal move the view. Over the caserefs fixture's real graph:
-// a model linked to three dictionaries, one of them through another, and a MAT-file.
+// itself, that a box opened is zoomed to with what it reaches and the rest dimmed, that hovering an
+// item traces it and hovering an edge fades the others, and that zoom, pan, fit and reveal move the
+// view. Over the caserefs fixture's real graph: a model linked to three dictionaries, one of them
+// through another, and a MAT-file.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -155,7 +157,8 @@ describe('what it draws', () => {
     expect(kinds.filter((k) => k === 'param-usage')).toHaveLength(4);
     expect(kinds.filter((k) => k === 'data-link')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'sldd-ref')).toHaveLength(1);
-    expect([...sr(el).querySelectorAll('text.edge-label')].map((t) => t.textContent).sort()).toEqual(['Gain', 'Gain', 'Gain', 'Value']);
+    // As the prototype wrote them: the parameter as a property of the block.
+    expect([...sr(el).querySelectorAll('text.edge-label')].map((t) => t.textContent).sort()).toEqual(['.Gain', '.Gain', '.Gain', '.Value']);
     // Closed, the usages have no item to reach and are not drawn.
     el.expanded = [];
     await el.updateComplete;
@@ -552,6 +555,285 @@ describe('the view', () => {
   });
 });
 
+// The rectangles a view shows whole: each inside the canvas at the view's scale.
+function inView(el: DexRelationshipGraph, rects: readonly { x: number; y: number; width: number; height: number }[], w: number, h: number): boolean {
+  const v = view(el);
+  return rects.every(
+    (r) => v.x + r.x * v.scale >= -1e-6 && v.y + r.y * v.scale >= -1e-6 && v.x + (r.x + r.width) * v.scale <= w + 1e-6 && v.y + (r.y + r.height) * v.scale <= h + 1e-6,
+  );
+}
+
+// The middle of the rectangles' union, on screen.
+function middleOf(el: DexRelationshipGraph, rects: readonly { x: number; y: number; width: number; height: number }[]): { x: number; y: number } {
+  const v = view(el);
+  const left = Math.min(...rects.map((r) => r.x));
+  const top = Math.min(...rects.map((r) => r.y));
+  const right = Math.max(...rects.map((r) => r.x + r.width));
+  const bottom = Math.max(...rects.map((r) => r.y + r.height));
+  return { x: v.x + ((left + right) / 2) * v.scale, y: v.y + ((top + bottom) / 2) * v.scale };
+}
+
+const boxRects = (expanded: string[], ids: string[]) => {
+  const layout = layoutGraph(GRAPH, new Set(expanded));
+  return ids.map((id) => layout.boxes.find((b) => b.id === id)!);
+};
+
+describe('a box opened', () => {
+  // The prototype's expand: the view moves onto the box and the files it reaches, and every other
+  // box is dimmed, so with fifteen files the one opened is what is looked at. Opened is newly in
+  // `expanded`, which the app sets in answer to the box's +: the boxes open when the graph is first
+  // drawn are not, and are not zoomed to.
+  const selected = heard('dex-graph-selected');
+
+  it('is zoomed to with the files it reaches, and dims the rest', async () => {
+    const el = await graph();
+    sized(el, 800, 600);
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    // The MAT-file is linked by the model, and a block of the model reads its variable.
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
+    const rects = boxRects([idOf('CaseBp.mat')], [idOf('CaseBp.mat'), idOf('caseRefs.slx')]);
+    expect(inView(el, rects, 800, 600)).toBe(true);
+    const mid = middleOf(el, rects);
+    expect(mid.x).toBeCloseTo(400, 6);
+    expect(mid.y).toBeCloseTo(300, 6);
+    expect(view(el).scale).toBeLessThanOrEqual(1);
+    // Opening a box selects nothing.
+    expect(selected).toEqual([]);
+    expect(el.selected).toBeNull();
+  });
+
+  it('reaches a dictionary a reference away through what reads it, and not the models a model references', async () => {
+    // chained.sldd is referenced by CaseParams.sldd and read by a block of the model.
+    const el = await graph();
+    el.expanded = [idOf('chained.sldd')];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['ExtraDict.sldd', 'CaseBp.mat']);
+    // A model opened lights the data it links, not the model it references: what is opened is
+    // looked at for the data its blocks read.
+    const b = readFileSync(join(ROOT, 'test/fixtures/model_with_refs.slx'));
+    const g = buildRelationshipGraph([{ uriString: 'mem:///w/model_with_refs.slx', path: '/w/model_with_refs.slx', bytes: b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer }]);
+    const refs = await graph(g);
+    refs.expanded = ['mem:///w/model_with_refs.slx'];
+    await refs.updateComplete;
+    const dim = [...sr(refs).querySelectorAll<HTMLElement>('.box.dim')].map((x) => g.boxes.find((y) => y.id === x.dataset.id)!.label);
+    expect(dim).toEqual(['plant.slx']);
+  });
+
+  it('is not what the graph was first drawn with, nor what a rebuilt graph keeps open', async () => {
+    const el = await graph(GRAPH, (e) => (e.expanded = [idOf('CaseBp.mat')]));
+    expect(dimmed(el)).toEqual([]);
+    el.graph = graphOf();
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+  });
+
+  it('stops dimming when it is closed, on Escape, and on a click on the background', async () => {
+    const el = await graph();
+    const open = async () => {
+      el.expanded = [];
+      await el.updateComplete;
+      el.expanded = [idOf('CaseBp.mat')];
+      await el.updateComplete;
+      expect(dimmed(el)).toHaveLength(3);
+    };
+    await open();
+    el.expanded = [];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+    await open();
+    expect(key(el, 'Escape').defaultPrevented).toBe(true);
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+    await open();
+    pointer('pointerdown', canvas(el), 10, 10);
+    pointer('pointerup', canvas(el), 10, 10);
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+    // Nothing to stop, Escape is the app's.
+    expect(key(el, 'Escape').defaultPrevented).toBe(false);
+    expect(selected).toEqual([]);
+  });
+
+  it('gives way to a selection, which lights what it reaches instead', async () => {
+    const el = await graph();
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    boxEl(el, idOf('ExtraDict.sldd')).click();
+    await el.updateComplete;
+    // What ExtraDict.sldd reaches: the model that links it.
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'CaseBp.mat']);
+    // Escape clears the selection too, and says so.
+    key(el, 'Escape');
+    await el.updateComplete;
+    expect(selected.at(-1)).toEqual({ id: null });
+    expect(dimmed(el)).toEqual([]);
+  });
+
+  it('says what it reaches, for a reader who does not see the dimming', async () => {
+    const el = await graph();
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    expect(sr(el).querySelector('[role="status"]')!.textContent!.trim()).toBe('Showing CaseBp.mat and what it reaches: caseRefs.slx.');
+  });
+});
+
+describe('a double-click on the background', () => {
+  const expand = heard('dex-graph-expand');
+  const opened = heard('dex-graph-open');
+
+  it('asks to close every open box, and fits the whole graph', async () => {
+    const el = await graph();
+    sized(el, 1000, 600);
+    // The app answers each request, as the shell's graph pane does.
+    el.addEventListener('dex-graph-expand', (e) => {
+      const { id, expanded } = e.detail;
+      el.expanded = expanded ? [...el.expanded, id] : el.expanded.filter((x) => x !== id);
+    });
+    el.expanded = [idOf('caseRefs.slx'), idOf('CaseBp.mat')];
+    await el.updateComplete;
+    canvas(el).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(expand).toEqual([
+      { id: idOf('caseRefs.slx'), expanded: false },
+      { id: idOf('CaseBp.mat'), expanded: false },
+    ]);
+    expect(el.expanded).toEqual([]);
+    expect(dimmed(el)).toEqual([]);
+    // Fitted, as the fit button fits it.
+    const fitted = view(el);
+    el.fit();
+    await el.updateComplete;
+    expect(view(el)).toEqual(fitted);
+    expect(inView(el, layoutGraph(GRAPH, new Set()).boxes, 1000, 600)).toBe(true);
+    expect(opened).toEqual([]);
+  });
+
+  it('on a box opens its file, and closes nothing', async () => {
+    const el = await graph(GRAPH, (e) => (e.expanded = [idOf('caseRefs.slx')]));
+    boxEl(el, idOf('CaseBp.mat')).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    expect(expand).toEqual([]);
+    expect(opened).toEqual([{ uri: 'mem:///w/CaseBp.mat' }]);
+  });
+});
+
+describe('zoomToReach', () => {
+  it('zooms onto a box or an item and what a selection of it lights', async () => {
+    const el = await graph(GRAPH, openAll);
+    sized(el, 800, 600);
+    const layout = layoutGraph(GRAPH, new Set(ALL));
+    const rect = (id: string) => layout.boxes.find((b) => b.id === id)!;
+    // Gain2 reads ChainedVar: its model's box and the dictionary's.
+    el.zoomToReach(itemIdOf('caseRefs.slx', 'Gain2'));
+    await el.updateComplete;
+    const rects = [rect(idOf('caseRefs.slx')), rect(idOf('chained.sldd'))];
+    expect(inView(el, rects, 800, 600)).toBe(true);
+    expect(middleOf(el, rects).x).toBeCloseTo(400, 6);
+    // It moves the view only: the app selects.
+    expect(el.selected).toBeNull();
+    expect(dimmed(el)).toEqual([]);
+  });
+
+  it('keeps the thing itself in view where what it reaches is too big to read at the least scale', async () => {
+    const el = await graph(GRAPH, openAll);
+    sized(el, 200, 150);
+    el.zoomToReach(idOf('caseRefs.slx'));
+    await el.updateComplete;
+    const box = layoutGraph(GRAPH, new Set(ALL)).boxes.find((b) => b.id === idOf('caseRefs.slx'))!;
+    const v = view(el);
+    expect(v.scale).toBeGreaterThan(0.5);
+    // Its top left, at least, where the box is bigger than the canvas.
+    expect(v.x + box.x * v.scale).toBeGreaterThanOrEqual(-1e-6);
+    expect(v.y + box.y * v.scale).toBeGreaterThanOrEqual(-1e-6);
+    expect(v.x + box.x * v.scale).toBeLessThan(200);
+  });
+
+  it('waits for a draw to come, and for a size, and moves nothing for an id the graph does not hold', async () => {
+    const el = await graph(graphOf(['CaseBp.mat']));
+    sized(el, 800, 600);
+    el.graph = GRAPH;
+    el.zoomToReach(idOf('chained.sldd'));
+    await el.updateComplete;
+    const rects = boxRects([], [idOf('chained.sldd'), idOf('CaseParams.sldd'), idOf('caseRefs.slx')]);
+    expect(middleOf(el, rects).x).toBeCloseTo(400, 6);
+    const before = view(el);
+    el.zoomToReach('mem:///w/gone.sldd');
+    await el.updateComplete;
+    expect(view(el)).toEqual(before);
+  });
+});
+
+describe('hovering', () => {
+  const over = (target: Element) => target.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, composed: true }));
+
+  it("traces an item's connections while the pointer is on it, and gives back what was lit after", async () => {
+    const el = await graph(GRAPH, openAll);
+    el.selected = idOf('CaseBp.mat');
+    await el.updateComplete;
+    const selectedDims = dimmed(el);
+    over(itemEl(el, itemIdOf('caseRefs.slx', 'Gain2')).querySelector('.name')!);
+    await el.updateComplete;
+    // As a selection of the item would light it: its block, its variable, and their boxes.
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'ExtraDict.sldd', 'CaseBp.mat']);
+    expect(itemEl(el, itemIdOf('caseRefs.slx', 'Gain1')).classList.contains('dim')).toBe(true);
+    expect(sr(el).querySelectorAll('svg.over path.edge.param-usage')).toHaveLength(1);
+    // Off the item, onto its box: the selection's again. Hovering changes no selection.
+    over(boxEl(el, idOf('caseRefs.slx')));
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(selectedDims);
+    expect(el.selected).toBe(idOf('CaseBp.mat'));
+    // And off the canvas.
+    over(itemEl(el, itemIdOf('caseRefs.slx', 'Gain2')));
+    await el.updateComplete;
+    canvas(el).dispatchEvent(new MouseEvent('pointerleave'));
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(selectedDims);
+  });
+
+  it('fades the other edges while one is hovered', async () => {
+    const el = await graph(GRAPH, openAll);
+    const world = () => sr(el).querySelector('.world')!;
+    over(sr(el).querySelector('svg.under path.edge.data-link')!);
+    await el.updateComplete;
+    expect(world().classList.contains('edge-hover')).toBe(true);
+    over(canvas(el));
+    await el.updateComplete;
+    expect(world().classList.contains('edge-hover')).toBe(false);
+    // The fading is the stylesheet's: every edge but the one under the pointer.
+    const css = readFileSync(join(ROOT, 'src/widgets/app-shell/modules/relationship-graph.styles.ts'), 'utf8').replace(/\s+/g, ' ');
+    expect(css).toContain('.world.edge-hover .under path.edge:not(:hover)');
+  });
+
+  it('traces nothing while the background is dragged', async () => {
+    const el = await graph(GRAPH, openAll);
+    pointer('pointerdown', canvas(el), 10, 10);
+    over(itemEl(el, itemIdOf('caseRefs.slx', 'Gain2')));
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+    pointer('pointerup', canvas(el), 10, 10);
+  });
+});
+
+describe('what the edges say', () => {
+  it('colours a data link by the kind of file it links: a dictionary green, a MAT-file sand', async () => {
+    const el = await graph();
+    const links = [...sr(el).querySelectorAll<SVGPathElement>('path.edge.data-link')];
+    const to = (p: SVGPathElement) => [...p.classList].find((c) => c.startsWith('to-'));
+    expect(links.map(to)).toEqual(['to-sldd', 'to-sldd', 'to-mat']);
+    // Each with markers of its own colour.
+    expect(links.map((p) => p.getAttribute('marker-end'))).toEqual([
+      'url(#dex-graph-arrow-data-link-to-sldd)',
+      'url(#dex-graph-arrow-data-link-to-sldd)',
+      'url(#dex-graph-arrow-data-link-to-mat)',
+    ]);
+    expect(sr(el).querySelector('#dex-graph-arrow-data-link-to-mat path')!.getAttribute('class')).toBe('data-link to-mat');
+    // In the colours of the boxes they reach: no token of their own.
+    const css = readFileSync(join(ROOT, 'src/widgets/app-shell/modules/relationship-graph.styles.ts'), 'utf8').replace(/\s+/g, ' ');
+    expect(css).toContain('.data-link.to-sldd { stroke: var(--dex-graph-sldd-border, #6a8c7a); fill: var(--dex-graph-sldd-border, #6a8c7a); }');
+    expect(css).toContain('.data-link.to-mat { stroke: var(--dex-graph-mat-border, #918267); fill: var(--dex-graph-mat-border, #918267); }');
+  });
+});
+
 describe('the keyboard', () => {
   const selected = heard('dex-graph-selected');
   const opened = heard('dex-graph-open');
@@ -663,7 +945,8 @@ describe('the legend', () => {
     expect([...sr(el).querySelectorAll('.legend-content li')].map((li) => li.textContent!.trim())).toEqual([
       'Model Reference',
       'Dictionary Reference',
-      'Data Link',
+      'Data Link to Dictionary',
+      'Data Link to MAT-File',
       'Parameter Usage',
       'Workspace Usage',
       'Model',
