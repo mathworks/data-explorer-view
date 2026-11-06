@@ -827,7 +827,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   );
 
   // New's chord only for a host that makes files, asked at each press as the host's members are.
-  stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
+  // Mod+1 and Mod+2 only while the documents are in two panes: with one, they are the browser's,
+  // which switches its own tabs by them.
+  const offers = (id: ShellCommand): boolean => {
+    if (id === 'new-file') return !!host.newFile;
+    if (id === 'focus-pane-1' || id === 'focus-pane-2') return tabs.panes.length > 1;
+    return true;
+  };
+  stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers }));
   // Files dragged over the page, where the page's installFileDrop takes them: the documents' area
   // is outlined as where they open.
   stops.push(followDropMark(docs, (dragging) => (docs.dropping = dragging)));

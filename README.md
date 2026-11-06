@@ -715,7 +715,7 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Cmd/Ctrl+W | close the tab |
 | Ctrl+Tab, Ctrl+Shift+Tab | the next tab of the pane, the one before |
 | Cmd/Ctrl+\\ | Split Right: the tab into the pane on the right |
-| Cmd/Ctrl+1, Cmd/Ctrl+2 | the first pane, the second |
+| Cmd/Ctrl+1, Cmd/Ctrl+2 | the first pane, the second (while the documents are in two) |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
 | + (in a table) | Add Child, on the selected row |
@@ -734,8 +734,10 @@ graph, Settings, the command palette, the panes' and the views' chords, and the
 menu the rest. In a browser tab, a few chords are the browser's whatever the
 page does: a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox
 both do), and Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own
-tabs; there the toolbar, the tab row and the command palette do the same. The
-shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+tabs; there the toolbar, the tab row and the command palette do the same.
+Cmd/Ctrl+1 and Cmd/Ctrl+2 are the shell's only while the documents are in two
+panes: with one, they are left to the browser, which switches its own tabs by
+them. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
 there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in

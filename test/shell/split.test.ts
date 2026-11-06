@@ -536,14 +536,25 @@ describe('the commands and chords', () => {
     chord('1');
     await until(() => docsArea().split && docsArea().focusedPane === 0);
     expect(shown()).toEqual(['ParamMat.mat@0', 'shadow_ws.slx@1']);
-    // The right pane's only tab moved to the left one: with one pane, Mod+2 goes nowhere, and is
-    // spent all the same.
+    // The right pane's only tab moved to the left one: with one pane, Mod+1 and Mod+2 are the
+    // browser's, which switches its own tabs by them.
     chord('2');
     await until(() => docsArea().focusedPane === 1);
     page.command('move-to-other-pane');
     await until(() => panes().length === 1);
-    expect(chord('2')).toBe(true);
+    expect(chord('1')).toBe(false);
+    expect(chord('2')).toBe(false);
     expect(docsArea().focusedPane).toBe(0);
+  });
+
+  it('leaves Mod+1 and Mod+2 to the browser until the documents are split, and spends Mod+\\ always', async () => {
+    const page = startPage(FILES);
+    expect([chord('1'), chord('2')]).toEqual([false, false]);
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    expect([chord('1'), chord('2')]).toEqual([false, false]);
+    expect(chord('\\')).toBe(true);
+    await until(() => panes().length === 2);
+    expect([chord('1'), chord('2')]).toEqual([true, true]);
   });
 
   it("Ctrl+Tab goes round the focused pane's tabs alone", async () => {
