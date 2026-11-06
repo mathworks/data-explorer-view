@@ -882,7 +882,7 @@ describe('the fixed sizes', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '');
   // A declaration of the rule whose selector is exactly this one (not `.activity.left`).
   const declared = (selector: string, property: string): string | undefined => {
-    const escaped = selector.replace(/[.]/g, '\\.');
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const body = stylesheet.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1];
     return body?.match(new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+?)\\s*(?:;|$)`))?.[1];
   };
