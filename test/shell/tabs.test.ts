@@ -6,7 +6,7 @@
 // act (select, close, pin, move). A file opened by a click in the folder's tree, a search pick or a
 // link is a preview tab, which the next such file replaces, unless it holds edits; a tab is kept
 // once pinned, once edited, or when it was opened for good (Open, a drop, openPaths).
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   dirtyTabs,
   edit,
   explorer,
+  folderPart,
   open,
   previewTabs,
   rowOf,
@@ -191,6 +192,59 @@ describe('preview tabs', () => {
     void page.handle.openPaths([path.join(dir, 'rt_bin.sldd')]);
     await until(() => tabNames().length === 2);
     expect(previewTabs()).toEqual([]);
+  });
+
+  it('a search pick opens its file in a preview tab', async () => {
+    const { dir } = folderPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'shared_gain.slx': 'shared_gain.slx' });
+    await until(() => treeLabels().includes('shadow_ws.slx'));
+    const box = folderPart().searchInput;
+    box.value = 'WsGain';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    const results = () => [...(folderPart().shadowRoot?.querySelectorAll<HTMLElement>('.search-result') ?? [])];
+    await until(() => results().length === 1);
+    results()[0]!.click();
+    await until(() => previewTabs().join() === 'shadow_ws.slx');
+    expect(document.querySelector<HTMLElement>('.doc-panel:not([hidden])')!.dataset.path).toBe(path.join(dir, 'shadow_ws.slx'));
+  });
+
+  it("a project page's link opens its file in a preview tab", async () => {
+    const dir = tempFolder('work', { 'Plant/data/params.sldd': 'params.sldd' });
+    const marker = path.join(dir, 'Plant', 'matlab.toml');
+    writeFileSync(marker, 'name = "Plant"\n\n[project.shortcuts]\nparams = {path = "data/params.sldd"}\n');
+    const page = startPage();
+    page.host.readFile = async (p) => new Uint8Array(readFileSync(p));
+    stop.push(serveFolderTo(page, dir).dispose);
+    void page.handle.openPaths([marker]);
+    const projectPage = () => document.querySelector<HTMLElement & { payload?: unknown }>('.doc-panel dex-project-page');
+    await until(() => !!projectPage()?.payload);
+    projectPage()!.dispatchEvent(new CustomEvent('dex-project-open', { detail: { path: 'data/params.sldd' }, bubbles: true, composed: true }));
+    await until(() => previewTabs().join() === 'params.sldd');
+    expect(tabNames()).toEqual(['Plant', 'params.sldd']);
+  });
+
+  it("the inspector's link opens its file in a preview tab", async () => {
+    const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
+    await open(page, 'shadow_ws.slx');
+    document.querySelector('dex-property-inspector')!.dispatchEvent(
+      new CustomEvent('dex-property-navigate', { detail: { sourceId: 'Kp@params.sldd' }, bubbles: true, composed: true }),
+    );
+    await until(() => previewTabs().join() === 'params.sldd');
+    const kp = await rowOf('params.sldd', 'Kp');
+    await until(() => tableOf('params.sldd')!.selectedRowIds.join() === kp.ID);
+  });
+
+  it('a preview replaced leaves no step of its own in the history: Back goes where the user was before it', async () => {
+    const { page, dir } = folderPage({ 'a.sldd': 'params.sldd', 'c.sldd': 'params.sldd', 'p.sldd': 'rt_bin.sldd', 'r.sldd': 'rt_bin.sldd' });
+    await page.handle.openPaths([path.join(dir, 'a.sldd'), path.join(dir, 'c.sldd')]);
+    request('dex-tab-select', { id: tabIdOf('a.sldd') });
+    await until(() => docTabs().active === tabIdOf('a.sldd'));
+    await chooseInTree('p.sldd');
+    await until(() => previewTabs().join() === 'p.sldd');
+    // r.sldd takes p.sldd's place; c.sldd, the last tab, stands in while p.sldd goes.
+    await chooseInTree('r.sldd');
+    await until(() => tabNames().join() === 'a.sldd,c.sldd,r.sldd');
+    page.command('back');
+    await until(() => docTabs().active === tabIdOf('a.sldd'));
   });
 
   it("a link opens its file in a preview tab", async () => {

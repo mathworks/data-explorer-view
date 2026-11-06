@@ -8,7 +8,7 @@
 // once. dispose() takes all of it away, and every listener with it.
 import { describe, expect, it } from 'vitest';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
-import { open, settingsPanel, startPage, tabNames, tableOf, until } from './harness.js';
+import { at, open, settingsPanel, settled, startPage, tableOf, until } from './harness.js';
 
 const OVERLAYS = ['dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-confirm-dialog', 'dex-toast-host', 'dex-settings-panel', 'dex-about-panel'];
 const overlays = () => [...document.body.children].map((el) => el.localName).filter((name) => OVERLAYS.includes(name));
@@ -38,23 +38,47 @@ describe('connectShell', () => {
   });
 
   it('puts the shared overlays in the body once, and dispose() takes them, the parts and the documents away', async () => {
-    const page = startPage({ 'params.sldd': 'params.sldd' });
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
     expect(overlays().sort()).toEqual([...OVERLAYS].sort());
-    await open(page, 'params.sldd');
+    await open(page, 'params.sldd', 'ParamMat.mat');
     const table = tableOf('params.sldd')!;
     page.handle.dispose();
     expect(overlays()).toEqual([]);
     expect(page.shell.children).toHaveLength(0);
     expect(table.isConnected).toBe(false);
-    // Nothing answers any more: the keys, the handle, the system's theme.
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }));
+    // The host is told of every file it had open, once.
+    expect(page.main.closedFiles).toEqual([at('params.sldd'), at('ParamMat.mat')]);
+    // Nothing answers any more: the keys, the handle's commands and opens, a change on disk.
+    const reads = page.main.reads.length;
+    page.main.picks.push([at('params.sldd')]);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'o', ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }));
     page.command('close-tab');
-    void page.handle.openPaths(['/work/params.sldd']);
-    await new Promise((r) => setTimeout(r, 30));
+    page.command('open-file');
+    void page.handle.openPaths([at('params.sldd')]);
+    page.main.changed(at('params.sldd'));
+    await settled();
+    expect(page.main.reads.length).toBe(reads);
+    expect(page.main.picks).toEqual([[at('params.sldd')]]);
+    expect(page.main.closedFiles).toEqual([at('params.sldd'), at('ParamMat.mat')]);
     expect(page.shell.children).toHaveLength(0);
-    expect(tabNames()).toEqual([]);
     // A second dispose is nothing.
-    expect(() => page.handle.dispose()).not.toThrow();
+    page.handle.dispose();
+    expect(page.main.closedFiles).toHaveLength(2);
+  });
+
+  it('a file still being read when the shell is taken down is told closed once, and opens nothing', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    const read = page.host.readFile;
+    let release!: () => void;
+    page.host.readFile = (p) => new Promise((resolve) => (release = () => resolve(read(p))));
+    void page.handle.openPaths([at('params.sldd')]);
+    await until(() => !!release);
+    page.handle.dispose();
+    expect(page.main.closedFiles).toEqual([at('params.sldd')]);
+    release();
+    await settled();
+    expect(page.main.closedFiles).toEqual([at('params.sldd')]);
+    expect(document.querySelectorAll('dex-tree-table')).toHaveLength(0);
   });
 
   it('a second shell in the same page has its own overlays and keeps to them', () => {

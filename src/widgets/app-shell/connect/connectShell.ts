@@ -575,11 +575,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (disposed) return;
       disposed = true;
       for (const stop of stops.splice(0)) stop();
+      // Every tab closes, the host told of each file once: a read that lands later finds its tab
+      // gone and the shell down, and tells it nothing more.
       for (const tab of [...tabs.items]) {
         for (const stop of tab.stops.splice(0)) stop();
         tab.handle?.dispose();
         tab.doc?.dispose();
         host.closeFile?.(tab.path);
+        tabs.remove(tab);
       }
       folders.dispose();
       inspector.dispose();

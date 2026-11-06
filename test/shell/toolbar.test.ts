@@ -6,7 +6,7 @@
 // unsaved edit, another tab), and each press carried out as the command it names. A press takes
 // no focus, so a cell editor still open is still open: every command first commits it, as Save
 // always did. toolbarItems.test.ts pins the rule; this, that the shell follows it.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   at,
   dirtyTabs,
@@ -191,6 +191,61 @@ describe('the toolbar', () => {
     await until(() => tabNames().length === 0);
     expect(page.main.closeAsked).toEqual([['params.sldd']]);
     expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Kd')).toBe('1');
+  });
+
+  describe('commits a cell editor still open before the press acts', () => {
+    /** Open the Name editor on `row` of `file` and type `text` in it, uncommitted. */
+    async function typing(file: string, row: string, text: string): Promise<void> {
+      const table = tableOf(file)!;
+      expect(table.beginRename((await rowOf(file, row)).ID)).toBe(true);
+      await table.updateComplete;
+      table.shadowRoot!.querySelector<HTMLInputElement>('.edit-input')!.value = text;
+    }
+    const names = (file: string) => tableOf(file)!.rows.map((r) => r.Name?.label);
+
+    it('Copy copies the row as renamed', async () => {
+      const page = startPage(FILES);
+      await open(page, 'ParamMat.mat', 'params.sldd');
+      await selectRow('params.sldd', 'Kp');
+      await until(has('copy'));
+      await typing('params.sldd', 'Kp', 'Kd');
+      toolbarButton('Copy')!.click();
+      await until(() => names('params.sldd').includes('Kd'));
+      await selectTab('ParamMat.mat');
+      await selectRow('ParamMat.mat', 'ParamMat');
+      await until(has('paste'));
+      toolbarButton('Paste')!.click();
+      await until(() => names('ParamMat.mat').includes('Kd'));
+      expect(names('ParamMat.mat')).not.toContain('Kp');
+    });
+
+    it('Delete deletes the row as renamed, so Undo brings that back', async () => {
+      const page = startPage(FILES);
+      await open(page, 'params.sldd');
+      await selectRow('params.sldd', 'Uo');
+      await until(has('delete'));
+      await typing('params.sldd', 'Uo', 'Uo2');
+      toolbarButton('Delete')!.click();
+      await until(() => !names('params.sldd').some((n) => n === 'Uo' || n === 'Uo2'));
+      page.command('undo');
+      await until(() => names('params.sldd').includes('Uo2'));
+    });
+
+    it('Undo, with the focus not in the editor, takes back what it held', async () => {
+      const page = startPage(FILES);
+      await open(page, 'params.sldd');
+      // An editor open without the focus, as one is after the focus moved on in a browser that
+      // sends no blur (a press on the toolbar takes none).
+      const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(() => {});
+      await typing('params.sldd', 'Kp', 'Kd');
+      focus.mockRestore();
+      toolbarButton('Undo')!.click();
+      await until(() => !tableOf('params.sldd')!.shadowRoot!.querySelector('.edit-input'));
+      await until(has('redo'));
+      expect(names('params.sldd')).toContain('Kp');
+      page.command('redo');
+      await until(() => names('params.sldd').includes('Kd'));
+    });
   });
 
   it('is compact when the settings say so', async () => {

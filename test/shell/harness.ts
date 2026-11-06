@@ -13,7 +13,7 @@
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach } from 'vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
 import { createWorkspace } from '../../src/model/source/workspace.js';
 import { isEditable } from '../../src/model/source/tableSource.js';
@@ -52,16 +52,24 @@ export const at = (name: string) => `/work/${name}`;
 // document for its host. A browser answers null there, which is what the shell's parts read (a
 // popover closing asks whether it holds the focus, the Explorer whether its rows do), and the app
 // moves the focus between them all the time: into a popover, the confirm dialog, a cell editor.
+// Installed for the tests of each file that uses this harness, and put back after them; only that
+// throw is turned into null, so any other error of the getter still fails the test.
 const shadowActive = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'activeElement')!;
-Object.defineProperty(ShadowRoot.prototype, 'activeElement', {
-  ...shadowActive,
-  get(this: ShadowRoot) {
-    try {
-      return shadowActive.get!.call(this);
-    } catch {
-      return null;
-    }
-  },
+beforeAll(() => {
+  Object.defineProperty(ShadowRoot.prototype, 'activeElement', {
+    ...shadowActive,
+    get(this: ShadowRoot) {
+      try {
+        return shadowActive.get!.call(this);
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('getRootNode')) return null;
+        throw err;
+      }
+    },
+  });
+});
+afterAll(() => {
+  Object.defineProperty(ShadowRoot.prototype, 'activeElement', shadowActive);
 });
 
 defineTreeTable();

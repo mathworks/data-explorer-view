@@ -21,6 +21,7 @@ import {
   previewTabs,
   savedTo,
   selectRow,
+  settled,
   startPage,
   tabIdOf,
   tabNames,
@@ -142,7 +143,7 @@ describe('the Explorer', () => {
     ask('ParamMat.mat');
     menu.close();
     choose('close-tab');
-    await new Promise((r) => setTimeout(r, 30));
+    await settled();
     expect(tabNames()).toEqual(['ParamMat.mat']);
   });
 });

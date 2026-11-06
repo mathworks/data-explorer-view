@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
 import { defineTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
-import { at, dirtyTabs, docTabs, edit, open, rowOf, settingsPanel, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
+import { at, dirtyTabs, docTabs, edit, open, rowOf, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -272,7 +272,7 @@ describe('the chords, connected', () => {
     await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp')) === '6');
     expect(press({ key: 'z', ctrlKey: true }, tableOf('params.sldd')!)).toBe(true);
     await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp')) === '5');
-    await new Promise((r) => setTimeout(r, 30));
+    await settled();
     expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp'))).toBe('5');
     expect(dirtyTabs()).toEqual(['params.sldd']);
   });
@@ -284,7 +284,7 @@ describe('the chords, connected', () => {
     await edit('params.sldd', 'Kp', '5');
     await until(() => dirtyTabs().length === 1);
     expect(ctrl('s')).toBe(false);
-    await new Promise((r) => setTimeout(r, 30));
+    await settled();
     expect(dirtyTabs()).toEqual(['params.sldd']);
     page.command('save');
     await until(() => dirtyTabs().length === 0);
