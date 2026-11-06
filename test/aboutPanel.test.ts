@@ -2,8 +2,9 @@
 // @vitest-environment happy-dom
 //
 // The shell's About popover, opened from the (i) button at the foot of an activity bar: a heading
-// and the lines an app hands it (its version, the versions it is built on). The app's own words,
-// drawn as text: a version string is data, and must never become markup.
+// and the lines an app hands it (its version, the versions it is built on), some under a section's
+// heading (Built on, Dependencies). The app's own words, drawn as text: a version string is data,
+// and must never become markup.
 //
 // It opens and closes as the Settings popover does (settingsPanel.test.ts holds that behaviour in
 // full): beside its button, closed by Escape or a press outside, with its document listeners gone
@@ -112,6 +113,51 @@ describe('what it shows', () => {
     expect(el.open).toBe(false);
     expect(el.hasAttribute('open')).toBe(false);
     expect(el.shadowRoot!.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe('sections', () => {
+  // The popover's parts in order: the title, each section's heading, each line.
+  function parts(el: DexAboutPanel): string[] {
+    return Array.from(el.shadowRoot!.querySelectorAll('.title, .section, .line')).map((part) =>
+      part.classList.contains('line') ? `line ${part.querySelector('dt')!.textContent!.trim()}` : `${part.className} ${part.textContent!.trim()}`,
+    );
+  }
+
+  it("draws the lines with no section under the app's name, then each section under its heading", async () => {
+    const el = await open([
+      { label: 'Version', value: '1.0.0' },
+      { label: 'data-explorer-view', value: '1.9.0', section: 'Built on' },
+      { label: 'Build date', value: '2026-11-06' },
+      { label: 'data-explorer-core', value: '1.58.0', section: 'Built on' },
+    ], 'Data Explorer App');
+    expect(parts(el)).toEqual([
+      'title Data Explorer App',
+      'line Version',
+      'line Build date',
+      'section Built on',
+      'line data-explorer-view',
+      'line data-explorer-core',
+    ]);
+    // Each section's lines are a list of their own, after its heading.
+    const lists = el.shadowRoot!.querySelectorAll('dl.lines');
+    expect(Array.from(lists, (dl) => dl.querySelectorAll('.line').length)).toEqual([2, 2]);
+  });
+
+  it('heads a section for a screen reader, under the dialog, and as text, not markup', async () => {
+    const el = await open([{ label: 'Lit', value: '3.2', section: '<b>Dependencies</b>' }]);
+    const heading = el.shadowRoot!.querySelector('.section')!;
+    expect(heading.getAttribute('role')).toBe('heading');
+    expect(heading.getAttribute('aria-level')).toBe('3');
+    expect(heading.querySelector('b')).toBeNull();
+    expect(heading.textContent!.trim()).toBe('<b>Dependencies</b>');
+  });
+
+  it('follows a section added while it is open', async () => {
+    const el = await open();
+    el.lines = [...LINES, { label: 'Lit', value: '3.2', section: 'Dependencies' }];
+    await el.updateComplete;
+    expect(parts(el).slice(-2)).toEqual(['section Dependencies', 'line Lit']);
   });
 });
 

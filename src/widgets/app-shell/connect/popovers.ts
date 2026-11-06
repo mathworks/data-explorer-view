@@ -8,6 +8,7 @@
 // two popovers toggled by their buttons and their commands.
 // connectShell's, in a module of its own so that connectShell is the documents' wiring.
 
+import type { AboutLine } from '../../../model/shell/about.js';
 import { effectiveTheme, readSettings, writeSettings, type KeyValueStore, type ShellSettings } from '../../../model/shell/settings.js';
 import type { Rect } from '../../../model/shell/placement.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
@@ -60,7 +61,7 @@ export function connectPopovers(
     key: string;
     system: SystemTheme;
     appName: string;
-    about: { label: string; value: string }[];
+    about: AboutLine[];
     tables(): Iterable<DexTreeTable>;
   },
 ): Popovers {

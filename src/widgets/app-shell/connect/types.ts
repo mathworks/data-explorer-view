@@ -11,6 +11,7 @@
 // API, less what the app's own wiring does (its IPC channels, the menu's and the theme's events,
 // the folder's port message), which a host now does through the handle.
 
+import type { AboutLine } from '../../../model/shell/about.js';
 import type { Theme } from '../../../model/shell/settings.js';
 
 /**
@@ -114,8 +115,12 @@ export interface ConnectShellOptions {
   host: ShellHost;
   /** The app's name: the toolbar's label, the window title's end, and the About panel's heading. Default 'Data Explorer'. */
   appName?: string;
-  /** The About panel's lines, under its heading. Default none. */
-  about?: { label: string; value: string }[];
+  /**
+   * The About panel's lines, under its heading: each a label and its value, and the heading of the
+   * section it is in, if any (`{ label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' }`).
+   * Default none.
+   */
+  about?: AboutLine[];
   /**
    * The prefix of what the shell keeps in localStorage. Default 'dex-shell': the settings under
    * `${key}:settings`, each file's column choices under `${key}:<its uri>`, and the layout under

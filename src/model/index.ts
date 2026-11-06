@@ -161,9 +161,12 @@ export type { BoxLayout, EdgeLayout, GraphLayout, GraphLayoutStyle, GraphPoint, 
 export { addChoicesOf, runCommand } from './shell/commands.js';
 export type { AddChoice, CommandDoc, CommandOutput, CommandRaw, CommandTarget, OutputLine } from './shell/commands.js';
 
-// What the app shell's elements name in their public types: its settings and theme, the layout of
-// its sides, and the box a popover opens against.
+// What the app shell's elements name in their public types: its settings and theme, About's lines,
+// the layout of its sides, and the box a popover opens against.
 export type { ShellSettings, Theme } from './shell/settings.js';
+export type { AboutLine } from './shell/about.js';
+// This package's version, for an app's About (written from package.json by scripts/gen-version.mjs).
+export { VIEW_VERSION } from './version.js';
 export type { ShellLayoutState, ShellSide, SideState } from './shell/shellLayout.js';
 export type { Rect } from './shell/placement.js';
 
