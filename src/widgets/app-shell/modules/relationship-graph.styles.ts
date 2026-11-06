@@ -377,6 +377,11 @@ export const relationshipGraphStyles = css`
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   }
 
+  /* Hidden while the legend is closed, and still there for the toggle's aria-controls to name. */
+  .legend-content[hidden] {
+    display: none;
+  }
+
   .legend-content li {
     display: flex;
     align-items: center;
@@ -413,7 +418,7 @@ export const relationshipGraphStyles = css`
     border-color: var(--dex-graph-edge-ws-usage, #6b9b8b);
   }
 
-  .swatch.box {
+  .swatch.file {
     width: 14px;
     height: 10px;
     box-sizing: border-box;
@@ -421,22 +426,22 @@ export const relationshipGraphStyles = css`
     border-radius: 2px;
   }
 
-  .swatch.box.model {
+  .swatch.file.model {
     background: var(--dex-graph-model-bg, #e8f0f7);
     border-color: var(--dex-graph-model-border, #8bafc4);
   }
 
-  .swatch.box.sldd {
+  .swatch.file.sldd {
     background: var(--dex-graph-sldd-bg, #e8f4ec);
     border-color: var(--dex-graph-sldd-border, #8bb8a0);
   }
 
-  .swatch.box.mat {
+  .swatch.file.mat {
     background: var(--dex-graph-mat-bg, #f4f0e8);
     border-color: var(--dex-graph-mat-border, #c4b08b);
   }
 
-  .swatch.box.ghost {
+  .swatch.file.ghost {
     background: var(--dex-bg-secondary, #f8f8f8);
     border-color: var(--dex-color-text-disabled, #999);
     border-style: dashed;

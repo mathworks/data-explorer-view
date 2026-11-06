@@ -2,6 +2,7 @@
 
 import { LitElement, html, svg, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
+import { guard } from 'lit/directives/guard.js';
 import { defineElement } from '../../shared/define.js';
 import { defineIcon } from '../../shared/dex-icon.js';
 import { buttonFocusRingStyles } from '../../shared/focus.styles.js';
@@ -61,7 +62,11 @@ export interface GraphExpandDetail {
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 3;
 const BUTTON_STEP = 0.2;
-const WHEEL_STEP = 0.1;
+// The wheel zooms by a factor of how far it scrolled, e^(-rate * pixels): a wheel's notch of about
+// 100 pixels is ts's step, and a trackpad's stream of small deltas zooms as smoothly. A wheel that
+// counts in lines is taken at 16 pixels a line.
+const WHEEL_RATE = 0.0015;
+const LINE_PIXELS = 16;
 // A press that moves less than this is a click, not a drag.
 const DRAG_SLOP = 3;
 // A box's border, which the items inside it are placed within.
@@ -345,10 +350,13 @@ export class DexRelationshipGraph extends LitElement {
   }
 
   private _onWheel(e: WheelEvent): void {
-    if (!this._layout) return;
+    // A scroll that is not up or down (a trackpad's sideways one) zooms nothing, so it is left to
+    // the page.
+    if (!this._layout || e.deltaY === 0) return;
     e.preventDefault();
+    const pixels = e.deltaY * (e.deltaMode === 1 ? LINE_PIXELS : e.deltaMode === 2 ? this._size().height || 1 : 1);
     const box = this._canvas()!.getBoundingClientRect();
-    this._zoomAt(e.clientX - box.left, e.clientY - box.top, this._view.scale + (e.deltaY > 0 ? -WHEEL_STEP : WHEEL_STEP));
+    this._zoomAt(e.clientX - box.left, e.clientY - box.top, this._view.scale * Math.exp(-pixels * WHEEL_RATE));
   }
 
   // A press on the background starts a pan; one on a box is the box's (its click), and the zoom
@@ -368,6 +376,11 @@ export class DexRelationshipGraph extends LitElement {
   private _onPointerMove(e: PointerEvent): void {
     const press = this._press;
     if (!press) return;
+    // The button is up and no release came (let go outside the window, say): the drag is over.
+    if (!(e.buttons & 1)) {
+      this._endPress();
+      return;
+    }
     const [dx, dy] = [e.clientX - press.x, e.clientY - press.y];
     if (!press.moved && Math.abs(dx) <= DRAG_SLOP && Math.abs(dy) <= DRAG_SLOP) return;
     press.moved = true;
@@ -384,7 +397,9 @@ export class DexRelationshipGraph extends LitElement {
     if (press && !press.moved && this.selected !== null) this._select(null);
   }
 
-  private _onPointerCancel(): void {
+  // A drag the pointer left without a release of its own (cancelled, or its capture taken away):
+  // over, and no click.
+  private _endPress(): void {
     this._press = null;
     this._panning = false;
   }
@@ -429,8 +444,19 @@ export class DexRelationshipGraph extends LitElement {
     this.dispatchEvent(new CustomEvent<GraphExpandDetail>('dex-graph-expand', { detail, bubbles: true, composed: true }));
   }
 
-  /** What the selection lights: it, what its edges reach and those things' boxes. Null for none. */
+  // The last selection's reach, so a draw that only moves the view does not walk the edges again.
+  private _reachOf: { layout: GraphLayout | null; selected: string | null; reach: Reach | null } | null = null;
+
   private _reach(): Reach | null {
+    const memo = this._reachOf;
+    if (memo && memo.layout === this._layout && memo.selected === this.selected) return memo.reach;
+    const reach = this._reachNow();
+    this._reachOf = { layout: this._layout, selected: this.selected, reach };
+    return reach;
+  }
+
+  /** What the selection lights: it, what its edges reach and those things' boxes. Null for none. */
+  private _reachNow(): Reach | null {
     const id = this.selected;
     if (!id) return null;
     const box = this._boxes.get(id);
@@ -471,8 +497,10 @@ export class DexRelationshipGraph extends LitElement {
   // --- The keyboard -------------------------------------------------------------------------
 
   private _onKeydown(e: KeyboardEvent): void {
-    // A chord is the app's, never a move in the graph.
+    // A chord is the app's, never a move in the graph; a key on a button inside it (a box's toggle,
+    // focused by a click) is the button's, which Space and Enter press.
     if (e.altKey || e.ctrlKey || e.metaKey || !this._layout) return;
+    if ((e.target as Element | null)?.closest?.('button')) return;
     switch (e.key) {
       case 'ArrowUp':
       case 'ArrowDown':
@@ -548,13 +576,22 @@ export class DexRelationshipGraph extends LitElement {
 
   // --- Drawing ------------------------------------------------------------------------------
 
-  private _status(): string {
+  // What a screen reader hears of the selection: the thing, and what its edges link it to, which is
+  // what the dimming shows a sighted reader. Five of them by name, then how many more.
+  private _status(reach: Reach | null): string {
     const id = this.selected;
-    if (!id) return '';
+    if (!id || !reach) return '';
     const item = this._items.get(id);
-    if (item) return `Selected ${item.name} in ${this._boxes.get(item.boxId)?.label ?? ''}`;
-    const box = this._boxes.get(id);
-    return box ? `Selected ${box.label}, ${BOX_LABELS[box.kind] ?? box.kind}${box.ghost ? ', not open' : ''}` : '';
+    const box = this._boxes.get(item ? item.boxId : id);
+    if (!box) return '';
+    const itemName = (i: GraphItem) => `${i.name} in ${this._boxes.get(i.boxId)?.label ?? ''}`;
+    const linked = item
+      ? [...reach.items].filter((x) => x !== id).map((x) => itemName(this._items.get(x)!))
+      : [...reach.boxes].filter((x) => x !== id).map((x) => this._boxes.get(x)?.label ?? '');
+    const said = item ? `Selected ${itemName(item)}.` : `Selected ${box.label}, ${BOX_LABELS[box.kind] ?? box.kind}${box.ghost ? ', not open' : ''}.`;
+    if (linked.length === 0) return said;
+    const named = linked.length > 5 ? `${linked.slice(0, 5).join(', ')} and ${linked.length - 5} more` : linked.join(', ');
+    return `${said} Linked to ${named}.`;
   }
 
   // THE LAYERS. An edge between two boxes runs UNDER the boxes, so one that has to pass a box on
@@ -745,14 +782,28 @@ export class DexRelationshipGraph extends LitElement {
           aria-controls="legend"
           @click=${() => (this._legendOpen = !open)}
         >Legend</button>
-        ${open
-          ? html`<ul class="legend-content" id="legend">
-              ${EDGE_KINDS.map((kind) => html`<li><span class="swatch line ${kind}"></span>${EDGE_LABELS[kind]}</li>`)}
-              ${(['model', 'sldd', 'mat'] as const).map((kind) => html`<li><span class="swatch box ${kind}"></span>${BOX_LABELS[kind]}</li>`)}
-              <li><span class="swatch box ghost"></span>Not Open</li>
-            </ul>`
-          : nothing}
+        <ul class="legend-content" id="legend" ?hidden=${!open}>
+          ${EDGE_KINDS.map((kind) => html`<li><span class="swatch line ${kind}"></span>${EDGE_LABELS[kind]}</li>`)}
+          ${(['model', 'sldd', 'mat'] as const).map((kind) => html`<li><span class="swatch file ${kind}"></span>${BOX_LABELS[kind]}</li>`)}
+          <li><span class="swatch file ghost"></span>Not Open</li>
+        </ul>
       </div>
+    `;
+  }
+
+  // The graph itself: the edges under the boxes, the boxes, and what goes over them. Drawn again
+  // only when the layout or the selection changes (the guard in render): a pan or a zoom moves the
+  // world's transform and nothing in it, so a drag over a large graph does not build every route's
+  // path on every step.
+  private _renderWorld(layout: GraphLayout, reach: Reach | null) {
+    return html`
+      <svg class="edges under" width=${layout.width} height=${layout.height} aria-hidden="true">
+        ${this._markers()} ${this._renderUnder(layout.edges, reach)}
+      </svg>
+      ${layout.boxes.map((b) => this._renderBox(b, reach))}
+      <svg class="edges over" width=${layout.width} height=${layout.height} aria-hidden="true">
+        ${this._renderOver(layout.edges, reach)}
+      </svg>
     `;
   }
 
@@ -780,7 +831,8 @@ export class DexRelationshipGraph extends LitElement {
         @pointerdown=${this._onPointerDown}
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
-        @pointercancel=${this._onPointerCancel}
+        @pointercancel=${this._endPress}
+        @lostpointercapture=${this._endPress}
         @wheel=${this._wheel}
       >
         <div
@@ -791,16 +843,10 @@ export class DexRelationshipGraph extends LitElement {
             transform: `translate(${x}px, ${y}px) scale(${scale})`,
           })}
         >
-          <svg class="edges under" width=${layout.width} height=${layout.height} aria-hidden="true">
-            ${this._markers()} ${this._renderUnder(layout.edges, reach)}
-          </svg>
-          ${layout.boxes.map((b) => this._renderBox(b, reach))}
-          <svg class="edges over" width=${layout.width} height=${layout.height} aria-hidden="true">
-            ${this._renderOver(layout.edges, reach)}
-          </svg>
+          ${guard([layout, this.selected], () => this._renderWorld(layout, reach))}
         </div>
       </div>
-      <div class="zoom" role="toolbar" aria-label="Zoom" aria-orientation="vertical">
+      <div class="zoom" role="group" aria-label="Zoom">
         <button aria-label="Zoom in" title="Zoom in" @click=${() => this._zoomBy(BUTTON_STEP)}>+</button>
         <button aria-label="Zoom out" title="Zoom out" @click=${() => this._zoomBy(-BUTTON_STEP)}>−</button>
         <button aria-label="Fit to view" title="Fit to view" @click=${() => this.fit()}>
@@ -810,7 +856,7 @@ export class DexRelationshipGraph extends LitElement {
         </button>
       </div>
       ${this._renderLegend()}
-      <div class="sr-only" role="status" aria-live="polite">${this._status()}</div>
+      <div class="sr-only" role="status" aria-live="polite">${this._status(reach)}</div>
     `;
   }
 }

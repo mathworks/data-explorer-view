@@ -9,7 +9,7 @@
 // and Enter ask to open, that a box's toggle asks to show or hide its items and changes nothing
 // itself, and that zoom, pan, fit and reveal move the view. Over the caserefs fixture's real graph:
 // a model linked to three dictionaries, one of them through another, and a MAT-file.
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -92,8 +92,10 @@ function heard<K extends 'dex-graph-selected' | 'dex-graph-open' | 'dex-graph-ex
   return got as (K extends 'dex-graph-selected' ? GraphSelectedDetail : K extends 'dex-graph-open' ? GraphOpenDetail : GraphExpandDetail)[];
 }
 
-const pointer = (type: string, target: Element, x: number, y: number) =>
-  target.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX: x, clientY: y, button: 0 }));
+// A press, move or release of the primary button: `buttons` says it is held, as a browser says it
+// on a press and every move until the release.
+const pointer = (type: string, target: Element, x: number, y: number, buttons = type === 'pointerup' ? 0 : 1) =>
+  target.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons }));
 const key = (el: DexRelationshipGraph, k: string) => {
   const e = new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true });
   canvas(el).dispatchEvent(e);
@@ -360,10 +362,82 @@ describe('the view', () => {
     await el.updateComplete;
     const after = view(el);
     expect(wheel.defaultPrevented).toBe(true);
-    expect(after.scale).toBeGreaterThan(before.scale);
+    // By a factor of the distance scrolled, so a trackpad's many small steps zoom as smoothly as a
+    // wheel's few large ones add up to.
+    expect(after.scale / before.scale).toBeCloseTo(Math.exp(100 * 0.0015), 6);
     // The canvas point under (200, 100) is the same before and after.
     expect((200 - after.x) / after.scale).toBeCloseTo((200 - before.x) / before.scale, 6);
     expect((100 - after.y) / after.scale).toBeCloseTo((100 - before.y) / before.scale, 6);
+  });
+
+  it('zooms a trackpad a little at a time, by lines as by pixels, and takes no scroll that zooms nothing', async () => {
+    const el = await graph();
+    sized(el, 800, 600);
+    const wheel = (init: WheelEventInit, mode = 0): WheelEvent => {
+      const e = new WheelEvent('wheel', { bubbles: true, cancelable: true, composed: true, ...init });
+      Object.defineProperties(e, { clientX: { value: 0 }, clientY: { value: 0 }, deltaMode: { value: mode } });
+      canvas(el).dispatchEvent(e);
+      return e;
+    };
+    const before = view(el).scale;
+    wheel({ deltaY: -4 });
+    await el.updateComplete;
+    expect(view(el).scale / before).toBeCloseTo(Math.exp(4 * 0.0015), 6);
+    const step = view(el).scale;
+    wheel({ deltaY: 3 }, 1);
+    await el.updateComplete;
+    expect(view(el).scale / step).toBeCloseTo(Math.exp(-3 * 16 * 0.0015), 6);
+    // A sideways scroll: nothing to zoom, so the page keeps it.
+    const sideways = wheel({ deltaX: 30, deltaY: 0 });
+    await el.updateComplete;
+    expect(sideways.defaultPrevented).toBe(false);
+    expect(view(el).scale / step).toBeCloseTo(Math.exp(-3 * 16 * 0.0015), 6);
+  });
+
+  it('ends a drag when the pointer is let go anywhere: capture lost, or a move with the button up', async () => {
+    const el = await graph();
+    const start = view(el);
+    pointer('pointerdown', canvas(el), 100, 100);
+    pointer('pointermove', canvas(el), 120, 100);
+    canvas(el).dispatchEvent(new Event('lostpointercapture', { bubbles: true, composed: true }));
+    pointer('pointermove', canvas(el), 200, 100);
+    await el.updateComplete;
+    expect(view(el).x).toBe(start.x + 20);
+    expect(canvas(el).classList.contains('panning')).toBe(false);
+    // Released outside the window, where the release never came: the next move says the button is up.
+    pointer('pointerdown', canvas(el), 100, 100);
+    pointer('pointermove', canvas(el), 110, 100);
+    pointer('pointermove', canvas(el), 150, 100, 0);
+    pointer('pointermove', canvas(el), 190, 100);
+    await el.updateComplete;
+    expect(view(el).x).toBe(start.x + 30);
+  });
+
+  it('moves the view without drawing the graph again', async () => {
+    // A pan or a zoom changes one transform. Drawing the boxes and building every edge's path again
+    // on each step of a drag is what made a large graph stutter.
+    const el = await graph(GRAPH, openAll);
+    sized(el, 800, 600);
+    const proto = DexRelationshipGraph.prototype as unknown as Record<string, () => unknown>;
+    const spies = ['_renderUnder', '_renderOver', '_renderBox'].map((name) => vi.spyOn(proto, name));
+    try {
+      pointer('pointerdown', canvas(el), 100, 100);
+      pointer('pointermove', canvas(el), 140, 120);
+      await el.updateComplete;
+      pointer('pointermove', canvas(el), 160, 130);
+      pointer('pointerup', canvas(el), 160, 130);
+      await el.updateComplete;
+      button(el, 'Zoom in').click();
+      await el.updateComplete;
+      expect(view(el).x).not.toBe(0);
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+      // A selection does draw it again: what is lit changes.
+      el.selected = idOf('CaseBp.mat');
+      await el.updateComplete;
+      expect(spies[0]).toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
   });
 
   it('pans with a drag of the background', async () => {
@@ -464,7 +538,35 @@ describe('the keyboard', () => {
     const active = canvas(el).getAttribute('aria-activedescendant')!;
     expect(sr(el).querySelector(`#${active}`)).toBe(boxEl(el, idOf('CaseBp.mat')));
     expect(sr(el).querySelector('[role="status"]')!.textContent).toContain('CaseBp.mat');
+    // A group with a name, not a toolbar: it has none of a toolbar's arrow-key behaviour.
+    expect(sr(el).querySelector('.zoom')!.getAttribute('role')).toBe('group');
+    expect(sr(el).querySelector('.zoom')!.getAttribute('aria-label')).toBe('Zoom');
     for (const b of sr(el).querySelectorAll<HTMLButtonElement>('.box button')) expect(b.tabIndex).toBe(-1);
+  });
+
+  it('says what is selected and what it links to', async () => {
+    const el = await graph(GRAPH, openAll);
+    const status = () => sr(el).querySelector('[role="status"]')!.textContent!.trim();
+    el.selected = idOf('CaseBp.mat');
+    await el.updateComplete;
+    expect(status()).toBe('Selected CaseBp.mat, MAT-File. Linked to caseRefs.slx.');
+    el.selected = itemIdOf('caseRefs.slx', 'Gain2');
+    await el.updateComplete;
+    expect(status()).toBe('Selected Gain2 in caseRefs.slx. Linked to ChainedVar in chained.sldd.');
+    el.selected = idOf('caseRefs.slx');
+    await el.updateComplete;
+    expect(status()).toBe('Selected caseRefs.slx, Model. Linked to CaseParams.sldd, ExtraDict.sldd, CaseBp.mat, chained.sldd.');
+  });
+
+  it('leaves the keys of a button inside it to the button', async () => {
+    const el = await graph(GRAPH, (e) => (e.selected = idOf('CaseBp.mat')));
+    const toggle = boxEl(el, idOf('CaseBp.mat')).querySelector<HTMLButtonElement>('.toggle')!;
+    for (const k of [' ', 'Enter', 'ArrowDown']) {
+      const e = new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true });
+      toggle.dispatchEvent(e);
+      expect(e.defaultPrevented, k).toBe(false);
+    }
+    expect([opened, expand, selected]).toEqual([[], [], []]);
   });
 
   it('moves the selection between boxes with the arrows, starting at the first', async () => {
@@ -524,10 +626,14 @@ describe('the legend', () => {
     const toggle = sr(el).querySelector<HTMLButtonElement>('.legend button')!;
     expect(toggle.textContent!.trim()).toBe('Legend');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(sr(el).querySelector('.legend-content')).toBeNull();
+    // There while closed, so the toggle's aria-controls names an element: hidden.
+    const list = sr(el).querySelector<HTMLElement>('.legend-content')!;
+    expect(list.id).toBe(toggle.getAttribute('aria-controls'));
+    expect(list.hidden).toBe(true);
     toggle.click();
     await el.updateComplete;
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(list.hidden).toBe(false);
     expect([...sr(el).querySelectorAll('.legend-content li')].map((li) => li.textContent!.trim())).toEqual([
       'Model Reference',
       'Dictionary Reference',
@@ -541,7 +647,7 @@ describe('the legend', () => {
     ]);
     toggle.click();
     await el.updateComplete;
-    expect(sr(el).querySelector('.legend-content')).toBeNull();
+    expect(list.hidden).toBe(true);
   });
 });
 
