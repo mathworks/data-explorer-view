@@ -9,7 +9,8 @@
 //
 // The gallery is drawn here in place, not as the popover it is in the table (its `inline`): no
 // Keep open box, which could change nothing; no focus taken on its first draw, which would take
-// the keyboard from the table; Escape left to the page. What the panel adds is the
+// the keyboard from the table; Escape left to the page. And small (its `compact`), four tiles to a
+// row in a sidebar of the default width, so the whole palette is on screen beside the table. What the panel adds is the
 // heading that says where an add lands, a note when there is nowhere to add, and one request
 // under its own name.
 
@@ -154,6 +155,7 @@ export class DexGalleryPanel extends LitElement {
       ${this.disabled ? html`<div class="note">${this.note}</div>` : nothing}
       <dex-add-gallery
         inline
+        compact
         .classes=${this.classes}
         .sections=${this.sections}
         ?inert=${this.disabled}
