@@ -563,6 +563,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     shown(shown) {
       log('info', `Showing the folder ${shown.root}`);
       modules.scope(basenameOf(shown.root));
+      // The folder's usage from now on. A Close Folder, should one come, hands it back to the open
+      // tabs: ws.setUsage(openUsage), then openUsage.changed().
       void ws.setUsage(shown.session.usage, shown.session.reposts);
       repaintProjects(tabs.items, shown, log);
       follow();

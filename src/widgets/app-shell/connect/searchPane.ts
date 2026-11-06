@@ -10,10 +10,11 @@
 // index read from its disk, with each entry's value and type beside its name. The matches are
 // ranked as the prototype's were (searchRanked: the name, the value or the type, a prefix before a
 // substring before the name's letters in order), so Enter on the first row takes the best; a
-// folder's entries, whose index reads names alone, match by name. The folder's index answers in its own time (a first build reads every
-// file), so the panel says it is searching meanwhile, and the answer to a query the typing has
-// moved past is dropped. An index that cannot be read says so once, not on every query, until it
-// answers again.
+// folder's entries, whose index reads names alone, match by name.
+//
+// The folder's index answers in its own time (a first build reads every file), so the panel says
+// it is searching meanwhile, and the answer to a query the typing has moved past is dropped. An
+// index that cannot be read says so once, not on every query, until it answers again.
 
 import type { NameRecord } from '../../../model/search/nameExtract.js';
 import type { NameIndex } from '../../../model/search/nameIndex.js';

@@ -100,6 +100,7 @@ export { sourceUri, uriPath } from './source/sourceUri.js';
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
 export { formatHex, tokenizeJson, tokenizeXml } from './raw/rawView.js';
 export type { RawToken, RawTokenKind, RawView } from './raw/rawView.js';
+export type { RawOptions } from './raw/rawOfRow.js';
 
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
 export { projectPageMessage, readProjectPage } from './source/projectPage.js';
@@ -140,6 +141,7 @@ export type { EntryKind, NameRecord } from './search/nameExtract.js';
 export { namesOfFile } from './search/nameScan.js';
 export type { NameReader } from './search/nameScan.js';
 export { namesOfRows } from './search/openDocNames.js';
+export type { NamesOfRowsOptions } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';

@@ -134,6 +134,31 @@ describe('the Usage column over the open files', () => {
     expect(refills).toHaveLength(1);
   });
 
+  it('takes a document asked to repaint as answered over the files of the ask, its fill still to come', async () => {
+    const files = [opened('sharedParams.sldd'), opened('ctrlA.slx')];
+    // The refills are only recorded: no repaint runs, so no fill notes the files again.
+    const { usage, timers, refills } = usageOver(files);
+    await usage.graphFor(DICT);
+    // plantB opened: the dictionary is asked, and counts from now as filled over the three.
+    const plant = opened('plantB.slx');
+    files.push(plant);
+    usage.changed();
+    timers.flush();
+    expect(refills).toEqual([[DICT]]);
+    // A second burst before that repaint's fill: plantB closed again. The files are the ones the
+    // dictionary's last fill read, but not the ones it was last asked over, and its repaint may
+    // read them as they were at the ask: asked again.
+    files.pop();
+    usage.changed();
+    timers.flush();
+    expect(refills).toEqual([[DICT], [DICT]]);
+    // Its fill lands now, over the two: nothing more is owed.
+    await usage.graphFor(DICT);
+    usage.changed();
+    timers.flush();
+    expect(refills).toHaveLength(2);
+  });
+
   it('owes nothing to a document never painted, nor to one closed since it was', async () => {
     const files = [opened('sharedParams.sldd'), opened('ctrlA.slx'), opened('plantB.slx')];
     const { usage, timers, refills } = usageOver(files);
