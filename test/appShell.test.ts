@@ -408,6 +408,19 @@ describe('the focus', () => {
     // Focusable from a script only: Tab passes the view by.
     expect(viewOf(shell, 'properties').tabIndex).toBe(-1);
   });
+
+  it('leaves a focus the app put in the view, its own box, by the time the side is drawn', async () => {
+    const views = standard();
+    const first = document.createElement('button');
+    const box = document.createElement('input');
+    (views[2] as DexShellView).append(first, box);
+    const shell = await mount(views);
+    // The app gives its box the keyboard once the side is drawn, as connectShell does.
+    shell.addEventListener('dex-shell-view-changed', () => void shell.updateComplete.then(() => box.focus()));
+    press({ key: 'F', ctrlKey: true, shiftKey: true });
+    await settle(shell);
+    expect(document.activeElement).toBe(box);
+  });
 });
 
 describe('the actions', () => {

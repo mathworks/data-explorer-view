@@ -68,9 +68,24 @@ export function connectModules(context: ModulesContext): Modules {
     const side = SHELL_VIEWS.find((v) => v.view === id)?.side;
     return !!side && shell.layout[side].open && shell.layout[side].view === id;
   };
+  // A view with a box of its own (Search, the Terminal) gives it the keyboard once the shell has
+  // drawn the side it shows the view on: a box in a side not drawn yet (one that was closed) is in
+  // no slot, and takes no focus. The shell then leaves a focus that is in the view where it is,
+  // rather than moving it to the view's first control. Asked twice in one change (the command,
+  // then the change it made), the box is focused once; the last view asked for is the one.
+  let focusing: string | null = null;
+  let disposed = false;
   const focusBox = (view: string): void => {
-    if (view === 'search') parts.search.focusInput();
-    else if (view === 'terminal') parts.terminal.focusInput();
+    const pending = focusing !== null;
+    focusing = view;
+    if (pending) return;
+    void shell.updateComplete.then(() => {
+      const view = focusing;
+      focusing = null;
+      if (disposed || !view || !onScreen(view)) return;
+      if (view === 'search') parts.search.focusInput();
+      else if (view === 'terminal') parts.terminal.focusInput();
+    });
   };
 
   // Raw: what the active document's file holds for the selected row, or for the file itself.
@@ -140,6 +155,7 @@ export function connectModules(context: ModulesContext): Modules {
     idle: () => terminal.idle(),
     scope: (folderName) => search.scope(folderName),
     dispose() {
+      disposed = true;
       raw.dispose();
       search.dispose();
       gallery.dispose();

@@ -9,7 +9,7 @@
 // with a box (Search, the Terminal) takes the keyboard.
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PaletteCommand } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
-import { dirtyTabs, edit, open, palette, searchPanel, settingsPanel, startPage, until, type Page } from './harness.js';
+import { commandWindow, dirtyTabs, edit, open, palette, searchPanel, settingsPanel, settled, startPage, until, type Page } from './harness.js';
 
 afterEach(() => Reflect.deleteProperty(navigator, 'platform'));
 
@@ -75,5 +75,33 @@ describe('the command palette', () => {
     // A view shown already stays shown: the command brings it forward, it does not close its side.
     page.command('show-search');
     expect(viewShown(page, 'left')).toBe('search');
+  });
+
+  it("gives a box the keyboard once its side is drawn, for a side that was closed", async () => {
+    const page = startPage();
+    await until(() => !!page.shell.shadowRoot?.querySelector('button[data-view="terminal"]'));
+    page.shell.toggleView('terminal');
+    await page.shell.updateComplete;
+    expect(page.shell.layout.bottom.open).toBe(false);
+    // Where the side's slot is when the box is asked to take the focus: a box in no slot is not drawn, and takes none.
+    const slotted: boolean[] = [];
+    const focusInput = commandWindow().focusInput.bind(commandWindow());
+    commandWindow().focusInput = () => (slotted.push(!!page.shell.shadowRoot!.querySelector('slot[name="bottom"]')), focusInput());
+    run('show-terminal');
+    await settled();
+    expect(slotted).toEqual([true]);
+    expect(commandWindow().shadowRoot!.activeElement?.localName).toBe('input');
+  });
+
+  it("leaves the Terminal's box the keyboard after its chord, past the shell's own focus step", async () => {
+    Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    const page = startPage();
+    await until(() => !!page.shell.shadowRoot?.querySelector('button[data-view="terminal"]'));
+    page.command('show-log');
+    await settled();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '`', code: 'Backquote', ctrlKey: true, bubbles: true, cancelable: true }));
+    await settled();
+    expect(viewShown(page, 'bottom')).toBe('terminal');
+    expect(commandWindow().shadowRoot!.activeElement?.localName).toBe('input');
   });
 });

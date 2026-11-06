@@ -660,10 +660,11 @@ export class DexAppShell extends LitElement {
   };
 
   // The focus into a view just shown: its first control, else the view itself (which takes the
-  // focus from a script, not from Tab). After the render, which is what draws the view's side.
+  // focus from a script, not from Tab). After the render, which is what draws the view's side; and
+  // none where the focus is in the view by then, which the app gave to a box of the view's own.
   private async _focusInto(view: DexShellView): Promise<void> {
     await this.updateComplete;
-    if (view.hidden || !view.isConnected) return;
+    if (view.hidden || !view.isConnected || holdsFocus(view)) return;
     const control = firstFocusable(view);
     control?.focus();
     if (!control || !holdsFocus(view)) view.focus();
