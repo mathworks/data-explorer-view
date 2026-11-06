@@ -11,6 +11,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   activeTab,
+  choose,
   docsArea,
   docTabs,
   dirtyTabs,
@@ -19,6 +20,7 @@ import {
   graph,
   graphShown,
   locationBar,
+  menuOn,
   open,
   previewTabs,
   rowOf,
@@ -280,6 +282,40 @@ describe('the tab row', () => {
     await until(() => !docTabs().hidden);
     toolbarButton('Open')!.focus();
     page.command('show-graph');
+    await until(() => docTabs().hidden);
+    await settled();
+    expect(document.activeElement).toBe(toolbar());
+  });
+
+  it("Show in Graph chosen in a table's menu gives the keyboard to the Explorer's Root, or the graph with the Explorer off screen", async () => {
+    // As Show Graph's chord: the table's panel hides as Root shows. The menu gives the keyboard
+    // back to the table before it says what was chosen, so the table holds it then.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const grid = () => tableOf('params.sldd')!.shadowRoot!.querySelector<HTMLElement>('.table-container')!;
+    const showInGraph = async (from: HTMLElement) => {
+      await menuOn('params.sldd', 'Uo');
+      from.focus();
+      choose('showInGraph');
+    };
+    await showInGraph(grid());
+    await until(() => docTabs().hidden && graphShown());
+    await until(() => document.activeElement === explorer());
+    expect(explorer().shadowRoot!.activeElement?.textContent?.trim()).toBe('Root');
+
+    // The Explorer's side closed: the graph, which fills the center.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    page.shell.toggleView('explorer');
+    await until(() => !page.shell.layout.left.open);
+    await showInGraph(grid());
+    await until(() => document.activeElement === graph());
+    expect(graph().shadowRoot!.activeElement?.classList.contains('canvas')).toBe(true);
+
+    // The focus not in the panel (on the toolbar's Open): nothing moves it.
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
+    await showInGraph(toolbarButton('Open')!);
     await until(() => docTabs().hidden);
     await settled();
     expect(document.activeElement).toBe(toolbar());

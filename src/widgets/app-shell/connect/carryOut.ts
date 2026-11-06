@@ -42,6 +42,21 @@ function focusedElement(): HTMLElement | null {
 }
 
 /**
+ * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel
+ * (a table's, Show Graph's chord or Show in Graph used there) to the page's body: that one goes to
+ * `toRoot`, where the tab row's does as Root shows. Read before the panel hides, by the shadow host
+ * the focus is in, which :focus-within matches the panel by; and let go of first, as the tab row's
+ * is, so a graph still being drawn takes it once it is.
+ */
+export function showRootFrom(panel: HTMLElement | undefined, show: () => void, toRoot: () => void): void {
+  const held = !!panel && !!document.activeElement && panel.contains(document.activeElement);
+  show();
+  if (!held) return;
+  focusedElement()?.blur();
+  toRoot();
+}
+
+/**
  * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
  * `untitled1.sldd` and on, as Simulink names a new model, so two new files are told apart.
  */
@@ -108,22 +123,15 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       on.nav[id]();
       on.later();
       break;
-    case 'show-graph': {
-      // The Explorer's Root, where the relationship graph is drawn. The active tab's panel hides as
-      // it shows, and a browser drops a focus inside it (a table's, its chord pressed there) to the
-      // page's body: that one goes where the tab row's does as Root shows. Read before the panel
-      // hides, by the shadow host the focus is in, which :focus-within matches the panel by; and
-      // let go of first, as the tab row's is, so a graph still being drawn takes it once it is.
-      const panel = on.tabs.active?.panel;
-      const held = !!panel && !!document.activeElement && panel.contains(document.activeElement);
-      if (on.tabs.deactivate()) {
-        on.shown();
-        if (held) {
-          focusedElement()?.blur();
-          on.keyboardToRoot();
-        }
-      }
+    case 'show-graph':
+      // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).
+      showRootFrom(
+        on.tabs.active?.panel,
+        () => {
+          if (on.tabs.deactivate()) on.shown();
+        },
+        on.keyboardToRoot,
+      );
       break;
-    }
   }
 }

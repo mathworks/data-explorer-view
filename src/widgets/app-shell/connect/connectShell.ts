@@ -66,7 +66,7 @@ import { Saver, settle } from './saving.js';
 import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
-import { carryOut, type CarryOutContext } from './carryOut.js';
+import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
 import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
@@ -512,10 +512,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           const note = ranNote(run);
           if (note) say('info', note, 2000);
         }),
-        // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box) brought forward.
+        // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box)
+        // brought forward, and the keyboard kept as Show Graph's is (showRootFrom).
         handle.on('action', ({ actionId, rowId }) => {
           if (actionId !== SHOW_IN_GRAPH.id) return;
-          showRoot();
+          showRootFrom(tab.panel, showRoot, rootTakesTheKeyboard);
           graph.showRow(uri, tab.table?.rows ?? [], rowId);
         }),
         // For the toolbar, the Explorer and the Gallery: each whole paint, the first too (which no
