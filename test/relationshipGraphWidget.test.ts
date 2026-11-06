@@ -719,6 +719,73 @@ describe('a box opened', () => {
     expect(dimmed(el)).toEqual([]);
   });
 
+  it('lights over a selection made before it, and says so; a selection made after lights again', async () => {
+    // The review's case: SubChassis selected, then PowerTrain's + pressed. The + selects nothing,
+    // so the selection stays and sends nothing; what is newer is what is lit.
+    const el = await graph();
+    const status = () => sr(el).querySelector('[role="status"]')!.textContent!.trim();
+    boxEl(el, idOf('ExtraDict.sldd')).click();
+    await el.updateComplete;
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
+    expect(boxEl(el, idOf('CaseBp.mat')).classList.contains('dim')).toBe(false);
+    expect(status()).toBe('Showing CaseBp.mat and what it reaches: caseRefs.slx.');
+    expect(el.selected).toBe(idOf('ExtraDict.sldd'));
+    expect(selected).toEqual([{ id: idOf('ExtraDict.sldd') }]);
+    // A box chosen after: the selection is newer.
+    boxEl(el, idOf('CaseParams.sldd')).click();
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['ExtraDict.sldd', 'CaseBp.mat']);
+    expect(status()).toContain('Selected CaseParams.sldd');
+  });
+
+  it('takes a box opened with a selection, as a Show in Graph opens one, as no box opened', async () => {
+    const el = await graph();
+    el.expanded = [idOf('CaseBp.mat')];
+    el.selected = itemIdOf('CaseBp.mat', 'Bp');
+    await el.updateComplete;
+    // The selection's reach: the variable, its block, and their boxes.
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
+    // The app lets the selection go: nothing is lit, the box being no box the user opened.
+    el.selected = null;
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+    expect(sr(el).querySelector('[role="status"]')!.textContent!.trim()).toBe('');
+  });
+
+  it('gives the lighting back to the box opened before when the last one is closed', async () => {
+    const el = await graph();
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    el.expanded = [idOf('CaseBp.mat'), idOf('chained.sldd')];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['ExtraDict.sldd', 'CaseBp.mat']);
+    el.expanded = [idOf('CaseBp.mat')];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual(['CaseParams.sldd', 'chained.sldd', 'ExtraDict.sldd']);
+    // Escape lets them all go: closing one after that lights none.
+    key(el, 'Escape');
+    el.expanded = [];
+    await el.updateComplete;
+    expect(dimmed(el)).toEqual([]);
+  });
+
+  it('lets a box go that leaves the graph while it is lit, and lights the one opened before', async () => {
+    const el = await graph();
+    el.expanded = [idOf('chained.sldd')];
+    await el.updateComplete;
+    el.expanded = [idOf('chained.sldd'), idOf('CaseBp.mat')];
+    await el.updateComplete;
+    // The MAT-file closed in the app: the graph is built without it, `expanded` not yet told.
+    el.graph = graphOf(NAMES.filter((n) => n !== 'CaseBp.mat'));
+    await el.updateComplete;
+    const dim = [...sr(el).querySelectorAll<HTMLElement>('.box.dim')].map((b) => el.graph!.boxes.find((x) => x.id === b.dataset.id)!.label);
+    // chained.sldd's reach; the MAT-file is a ghost now, the model still naming it.
+    expect(dim).toEqual(['ExtraDict.sldd', 'CaseBp.MAT']);
+    expect(sr(el).querySelector('[role="status"]')!.textContent!.trim()).toContain('Showing chained.sldd');
+  });
+
   it('gives way to a selection, which lights what it reaches instead', async () => {
     const el = await graph();
     el.expanded = [idOf('CaseBp.mat')];

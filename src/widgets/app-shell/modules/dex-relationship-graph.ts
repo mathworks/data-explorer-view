@@ -215,10 +215,17 @@ export class DexRelationshipGraph extends LitElement {
   @state() private _view: View = { x: 0, y: 0, scale: 1 };
   @state() private _legendOpen = false;
   @state() private _panning = false;
-  // The box opened last, whose reach is lit while nothing is selected: until it is closed, Escape or
-  // a click on the background.
+  // The box the user opened last and has not closed, whose reach is lit until Escape or a click on
+  // the background: over the selection when it was opened after the selection was made
+  // (_openedNewer), else while nothing is selected.
   @state() private _opened: string | null = null;
+  @state() private _openedNewer = false;
+  // Every box the user opened, oldest first, while it stays open and in the graph: closing the last
+  // gives the lighting back to the one before. Emptied by Escape and a click on the background.
+  private _openedStack: string[] = [];
   // The item under the pointer, whose connections are lit while it is there, over any selection.
+  // Each enter and leave draws the world again (24 ms and 13 ms on a 230-box graph, every box
+  // open); a requestAnimationFrame throttle of _hoverItem is the next step if that grows.
   @state() private _hoverItem: string | null = null;
   // Whether an edge is under the pointer: the others fade (the stylesheet's :hover picks it out).
   @state() private _hoverEdge = false;
@@ -282,25 +289,38 @@ export class DexRelationshipGraph extends LitElement {
         watch = false;
       }
     }
-    if (changed.has('graph') || changed.has('expanded')) this._noteOpened(watch);
+    // A box opened with a change of the selection is the app's doing (a Show in Graph sets both), not
+    // the user's: it is not taken as opened. A change of the selection on its own is newer than the
+    // box opened before it, and lights over it.
+    const selection = changed.has('selected');
+    if (selection) this._openedNewer = false;
+    if (changed.has('graph') || changed.has('expanded')) this._noteOpened(watch && !selection);
     // A size known before the draw (the canvas is drawn already): the fit is done in this update.
     if (this._pending && this._size().width > 0) this._doPending();
   }
 
-  // The box opened since the last draw, if one was: it is what is lit, and the view moves onto it
-  // and what it reaches, unless the app asked for a view of its own with the change (a Show in
-  // Graph). The one opened before is let go when it closes, or leaves the graph.
+  // The box opened since the last draw, if one was: it is what is lit, newer than the selection,
+  // and the view moves onto it and what it reaches, unless the app asked for a view of its own with
+  // the change. One that closes, or leaves the graph, is let go, and the one opened before it is
+  // lit again.
   private _noteOpened(watch: boolean): void {
     const open = new Set([...this._expanded()].filter((id) => this._boxes.has(id)));
     const opened = watch ? [...open].filter((id) => !this._wasOpen.has(id)) : [];
     this._wasOpen = open;
+    this._openedStack = [...this._openedStack.filter((id) => open.has(id) && !opened.includes(id)), ...opened];
+    this._opened = this._openedStack[this._openedStack.length - 1] ?? null;
     if (opened.length > 0) {
-      this._opened = opened[opened.length - 1]!;
+      this._openedNewer = true;
       // Over a fit still waiting for a size, which would show the graph as it was before.
-      if (this._pending === null || this._pending === 'fit') this._pending = { zoom: this._opened, opened: true };
-    } else if (this._opened !== null && !open.has(this._opened)) {
-      this._opened = null;
+      if (this._pending === null || this._pending === 'fit') this._pending = { zoom: this._opened!, opened: true };
     }
+  }
+
+  // No box's reach lit: every box the user opened let go.
+  private _letGo(): void {
+    this._openedStack = [];
+    this._opened = null;
+    this._openedNewer = false;
   }
 
   private _relayout(): void {
@@ -532,7 +552,7 @@ export class DexRelationshipGraph extends LitElement {
   // Nothing selected, and no box's reach lit. True when there was something to clear.
   private _clear(): boolean {
     const had = this.selected !== null || this._opened !== null;
-    this._opened = null;
+    this._letGo();
     if (this.selected !== null) this._select(null);
     return had;
   }
@@ -541,7 +561,7 @@ export class DexRelationshipGraph extends LitElement {
   // all, and the whole graph fitted. On a box it is the box's (it opens the file).
   private _onDblClick(e: MouseEvent): void {
     if ((e.target as Element | null)?.closest?.('.box') || !this._layout) return;
-    this._opened = null;
+    this._letGo();
     for (const id of this._expanded()) {
       if (!this._boxes.has(id)) continue;
       const detail: GraphExpandDetail = { id, expanded: false };
@@ -625,11 +645,14 @@ export class DexRelationshipGraph extends LitElement {
     return this._reaches.get(key)!;
   }
 
-  // What is lit now: the item under the pointer, else the selection, else the box opened last.
+  // What is lit now: the item under the pointer; else the box opened last when it is newer than the
+  // selection; else the selection, and with none the box opened last.
   private _lit(): Reach | null {
-    return (
-      this._reachFrom(this._hoverItem, null) ?? this._reachFrom(this.selected, null) ?? this._reachFrom(this._opened, OPENED)
-    );
+    const hover = this._reachFrom(this._hoverItem, null);
+    if (hover) return hover;
+    const opened = this._reachFrom(this._opened, OPENED);
+    const selection = this._reachFrom(this.selected, null);
+    return this._openedNewer ? (opened ?? selection) : (selection ?? opened);
   }
 
   /**
@@ -766,11 +789,12 @@ export class DexRelationshipGraph extends LitElement {
 
   // --- Drawing ------------------------------------------------------------------------------
 
-  // What a screen reader hears of the selection: the thing, and what its edges link it to, which is
-  // what the dimming shows a sighted reader. Five of them by name, then how many more. With nothing
-  // selected, the box opened last and what it reaches. Never the item under the pointer: a pointer
-  // crossing the graph would talk over everything.
+  // What a screen reader hears of what is lit: the selection, the thing and what its edges link it
+  // to, which is what the dimming shows a sighted reader, five of them by name, then how many more;
+  // or the box opened last and what it reaches, when that is what is lit. Never the item under the
+  // pointer: a pointer crossing the graph would talk over everything.
   private _status(): string {
+    if (this._openedNewer && this._opened) return this._openedStatus();
     const id = this.selected;
     const reach = this._reachFrom(id, null);
     if (!id || !reach) return this._openedStatus();
