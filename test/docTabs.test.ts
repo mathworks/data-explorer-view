@@ -42,7 +42,8 @@ const labels = (el: DexDocTabs): string[] => tabEls(el).map((t) => t.querySelect
 const closeOf = (el: DexDocTabs, id: string): HTMLButtonElement => tabOf(el, id).querySelector<HTMLButtonElement>('button.close')!;
 const focused = (el: DexDocTabs): HTMLElement | null => el.shadowRoot!.activeElement as HTMLElement | null;
 const strip = (el: DexDocTabs): HTMLElement => el.shadowRoot!.querySelector<HTMLElement>('[role="tablist"]')!;
-const overflowButton = (el: DexDocTabs): HTMLButtonElement | null => el.shadowRoot!.querySelector<HTMLButtonElement>('button.overflow');
+// The … button, while it is offered: it is drawn always, and hidden while the tabs fit.
+const overflowButton = (el: DexDocTabs): HTMLButtonElement | null => el.shadowRoot!.querySelector<HTMLButtonElement>('button.overflow:not([hidden])');
 const menuItems = (el: DexDocTabs): HTMLElement[] => [...el.shadowRoot!.querySelectorAll<HTMLElement>('[role="menuitem"]')];
 
 /** Every detail of `type` the element sends from now on, heard on the document: the events must leave the shadow root. */
@@ -224,6 +225,28 @@ describe('the tabs', () => {
     expect(tabOf(el, 'a').getAttribute('aria-label')).toBe('a.sldd, preview');
     expect(tabOf(el, 'b').getAttribute('aria-label')).toBe('b.mat, preview, unsaved');
   });
+
+  it('draws a subtitle before the icon and the label, smaller and muted, and names both to a screen reader', async () => {
+    // A tab showing a part of its file (a dictionary's Design Data) is labelled with the part, and
+    // the file is its subtitle: as a path reads, the file first. A tab with none draws no subtitle.
+    const section: DocTab = { id: 'a', label: 'Design Data', icon: 'designData', subtitle: 'a.sldd', preview: true };
+    const el = await mount([section, B]);
+    const tab = tabOf(el, 'a');
+    const subtitle = tab.querySelector<HTMLElement>('.subtitle')!;
+    expect(subtitle.textContent).toBe('a.sldd');
+    expect([...tab.children].map((c) => c.className || c.localName)).toEqual(['subtitle', 'dex-icon', 'label', 'close']);
+    expect(getComputedStyle(subtitle).fontSize).toBe('11px');
+    // Text, not a mark: muted, but readable on the bar and on the active tab's white (4.5:1).
+    const ink = getComputedStyle(subtitle).color;
+    expect(contrast(ink, getComputedStyle(el.shadowRoot!.querySelector('.bar')!).backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(ink, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    // The italic is the label's, the part a preview shows; the file's name stays upright.
+    expect(getComputedStyle(subtitle).fontStyle).not.toBe('italic');
+    expect(tab.getAttribute('aria-label')).toBe('a.sldd, Design Data, preview');
+    expect(closeOf(el, 'a').getAttribute('aria-label')).toBe('Close a.sldd, Design Data');
+    expect(tabOf(el, 'b').querySelector('.subtitle')).toBeNull();
+    expect(closeOf(el, 'b').getAttribute('aria-label')).toBe('Close b.mat');
+  });
 });
 
 describe('what the mouse asks for', () => {
@@ -398,6 +421,115 @@ describe('scrolling', () => {
     }
   });
 
+  it('offers the … button before it scrolls the active tab into view, in the one update, so the button never covers it', async () => {
+    // The row overflowed as a tab was added: scrolled first, the new tab ended under the button the
+    // measure then turned on, and setting that state inside updated() made Lit draw again (and warn).
+    const el = await mount([A]);
+    Object.defineProperty(strip(el), 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 200 });
+    const buttonThere: boolean[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      buttonThere.push(overflowButton(el) !== null);
+    });
+    try {
+      el.tabs = [A, B, C];
+      el.active = 'c';
+      // Lit's updateComplete is false when an update set a property inside updated(), drawing again.
+      expect(await el.updateComplete).toBe(true);
+      expect(buttonThere).toEqual([true]);
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it('scrolls the active tab into view again when it is drawn otherwise, a subtitle or a longer label widening it', async () => {
+    const el = await mount([A, B, C], 'c');
+    const scrolled: string[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      scrolled.push(this.dataset.id ?? '');
+    });
+    try {
+      el.tabs = [A, B, { ...C, label: 'Model Workspace', subtitle: 'c.slx' }];
+      await el.updateComplete;
+      expect(scrolled).toEqual(['c']);
+      // Another tab drawn otherwise, or the active one marked unsaved, leaves the strip as it is.
+      el.tabs = [{ ...A, label: 'Design Data', subtitle: 'a.sldd' }, B, { ...C, label: 'Model Workspace', subtitle: 'c.slx', dirty: true }];
+      await el.updateComplete;
+      expect(scrolled).toEqual(['c']);
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it("sizes each tab's icon itself, so a tab is as wide before its icon has drawn as after, and the scroll lands right", async () => {
+    // <dex-icon> takes its size from its own first draw, which comes after the row's: measured and
+    // scrolled before, a tab grew by its icon afterwards, and its end went back under the … button.
+    const el = await mount();
+    const icons = [...el.shadowRoot!.querySelectorAll('dex-icon')];
+    expect(icons.length).toBe(2);
+    for (const icon of icons) expect(getComputedStyle(icon).width).toBe('14px');
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')).join('\n');
+    expect(css).toContain('dex-icon { flex-shrink: 0; width: 14px; height: 14px; }');
+  });
+
+  it('scrolls the active tab into view again when a narrower window turns the … button on', async () => {
+    const observers: (() => void)[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    );
+    const scrolled: string[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      scrolled.push(this.dataset.id ?? '');
+    });
+    try {
+      const el = await mount([A, B, C], 'c');
+      scrolled.length = 0;
+      Object.defineProperty(strip(el), 'scrollWidth', { configurable: true, value: 600 });
+      Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 200 });
+      observers[0]!();
+      expect(overflowButton(el)).not.toBeNull();
+      expect(scrolled).toEqual(['c']);
+      // Measured again with the button there: nothing changed, nothing scrolled.
+      observers[0]!();
+      expect(scrolled).toEqual(['c']);
+    } finally {
+      scroll.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('hides the × of a tab scrolled partly out past the row\'s start, so no × is left there alone', async () => {
+    // Scrolled so that only a tab's end shows at the left edge, its × stood there with no label.
+    const el = await mount();
+    await crowd(el);
+    const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 28, height: 28, x: left, y: 0, toJSON() {} }) as DOMRect;
+    let scrolledBy = 0;
+    vi.spyOn(strip(el), 'getBoundingClientRect').mockImplementation(() => rect(0, 200));
+    tabEls(el).forEach((tab, i) => vi.spyOn(tab, 'getBoundingClientRect').mockImplementation(() => rect(i * 120 - scrolledBy, 120)));
+    scrolledBy = 100;
+    strip(el).dispatchEvent(new Event('scroll'));
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([true, false, false]);
+    scrolledBy = 0;
+    strip(el).dispatchEvent(new Event('scroll'));
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([false, false, false]);
+    // A redraw keeps the mark it measured: Lit does not own the attribute.
+    scrolledBy = 130;
+    strip(el).dispatchEvent(new Event('scroll'));
+    el.tabs = [...el.tabs];
+    await el.updateComplete;
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([true, true, false]);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(css).toContain('.tab[data-clipped] .close { visibility: hidden; }');
+  });
+
   it('turns a vertical wheel into a sideways scroll of a crowded row, and leaves an uncrowded one to the page', async () => {
     const el = await mount();
     const roomy = new WheelEvent('wheel', { deltaY: 40, bubbles: true, composed: true, cancelable: true });
@@ -437,6 +569,15 @@ describe('the overflow menu', () => {
     expect(select).toEqual([{ id: 'c' }]);
     expect(menuItems(el)).toEqual([]);
     expect(focused(el)).toBe(overflowButton(el));
+  });
+
+  it("lists a tab's subtitle before its label, as the tab draws it", async () => {
+    const el = await mount([{ ...A, label: 'Design Data', subtitle: 'a.sldd' }, B]);
+    await crowd(el);
+    overflowButton(el)!.click();
+    await el.updateComplete;
+    expect(menuItems(el).map((i) => [...i.querySelectorAll('.subtitle, .label')].map((s) => s.textContent))).toEqual([['a.sldd', 'Design Data'], ['b.mat']]);
+    expect(menuItems(el)[0]!.getAttribute('aria-label')).toBe('a.sldd, Design Data');
   });
 
   it('opens on the active tab, moves with the arrows, and asks for the one Enter is pressed on', async () => {

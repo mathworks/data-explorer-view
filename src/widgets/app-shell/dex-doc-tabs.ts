@@ -13,8 +13,13 @@ import { highContrastStyles } from '../shared/high-contrast.styles.js';
 export interface DocTab {
   /** What the requests name the tab by. Unique in the row. */
   id: string;
-  /** The text on the tab: the file's name. */
+  /** The text on the tab: the file's name, or the part of it the tab shows (with the file as `subtitle`). */
   label: string;
+  /**
+   * Smaller, muted text drawn before the icon and the label: the file's name, while the label names
+   * a part of it (a dictionary's `Design Data`), so the tab reads as a path does. None, none.
+   */
+  subtitle?: string;
   /** An icon id drawn before the label, at 14px (`simulink_database`). None, no icon. */
   icon?: string;
   /** The tooltip: the file's whole path, say. The label when there is none. */
@@ -60,10 +65,12 @@ const TAB_TYPE = 'application/x-dex-tab';
  * `dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what
  * order, and which is active stay the app's: nothing here changes `tabs` or `active`.
  *
- * A preview tab's label is italic; an unsaved one shows ● where its × is, until the pointer or the
- * keyboard comes onto it. A row too long for its width scrolls sideways (a wheel scrolls it too),
- * keeps the active tab in view, and offers a … button listing every tab. The arrow keys move the
- * focus along the tabs, and Home and End to either end.
+ * A tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the
+ * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
+ * where its × is, until the pointer or the keyboard comes onto it. A row too long for its width
+ * scrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it
+ * then offers, which lists every tab; a tab scrolled partly out past the row's start hides its ×. The
+ * arrow keys move the focus along the tabs, and Home and End to either end.
  *
  * @tagname dex-doc-tabs
  */
@@ -133,8 +140,12 @@ export class DexDocTabs extends LitElement {
       opacity: 0.4;
     }
 
+    /* Sized here, at the 14px each tab and menu item draws it at, not by the icon's own first draw,
+       which comes after the row's: the row measures and scrolls with each tab as wide as it will be. */
     dex-icon {
       flex-shrink: 0;
+      width: 14px;
+      height: 14px;
     }
 
     /* A long name gives way, and its tooltip has the whole of it. */
@@ -142,6 +153,17 @@ export class DexDocTabs extends LitElement {
       max-width: 240px;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    /* The file a tab's label is a part of: smaller and muted, but text that reads, 4.5:1 on the bar
+       and on the active tab; upright on a preview tab, whose italic is the label's. */
+    .subtitle {
+      max-width: 160px;
+      margin-inline-end: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 11px;
+      color: var(--dex-color-text-muted, #666);
     }
 
     .preview .label {
@@ -169,6 +191,13 @@ export class DexDocTabs extends LitElement {
     .close:hover {
       color: var(--dex-color-text, #333);
       background: var(--dex-bg-active, #e0e0e0);
+    }
+
+    /* A tab scrolled partly out past the row's start (data-clipped, measured as the strip scrolls)
+       shows its end at the edge, often its × alone, a control with nothing beside it to say what it
+       closes: hidden there, the dot too, and kept in its place so the tab keeps its width. */
+    .tab[data-clipped] .close {
+      visibility: hidden;
     }
 
     /* The dot in the colour the hierarchy marks the same file's unsaved changes with, so the two
@@ -233,6 +262,12 @@ export class DexDocTabs extends LitElement {
     .overflow:hover,
     .overflow[aria-expanded='true'] {
       background: var(--dex-bg-hover, #e8e8e8);
+    }
+
+    /* The display above beats the browser's own [hidden] rule: the button is drawn always, and
+       hidden while the tabs fit. */
+    .overflow[hidden] {
+      display: none;
     }
 
     .menu {
@@ -308,8 +343,6 @@ export class DexDocTabs extends LitElement {
   // The tab being dragged out of this row, and the tab a drag of one is over.
   @state() private _dragging: string | null = null;
   @state() private _over: string | null = null;
-  // More tabs than room: the … button is offered.
-  @state() private _crowded = false;
   @state() private _menuOpen = false;
   @state() private _menuFocus = 0;
 
@@ -339,7 +372,18 @@ export class DexDocTabs extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('active')) this._scrollPending = true;
-    if (changed.has('tabs')) this._keepFocus(changed.get('tabs'));
+    if (changed.has('tabs')) {
+      this._keepFocus(changed.get('tabs'));
+      if (this._activeRedrawn(changed.get('tabs'))) this._scrollPending = true;
+    }
+  }
+
+  // Whether the active tab reads otherwise than it did (another label, a subtitle, an icon), which
+  // may widen it past the strip's end: it is kept in view as it grows.
+  private _activeRedrawn(previous: DocTab[] | undefined): boolean {
+    const was = Array.isArray(previous) ? previous.find((t) => t.id === this.active) : undefined;
+    const now = this._list().find((t) => t.id === this.active);
+    return !!was && !!now && (was.label !== now.label || was.subtitle !== now.subtitle || was.icon !== now.icon);
   }
 
   protected override updated(): void {
@@ -348,14 +392,7 @@ export class DexDocTabs extends LitElement {
       this._focusTo = null;
       this._tabElement(id)?.focus();
     }
-    if (this._scrollPending) {
-      const tab = this._tabElement(this.active);
-      if (tab) {
-        this._scrollPending = false;
-        tab.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-      }
-    }
-    this._measure();
+    this._layout();
   }
 
   private _list(): DocTab[] {
@@ -402,14 +439,52 @@ export class DexDocTabs extends LitElement {
     this._focusTo = inRow ? this._focusId : null;
   }
 
-  // What the strip's width makes of the row: crowded once its tabs are wider than it, measured as it
-  // is drawn and as it is resized. Hidden, the button closes its menu, which hangs from it.
+  // What the room makes of the row, after each draw and each resize, in this order: the … button,
+  // which takes its width from the strip; then the active tab scrolled into the room that is left,
+  // so the button never covers it; then which tabs the scroll cuts at the row's start. None of it
+  // sets a reactive property: a draw that measures is the only draw, and Lit has no update to
+  // schedule after the one it completed.
+  private _layout(): void {
+    this._measure();
+    this._scrollActive();
+    this._markClipped();
+  }
+
+  // Crowded once the tabs are wider than the strip with the … button gone: the button is shown or
+  // hidden on the element the template drew, rather than through state. Turned on, it may cover the
+  // active tab, which is scrolled into view again; turned off, its menu, which hangs from it, closes
+  // (a task later, outside the update that measured).
   private _measure(): void {
     const strip = this._strip();
+    const button = this.renderRoot.querySelector<HTMLButtonElement>('button.overflow');
+    if (!strip || !button) return;
+    const room = strip.clientWidth + (button.hidden ? 0 : button.offsetWidth);
+    const crowded = strip.scrollWidth > room;
+    if (crowded === !button.hidden) return;
+    button.hidden = !crowded;
+    if (crowded) this._scrollPending = true;
+    else if (this._menuOpen) queueMicrotask(() => this._closeMenu(false));
+  }
+
+  // `active` changed, or the … button came: its tab, once drawn, scrolled into view.
+  private _scrollActive(): void {
+    if (!this._scrollPending) return;
+    const tab = this._tabElement(this.active);
+    if (!tab) return;
+    this._scrollPending = false;
+    tab.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // Each tab whose start is scrolled out past the strip's is marked data-clipped, which hides its ×.
+  // Set here, as the strip scrolls and after each draw, and not by the template, so a draw leaves
+  // the mark as measured.
+  private _markClipped(): void {
+    const strip = this._strip();
     if (!strip) return;
-    const crowded = strip.scrollWidth > strip.clientWidth;
-    if (crowded !== this._crowded) this._crowded = crowded;
-    if (!crowded && this._menuOpen) this._closeMenu(false);
+    const start = strip.getBoundingClientRect().left;
+    for (const tab of strip.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      tab.toggleAttribute('data-clipped', tab.getBoundingClientRect().left < start - 0.5);
+    }
   }
 
   // The bar, not the strip: the strip narrows as the … button comes and widens as it goes, and
@@ -418,7 +493,7 @@ export class DexDocTabs extends LitElement {
   private _observe(): void {
     const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
     if (!bar || typeof ResizeObserver === 'undefined') return;
-    this._resize ??= new ResizeObserver(() => this._measure());
+    this._resize ??= new ResizeObserver(() => this._layout());
     this._resize.observe(bar);
   }
 
@@ -632,14 +707,23 @@ export class DexDocTabs extends LitElement {
 
   // ---- Drawing ----
 
-  // What a screen reader calls the tab, or its menu item: its name, and what the italic and the
+  // What the tab reads: its subtitle, then its label, as they are drawn.
+  private _title(tab: DocTab): string {
+    return tab.subtitle ? `${tab.subtitle}, ${tab.label}` : tab.label;
+  }
+
+  // What a screen reader calls the tab, or its menu item: what it reads, and what the italic and the
   // dot say to the eye.
   private _name(tab: DocTab): string {
-    return [tab.label, tab.preview ? 'preview' : '', tab.dirty ? 'unsaved' : ''].filter((part) => part !== '').join(', ');
+    return [this._title(tab), tab.preview ? 'preview' : '', tab.dirty ? 'unsaved' : ''].filter((part) => part !== '').join(', ');
   }
 
   private _icon(tab: DocTab) {
     return tab.icon ? html`<dex-icon .iconId=${tab.icon} size="14"></dex-icon>` : nothing;
+  }
+
+  private _subtitle(tab: DocTab) {
+    return tab.subtitle ? html`<span class="subtitle">${tab.subtitle}</span>` : nothing;
   }
 
   private _tab(tab: DocTab, index: number, tabbable: boolean) {
@@ -677,13 +761,13 @@ export class DexDocTabs extends LitElement {
         @drop=${(e: DragEvent) => this._onDrop(e, tab)}
         @dragend=${this._onDragEnd}
       >
-        ${this._icon(tab)}
+        ${this._subtitle(tab)}${this._icon(tab)}
         <span class="label">${tab.label}</span>
         <button
           class="close"
           tabindex="-1"
           title="Close"
-          aria-label="Close ${tab.label}"
+          aria-label="Close ${this._title(tab)}"
           @click=${(e: Event) => this._onClose(e, tab)}
           @dblclick=${(e: Event) => e.stopPropagation()}
         >
@@ -710,7 +794,7 @@ export class DexDocTabs extends LitElement {
               @click=${() => this._chooseFromMenu(tab)}
               @focus=${() => (this._menuFocus = i)}
             >
-              ${this._icon(tab)}
+              ${this._subtitle(tab)}${this._icon(tab)}
               <span class="label">${tab.label}</span>
               ${tab.dirty ? html`<span class="dot" aria-hidden="true">●</span>` : nothing}
             </div>
@@ -725,27 +809,28 @@ export class DexDocTabs extends LitElement {
     // One tab takes the Tab key: the one the keyboard is on, else the active one, else the first.
     const tabbable = [this._focusId, this.active].find((id) => id !== null && tabs.some((t) => t.id === id)) ?? tabs[0]?.id;
     const count = `${tabs.length} open tab${tabs.length === 1 ? '' : 's'}`;
+    // The … button is hidden as drawn, and its `hidden` is bound to nothing: _measure shows and
+    // hides it as the room says, with no draw of its own.
     return html`
       <div class="bar">
-        <div role="tablist" aria-label="Open documents" @wheel=${this._onWheel} @focusout=${this._onFocusOut}>
+        <div role="tablist" aria-label="Open documents" @wheel=${this._onWheel} @scroll=${this._markClipped} @focusout=${this._onFocusOut}>
           ${repeat(
             tabs,
             (tab) => tab.id,
             (tab, i) => this._tab(tab, i, tab.id === tabbable),
           )}
         </div>
-        ${this._crowded
-          ? html`<button
-              class="overflow"
-              aria-label="Show all tabs"
-              aria-haspopup="menu"
-              aria-expanded=${String(this._menuOpen)}
-              title=${count}
-              @click=${this._toggleMenu}
-            >
-              …
-            </button>`
-          : nothing}
+        <button
+          class="overflow"
+          hidden
+          aria-label="Show all tabs"
+          aria-haspopup="menu"
+          aria-expanded=${String(this._menuOpen)}
+          title=${count}
+          @click=${this._toggleMenu}
+        >
+          …
+        </button>
       </div>
       ${this._menuOpen ? this._menu(tabs) : nothing}
     `;

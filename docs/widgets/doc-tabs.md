@@ -6,11 +6,14 @@ a tab sends `dex-tab-select`, its × (or a middle click, Delete or Backspace) `d
 double-click `dex-tab-pin`, and a tab dragged onto another `dex-tab-move`. Which tabs there are,
 in what order, and which is active stay the app's: the row changes neither `tabs` nor `active`.
 
-A preview tab (a file only being looked at, which the next one opened replaces) has its label in
-italics. A tab with unsaved changes shows ● where its × is, until the pointer or the keyboard
-comes onto it. A row too long for its width scrolls sideways, keeps the active tab in view, and
-has a … button that lists every tab. The arrow keys move along the tabs, and Home and End go to
-either end.
+A tab's `subtitle`, when it has one, is drawn before its icon and label, smaller and muted: the
+file, while the label names a part of it (the shell's tab reads `plant.sldd` and then `Design
+Data` while its selection is in that section). A preview tab (a file only being looked at, which
+the next one opened replaces) has its label in italics. A tab with unsaved changes shows ● where
+its × is, until the pointer or the keyboard comes onto it. A row too long for its width scrolls
+sideways, keeps the active tab in view, clear of the … button it then offers, which lists every
+tab, and hides the × of a tab scrolled partly out past its start, so no × is left there alone.
+The arrow keys move along the tabs, and Home and End go to either end.
 
 ```js
 import { defineDocTabs } from 'data-explorer-view/app-shell';
@@ -20,6 +23,7 @@ const strip = document.querySelector('dex-doc-tabs');
 strip.tabs = [
   { id: 'a', label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', title: '/work/plant.sldd', dirty: true },
   { id: 'b', label: 'gains.mat', preview: true },
+  { id: 'c', label: 'Design Data', subtitle: 'params.sldd', title: '/work/params.sldd' }, // a part of a file
 ];
 strip.active = 'a';
 strip.addEventListener('dex-tab-select', (e) => (strip.active = e.detail.id));
