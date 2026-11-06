@@ -4,10 +4,10 @@
 shell runs in a browser tab, with no backend, as it runs in an Electron window.
 
 ```js
-import { connectShell, defineAppShell, installFileDrop } from 'data-explorer-view/app-shell';
+import { connectShell, defineShellWidgets, installFileDrop } from 'data-explorer-view/app-shell';
 import { browserHost } from 'data-explorer-view/browser-host';
 
-defineAppShell();
+defineShellWidgets();
 const host = browserHost({
   onFolder: (root, port) => app.showFolder(root, port),
   onChanged: (path) => app.fileChanged(path),
