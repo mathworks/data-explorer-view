@@ -8,7 +8,7 @@
 // Firefox's and Safari's entries, or Files alone. Ported from data-explorer-app test/unit/web/fakeFs.ts.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { ListedFile, WebDir } from '../../src/browser/walk.js';
+import type { ListedFile, BrowserDir } from '../../src/browser/walk.js';
 
 let clock = 1_000;
 
@@ -243,10 +243,10 @@ export function inputFilesOf(root: string, files: Record<string, string | Uint8A
   });
 }
 
-/** A folder named `root` as the browser listed it when it was picked, holding `files`. */
-export function listedDir(root: string, files: Record<string, string | Uint8Array>): WebDir {
+/** A folder named `root` as the browser listed it when it was picked, holding `files`; `truncated`: the reading stopped at a limit. */
+export function listedDir(root: string, files: Record<string, string | Uint8Array>, truncated?: boolean): BrowserDir {
   const listed: ListedFile[] = Object.entries(files).map(([rel, content]) => ({ rel, file: fileOf(rel.slice(rel.lastIndexOf('/') + 1), content) }));
-  return { kind: 'list', root, files: listed };
+  return truncated === undefined ? { kind: 'list', root, files: listed } : { kind: 'list', root, files: listed, truncated };
 }
 
 /** Firefox's and Safari's entry for a dropped file or folder (FileSystemEntry), over `files` for a folder. */

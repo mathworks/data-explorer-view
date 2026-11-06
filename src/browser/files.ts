@@ -10,28 +10,30 @@
 //
 // Lifted from data-explorer-app src/web/files.ts at b13a860.
 
-import { dirName, type WebDir } from './walk.js';
+import { dirName, type BrowserDir } from './walk.js';
 
 /**
  * What reads a file: a handle, which reads the file as it is now; a File, a reference to the file
  * whose lastModified and size are as they were when it was picked, and which the browser refuses
  * to read once another program has written the file; or bytes the page holds.
  */
-export type WebSource =
+export type BrowserSource =
   | { kind: 'handle'; handle: FileSystemFileHandle }
   | { kind: 'file'; file: File }
   | { kind: 'bytes'; bytes: Uint8Array };
 
 /** A file the page has: its name (the tab's), and what reads it. */
-export interface WebFile {
+export interface BrowserFile {
+  /** The file's name, with its extension: what its tab says, and how its kind is told. */
   name: string;
-  source: WebSource;
+  /** What reads it. */
+  source: BrowserSource;
 }
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
 /** The two folders are one: two handles to one directory. Two lists of Files are never told to be. */
-async function sameDir(a: WebDir, b: WebDir): Promise<boolean> {
+async function sameDir(a: BrowserDir, b: BrowserDir): Promise<boolean> {
   if (a.kind !== 'handle' || b.kind !== 'handle') return false;
   return a.handle.isSameEntry(b.handle);
 }
@@ -40,7 +42,7 @@ async function sameDir(a: WebDir, b: WebDir): Promise<boolean> {
  * When the file of `source` was last written and how long it is, without reading it: a handle's as
  * of now, a File's as it was picked. Null for bytes the page holds, or a handle whose file is gone.
  */
-export async function statOf(source: WebSource): Promise<{ lastModified: number; size: number } | null> {
+export async function statOf(source: BrowserSource): Promise<{ lastModified: number; size: number } | null> {
   if (source.kind === 'bytes') return null;
   try {
     const file = source.kind === 'file' ? source.file : await source.handle.getFile();
@@ -51,23 +53,23 @@ export async function statOf(source: WebSource): Promise<{ lastModified: number;
 }
 
 /** The version of `source` a change shows in, `lastModified:size`, or null (statOf). */
-export async function stampOf(source: WebSource): Promise<string | null> {
+export async function stampOf(source: BrowserSource): Promise<string | null> {
   const s = await statOf(source);
   return s && `${s.lastModified}:${s.size}`;
 }
 
 /**
  * The browser host's registry of the files a page has, by the paths the page made for them. One per
- * host (`browserHost().files`); an app may add files of its own to it (bytes it fetched, say, with
- * `addPicked(name, { kind: 'bytes', bytes })`) and open the paths it answers.
+ * host, inside it: an app sees only `host.files` (BrowserFiles: addPicked, get and has), so the path
+ * scheme, the folder roots and the reads stay the host's to change.
  */
 export class WebFiles {
-  private readonly entries = new Map<string, WebFile>();
-  private readonly folders = new Map<string, WebDir>();
+  private readonly entries = new Map<string, BrowserFile>();
+  private readonly folders = new Map<string, BrowserDir>();
   private picks = 0;
 
   /** A file picked on its own: `/files/<n>/<name>`, so two `a.sldd` from two picks differ. */
-  async addPicked(name: string, source: WebSource): Promise<string> {
+  async addPicked(name: string, source: BrowserSource): Promise<string> {
     return (await this.addPick([{ name, source }]))[0];
   }
 
@@ -78,7 +80,7 @@ export class WebFiles {
    * the page has a path for already (picked before, or in a shown folder) keeps that path, so the
    * file opens in the tab it has; Files cannot be told apart, and each takes a path of its own.
    */
-  async addPick(picked: readonly WebFile[]): Promise<string[]> {
+  async addPick(picked: readonly BrowserFile[]): Promise<string[]> {
     let n: number | undefined;
     const names = new Set<string>();
     const paths: string[] = [];
@@ -114,7 +116,7 @@ export class WebFiles {
    * name took it before, so a tab open on a file of one never reads or saves the other's. The same
    * directory shown again takes its root back, and its files their paths.
    */
-  async folderRoot(dir: WebDir): Promise<string> {
+  async folderRoot(dir: BrowserDir): Promise<string> {
     const name = dirName(dir);
     for (let n = 1; ; n++) {
       const root = n === 1 ? `/${name}` : `/${name} (${n})`;
@@ -129,14 +131,14 @@ export class WebFiles {
   }
 
   /** A file of the folder shown at `root`, by its `/`-separated path `rel` in it. */
-  addInFolder(root: string, rel: string, source: WebSource): string {
+  addInFolder(root: string, rel: string, source: BrowserSource): string {
     const path = `${root}/${rel}`;
     this.entries.set(path, { name: nameOf(rel), source });
     return path;
   }
 
   /** The file at `path`, or undefined for a path the page never made. */
-  get(path: string): WebFile | undefined {
+  get(path: string): BrowserFile | undefined {
     return this.entries.get(path);
   }
 
@@ -179,7 +181,7 @@ export class WebFiles {
   }
 
   /** Read `path` from `source` from now on, under the name it has (or its path's last part). */
-  replace(path: string, source: WebSource): void {
+  replace(path: string, source: BrowserSource): void {
     this.entries.set(path, { name: this.entries.get(path)?.name ?? nameOf(path), source });
   }
 }

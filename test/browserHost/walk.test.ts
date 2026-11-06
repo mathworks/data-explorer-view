@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { listFolder } from 'data-explorer-core/node/folder';
-import { listDirectory, type WebDir } from '../../src/browser/walk.js';
+import { listDirectory, type BrowserDir } from '../../src/browser/walk.js';
 import { asDir, fakeDir, listedDir } from './fakeFs.js';
 
 // A folder in no order of its own, with what core's listing skips and drops.
@@ -43,8 +43,8 @@ const LISTED = [
   'toml/matlab.toml',
 ];
 
-const handleDir = (files: Record<string, string>): WebDir => ({ kind: 'handle', handle: asDir(fakeDir('root', files)) });
-const listDir = (files: Record<string, string>): WebDir => listedDir('root', files);
+const handleDir = (files: Record<string, string>): BrowserDir => ({ kind: 'handle', handle: asDir(fakeDir('root', files)) });
+const listDir = (files: Record<string, string>): BrowserDir => listedDir('root', files);
 
 describe.each([
   ['a directory handle', handleDir],
@@ -82,6 +82,14 @@ describe.each([
   it('refuses a limit that is not a non-negative whole number', async () => {
     await expect(listDirectory(dirOf(FOLDER), { limit: -1 })).rejects.toThrow(RangeError);
     await expect(listDirectory(dirOf(FOLDER), { limit: 1.5 })).rejects.toThrow(RangeError);
+  });
+});
+
+describe('listDirectory over the files a browser listed', () => {
+  it('says the listing was cut when the browser\'s reading of the folder was', async () => {
+    const listing = await listDirectory(listedDir('root', { 'a.sldd': '', 'b.sldd': '' }, true));
+    expect(listing).toMatchObject({ files: ['a.sldd', 'b.sldd'], truncated: true });
+    expect((await listDirectory(listedDir('root', { 'a.sldd': '' }, false))).truncated).toBe(false);
   });
 });
 

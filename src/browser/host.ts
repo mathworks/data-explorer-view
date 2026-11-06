@@ -16,11 +16,11 @@ import { isSupportedPath } from 'data-explorer-core';
 import type { ShellHost } from '../widgets/app-shell/connect/types.js';
 import { dropSources, type DroppedItem } from './drop.js';
 import { folderLooks, serveWebFolder, type WebFolderServer } from './folder.js';
-import { WebFiles } from './files.js';
+import { WebFiles, type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
-import type { WebDir } from './walk.js';
+import type { BrowserDir } from './walk.js';
 import { watchOpenFiles, type OpenFileWatch } from './watch.js';
 
 /**
@@ -30,10 +30,25 @@ import { watchOpenFiles, type OpenFileWatch } from './watch.js';
  */
 export const LOOK_EVERY_MS = 3000;
 
+/**
+ * The files a browser host has, by the paths it made for them: what an app may do with them beside
+ * the shell. A path is the host's own and opaque: an app opens the paths the host gives, and builds
+ * or parses none of its own.
+ */
+export interface BrowserFiles {
+  /**
+   * Add a file of the app's own, bytes it fetched, say, as a pick of it alone: the path to open it
+   * by (the shell's `openPaths`). A handle to a file the host has a path for already keeps that path.
+   */
+  addPicked(name: string, source: BrowserSource): Promise<string>;
+  /** The file at `path`, or undefined for a path the host never made. */
+  get(path: string): BrowserFile | undefined;
+  /** Whether the host made `path`. */
+  has(path: string): boolean;
+}
+
 /** What browserHost runs over. Each is the page's own unless given (a test gives fakes). */
 export interface BrowserHostOptions {
-  /** Where the host keeps the files it has. Default a new one, `host.files`. */
-  files?: WebFiles;
   /** The pickers, and the window whose `focus` makes the host look at its folder again. Default `window`. */
   window?: FilePickers & Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
   /** Where file inputs and download links are made, and whose `visibilitychange` and title the host uses. Default `document`. */
@@ -43,7 +58,7 @@ export interface BrowserHostOptions {
   /**
    * Show the folder served on `port` as `root`: the shell's `showFolder`. Absent: the host shows no
    * folders; it has no `pickFolder` (the shell then offers no Folder button), a dropped folder is
-   * passed over, and `showFolder` does nothing.
+   * passed over, and `openFolder` does nothing.
    */
   onFolder?(root: string, port: MessagePort): void;
   /** An open file changed on disk: the shell's `fileChanged`. Absent: open files are not watched. */
@@ -53,17 +68,17 @@ export interface BrowserHostOptions {
 /** The browser's ShellHost, and what a page drives it by beside connectShell. */
 export interface BrowserHost extends ShellHost {
   /** The files the host has, by the paths it gave them. */
-  readonly files: WebFiles;
+  readonly files: BrowserFiles;
   /**
-   * Serve `dir` and show it, in place of a folder shown before. Resolves once the folder has been
-   * looked at, for the next look to tell what changed since.
+   * Serve `dir` and show it (through `onFolder`), in place of a folder shown before. Resolves once
+   * the folder has been looked at, for the next look to tell what changed since.
    */
-  showFolder(dir: WebDir): Promise<void>;
+  openFolder(dir: BrowserDir): Promise<void>;
   /**
    * Take what was dropped: its files, as one pick, resolve to the paths to open (the shell's
-   * `openPaths`), and its first folder is shown. Call it from the drop's listener, before anything
-   * is awaited (drop.ts says why), as `installFileDrop(window, async (dt) => app.openPaths(await
-   * host.openDropped(dt)))` does.
+   * `openPaths`), and its first folder is shown, the paths not waiting for the folder to be looked
+   * at. Call it from the drop's listener, before anything is awaited (a drop can be read only
+   * then), as `installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)))` does.
    */
   openDropped(data: DataTransfer): Promise<string[]>;
   /** Whether a file has unsaved edits, as the shell last said: for `beforeunload` to ask. */
@@ -93,7 +108,7 @@ interface Shown {
  * says what works in which browser.
  */
 export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
-  const files = options.files ?? new WebFiles();
+  const files = new WebFiles();
   // The page's window has the pickers where the browser does (fsAccess.ts types them).
   const win: NonNullable<BrowserHostOptions['window']> = options.window ?? (window as Window & FilePickers);
   const doc = options.document ?? document;
@@ -151,8 +166,9 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     shown = undefined;
   }
 
-  async function showFolder(dir: WebDir): Promise<void> {
-    if (!onFolder) return;
+  // Serve `dir` and hand it to the shell: its first look, which every later one is told against.
+  async function showFolder(dir: BrowserDir): Promise<{ looked: Promise<void> }> {
+    if (!onFolder) return { looked: Promise.resolve() };
     const root = await files.folderRoot(dir);
     stopShowing();
     const folder: Shown = {
@@ -165,7 +181,11 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     };
     shown = folder;
     onFolder(root, folder.served.port);
-    await lookAt(folder);
+    return { looked: lookAt(folder) };
+  }
+
+  async function openFolder(dir: BrowserDir): Promise<void> {
+    await (await showFolder(dir)).looked;
   }
 
   // A write of the open file `path`, known by the stamp it leaves when it lands there.
@@ -182,21 +202,27 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   }
 
   return {
-    files,
+    // The registry's few members an app needs, and none of the rest.
+    files: {
+      addPicked: (name, source) => files.addPicked(name, source),
+      get: (path) => files.get(path),
+      has: (path) => files.has(path),
+    },
     pickFiles: () => pickFiles(files, deps),
     ...(onFolder && {
       async pickFolder() {
         const dir = await pickDirectory(deps);
-        if (dir) await showFolder(dir);
+        if (dir) await openFolder(dir);
       },
     }),
-    showFolder,
+    openFolder,
     async openDropped(data) {
       // Asked of the drop before anything is awaited.
       const dropped = await dropSources(data);
       const picked = dropped.filter((item): item is Extract<DroppedItem, { kind: 'file' }> => item.kind === 'file');
       const paths = await files.addPick(picked.map(({ name, source }) => ({ name, source })));
-      // The first folder, as a desktop host shows the first of several dropped.
+      // The first folder, as a desktop host shows the first of several dropped; the files open while
+      // it is first looked at, which reads every listed file's size and date.
       const folder = dropped.find((item): item is Extract<DroppedItem, { kind: 'folder' }> => item.kind === 'folder');
       if (folder) await showFolder(folder.dir);
       return paths;

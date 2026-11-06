@@ -21,18 +21,23 @@
 // });
 // const app = connectShell(shell, { host });
 // installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)));
-// addEventListener('beforeunload', (e) => host.edited && e.preventDefault());
+// addEventListener('beforeunload', (e) => {
+//   if (!host.edited) return;
+//   e.preventDefault();
+//   e.returnValue = ''; // what older browsers ask on
+// });
 // ```
 //
 // DOM, not lit: nothing here draws, and nothing here is a widget. It reads core through its
 // browser entry only (`data-explorer-core`), and the shell's host types by type alone.
+//
+// The entry is the host and the types an app names to drive it: a folder to open (BrowserDir, a
+// handle or ListedFiles), a file to add (BrowserSource) and what `host.files` answers (BrowserFile),
+// and the window and navigator a test may give (FilePickers, UserActivation). How the host lists,
+// reads, watches and paces itself stays inside, free to change in a minor release.
 
-export { browserHost, LOOK_EVERY_MS } from './host.js';
-export type { BrowserHost, BrowserHostOptions } from './host.js';
-export { WebFiles, statOf, stampOf } from './files.js';
-export type { WebFile, WebSource } from './files.js';
-export { listDirectory, FOLDER_FILE_LIMIT } from './walk.js';
-export type { ListedFile, WebDir, WebListing } from './walk.js';
-export { dropSources } from './drop.js';
-export type { DroppedItem } from './drop.js';
-export { POLL_MS } from './watch.js';
+export { browserHost } from './host.js';
+export type { BrowserFiles, BrowserHost, BrowserHostOptions } from './host.js';
+export type { BrowserFile, BrowserSource } from './files.js';
+export type { BrowserDir, ListedFile } from './walk.js';
+export type { FilePickers, FilePickerType, UserActivation } from './fsAccess.js';

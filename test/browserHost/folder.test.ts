@@ -13,7 +13,7 @@ import { readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
 import { createFolderSession, folderReader, portFromMessagePort, sourceUri } from '../../src/model/index.js';
 import { WebFiles } from '../../src/browser/files.js';
 import { folderLooks, serveWebFolder, webFolderReads } from '../../src/browser/folder.js';
-import type { WebDir } from '../../src/browser/walk.js';
+import type { BrowserDir } from '../../src/browser/walk.js';
 import { asDir, fakeDir, filesOnDisk, listedDir } from './fakeFs.js';
 
 // The parity suite's projects, read where they are: MyProj and LibProj, with their `resources/project` stores.
@@ -27,8 +27,8 @@ afterEach(() => {
   stop = [];
 });
 
-const handleDir = (name: string, files: Record<string, string | Uint8Array>): WebDir => ({ kind: 'handle', handle: asDir(fakeDir(name, files)) });
-const listDir = (name: string, files: Record<string, string | Uint8Array>): WebDir => listedDir(name, files);
+const handleDir = (name: string, files: Record<string, string | Uint8Array>): BrowserDir => ({ kind: 'handle', handle: asDir(fakeDir(name, files)) });
+const listDir = (name: string, files: Record<string, string | Uint8Array>): BrowserDir => listedDir(name, files);
 
 describe.each([
   ['a directory handle', handleDir],

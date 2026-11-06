@@ -65,9 +65,9 @@ async function listed(port: MessagePort): Promise<string[]> {
 describe('browserHost', () => {
   it('picks files through the window\'s picker', async () => {
     const a = new FakeFileHandle('a.sldd', 'one');
-    const { host, files } = hostOf({ showOpenFilePicker: async () => [asFile(a)] });
+    const { host } = hostOf({ showOpenFilePicker: async () => [asFile(a)] });
     expect(await host.pickFiles()).toEqual(['/files/1/a.sldd']);
-    expect(text(await files.bytes('/files/1/a.sldd'))).toBe('one');
+    expect(text(await host.readFile('/files/1/a.sldd'))).toBe('one');
   });
 
   it('takes the page\'s own window, document and navigator when given none', async () => {
@@ -98,7 +98,7 @@ describe('browserHost', () => {
     expect(folders).toEqual([]);
     answer = async () => asDir(fakeDir('proj', { 'a.sldd': '' }));
     await host.pickFolder!();
-    await host.showFolder(listedDir('proj', { 'b.sldd': '' }));
+    await host.openFolder(listedDir('proj', { 'b.sldd': '' }));
     expect(folders.map((f) => f.root)).toEqual(['/proj', '/proj (2)']);
     expect(await listed(folders[1].port)).toEqual(['/proj (2)/b.sldd']);
   });
@@ -106,7 +106,7 @@ describe('browserHost', () => {
   it('without onFolder shows no folder: no pickFolder, so the shell offers no Folder button', async () => {
     const { host } = hostOf({ showDirectoryPicker: async () => asDir(fakeDir('proj')) }, { onFolder: undefined });
     expect(host.pickFolder).toBeUndefined();
-    await expect(host.showFolder(listedDir('proj', { 'a.sldd': '' }))).resolves.toBeUndefined();
+    await expect(host.openFolder(listedDir('proj', { 'a.sldd': '' }))).resolves.toBeUndefined();
   });
 
   it('reads a data file it has, and refuses any other', async () => {
@@ -170,7 +170,7 @@ describe('browserHost', () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     const proj = fakeDir('proj', { 'a.sldd': '', 'b.sldd': 'one' });
     const { host, folders, window } = hostOf();
-    await host.showFolder({ kind: 'handle', handle: asDir(proj) });
+    await host.openFolder({ kind: 'handle', handle: asDir(proj) });
     const reader = folderReader(portFromMessagePort(folders[0].port));
     stop.push(() => reader.dispose());
     const heard: (readonly string[] | undefined)[] = [];
@@ -245,6 +245,33 @@ describe('browserHost', () => {
     expect(await listed(folders[0].port)).toEqual(['/proj/sub/y.slx', '/proj/x.sldd']);
   });
 
+  it('opens a drop\'s files without waiting for its folder to be looked at', async () => {
+    const { host, folders } = hostOf();
+    const proj = fakeDir('proj', { 'c.sldd': '' });
+    // The folder's first look lists it, and its listing waits here until let go.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const values = proj.values.bind(proj);
+    proj.values = async function* () {
+      await gate;
+      yield* values();
+    };
+    const a = new FakeFileHandle('a.sldd');
+    expect(await host.openDropped(dataTransferOf([{ handle: a }, { handle: proj }]).data)).toEqual(['/files/1/a.sldd']);
+    expect(folders.map((f) => f.root)).toEqual(['/proj']);
+    release();
+    expect(await listed(folders[0].port)).toEqual(['/proj/c.sldd']);
+  });
+
+  it('gives an app the files it may add to and ask about, and nothing of the rest', async () => {
+    const { host } = hostOf();
+    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'get', 'has']);
+    const path = await host.files.addPicked('a.sldd', { kind: 'bytes', bytes: bytesOf('fetched') });
+    expect(host.files.has(path)).toBe(true);
+    expect(host.files.get(path)?.name).toBe('a.sldd');
+    expect(text(await host.readFile(path))).toBe('fetched');
+  });
+
   it('passes over a dropped folder without onFolder', async () => {
     const { host } = hostOf({}, { onFolder: undefined });
     expect(await host.openDropped(dataTransferOf([{ handle: fakeDir('proj', { 'a.sldd': '' }) }]).data)).toEqual([]);
@@ -283,8 +310,8 @@ describe('browserHost', () => {
   it('stops serving a folder once another is shown, or once it is disposed', async () => {
     const { host, folders } = hostOf();
     const unanswered = (port: MessagePort) => Promise.race([listed(port), settle(100).then(() => 'unanswered')]);
-    await host.showFolder({ kind: 'handle', handle: asDir(fakeDir('one', { 'a.sldd': '' })) });
-    await host.showFolder({ kind: 'handle', handle: asDir(fakeDir('two', { 'b.sldd': '' })) });
+    await host.openFolder({ kind: 'handle', handle: asDir(fakeDir('one', { 'a.sldd': '' })) });
+    await host.openFolder({ kind: 'handle', handle: asDir(fakeDir('two', { 'b.sldd': '' })) });
     expect(await unanswered(folders[0].port)).toBe('unanswered');
     host.dispose();
     expect(await unanswered(folders[1].port)).toBe('unanswered');

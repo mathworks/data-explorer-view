@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A shown folder, served in the page: what an Electron main process does over core's node/folder
-// (README, "Serve a folder from Electron's main process"), over a WebDir. serveFolder runs on one
+// (README, "Serve a folder from Electron's main process"), over a BrowserDir. serveFolder runs on one
 // end of a MessageChannel in the page itself, and the shell reads the other end, so the folder's
 // hierarchy, Usage, search and project pages work as they do on the desktop. Each listing registers
 // the folder's files in WebFiles, so a file the tree opens, or a link the folder resolves, is read
@@ -26,10 +26,10 @@ import { serveFolder, type FolderReads } from '../model/source/serveFolder.js';
 import { sourceUri } from '../model/source/sourceUri.js';
 import { entriesOf } from './fsAccess.js';
 import { stampOf, type WebFiles } from './files.js';
-import { byCodeUnit, listDirectory, type WebDir } from './walk.js';
+import { byCodeUnit, listDirectory, type BrowserDir } from './walk.js';
 
 /** The folder `dir`, shown at `root`, as serveFolder reads it. `limit` caps its listing. */
-export function webFolderReads(root: string, dir: WebDir, files: WebFiles, limit?: number): FolderReads {
+export function webFolderReads(root: string, dir: BrowserDir, files: WebFiles, limit?: number): FolderReads {
   const store = storeFs(root, dir);
   return {
     files: {
@@ -79,7 +79,7 @@ export interface WebFolderServer {
  * Serve the folder `dir`, shown at `root`, on a channel of the page's own. The bytes are handed
  * over, not copied: the reader keeps none.
  */
-export function serveWebFolder(root: string, dir: WebDir, files: WebFiles, limit?: number): WebFolderServer {
+export function serveWebFolder(root: string, dir: BrowserDir, files: WebFiles, limit?: number): WebFolderServer {
   const channel = new MessageChannel();
   const served = serveFolder(webFolderReads(root, dir, files, limit), portFromMessagePort(channel.port1), { transfer: true });
   return {
@@ -98,7 +98,7 @@ export function serveWebFolder(root: string, dir: WebDir, files: WebFiles, limit
  * only learns the folder. A listed folder's files are the folder as it was picked, and a look at
  * them finds nothing.
  */
-export function folderLooks(root: string, dir: WebDir, limit?: number): () => Promise<string[]> {
+export function folderLooks(root: string, dir: BrowserDir, limit?: number): () => Promise<string[]> {
   let seen: Map<string, string | null> | undefined;
   return async () => {
     if (dir.kind !== 'handle') return [];
@@ -133,7 +133,7 @@ function partsIn(root: string, path: string): string[] {
 }
 
 /** The StoreFs a project's store is read through, over the folder's own paths (`root/...`). */
-function storeFs(root: string, dir: WebDir): StoreFs {
+function storeFs(root: string, dir: BrowserDir): StoreFs {
   if (dir.kind === 'handle') {
     const dirAt = async (parts: string[]) => {
       let at = dir.handle;

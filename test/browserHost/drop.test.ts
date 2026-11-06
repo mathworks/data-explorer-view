@@ -46,6 +46,20 @@ describe('dropSources', () => {
     expect(dir.kind === 'folder' && dir.dir.kind === 'list' && dir.dir.files.map((f) => f.rel)).toEqual(['a.sldd']);
   });
 
+  it('stops reading a dropped folder at the limit, and says it did', async () => {
+    const folder = entryOf('proj', { 'a.sldd': '', 'b.sldd': '', 'c.sldd': '', 'sub/d.sldd': '', 'sub/e.sldd': '' });
+    const read = async (limit: number) => {
+      const { data, state } = dataTransferOf([{ entry: folder }], { handles: false });
+      const dropped = dropSources(data, limit);
+      state.live = false;
+      const [dir] = await dropped;
+      if (dir.kind !== 'folder' || dir.dir.kind !== 'list') throw new Error('not a listed folder');
+      return { files: dir.dir.files.map((f) => f.rel).sort(), truncated: dir.dir.truncated };
+    };
+    expect(await read(3)).toEqual({ files: ['a.sldd', 'b.sldd', 'c.sldd'], truncated: true });
+    expect(await read(5)).toEqual({ files: ['a.sldd', 'b.sldd', 'c.sldd', 'sub/d.sldd', 'sub/e.sldd'], truncated: false });
+  });
+
   it('takes a drop with no items, or a browser with neither handles nor entries, by its Files', async () => {
     const a = fileOf('a.sldd');
     const { data } = dataTransferOf([], { files: [a] });

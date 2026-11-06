@@ -14,29 +14,43 @@ const host = browserHost({
 });
 const app = connectShell(document.querySelector('dex-app-shell'), { host });
 installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)));
-addEventListener('beforeunload', (e) => host.edited && e.preventDefault());
+addEventListener('beforeunload', (e) => {
+  if (!host.edited) return;
+  e.preventDefault();
+  e.returnValue = ''; // what older browsers ask on
+});
 ```
 
 Without `onFolder` the host shows no folders (no Folder button, dropped folders passed over);
 without `onChanged` it watches no files. Every other dependency is the page's own (`window`,
-`document`, `navigator`) unless given.
+`document`, `navigator`) unless given. `host.openFolder(dir)` shows a folder the app has a handle
+or a file list for; `host.openDropped(dt)` must be called from the drop's listener, before anything
+is awaited, since a browser lets a page read a drop only then.
 
 ## What works where
 
-| | Chromium (Chrome, Edge) | Firefox, Safari |
+The left column needs Chromium's File System Access API, which a browser gives only to a page in a
+secure context (served over https, or from localhost). A page over plain http, and Brave (which
+turns the API off), get the right column.
+
+| | Chromium (Chrome, Edge), secure context | Firefox, Safari, plain http, Brave |
 |---|---|---|
 | Open File | `showOpenFilePicker`: handles | a hidden `<input type=file multiple>`: Files |
 | Open Folder | `showDirectoryPicker` | `<input webkitdirectory>`: the folder as it was picked |
-| Drop | handles, files and folders (`getAsFileSystemHandle`) | entries (`webkitGetAsEntry`): a folder read through once, at the drop |
+| Drop | handles, files and folders (`getAsFileSystemHandle`) | entries (`webkitGetAsEntry`): a folder read through once, at the drop, up to 10,000 files |
 | Save | in place (`createWritable`), once the user allows writing | not possible: Save says to use Save As |
 | Save As | `showSaveFilePicker` | a download |
 | Changed on disk | open files looked at every 2 s while the page is shown | not seen |
 | A shown folder's changes | listed again when the page is shown or focused (at most once every 3 s) | not seen |
 | Unsaved edits | the shell's own dialog, and `host.edited` for `beforeunload` | the same |
 
-A Save As download marks the document saved: the user has the file. A File (Firefox, Safari, or a
-Chromium drop without handles) refers to the file on disk, and the browser refuses to read it once
-another program has written it: the read says to open the file again.
+A Save As download marks the document saved: the user has the file. A File (the right column, or
+a Chromium drop without handles) refers to the file on disk, and a browser may refuse to read it
+once another program has written it (Chromium does; Firefox may): the read then says to open the
+file again.
+
+Safari before 16.4 never says a file dialog was cancelled: an Open File or Open Folder cancelled
+there leaves nothing to answer, and the next one works as usual.
 
 ## Clicks and key presses
 
@@ -51,12 +65,16 @@ or a key press. Asked at any other time, a picker rejects and a file input never
 
 ## Paths
 
-The browser gives no paths, so the host makes them up: `/files/<n>/<name>` for the files of the
-n-th pick or drop (files picked together sit in one folder, so a model's link to a dictionary picked
-with it finds it), and `/<folder name>/<path in it>` for a shown folder's (a second folder of the
-same name is `/<name> (2)`). A file picked again, or saved onto with Save As, keeps the path it has,
-so it opens in the tab it has. `host.files` (a `WebFiles`) maps each path to what reads it; an app
-may add its own, such as bytes it fetched: `await host.files.addPicked('a.sldd', { kind: 'bytes', bytes })`.
+The browser gives no paths, so the host makes them up. A path is the host's own and opaque: an app
+opens the paths the host answers and builds or parses none. What a path does promise: files picked
+or dropped together sit beside each other (a model's link to a dictionary picked with it finds it),
+a shown folder's files keep their places in it (its links and project pages work), two folders of
+one name are kept apart, and a file picked again, or saved onto with Save As, keeps the path it
+has, so it opens in the tab it has.
+
+`host.files` answers what a path holds (`get`, `has`), and takes a file of the app's own: bytes it
+fetched, say, `await host.files.addPicked('a.sldd', { kind: 'bytes', bytes })`, whose path the app
+then opens.
 
 A shown folder is listed by core's listing rules (the same files, skips, order and limit as
 `listFolder` from `data-explorer-core/node/folder`), served in the page over a `MessageChannel`, so

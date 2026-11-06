@@ -13,7 +13,7 @@
 import { SUPPORTED_EXTS } from 'data-explorer-core';
 import { pickedNothing, wantedGesture, type FilePickers, type UserActivation } from './fsAccess.js';
 import type { WebFiles } from './files.js';
-import type { WebDir } from './walk.js';
+import type { BrowserDir } from './walk.js';
 
 /** The extensions the pickers offer: those core reads, as a desktop app's Open dialog offers them. */
 export const SUPPORTED = SUPPORTED_EXTS.map((ext) => `.${ext}`);
@@ -56,7 +56,7 @@ export async function pickFiles(files: WebFiles, deps: PickDeps): Promise<string
 }
 
 /** Ask for a folder to show; null when the user cancels. */
-export async function pickDirectory(deps: PickDeps): Promise<WebDir | null> {
+export async function pickDirectory(deps: PickDeps): Promise<BrowserDir | null> {
   if (deps.navigator?.userActivation?.isActive === false) throw noGesture('folder');
   if (!deps.window.showDirectoryPicker) {
     const chosen = await chooseWithInput(deps.document, (input) => {

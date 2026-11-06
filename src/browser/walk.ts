@@ -17,12 +17,13 @@
 
 import { isSupportedPath } from 'data-explorer-core';
 import { entriesOf } from './fsAccess.js';
-import type { WebSource } from './files.js';
+import type { BrowserSource } from './files.js';
 
 /** A file of a folder the browser listed when it was picked, by its `/`-separated path in the folder. */
 export interface ListedFile {
   /** The file's path in the folder, the folder's own name not included: `sub/plant.sldd`. */
   rel: string;
+  /** The file, as the browser gave it then: a reference that reads what the file holds now, if the browser lets it. */
   file: File;
 }
 
@@ -30,9 +31,16 @@ export interface ListedFile {
  * A folder the user picked: a handle to read it through, as it is each time it is read; or the
  * files the browser listed in it then, which a look at the folder later cannot add to.
  */
-export type WebDir =
+export type BrowserDir =
   | { kind: 'handle'; handle: FileSystemDirectoryHandle }
-  | { kind: 'list'; root: string; files: readonly ListedFile[] };
+  | {
+      kind: 'list';
+      /** The folder's own name. */
+      root: string;
+      files: readonly ListedFile[];
+      /** The browser's reading of the folder stopped at a limit (a dropped folder's): it holds more than `files`. */
+      truncated?: boolean;
+    };
 
 /** The most files a listing holds unless told otherwise: core's FOLDER_FILE_LIMIT. */
 export const FOLDER_FILE_LIMIT = 10_000;
@@ -44,11 +52,11 @@ export interface WebListing {
   /** True when the folder holds more supported files than `files`. */
   truncated: boolean;
   /** What reads each of `files`. */
-  sources: ReadonlyMap<string, WebSource>;
+  sources: ReadonlyMap<string, BrowserSource>;
 }
 
 /** The folder's own name. */
-export const dirName = (dir: WebDir): string => (dir.kind === 'handle' ? dir.handle.name : dir.root);
+export const dirName = (dir: BrowserDir): string => (dir.kind === 'handle' ? dir.handle.name : dir.root);
 
 /** A directory the listing does not enter: core's skipDirectory. */
 export const skipDirectory = (name: string): boolean => name.startsWith('.') || name === 'node_modules' || name === 'slprj';
@@ -61,11 +69,11 @@ export const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b 
  * default; a non-negative whole number). Never rejects for the folder's contents: a directory that
  * cannot be read is passed over.
  */
-export async function listDirectory(dir: WebDir, { limit = FOLDER_FILE_LIMIT }: { limit?: number } = {}): Promise<WebListing> {
+export async function listDirectory(dir: BrowserDir, { limit = FOLDER_FILE_LIMIT }: { limit?: number } = {}): Promise<WebListing> {
   if (!Number.isInteger(limit) || limit < 0) {
     throw new RangeError(`listDirectory: limit must be a non-negative integer, got ${limit}`);
   }
-  return dir.kind === 'handle' ? walk(dir.handle, limit) : listPicked(dir.files, limit);
+  return dir.kind === 'handle' ? walk(dir.handle, limit) : listPicked(dir.files, limit, dir.truncated === true);
 }
 
 /**
@@ -74,7 +82,7 @@ export async function listDirectory(dir: WebDir, { limit = FOLDER_FILE_LIMIT }: 
  */
 async function walk(root: FileSystemDirectoryHandle, limit: number): Promise<WebListing> {
   const files: string[] = [];
-  const sources = new Map<string, WebSource>();
+  const sources = new Map<string, BrowserSource>();
   let truncated = false;
   // False once the limit is passed, so every level of the walk stops where it is.
   const visit = async (dir: FileSystemDirectoryHandle, prefix: string): Promise<boolean> => {
@@ -111,9 +119,10 @@ async function walk(root: FileSystemDirectoryHandle, limit: number): Promise<Web
 /**
  * A listed folder's files. The browser has entered every directory already, so a file under one
  * the walk would not enter is dropped; and the walk's order is code-unit order of the whole paths,
- * so they are sorted as they are.
+ * so they are sorted as they are. A list the browser's reading cut short (`cut`) is a listing cut
+ * short too, though which files it holds is the reading's order, not the walk's.
  */
-function listPicked(picked: readonly ListedFile[], limit: number): WebListing {
+function listPicked(picked: readonly ListedFile[], limit: number, cut: boolean): WebListing {
   const byPath = new Map<string, File>();
   for (const { rel, file } of picked) {
     const parts = rel.split('/');
@@ -124,7 +133,7 @@ function listPicked(picked: readonly ListedFile[], limit: number): WebListing {
   const files = all.slice(0, limit);
   return {
     files,
-    truncated: all.length > files.length,
+    truncated: cut || all.length > files.length,
     sources: new Map(files.map((rel) => [rel, { kind: 'file', file: byPath.get(rel)! }])),
   };
 }
