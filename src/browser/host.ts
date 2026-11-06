@@ -237,12 +237,22 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       has: (path) => files.has(path),
     },
     async newFile(suggestedName) {
-      const path = await made.make(suggestedName, (p) => opened.has(p));
-      if (path === null) return null;
-      // A file on disk is watched from now on, as one read is, known by what is there now: the new
-      // dictionary, or an open file as the picker left it, which is then no change to reload from.
-      if (!made.keeps(path)) watcher?.watch(path, await files.stamp(path));
-      opened.add(path);
+      // The open files are not looked at while the picker is up: the one it names is made or emptied
+      // as it closes, which is no other program's change, and a look meanwhile would report it.
+      const paused = [...opened];
+      for (const p of paused) watcher?.saving(p);
+      let path: string | null = null;
+      try {
+        path = await made.make(suggestedName, (p) => opened.has(p));
+      } finally {
+        // A file on disk is watched from now on, as one read is, known by what is there now: the new
+        // dictionary, or an open file as the picker left it, which is then no change to reload from.
+        // The others are known as they were.
+        const stamp = path !== null && !made.keeps(path) ? await files.stamp(path) : null;
+        for (const p of paused) watcher?.ownWrite(p, p === path ? stamp : null);
+        if (path !== null && !made.keeps(path)) watcher?.watch(path, stamp);
+      }
+      if (path !== null) opened.add(path);
       return path;
     },
     pickFiles: () => pickFiles(files, deps),

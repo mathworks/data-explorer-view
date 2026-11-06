@@ -60,7 +60,10 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
     case 'new-file': {
       // Where it goes, a name no tab has offered; null is a cancel.
       const suggested = untitledName(on.tabs.items.map((t) => t.name));
-      void on.host.newFile?.(suggested).then((path) => (path === null ? undefined : on.openNew(path)), pickFailed('make a new file'));
+      void on.host
+        .newFile?.(suggested)
+        .then((path) => (path === null ? undefined : on.openNew(path)), pickFailed('make a new file'))
+        .catch((err: unknown) => on.failed(`Could not make a new file: ${message(err)}`));
       break;
     }
     case 'open-file':

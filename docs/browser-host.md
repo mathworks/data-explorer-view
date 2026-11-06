@@ -56,8 +56,8 @@ before the page hears of the file). So the host writes a new dictionary there at
 opens, and a New the user then discards leaves that rather than a file of no bytes; the first Save
 writes the user's dictionary over it, and the page watches the file from New on, as it watches a
 file it opened. A file a tab has open is not made a new file: the picker has emptied it, and the
-shell writes the tab's copy back (or, where that write fails, keeps the tab unsaved, for a Save to
-write it). With no save picker, the page keeps the file itself, under the name the shell offers,
+shell writes the tab's copy back (or, where that write fails, keeps a tab the page edits unsaved,
+for a Save to write it). With no save picker, the page keeps the file itself, under the name the shell offers,
 holding a new dictionary, and each Save of it is a download, which marks it saved as a Save As
 download does.
 

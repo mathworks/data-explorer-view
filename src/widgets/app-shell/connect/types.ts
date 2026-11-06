@@ -91,7 +91,8 @@ export interface ShellHost {
    * Stop watching a file whose tab closed, by the path it was opened with. May be called twice for
    * one path: a tab closed while its file was read is told again once the read lands, since a
    * watcher starts on the read, past the close it heard. A new file's tab (newFile) is told too,
-   * though the file was never read.
+   * though the file was never read, and so is a path newFile answered that the shell does not open
+   * (one that is not a dictionary's).
    */
   closeFile?(path: string): void;
   /**

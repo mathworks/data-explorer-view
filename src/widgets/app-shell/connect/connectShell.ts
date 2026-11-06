@@ -68,6 +68,9 @@ import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js'
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Whether two files' bytes are the same. */
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
+
 /** A feed of the one page of a file selected in the graph: it has no matrix, and takes no edit. */
 function pageFeed(file: SelectedFile): InspectorFeed {
   const page = { ...(file.box.uri ? { rowId: file.box.uri } : {}), groups: file.groups };
@@ -515,35 +518,49 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // A new data dictionary at `path`, where the host's New said it goes (ShellHost.newFile), in a tab
   // of its own and unsaved until the user saves it. Not over a file a tab has open, whose edits it
-  // would take the place of; and only a dictionary, the one kind of file New makes.
+  // would take the place of; and only a dictionary, the one kind of file New makes. A path it does
+  // not open the host is told it has not (closeFile), as one that may have begun watching it.
   async function openNew(path: string): Promise<void> {
     if (disposed) return;
     const name = basenameOf(path);
     const holder = tabs.find((t) => sourceUri(t.path) === sourceUri(path));
     if (holder) return keepOpenFile(holder, name);
-    if (!isSlddFile(path)) return failed(`Could not make ${name}: a new file is a data dictionary, whose name ends in .sldd.`);
+    if (!isSlddFile(path)) {
+      host.closeFile?.(path);
+      return failed(`Could not make ${name}: a new file is a data dictionary, whose name ends in .sldd.`);
+    }
     await open(path, { created: true });
   }
 
   // New named the file `tab` has open, which it does not make. A browser's save picker has emptied
   // that file as it closed (Chromium makes or empties the file it names): what the tab holds of it,
   // as the shell last read or saved it, is written back. Where that write fails, or the tab holds
-  // no copy, the document is kept over the emptied file (Doc.keepOver), unsaved, for a Save to write.
+  // no copy, a document the page edits is kept over the emptied file (Doc.keepOver), unsaved, for a
+  // Save to write; one it does not edit cannot be saved, and is left as it is.
   async function keepOpenFile(tab: OpenTab, name: string): Promise<void> {
     const now = await host.readFile(tab.path).catch(() => undefined);
     if (disposed || !isOpen(tab)) return;
     const emptied = now !== undefined && now.length === 0 && (tab.bytes === undefined || tab.bytes.length > 0);
-    if (!emptied) return failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
+    if (!emptied) {
+      failed(`Could not make ${name}: it is open in a tab. Close the tab first.`);
+      // The read has made the file as it is now the one the host watches for: a change it held, which
+      // the host's watcher would not tell now, is the tab's to take (or to ask about) as any is.
+      if (now && tab.bytes && !sameBytes(now, tab.bytes)) void reloads.changedOnDisk(tab, tab.doc?.dirty ?? false);
+      return;
+    }
     const said = `Could not make ${name}: it was open in a tab, and the browser emptied it while picking`;
+    let why: string | undefined;
     if (tab.bytes) {
       try {
         await host.saveFile(tab.path, tab.bytes);
         return failed(`${said}, so its saved copy was written back.`);
       } catch (err) {
-        log('error', `Could not write ${name} back: ${message(err)}`);
+        why = message(err);
+        log('error', `Could not write ${name} back: ${why}`);
       }
     }
-    if (!tab.doc) return failed(`${said}.`);
+    // The host's reason ends its own sentence, as an error's message often does.
+    if (!tab.doc?.editable) return failed(why === undefined ? `${said}.` : `${said}, and its copy could not be written back: ${why.replace(/\.?$/, '.')}`);
     tab.bytes = now;
     await tab.doc.keepOver(now);
     failed(`${said}. Save the tab to write it back.`);

@@ -11,7 +11,9 @@
 //
 // A New onto a file a tab has open is refused. A browser's save picker has emptied that file as it
 // closed (Chromium makes or empties the file it names): what the tab holds of it, as the shell last
-// read or saved it, is written back; where it cannot be, the tab holds it unsaved, to be saved back.
+// read or saved it, is written back; where it cannot be, the tab holds it unsaved, to be saved back,
+// or, where the page does not edit it, is left as it is. A file another program changed is taken
+// as any change on disk is: the shell's read of it is one a watcher would not tell of.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -32,6 +34,9 @@ import {
   toolbar,
   until,
   valueIn,
+  changedOutside,
+  edit,
+  textOf,
   type Page,
 } from './harness.js';
 
@@ -130,6 +135,8 @@ describe('New', () => {
     page.command('new-file');
     await until(() => toastTexts().length === 1);
     expect(toastTexts()).toEqual(['Could not make notes.mat: a new file is a data dictionary, whose name ends in .sldd.']);
+    // Not opened: the host, which may have begun watching it, is told so.
+    expect(page.main.closedFiles).toEqual([at('notes.mat')]);
     page.command('new-file');
     await until(() => toastTexts().length === 2);
     expect(toastTexts()[1]).toBe('Could not make params.sldd: it is open in a tab. Close the tab first.');
@@ -168,6 +175,49 @@ describe('New', () => {
     page.command('save');
     await until(() => dirtyTabs().length === 0);
     expect(await valueIn(page.main.files.get(at('params.sldd'))!, 'params.sldd', 'Kp')).toBe('1');
+  });
+
+  it('takes what another program wrote to a file a tab has open, as a change on disk: at once while clean, asked while unsaved', async () => {
+    const { page } = newFilePage([], { 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    const outside = async (value: string) => {
+      const changed = await changedOutside(page.main.files.get(at('params.sldd'))!, 'params.sldd', 'Kp', value);
+      page.host.newFile = async () => (page.main.files.set(at('params.sldd'), changed), at('params.sldd'));
+    };
+    await outside('7');
+    page.command('new-file');
+    await until(() => textOf(tableOf('params.sldd')?.rows.find((r) => r.Name?.label === 'Kp')) === '7');
+    expect(toastTexts()).toContain('Could not make params.sldd: it is open in a tab. Close the tab first.');
+    expect(page.main.reloadAsked).toEqual([]);
+    // Unsaved edits: asked, as for any change on disk (the answer keeps them).
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    await outside('8');
+    page.command('new-file');
+    await until(() => page.main.reloadAsked.length === 1);
+    expect(page.main.reloadAsked).toEqual(['params.sldd']);
+    expect(dirtyTabs()).toEqual(['params.sldd']);
+  });
+
+  it('leaves a file the page does not edit as it is when its copy cannot be written back, and says so', async () => {
+    const { page } = newFilePage([], { 'legacy_ctrl.mdl': 'legacy_ctrl.mdl' });
+    await open(page, 'legacy_ctrl.mdl');
+    const rows = tableOf('legacy_ctrl.mdl')!.rows;
+    page.host.newFile = async () => {
+      page.main.files.set(at('legacy_ctrl.mdl'), new Uint8Array());
+      page.main.failSave = 'The disk is full.';
+      return at('legacy_ctrl.mdl');
+    };
+    page.command('new-file');
+    await until(() => toastTexts().length === 1);
+    expect(toastTexts()).toEqual([
+      'Could not make legacy_ctrl.mdl: it was open in a tab, and the browser emptied it while picking, and its copy could not be written back: The disk is full.',
+    ]);
+    await settled();
+    // Not read as the emptied file: it could not be saved back from that.
+    expect(tableOf('legacy_ctrl.mdl')!.rows).toBe(rows);
+    expect(tableOf('legacy_ctrl.mdl')!.banners?.error).toBeUndefined();
+    expect(dirtyTabs()).toEqual([]);
   });
 
   it('asks before a new file closes unsaved, as any unsaved file', async () => {

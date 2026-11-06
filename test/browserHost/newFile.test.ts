@@ -123,6 +123,34 @@ describe('the browser host makes new files', () => {
     expect(changed).toEqual([]);
   });
 
+  it('looks at no open file while the picker is up, and at each as it was once it closes', async () => {
+    vi.useFakeTimers();
+    const plant = new FakeFileHandle('plant.sldd', 'old');
+    const other = new FakeFileHandle('other.sldd', 'other');
+    const changed: string[] = [];
+    const emptying = savePicker(plant.again());
+    const host = hostOf(
+      {
+        showSaveFilePicker: async (options) => {
+          const picked = await emptying(options);
+          // The picker stays up past the watcher's looks; another program writes another open file.
+          other.writeOutside('changed meanwhile');
+          await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+          return picked;
+        },
+      },
+      changed,
+    );
+    const known = await host.files.addPicked('plant.sldd', { kind: 'handle', handle: asFile(plant) });
+    const otherPath = await host.files.addPicked('other.sldd', { kind: 'handle', handle: asFile(other) });
+    await host.readFile(known);
+    await host.readFile(otherPath);
+    await host.newFile!('untitled.sldd');
+    expect(changed).toEqual([]);
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(changed).toEqual([otherPath]);
+  });
+
   it('writes no dictionary into a file that is not one', async () => {
     const notes = new FakeFileHandle('notes.mat', 'old');
     const host = hostOf({ showSaveFilePicker: savePicker(notes) });
