@@ -52,8 +52,9 @@ export interface ToolbarActionDetail {
  *
  * The toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and
  * wrap at either end; Home and End go to the first and the last; Enter and Space press the one the
- * keyboard is on. It knows nothing of files or tables: the app gives it new `items` as what they
- * can do changes, and does what `dex-toolbar-action` asks.
+ * keyboard is on. A mouse press takes no focus: it stays where the user was working. The toolbar
+ * knows nothing of files or tables: the app gives it new `items` as what they can do changes, and
+ * does what `dex-toolbar-action` asks.
  *
  * @tagname dex-toolbar
  */
@@ -173,6 +174,11 @@ export class DexToolbar extends LitElement {
    * Attribute `compact`, reflected so a page's stylesheet can follow it.
    */
   @property({ type: Boolean, reflect: true }) compact = false;
+  /**
+   * What a screen reader calls the toolbar, so a page with more than one can tell them apart.
+   * Default `Toolbar`. Attribute `label`.
+   */
+  @property({ type: String }) label = 'Toolbar';
 
   // The item the keyboard was last on, by id: the row's one tab stop while it is there, so Tab
   // away and back returns to it. Null, or an id no item has any more, makes it the first.
@@ -218,6 +224,14 @@ export class DexToolbar extends LitElement {
     all[to]!.focus();
   }
 
+  // A mouse press moves the focus onto the button pressed, and that is refused here (the click
+  // still comes, and presses it): a toolbar Delete or Paste must leave the table it acts on
+  // focused, so that the arrow keys go on moving in the table rather than along the toolbar. The
+  // keyboard is unaffected, since Tab and the arrow keys focus a button without any mousedown.
+  private _onMousedown(e: MouseEvent): void {
+    e.preventDefault();
+  }
+
   private _tooltipFor(item: ToolbarItem): string {
     if (item.title) return item.title;
     return item.shortcut ? `${item.label} (${item.shortcut})` : item.label;
@@ -233,6 +247,7 @@ export class DexToolbar extends LitElement {
         title=${this._tooltipFor(item)}
         aria-disabled=${item.disabled ? 'true' : 'false'}
         tabindex=${tabbable ? '0' : '-1'}
+        @mousedown=${this._onMousedown}
         @click=${() => this._press(item)}
         @focus=${() => (this._focusId = item.id)}
       >
@@ -266,7 +281,7 @@ export class DexToolbar extends LitElement {
     const ordered = [...start, ...end];
     const tabStop = ordered.some((item) => item.id === this._focusId) ? this._focusId! : ordered[0]?.id;
     return html`
-      <div class="bar" role="toolbar" @keydown=${this._onKeydown}>
+      <div class="bar" role="toolbar" aria-label=${this.label} @keydown=${this._onKeydown}>
         ${this._side(start, tabStop)}
         <div class="spacer" aria-hidden="true"></div>
         ${this._side(end, tabStop)}

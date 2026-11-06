@@ -147,6 +147,21 @@ describe('the row', () => {
     expect(bar(el).querySelector('.spacer')!.getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('is named Toolbar to a screen reader, or what its label says', async () => {
+    // A page with a second toolbar (a view's own) needs to tell them apart by name.
+    const el = await toolbar(TS_ROW);
+    expect(el.label).toBe('Toolbar');
+    expect(bar(el).getAttribute('aria-label')).toBe('Toolbar');
+    el.label = 'File and edit';
+    await el.updateComplete;
+    expect(bar(el).getAttribute('aria-label')).toBe('File and edit');
+    document.body.innerHTML = '<dex-toolbar label="Graph"></dex-toolbar>';
+    const marked = document.body.querySelector('dex-toolbar')!;
+    await marked.updateComplete;
+    expect(marked.label).toBe('Graph');
+    expect(bar(marked).getAttribute('aria-label')).toBe('Graph');
+  });
+
   it("draws each item's icon from its data, over its label, and no icon where there is none", async () => {
     const el = await toolbar([
       { id: 'save', label: 'Save', icon: 'saved' },
@@ -299,11 +314,32 @@ describe('the keyboard', () => {
     expect(press(el, 'ArrowDown').defaultPrevented).toBe(false);
   });
 
-  it('keeps the tab stop on a clicked or focused item', async () => {
+  it('keeps the tab stop on a focused item', async () => {
     const el = await toolbar(TS_ROW);
     button(el, 'Paste').focus();
     await el.updateComplete;
     expect(tabStops(el)).toEqual(['Paste']);
+  });
+
+  it('takes no focus from a mouse press, on the button or on its icon or label', async () => {
+    // Pressing a button with the mouse would otherwise move the focus onto it: after a toolbar
+    // Delete or Paste the arrow keys would walk the toolbar, where the user was working in the
+    // table. The press's default is what moves the focus, so it is refused; the click that follows
+    // still sends the action. happy-dom moves no focus on a mousedown, so the refusal is what is
+    // pinned.
+    const el = await toolbar(TS_ROW);
+    const heard = actions();
+    const paste = button(el, 'Paste');
+    for (const target of [paste, paste.querySelector('dex-icon')!, paste.querySelector('.label')!]) {
+      const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(down);
+      expect(down.defaultPrevented, target.tagName).toBe(true);
+    }
+    paste.click();
+    expect(heard.map((e) => e.detail.actionId)).toEqual(['paste']);
+    // The keyboard still reaches the button: it stays in the row's roving tab order.
+    paste.focus();
+    expect(focused(el)).toBe('Paste');
   });
 });
 
