@@ -96,6 +96,10 @@ export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.j
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+// A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: a node's,
+// a hex dump of bytes, and the tokens of a JSON or an XML text.
+export { formatHex, rawOfNode, tokenizeJson, tokenizeXml } from './raw/rawView.js';
+export type { RawToken, RawTokenKind, RawView } from './raw/rawView.js';
 
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
 export { projectPageMessage, readProjectPage } from './source/projectPage.js';

@@ -35,7 +35,7 @@ import { noRaw, rawOfNode, rawOfValue, type RawView } from './rawView.js';
  * editing engine's view's (edit/jsonView.ts, edit/binaryView.ts, edit/matEngine.ts), each of which
  * answers `TableSource.raw` through it.
  */
-export interface RawSource {
+export interface RawTree {
   /**
    * The document's root node, as the document stands now: the tree its table's rows are of. Asked
    * first, so a source that builds its tree when asked (an edited JSON dictionary's, from its text)
@@ -49,20 +49,20 @@ export interface RawSource {
 }
 
 /**
- * The raw form of the row `rowId` of the document `source` holds, for the Raw pane: see the head
+ * The raw form of the row `rowId` of the document `tree` is of, for the Raw pane: see the head
  * of this file for each kind of row. Nothing to show for a row that is not there.
  */
-export function rawOfRow(source: RawSource, rowId: string): RawView {
+export function rawOfRow(tree: RawTree, rowId: string): RawView {
   if (typeof rowId !== 'string' || rowId === '') return noRaw();
   try {
-    const root = source.root() as any;
+    const root = tree.root() as any;
     if (!root) return noRaw();
-    if (source.fileIds.includes(rowId)) return rawOfFile(root);
+    if (tree.fileIds.includes(rowId)) return rawOfFile(root);
     if (isSectionRowId(rowId)) {
       const section = sectionByName(root, sectionNameFromRowId(rowId)!);
       return section ? rawOfValue({ section: section.displayName || section.name, entries: section.children.length }) : noRaw();
     }
-    const node = source.find(rowId) as any;
+    const node = tree.find(rowId) as any;
     if (!node) return noRaw();
     switch (root.sourceFormat) {
       case 'json':
