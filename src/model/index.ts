@@ -136,6 +136,10 @@ export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usa
 export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
 
+// Checking a folder: what is wrong in its references and entries, over the same graph and usage index a folder session reads.
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
+export type { CheckFinding, CheckFindingKind, CheckFolderOptions, FolderCheck, ReferenceRelation } from './check/folderCheck.js';
+
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, an open document's, read off its table's rows, and
 // what a search over them shows.

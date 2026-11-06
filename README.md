@@ -501,6 +501,59 @@ usageReposts)`, which repaints every open table it shows (dictionaries, MAT-file
 and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
 [the folder session's page](docs/folder-session.md).
 
+## Check a folder
+
+`checkFolder` reads a folder as a folder session does and says what is wrong in
+it, by the rules the Folder view and the Usage column draw with: references no
+file of the folder answers, files that reference each other round in a circle,
+entries no block of a model in the folder uses, model workspace variables that
+hide a definition of the model's data from its blocks, and names two
+dictionaries define where Simulink reads them together. In Node or Electron's
+main process, over core's node readers:
+
+```js
+import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+import { checkFolder } from 'data-explorer-view/model';
+import { listedFiles } from 'data-explorer-view/serve';
+
+const check = await checkFolder({
+  files: { list: async () => listedFiles(await listFolder(root)) },
+  reader: (files) => ({ ...nodeSourceReader(files), projectStore: (f) => readProjectStoreFromDisk(f.path) }),
+  // cache: folder.cache, // a folder session's, so a folder the app shows is not read twice
+});
+for (const finding of check.findings) console.log(finding.kind, finding);
+```
+
+Each of `findings` is one of five kinds, listed in this order
+(`CHECK_FINDING_KINDS`), and names files by their uris:
+
+- `unresolved-reference`: a model's model reference, data dictionary or other
+  external data, or a dictionary's referenced dictionary (`relation`), that no
+  file answers: the Folder view's missing row. A block parameter whose name
+  nothing defines is not one: a base-workspace variable, a function and a
+  constant read the same from a file.
+- `cycle`: files that reference each other round in a circle, the shortest
+  circle through the first of them, which `files` ends with again.
+- `unused`: a dictionary's Design Data entry, a MAT-file's variable or a model's
+  workspace variable (`section` 'design', '' or 'workspace') whose Usage cell
+  would be empty. Data types and signals are never unused
+  (`UNUSED_SKIPPED_CLASSES`): a model names them where the usage index does not
+  look.
+- `shadowed`: a model workspace variable whose name the model's dictionaries or
+  MAT-files define too (`hidden`), by core's resolution order.
+- `duplicate`: a Design Data name two or more dictionaries define, within one
+  dictionary and those it references or the dictionaries one model links. Two
+  unrelated dictionaries sharing a name are not one.
+
+`notChecked` lists the data files no model of the folder links, directly or
+through a dictionary: none of their entries is called unused. `unreadable` lists
+the files that did not read, with why, and the check goes on with the rest. `files`
+counts what the folder listed, projects too, and `truncated` says the listing
+stopped at its limit. Every model and data file is opened whole, one at a time,
+for its entries; the promise rejects only when the listing does. Where two
+dictionaries share a name, the check counts what the Usage column shows: the
+last in folder order.
+
 ## Build an app on the shell
 
 `data-explorer-view/app-shell` is the window of a whole app. A toolbar and a
