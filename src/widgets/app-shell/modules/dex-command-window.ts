@@ -13,16 +13,18 @@ export interface CommandRunDetail {
 }
 
 // A line of the output: a line of an answer, in its kind, or a line run, shown after the prompt.
+// The welcome's first line is drawn from `heading` (`heading: true`), whenever that is set.
 interface WindowLine {
   text: string;
   kind: OutputLine['kind'] | 'input';
+  heading?: true;
 }
 
 const KINDS: ReadonlySet<string> = new Set(['out', 'error', 'info']);
 
-// What the window says before anything is run, as the prototype's said it.
+// What the window says before anything is run, as the prototype's said it, naming the app.
 const WELCOME: readonly WindowLine[] = [
-  { text: 'Data Explorer — Command Window', kind: 'out' },
+  { text: '', kind: 'out', heading: true },
   { text: 'Type "help" for available commands.', kind: 'out' },
 ];
 
@@ -130,6 +132,12 @@ export class DexCommandWindow extends LitElement {
    * page without bound. Default 5000. Attribute `max-lines`.
    */
   @property({ type: Number, attribute: 'max-lines' }) maxLines = DEFAULT_MAX_LINES;
+
+  /**
+   * The app the welcome's first line names, "<heading> — Command Window". Default 'Data Explorer'.
+   * Attribute `heading`.
+   */
+  @property() heading = 'Data Explorer';
 
   @state() private _lines: WindowLine[] = [...WELCOME];
 
@@ -265,7 +273,7 @@ export class DexCommandWindow extends LitElement {
   override render() {
     return html`
       <div class="output" role="log" aria-label="Command output" tabindex="0" @click=${this._onOutputClick}>
-        ${this._lines.map((l) => html`<div class="line ${l.kind}">${l.text}</div>`)}
+        ${this._lines.map((l) => html`<div class="line ${l.kind}">${l.heading ? `${this.heading} — Command Window` : l.text}</div>`)}
       </div>
       <div class="prompt-row">
         <span class="prompt" aria-hidden="true">&gt;&gt;</span>

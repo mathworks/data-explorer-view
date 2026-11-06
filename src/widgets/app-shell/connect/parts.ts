@@ -57,6 +57,7 @@ export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const search = document.createElement('dex-search-panel');
   const raw = document.createElement('dex-raw-viewer');
   const terminal = document.createElement('dex-command-window');
+  terminal.heading = options.appName;
   const log = document.createElement('dex-log-panel');
 
   const docs = document.createElement('dex-shell-docs');

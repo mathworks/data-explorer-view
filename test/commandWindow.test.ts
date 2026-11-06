@@ -78,6 +78,20 @@ describe('the window', () => {
     expect(input(el).value).toBe('');
   });
 
+  it("names the app in the welcome's first line, by `heading` or its attribute, and keeps the rest", async () => {
+    const el = await commandWindow();
+    el.appendOutput({ lines: [{ text: 'ok', kind: 'out' }] });
+    el.heading = 'Plant Data';
+    await el.updateComplete;
+    expect(lines(el)).toEqual(['Plant Data — Command Window', 'Type "help" for available commands.', 'ok']);
+    const named = document.createElement('dex-command-window');
+    named.setAttribute('heading', 'Fleet Tool');
+    document.body.append(named);
+    await named.updateComplete;
+    expect(named.heading).toBe('Fleet Tool');
+    expect(lines(named)[0]).toBe('Fleet Tool — Command Window');
+  });
+
   it('is a log region of output over a labelled prompt, the >> hidden from a screen reader', async () => {
     const el = await commandWindow();
     expect(output(el).getAttribute('role')).toBe('log');

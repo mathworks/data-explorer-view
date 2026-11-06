@@ -16,6 +16,13 @@ const output = () => [...(commandWindow().shadowRoot?.querySelectorAll('.output 
 const names = () => tableOf('params.sldd')!.rows.map((r) => r.Name?.label);
 
 describe('the Terminal view', () => {
+  it("names the app in its welcome, as the host names it", async () => {
+    startPage(FILES, { appName: 'Plant Data' });
+    await commandWindow().updateComplete;
+    const welcome = () => commandWindow().shadowRoot!.querySelector('.output .line')!.textContent;
+    expect(welcome()).toBe('Plant Data — Command Window');
+  });
+
   it('says there is no document with none open', async () => {
     startPage(FILES);
     run('ls');
