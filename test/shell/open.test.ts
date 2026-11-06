@@ -88,16 +88,24 @@ describe('the shell opens files as tabs', () => {
     page.host.readFile = (p) => new Promise((resolve, reject) => held.push(() => read(p).then(resolve, reject)));
     const panel = (name: string) => document.querySelector<HTMLElement>(`.doc-panel[data-path="${at(name)}"]`);
     const noteIn = (name: string) => panel(name)?.querySelector<HTMLElement>('dex-shell-note');
+    // Put in the page empty, its words a task later: a live region says what changes in it once it
+    // is there, and one put in with its words already is not always said.
+    const atInsert: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.localName === 'dex-shell-note') atInsert.push(n.textContent ?? '');
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
     void page.handle.openPaths([at('params.sldd')]);
-    await until(() => !!noteIn('params.sldd'));
+    await until(() => noteIn('params.sldd')?.textContent === 'Opening params.sldd…');
+    watch.disconnect();
+    expect(atInsert).toEqual(['']);
     expect(noteIn('params.sldd')!.getAttribute('role')).toBe('status');
-    expect(noteIn('params.sldd')!.textContent).toBe('Opening params.sldd…');
     held.shift()!();
     await until(() => (tableOf('params.sldd')?.rows.length ?? 0) > 0);
     expect(noteIn('params.sldd')).toBeNull();
     // A read that fails takes the note away too, and its banner says why.
     void page.handle.openPaths([at('gone.sldd')]);
-    await until(() => !!noteIn('gone.sldd'));
+    await until(() => noteIn('gone.sldd')?.textContent === 'Opening gone.sldd…');
     held.shift()!();
     await until(() => !!tableOf('gone.sldd')?.banners?.error);
     expect(noteIn('gone.sldd')).toBeNull();

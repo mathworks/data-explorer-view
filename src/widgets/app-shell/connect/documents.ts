@@ -107,8 +107,10 @@ export function openingNote(tab: OpenTab): HTMLElement {
   const note = document.createElement('dex-shell-note');
   note.className = 'doc-opening';
   note.setAttribute('role', 'status');
-  note.textContent = `Opening ${tab.name}…`;
   tab.panel.append(note);
+  // Put in the page empty, its words a task later: a live region says what changes in it once it
+  // is there, and one put in with its words already is not always said. Removed by then, nothing.
+  setTimeout(() => (note.textContent = `Opening ${tab.name}…`), 0);
   return note;
 }
 
