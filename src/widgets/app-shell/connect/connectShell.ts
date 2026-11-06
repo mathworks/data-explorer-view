@@ -19,6 +19,7 @@
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
+import { namesOfRows } from '../../../model/search/openDocNames.js';
 import { basenameOf, isProjectFile, isSupportedPath, projectFallbackName } from 'data-explorer-core';
 import type { ProjectOpenDetail } from '../../project-page/dex-project-page.js';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
@@ -44,6 +45,7 @@ import { locationOf, type ShellPlace } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { buildShell } from './parts.js';
 import { connectRawPane } from './rawPane.js';
+import { connectSearchPane } from './searchPane.js';
 import { rowIn, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
@@ -402,6 +404,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
   }
 
+  // A file a folder's tree, a search or the Search view picked: as a preview, on the row `name`
+  // names, if it names one.
+  function openOn(uri: string, name?: string): void {
+    void open(uriPath(uri), { preview: true }).then((tab) => {
+      if (name !== undefined) tab.handle?.selectByName(name);
+    });
+  }
+
   // A link into another file: open it (or go to its tab) and select the row it names. `uri` is
   // the file the folder's tree shows for it, when a folder is shown.
   async function navigate(from: OpenTab, link: LinkTarget, uri?: string): Promise<void> {
@@ -539,6 +549,16 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   });
   stops.push(() => rawPane.dispose());
 
+  // Search: the open files' names, read off their tables' rows, and the folder's index.
+  const searchPane = connectSearchPane(parts.search, {
+    openRecords: () => tabs.items.flatMap((t) => (t.doc && t.table ? namesOfRows(t.table.rows, t.doc.uri, t.doc.kind) : [])),
+    folderNames: () => folderNow()?.session.names,
+    open: (uri, name) => openOn(uri, name),
+    failed: (text) => toasts.show({ level: 'error', message: text }),
+  });
+  searchPane.scope(null);
+  stops.push(() => searchPane.dispose());
+
   // --- The parts' requests -----------------------------------------------------------------------
 
   const tabOf = (id: string | null | undefined) => (id ? tabs.find((t) => t.id === id) : undefined);
@@ -607,11 +627,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
   };
   const folders = connectShownFolder(folderPart, tree, {
-    open: (uri, name) =>
-      void open(uriPath(uri), { preview: true }).then((tab) => {
-        if (name !== undefined) tab.handle?.selectByName(name);
-      }),
+    open: openOn,
     shown(shown) {
+      searchPane.scope(basenameOf(shown.root));
       void ws.setUsage(shown.session.usage, shown.session.reposts);
       repaintProjects(shown);
       follow();
