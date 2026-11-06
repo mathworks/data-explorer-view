@@ -41,6 +41,12 @@ export interface OpenTab extends ShellTab {
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** The page's clipboard, as connectTable's own default writes to it: a page without one fails the copy, saying so. */
+function pageClipboard(text: string): Promise<void> {
+  if (!navigator.clipboard?.writeText) return Promise.reject(new Error('this page has no clipboard access'));
+  return navigator.clipboard.writeText(text);
+}
+
 /** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
 export function docTabOf(tab: OpenTab): DocTab {
   const group = fileGroupOf(tab.path);
@@ -109,8 +115,8 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     copyText: true,
     undoChords: true,
     errorDialog: wiring.dialog,
-    // The host's clipboard, or the page's (connectTable's own) for a host without one.
-    copy: host.copyText ? (text) => host.copyText!(text) : undefined,
+    // The host's clipboard, or the page's for a host without one, asked at each copy.
+    copy: (text) => (host.copyText ? host.copyText(text) : pageClipboard(text)),
     // Usage is core's in a model; in a dictionary or a MAT-file the shown folder's usage
     // graphs fill it, so a file outside the folder has none.
     columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),

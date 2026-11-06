@@ -31,11 +31,8 @@ function action(id: string, label: string, icon: string, shortcut = ''): DexShel
 /** The parts connectShell builds, as it wires them; `remove()` takes every one of them away again. */
 export type ShellParts = ReturnType<typeof buildShell>;
 
-/**
- * Fill `shell` with the app's parts, and put the shared overlays in the body. `canOpenFolder`: the
- * host shows folders, so the welcome offers Open Folder….
- */
-export function buildShell(shell: DexAppShell, options: { appName: string; canOpenFolder: boolean }) {
+/** Fill `shell` with the app's parts, and put the shared overlays in the body. */
+export function buildShell(shell: DexAppShell, options: { appName: string }) {
   const toolbar = document.createElement('dex-toolbar');
   toolbar.slot = 'toolbar';
   toolbar.label = options.appName;
@@ -52,7 +49,6 @@ export function buildShell(shell: DexAppShell, options: { appName: string; canOp
   explorerView.append(explorer, folderPart);
 
   const docs = document.createElement('dex-shell-docs');
-  docs.canOpenFolder = options.canOpenFolder;
   const strip = document.createElement('dex-doc-tabs');
   strip.slot = 'tabs';
   docs.append(strip);

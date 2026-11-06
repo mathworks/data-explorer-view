@@ -241,6 +241,16 @@ describe('the shell opens files as tabs', () => {
     expect(page.main.copied).toEqual(['Ki', '3.5']);
   });
 
+  it('a host that has a clipboard by the time of a copy is asked, whatever it had when the file opened', async () => {
+    const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx' }, { without: ['copyText'] });
+    await open(page, 'shadow_ws.slx');
+    page.host.copyText = async (text) => void page.main.copied.push(text);
+    await menuOn('shadow_ws.slx', 'Kp');
+    choose('copyName');
+    await until(() => page.main.copied.length === 1);
+    expect(page.main.copied).toEqual(['Kp']);
+  });
+
   it('a host with no clipboard of its own copies through the page\'s', async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx' }, { without: ['copyText'] });
     const written: string[] = [];

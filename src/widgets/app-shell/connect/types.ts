@@ -45,8 +45,9 @@ export type CloseAnswer = 'save' | 'discard' | 'cancel';
 
 /**
  * What the shell asks of the page it runs in: files to open, their bytes, where saves go, and the
- * questions a host may ask in its own dialogs. Every member is called through the object when it is
- * needed, never read once, so a host (or a test) may replace one while the shell runs.
+ * questions a host may ask in its own dialogs. Every member is read from the object each time it is
+ * needed (the optional ones too: whether there is a Folder button is asked at each repaint, the
+ * clipboard at each copy), so a host, or a test, may replace one while the shell runs.
  */
 export interface ShellHost {
   /** Show the host's Open File dialog; resolves to the chosen paths (empty when cancelled). */
@@ -58,7 +59,11 @@ export interface ShellHost {
   pickFolder?(): Promise<void>;
   /** The bytes of a data file the user opened. A rejection is shown in the file's table. */
   readFile(path: string): Promise<Uint8Array>;
-  /** Stop watching a file whose tab closed. */
+  /**
+   * Stop watching a file whose tab closed, by the path it was opened with. May be called twice for
+   * one path: a tab closed while its file was read is told again once the read lands, since a
+   * watcher starts on the read, past the close it heard.
+   */
   closeFile?(path: string): void;
   /**
    * Write `bytes` over the open file `path`. `overwritten`: another program wrote the file after
@@ -67,13 +72,16 @@ export interface ShellHost {
   saveFile(path: string, bytes: Uint8Array): Promise<{ overwritten: boolean }>;
   /**
    * Ask where to save the open file `path`, and write `bytes` there. Resolves to the path written
-   * (`path` itself, for a Save As onto it), or null when cancelled.
+   * (`path` itself, for a Save As onto it), or null when cancelled. `overwritten`, for a Save As onto
+   * the file itself, as for saveFile: another program wrote it after the save. Elsewhere, false.
    */
   saveFileAs(path: string, bytes: Uint8Array): Promise<{ path: string; overwritten: boolean } | null>;
   /** Ask whether to save the unsaved edits of the files `names` before they close. Absent: the in-page confirm dialog. */
   confirmClose?(names: string[]): Promise<CloseAnswer>;
   /**
-   * The file `name`, which has unsaved edits, changed on disk: whether to reload it (and lose them).
+   * The file `name` holds what the shell's document does not: it changed on disk while the document
+   * held unsaved edits, or another program wrote over the shell's save of it (saveFile's
+   * `overwritten`). Whether to reload it, and lose the edits; false keeps them over the disk's file.
    * Absent: the in-page confirm dialog.
    */
   confirmReload?(name: string): Promise<boolean>;

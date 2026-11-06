@@ -82,7 +82,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const key = options.storageKey ?? 'dex-shell';
   // The layout is the shell's to keep; set before the views go in, which is when it reads it back.
   if (!shell.storageKey) shell.storageKey = `${key}:layout`;
-  const parts = buildShell(shell, { appName, canOpenFolder: !!host.pickFolder });
+  const parts = buildShell(shell, { appName });
   const { toolbar, location, explorer, folderPart, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
 
   let disposed = false;
@@ -166,6 +166,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     strip.active = active?.id ?? '';
     for (const tab of tabs.items) tab.panel.hidden = tab !== active;
     docs.welcome = !active;
+    docs.canOpenFolder = !!host.pickFolder;
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
     else document.title = title;
@@ -436,6 +437,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
 
+  // A host's dialog that could not be shown (a browser's picker refused, SecurityError,
+  // NotAllowedError) says why; one the user cancelled (AbortError) is an answer, and says nothing.
+  function pickFailed(what: string, err: unknown): void {
+    if (err instanceof Error && err.name === 'AbortError') return;
+    toasts.show({ level: 'error', message: `Could not open ${what}: ${message(err)}` });
+  }
+
   function carryOut(id: ShellCommand, tab: OpenTab | undefined): void {
     const action = tableActionOf(id);
     if (action && action !== 'undo' && action !== 'redo') {
@@ -444,10 +452,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
     switch (id) {
       case 'open-file':
-        void host.pickFiles().then(openPaths);
+        void host.pickFiles().then(openPaths, (err) => pickFailed('a file', err));
         break;
       case 'open-folder':
-        void host.pickFolder?.();
+        void host.pickFolder?.().catch((err) => pickFailed('a folder', err));
         break;
       case 'save':
       case 'save-as':
@@ -552,8 +560,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     (uri, name) => void open(uriPath(uri), { preview: true }).then((tab) => tab.handle?.selectByName(name)),
   );
 
-  function showFolderIn(root: string, port: MessagePort): void {
+  // What listens to the folder shown: let go of with it, when another is shown or the shell goes.
+  let folderStops: (() => void)[] = [];
+  const dropFolder = (): void => {
+    for (const stop of folderStops) stop();
+    folderStops = [];
     folder?.dispose();
+    folder = undefined;
+  };
+
+  function showFolderIn(root: string, port: MessagePort): void {
+    dropFolder();
     folderPart.hidden = false;
     folderPart.root = root;
     folderPart.note = '';
@@ -575,11 +592,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         if (t.page && (!uris || uris.includes(sourceUri(t.path)))) void paintProject(t, t.page, shown);
       }
     };
-    folder.onChange(repaint);
-    repaint();
     // The search reads the folder's names again each time the folder takes a change: its tree is
     // built again once its names are read again.
-    folder.session.hierarchy.subscribe(() => search.reset());
+    folderStops = [folder.onChange(repaint), folder.session.hierarchy.subscribe(() => search.reset())];
+    repaint();
     search.reset();
     follow();
   }
@@ -616,8 +632,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         tab.doc?.dispose();
         host.closeFile?.(tab.path);
       }
-      folder?.dispose();
-      folder = undefined;
+      dropFolder();
       inspector.dispose();
       ws.dispose();
       parts.remove();

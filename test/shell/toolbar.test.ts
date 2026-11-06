@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   at,
   dirtyTabs,
+  docsArea,
   edit,
   enabledItems,
   menuOn,
@@ -23,8 +24,11 @@ import {
   tabNames,
   tableOf,
   textOf,
+  toastHost,
+  toastTexts,
   toolbar,
   toolbarButton,
+  settled,
   until,
   valueIn,
 } from './harness.js';
@@ -43,10 +47,15 @@ describe('the toolbar', () => {
     expect(enabledItems()).toEqual(['open-file', 'open-folder']);
   });
 
-  it('has no Folder for a host without one', async () => {
-    startPage(FILES, { without: ['pickFolder'] });
+  it('has no Folder for a host without one, and has it once the host does', async () => {
+    const page = startPage(FILES, { without: ['pickFolder'] });
     await until(() => toolbar().items.length > 0);
     expect(toolbar().items.map((i) => i.id)).not.toContain('open-folder');
+    expect(docsArea().canOpenFolder).toBe(false);
+    page.host.pickFolder = async () => undefined;
+    await open(page, 'params.sldd');
+    await until(() => toolbar().items.some((i) => i.id === 'open-folder'));
+    expect(docsArea().canOpenFolder).toBe(true);
   });
 
   it("enables Save As and Close for a document the page edits, Save and Save All once it has unsaved edits, and follows the active tab", async () => {
@@ -94,6 +103,23 @@ describe('the toolbar', () => {
     expect(tabNames()).toEqual(['params.sldd', 'ParamMat.mat']);
     toolbarButton('Folder')!.click();
     await until(() => page.main.folderPicks === 1);
+  });
+
+  it("Open and Folder say, in a toast, why the host's dialog failed; a dialog the user cancelled says nothing", async () => {
+    const page = startPage(FILES);
+    const refused = (name: string, text: string) => Object.assign(new Error(text), { name });
+    page.host.pickFiles = () => Promise.reject(refused('SecurityError', 'The page may not open a file picker now.'));
+    page.host.pickFolder = () => Promise.reject(refused('NotAllowedError', 'Folders are not allowed here.'));
+    page.command('open-file');
+    page.command('open-folder');
+    await until(() => toastTexts().length === 2);
+    expect(toastTexts()).toEqual(['Could not open a file: The page may not open a file picker now.', 'Could not open a folder: Folders are not allowed here.']);
+    expect(toastHost().shadowRoot!.querySelectorAll('.toast.error')).toHaveLength(2);
+    toastHost().clear();
+    page.host.pickFiles = () => Promise.reject(refused('AbortError', 'The user aborted a request.'));
+    page.command('open-file');
+    await settled();
+    expect(toastTexts()).toEqual([]);
   });
 
   it("Copy, Paste and Delete run the active table's own items on its selection", async () => {
