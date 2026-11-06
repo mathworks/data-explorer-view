@@ -166,6 +166,35 @@ describe('WebFiles', () => {
     expect(text(await files.bytes('/files/1/c.sldd'))).toBe('two');
   });
 
+  it('takes a file added again as it was for no change: equal bytes, or a File of the same size and date', async () => {
+    const files = new WebFiles();
+    const bytes = (s: string) => ({ kind: 'bytes' as const, bytes: bytesOf(s) });
+    const file = (content: string, date: number) => ({ kind: 'file' as const, file: fileOf('b.sldd', content, date) });
+    const [a] = (await files.addToGroup('site', [{ name: 'a.sldd', source: bytes('same') }])).paths;
+    const [b] = (await files.addToGroup('site', [{ name: 'b.sldd', source: file('same', 7_000) }])).paths;
+    // Fetched again, as a second press of a page's Samples button fetches them: nothing replaced.
+    expect(await files.addToGroup('site', [{ name: 'a.sldd', source: bytes('same') }, { name: 'b.sldd', source: file('same', 7_000) }])).toEqual({ paths: [a, b], replaced: [] });
+    // Other bytes, another date or size, or another kind of source is another file.
+    expect((await files.addToGroup('site', [{ name: 'a.sldd', source: bytes('other') }])).replaced).toEqual([a]);
+    expect((await files.addToGroup('site', [{ name: 'b.sldd', source: file('same', 8_000) }])).replaced).toEqual([b]);
+    expect((await files.addToGroup('site', [{ name: 'b.sldd', source: file('longer', 8_000) }])).replaced).toEqual([b]);
+    expect((await files.addToGroup('site', [{ name: 'b.sldd', source: bytes('longer') }])).replaced).toEqual([b]);
+    expect(text(await files.bytes(b!))).toBe('longer');
+  });
+
+  it("replaces a file whose path a handle of the same call kept, and says so", async () => {
+    const files = new WebFiles();
+    const h = new FakeFileHandle('b.sldd', 'handle');
+    const [kept] = (await files.addToGroup('site', [{ name: 'b.sldd', source: { kind: 'handle', handle: asFile(h) } }])).paths;
+    // The handle again keeps its path; a file of its name after it in the call takes its place.
+    const both = await files.addToGroup('site', [
+      { name: 'b.sldd', source: { kind: 'handle', handle: asFile(h.again()) } },
+      { name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('bytes') } },
+    ]);
+    expect(both).toEqual({ paths: [kept, kept], replaced: [kept] });
+    expect(text(await files.bytes(kept!))).toBe('bytes');
+  });
+
   it('gives a handle to a file the page has a path for that path, as a pick does, and replaces nothing', async () => {
     const files = new WebFiles();
     const a = new FakeFileHandle('a.sldd', 'picked');

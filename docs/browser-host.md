@@ -85,12 +85,23 @@ apart. A group holds one file of a name: one added under a name the group has ta
 its path, and a tab open on it takes the new file as it takes a change on disk. Files of one name
 from two places on a site go in two groups (a group per site folder, say).
 
+A page adds each file once, and keeps the path it is answered: asked for the file again, it opens
+that path (the file's tab, if it has one) rather than fetching and adding it again. The same file
+added again, equal bytes or a File of the same size and date, changes nothing; another version of
+it replaces the one held, and an open tab reloads, or asks first about its unsaved edits.
+
 ```js
-const fetched = await Promise.all(urls.map(async (url) => ({
-  name: url.slice(url.lastIndexOf('/') + 1),
-  source: { kind: 'bytes', bytes: new Uint8Array(await (await fetch(url)).arrayBuffer()) },
-})));
-app.openPaths(await host.files.addToGroup('samples', fetched));
+const opened = new Map(); // url → path, each file fetched and added once
+async function openSamples(urls) {
+  const fresh = await Promise.all(urls.filter((url) => !opened.has(url)).map(async (url) => ({
+    url,
+    name: url.slice(url.lastIndexOf('/') + 1),
+    source: { kind: 'bytes', bytes: new Uint8Array(await (await fetch(url)).arrayBuffer()) },
+  })));
+  const paths = await host.files.addToGroup('samples', fresh);
+  fresh.forEach((file, i) => opened.set(file.url, paths[i]));
+  await app.openPaths(urls.map((url) => opened.get(url)));
+}
 ```
 
 A shown folder is listed by core's listing rules (the same files, skips, order and limit as

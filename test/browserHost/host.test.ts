@@ -299,6 +299,15 @@ describe('browserHost', () => {
     expect(changed).toEqual([open]);
   });
 
+  it('tells nothing of an open file added to its group again as it was, as a second press of a Samples button does', async () => {
+    const { host, changed } = hostOf();
+    const fetched = () => [{ name: 'a.sldd', source: { kind: 'bytes' as const, bytes: bytesOf('same') } }];
+    const [path] = await host.files.addToGroup('site', fetched());
+    await host.readFile(path!);
+    expect(await host.files.addToGroup('site', fetched())).toEqual([path]);
+    expect(changed).toEqual([]);
+  });
+
   it('without onChanged replaces a file in a group and tells nothing', async () => {
     const { host } = hostOf({}, { onChanged: undefined });
     const [path] = await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);

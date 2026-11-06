@@ -48,7 +48,9 @@ export interface BrowserFiles {
    * still find each other (a model's link to a dictionary, which names it alone). Two groups, and
    * every pick, are folders apart. A group holds one file of a name: a file of a name it has takes
    * that file's place, at its path, and a tab open on it takes the new file as it takes a change on
-   * disk (through `onChanged`). A handle to a file the host has a path for already keeps that path.
+   * disk (through `onChanged`). The same file again (equal bytes, or a File of the same size and
+   * date) changes nothing; still, a page adds a file once and keeps the paths it is answered, to
+   * open again. A handle to a file the host has a path for already keeps that path.
    */
   addToGroup(group: string, files: readonly BrowserFile[]): Promise<string[]>;
   /** The file at `path`, or undefined for a path the host never made. */
