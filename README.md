@@ -543,11 +543,14 @@ onWindowClose(async () => {
 ```
 
 Nothing opens until the host says so: the window starts on a welcome with Open
-File… and Open Folder… buttons. `app.command(id)` carries out a command
-(`'new-file'`, `'save'`, `'undo'`, `'show-search'`, …) as its button or its
-chord does, for a native menu's items, and `app.dispose()` takes the app down.
-The settings, the layout the user left and each file's column choices are kept
-in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+File… and Open Folder… buttons. While files dragged from the desktop are over a
+page that takes them with `installFileDrop` (below), the documents' area is
+outlined, and a tab says "Opening plant.sldd…" while its file is read.
+`app.command(id)` carries out a command (`'new-file'`, `'save'`, `'undo'`,
+`'show-search'`, …) as its button or its chord does, for a native menu's items,
+and `app.dispose()` takes the app down. The settings, the layout the user left
+and each file's column choices are kept in localStorage under connectShell's
+`storageKey` (`'dex-shell'` by default).
 
 ### The host
 

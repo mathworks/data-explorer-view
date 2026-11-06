@@ -7,6 +7,8 @@
 // what the lift added: any element can be the target, and the listeners can be taken away.
 import { afterEach, describe, expect, it } from 'vitest';
 import { installFileDrop } from '../../src/widgets/app-shell/connect/drop.js';
+import { DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
+import { docsArea, settled, startPage, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -91,5 +93,60 @@ describe('files dropped onto an element', () => {
     zone.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(false);
     expect(dropped).toEqual([]);
+  });
+});
+
+describe("the shell's documents, while files are dragged over the page", () => {
+  // installFileDrop marks the element the files will be dropped on (the body, for the window), and
+  // a page's stylesheet was to draw the mark: the shell's page has none, so nothing showed where the
+  // files would go. The documents' area draws it now, while any element from it up to the page is
+  // marked, and only then: a page that installs no drop opens nothing dropped, and shows no cue.
+  const cssOf = (styles: unknown): string =>
+    [styles]
+      .flat(Infinity)
+      .map((sheet) => (sheet as { cssText: string }).cssText)
+      .join('\n')
+      .replace(/\s+/g, ' ');
+
+  it('are outlined while a drag of files is over the window, and not once it leaves or drops', async () => {
+    startPage();
+    stops.push(installFileDrop(window, () => {}));
+    expect(docsArea().dropping).toBe(false);
+    window.dispatchEvent(fileDrag('dragover', ['plant.sldd']));
+    await until(() => docsArea().dropping);
+    expect(docsArea().hasAttribute('dropping')).toBe(true);
+    window.dispatchEvent(fileDrag('dragleave', ['plant.sldd']));
+    await until(() => !docsArea().dropping);
+    window.dispatchEvent(fileDrag('dragover', ['plant.sldd']));
+    await until(() => docsArea().dropping);
+    window.dispatchEvent(fileDrag('drop', ['plant.sldd']));
+    await until(() => !docsArea().dropping);
+    // A dashed outline in the accent, over the panels and the welcome, which takes no pointer.
+    const css = cssOf(DexShellDocs.styles);
+    const cue = /:host\(\[dropping\]\) \.panels::after \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(cue).toContain('border: 2px dashed var(--dex-color-accent, #0078d4);');
+    expect(cue).toContain('pointer-events: none;');
+    expect(css).toMatch(/@media \(forced-colors: active\) \{ :host\(\[dropping\]\) \.panels::after \{ border-color: Highlight;/);
+  });
+
+  it('follow a drop installed on the shell, or on an element around it', async () => {
+    const page = startPage();
+    stops.push(installFileDrop(page.shell, () => {}));
+    page.shell.dispatchEvent(fileDrag('dragover', ['a.sldd']));
+    await until(() => docsArea().dropping);
+    page.shell.dispatchEvent(fileDrag('dragleave', ['a.sldd'], document.body));
+    await until(() => !docsArea().dropping);
+  });
+
+  it('show nothing for a page that installs no drop, and stop following once the shell is taken down', async () => {
+    const page = startPage();
+    window.dispatchEvent(fileDrag('dragover', ['plant.sldd']));
+    await settled();
+    expect(docsArea().dropping).toBe(false);
+    const docs = docsArea();
+    page.handle.dispose();
+    document.body.classList.add('drop-target');
+    await settled();
+    expect(docs.dropping).toBe(false);
   });
 });

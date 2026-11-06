@@ -17,7 +17,8 @@ import type { ToolbarActionDetail } from '../dex-toolbar.js';
  * The shell's documents: `<dex-doc-tabs slot="tabs">` above, the panels of the open files as its
  * children (each a `<section>`, filling the area, `hidden` but the active one), and the welcome
  * while `welcome` is set: what the shell opens, with Open File… and Open Folder… buttons, which
- * send `dex-toolbar-action` as the toolbar's Open and Folder do, and the drop hint.
+ * send `dex-toolbar-action` as the toolbar's Open and Folder do, and the drop hint. While
+ * `dropping` is set, the area is outlined as where the files dragged over the page will open.
  *
  * @tagname dex-shell-docs
  */
@@ -89,12 +90,36 @@ export class DexShellDocs extends LitElement {
     .hint {
       font-size: 12px;
     }
+
+    /* Files dragged over the page: a dashed outline in the accent, faintly tinted, over the panels
+       and the welcome, as the prototype drew round its welcome. Over a table's sticky header and
+       frozen column (z-index 3 at most) and under its menus; it takes no pointer, so the drop goes
+       where it would without it. */
+    :host([dropping]) .panels::after {
+      content: '';
+      position: absolute;
+      inset: 8px;
+      z-index: 4;
+      border: 2px dashed var(--dex-color-accent, #0078d4);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--dex-color-accent, #0078d4) 6%, transparent);
+      pointer-events: none;
+    }
+
+    @media (forced-colors: active) {
+      :host([dropping]) .panels::after {
+        border-color: Highlight;
+        background: transparent;
+      }
+    }
   `];
 
   /** The welcome is shown, over the panels: no file is open (Root with files open shows the graph's panel). Attribute `welcome`. */
   @property({ type: Boolean, reflect: true }) welcome = true;
   /** The welcome offers Open Folder…: the host can show a folder. Attribute `can-open-folder`. */
   @property({ type: Boolean, attribute: 'can-open-folder' }) canOpenFolder = false;
+  /** Files are dragged over the page, to be opened: the area is outlined as where they go. Attribute `dropping`. */
+  @property({ type: Boolean, reflect: true }) dropping = false;
 
   private _ask(actionId: string): void {
     this.dispatchEvent(new CustomEvent<ToolbarActionDetail>('dex-toolbar-action', {

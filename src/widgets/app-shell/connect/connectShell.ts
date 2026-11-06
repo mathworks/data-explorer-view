@@ -49,6 +49,7 @@ import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import type { LocationSegment } from '../dex-location-bar.js';
 import type { FolderView } from './folder.js';
 import { connectGraphPane, type SelectedFile } from './graphPane.js';
+import { followDropMark } from './drop.js';
 import { installKeys, onMac } from './keys.js';
 import { linkDestination } from './links.js';
 import { locationOf, type LocationStep, type ShellPlace } from './location.js';
@@ -700,6 +701,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // New's chord only for a host that makes files, asked at each press as the host's members are.
   stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
+  // Files dragged over the page, where the page's installFileDrop takes them: the documents' area
+  // is outlined as where they open.
+  stops.push(followDropMark(docs, (dragging) => (docs.dropping = dragging)));
 
   // Table rows dragged onto the Explorer, onto a file or a section of one, open in a tab whether or
   // not it is on screen: moved or copied there, and said as an edit is.
