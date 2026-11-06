@@ -109,7 +109,7 @@ export class DexAboutPanel extends LitElement {
     if (!this.open) return nothing;
     return html`
       <div class="popover" role="dialog" aria-label=${this.heading} tabindex="-1">
-        <div class="title">${this.heading}</div>
+        <div class="title" role="heading" aria-level="2">${this.heading}</div>
         ${aboutSections(this.lines).map((section) => html`
           ${section.heading === null ? nothing : html`<div class="section" role="heading" aria-level="3">${section.heading}</div>`}
           <dl class="lines">

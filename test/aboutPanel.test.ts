@@ -144,8 +144,10 @@ describe('sections', () => {
     expect(Array.from(lists, (dl) => dl.querySelectorAll('.line').length)).toEqual([2, 2]);
   });
 
-  it('heads a section for a screen reader, under the dialog, and as text, not markup', async () => {
+  it('heads a section for a screen reader, under the title, and as text, not markup', async () => {
     const el = await open([{ label: 'Lit', value: '3.2', section: '<b>Dependencies</b>' }]);
+    const title = el.shadowRoot!.querySelector('.title')!;
+    expect([title.getAttribute('role'), title.getAttribute('aria-level')]).toEqual(['heading', '2']);
     const heading = el.shadowRoot!.querySelector('.section')!;
     expect(heading.getAttribute('role')).toBe('heading');
     expect(heading.getAttribute('aria-level')).toBe('3');
