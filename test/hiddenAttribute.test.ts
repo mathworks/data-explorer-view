@@ -40,6 +40,7 @@ describe('the hidden attribute', () => {
       'DexAddGallery',
       'DexAppShell',
       'DexColumnFilter',
+      'DexCommandPalette',
       'DexCommandWindow',
       'DexConfirmDialog',
       'DexContextMenu',
