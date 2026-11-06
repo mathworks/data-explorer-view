@@ -37,6 +37,8 @@ export interface LocationTab {
   id: string;
   name: string;
   path: string;
+  /** The file segment's tooltip: its path, as the host says it (ShellHost.pathTitle). Default the path. */
+  title?: string;
 }
 
 const ROOT_ICON = 'simulink_folder';
@@ -60,7 +62,7 @@ export function locationOf(
   const file: LocationStep = {
     label: tab.name,
     ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }),
-    title: tab.path,
+    title: tab.title ?? tab.path,
     place: { tabId: tab.id, rowId: null },
   };
   // The row and its parents, from the row up; a parent that is not there, or one already passed

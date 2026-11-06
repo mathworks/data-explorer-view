@@ -34,6 +34,16 @@ export interface BrowserFile {
 
 const nameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
+/**
+ * What a tooltip says of the file at `path`: what the path means to the user rather than the path
+ * made up for it. A pick's folder, `/files/<n>/`, is the page's own, so a pick's file is its name; a
+ * shown folder's file is its place in the folder (`plant/models/ctrlA.slx`), the root's slash being
+ * the page's too.
+ */
+export function titleOfPath(path: string): string {
+  return /^\/files\/\d+\/(.+)$/.exec(path)?.[1] ?? path.replace(/^\//, '');
+}
+
 /** The two folders are one: two handles to one directory. Two lists of Files are never told to be. */
 async function sameDir(a: BrowserDir, b: BrowserDir): Promise<boolean> {
   if (a.kind !== 'handle' || b.kind !== 'handle') return false;

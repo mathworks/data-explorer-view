@@ -88,11 +88,11 @@ function pageFeed(file: SelectedFile): InspectorFeed {
   };
 }
 
-/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path, and why it is dimmed. */
-function previewOf(file: SelectedFile | undefined): LocationSegment | undefined {
+/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path (as `titleOf` says it), and why it is dimmed. */
+function previewOf(file: SelectedFile | undefined, titleOf: (path: string) => string): LocationSegment | undefined {
   if (!file) return undefined;
   const { box } = file;
-  return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}), description: 'selected in the graph' };
+  return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: titleOf(uriPath(box.uri)) } : {}), description: 'selected in the graph' };
 }
 
 /**
@@ -270,6 +270,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // What the toolbar's buttons, and the palette's rows for them, can do now.
   const toolbarState = (): ToolbarState => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac(), !!host.newFile);
+  // What a file's tooltips say of its path: the host's words for it, if its paths are of its making.
+  const titleOf = (path: string): string => host.pathTitle?.(path) ?? path;
 
   function refresh(): void {
     const active = tabs.active;
@@ -278,17 +280,20 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     toolbar.items = toolbarItems(toolbarState());
     // The tab row, each tab as its selection names it (the section it is in), here with what else
     // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
-    strip.tabs = tabs.items.map((t) => docTabOf(t));
+    strip.tabs = tabs.items.map((t) => docTabOf(t, titleOf(t.path)));
     strip.active = active?.id ?? '';
     strip.hidden = !active;
-    explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
+    explorer.files = explorerFiles(
+      tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })),
+    );
     // The rows the active table holds now: its paint, the entries repainted since, the children
     // it was answered; none for a project page or a file still being read.
     const rows = active?.table?.rows ?? [];
     const rowId = here().rowId;
     const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
     explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-    const at = locationOf(active ?? null, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file));
+    const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
+    const at = locationOf(place, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
     nav.located(at);
     located = at.segments;
     location.segments = at.segments;

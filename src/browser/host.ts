@@ -16,7 +16,7 @@ import { isSupportedPath } from 'data-explorer-core';
 import type { ShellHost } from '../widgets/app-shell/connect/types.js';
 import { dropSources, type DroppedItem } from './drop.js';
 import { folderLooks, serveWebFolder, type WebFolderServer } from './folder.js';
-import { WebFiles, type BrowserFile, type BrowserSource } from './files.js';
+import { titleOfPath, WebFiles, type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
 import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
@@ -288,6 +288,8 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       opened.delete(path);
       watcher?.unwatch(path);
     },
+    // The paths are this host's making: a tooltip says what each means to the user.
+    pathTitle: titleOfPath,
     // A new file the page keeps, with no save picker to have named one on disk, is downloaded.
     saveFile: (path, bytes) =>
       writing(path, async () => (made.keeps(path) ? made.save(path, bytes) : saveFile(files, path, bytes)), () => true),

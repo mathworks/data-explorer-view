@@ -125,6 +125,13 @@ export interface ShellHost {
   reveal?(path: string): Promise<void>;
   /** What a project page calls the file manager `reveal` shows things in ('Finder'). Default by platform. */
   revealIn?: string;
+  /**
+   * What a tooltip says of the file at `path` (its tab's, its Explorer row's, its location bar
+   * segment's): what the path means to the user, for a host whose paths are of its own making (the
+   * browser host's: a file's name, or its place in the folder it was shown from); '' for none.
+   * Absent: the path itself.
+   */
+  pathTitle?(path: string): string;
 }
 
 /** How connectShell builds the app. */

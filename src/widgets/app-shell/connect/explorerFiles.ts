@@ -49,6 +49,8 @@ export interface ExplorerTab {
   path: string;
   name: string;
   dirty?: boolean;
+  /** Its row's tooltip: its path, as the host says it (ShellHost.pathTitle). Default the path. */
+  title?: string;
   /** Its table's last whole paint (TableHandle.view's rows), for its sections; none before the first. */
   rows?: readonly TreeTableRow[];
 }
@@ -61,7 +63,7 @@ export function explorerFiles(tabs: readonly ExplorerTab[]): ExplorerFile[] {
     return {
       id: tab.id,
       label: tab.name,
-      title: tab.path,
+      title: tab.title ?? tab.path,
       group,
       ...(icon ? { icon } : {}),
       dirty: !!tab.dirty,

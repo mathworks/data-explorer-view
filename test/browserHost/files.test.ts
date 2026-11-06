@@ -7,7 +7,7 @@
 // one folder whenever each is added, so a model fetched first finds the dictionary fetched after it
 // beside it. Ported from data-explorer-app test/unit/web/files.test.ts.
 import { describe, expect, it } from 'vitest';
-import { WebFiles } from '../../src/browser/files.js';
+import { titleOfPath, WebFiles } from '../../src/browser/files.js';
 import { asDir, asFile, changedSincePicked, fakeDir, FakeFileHandle, fileOf, listedDir } from './fakeFs.js';
 
 const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
@@ -63,6 +63,14 @@ describe('WebFiles', () => {
     const file = fileOf('d.sldd');
     expect(await files.addPicked('d.sldd', { kind: 'file', file })).not.toBe(await files.addPicked('d.sldd', { kind: 'file', file }));
     expect(await files.pathOf(asFile(new FakeFileHandle('e.sldd')))).toBeUndefined();
+  });
+
+  it("says what a path means to the user, for a tooltip: a pick's file by its name, a folder's by its place in the folder", async () => {
+    // The shell's tooltips showed the path, and a pick's folder is the page's own making.
+    const files = new WebFiles();
+    expect(titleOfPath(await files.addPicked('a.sldd', { kind: 'file', file: fileOf('a.sldd') }))).toBe('a.sldd');
+    expect(titleOfPath(files.addInFolder('/proj (2)', 'data/a.sldd', { kind: 'file', file: fileOf('a.sldd') }))).toBe('proj (2)/data/a.sldd');
+    expect(titleOfPath(files.addInFolder('/files (2)', 'b.mat', { kind: 'file', file: fileOf('b.mat') }))).toBe('files (2)/b.mat');
   });
 
   it('names a shown folder\'s files under its root', () => {

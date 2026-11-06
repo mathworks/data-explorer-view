@@ -81,6 +81,16 @@ describe('the tab row', () => {
     expect(docTabs().tabs.find((t) => t.label === 'ParamMat.mat')!.dirty).toBe(true);
   });
 
+  it("names each file in its tooltips as a host that makes its paths up says, the tab's, the Explorer's and the location bar's", async () => {
+    // A browser page's paths are its own (`/files/1/plant.sldd`): its host says what they mean.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    page.host.pathTitle = (p) => `plant: ${p.slice(p.lastIndexOf('/') + 1)}`;
+    await open(page, 'params.sldd');
+    await until(() => docTabs().tabs[0]?.title === 'plant: params.sldd');
+    expect(explorer().files[0]!.title).toBe('plant: params.sldd');
+    expect(locationBar().segments[1]).toMatchObject({ label: 'params.sldd', title: 'plant: params.sldd' });
+  });
+
   it('a select request shows that tab, a close request closes it, asking first about unsaved edits', async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
     await open(page, 'params.sldd', 'ParamMat.mat');

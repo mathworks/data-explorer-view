@@ -85,7 +85,9 @@ opens the paths the host answers and builds or parses none. What a path does pro
 or dropped together sit beside each other (a model's link to a dictionary picked with it finds it),
 a shown folder's files keep their places in it (its links and project pages work), two folders of
 one name are kept apart, and a file picked again, or saved onto with Save As, keeps the path it
-has, so it opens in the tab it has.
+has, so it opens in the tab it has. Since a path means nothing to the user, `host.pathTitle(path)`
+says what does, and the shell's tooltips show that: a picked file's name, or a shown folder's file
+by its place in the folder (`plant/models/ctrlA.slx`).
 
 `host.files` answers what a path holds (`get`, `has`), and takes a file of the app's own: bytes it
 fetched, say, `await host.files.addPicked('a.sldd', { kind: 'bytes', bytes })`, whose path the app

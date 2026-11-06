@@ -321,6 +321,13 @@ describe('browserHost', () => {
     expect(await host.openDropped(dataTransferOf([{ handle: fakeDir('proj', { 'a.sldd': '' }) }]).data)).toEqual([]);
   });
 
+  it("names a file in the shell's tooltips by what its path means to the user, not the path it made up", async () => {
+    const { host, files } = hostOf();
+    const picked = await files.addPicked('plant.sldd', { kind: 'bytes', bytes: bytesOf('{}') });
+    expect(picked).toBe('/files/1/plant.sldd');
+    expect(host.pathTitle!(picked)).toBe('plant.sldd');
+  });
+
   it('sets the page\'s title', () => {
     const { host } = hostOf();
     host.setTitle!('● plant.sldd — Data Explorer');
