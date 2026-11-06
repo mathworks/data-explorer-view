@@ -254,6 +254,16 @@ export interface TableSource {
    * Optional; a read-only source has nothing to add.
    */
   opened?(): void;
+  /**
+   * These rows are being dragged out of a table that may not edit the document, to be copied into
+   * another one (connectTable's `dragOut`): take their entries into the drag register, as an
+   * editable source's `dragStart` does, where nothing may take them out of this document. Optional,
+   * with `dragEnd`: a workspace's read-only documents have both, in a workspace made with `editing`;
+   * a source without them has no row dragged out of its table. An EditableTableSource always has them.
+   */
+  dragStart?(rowIds: readonly string[]): void;
+  /** The drag of rows `dragStart` took ended, dropped or not. Optional, with `dragStart`. */
+  dragEnd?(): void;
 }
 
 /** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */

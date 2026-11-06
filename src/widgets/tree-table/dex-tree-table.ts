@@ -1603,12 +1603,25 @@ export class DexTreeTable extends LitElement {
   @property({ type: Boolean, attribute: 'row-drag' }) rowDrag = true;
 
   /**
+   * Whether rows are dragged out of the table, onto another part of the page that takes them (the
+   * app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+   * (`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+   * drag allows no move, so the document never loses an entry by it, and no row of this table takes
+   * a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+   * icon and name) follows the pointer over the rest of the page too, saying no action there: what a
+   * drop does outside the table is for the part under the pointer to show. Default false: a table
+   * that takes no row drag drags none, and the box stays over the table. Attribute `drag-out`.
+   */
+  @property({ type: Boolean, attribute: 'drag-out' }) dragOut = false;
+
+  /**
    * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
    * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
    * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-   * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-   * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-   * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+   * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+   * `dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+   * (dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+   * sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
    * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
    * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
    * to the attribute `readonly`.
@@ -1638,6 +1651,11 @@ export class DexTreeTable extends LitElement {
   // Whether a row can be dragged, or a dragged row let go over one (rowDrag, above).
   private get _dragsRows(): boolean {
     return this.rowDrag && !this.readonly;
+  }
+
+  // Whether a row can be dragged at all: in the table, or only out of it (dragOut, above).
+  private get _dragsOut(): boolean {
+    return this._dragsRows || this.dragOut;
   }
 
   /**
@@ -1894,6 +1912,7 @@ export class DexTreeTable extends LitElement {
     if (this._boundOnWindowBlur) {
       window.removeEventListener('blur', this._boundOnWindowBlur);
     }
+    this._stopFollowingDrag();
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -3175,7 +3194,7 @@ export class DexTreeTable extends LitElement {
   }
 
   private _onRowDragStart(rowId: string, e: DragEvent): void {
-    if (!this._dragsRows) {
+    if (!this._dragsOut) {
       e.preventDefault();
       return;
     }
@@ -3193,13 +3212,16 @@ export class DexTreeTable extends LitElement {
     ).filter((id) => id.indexOf('section:') !== 0);
 
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'copyMove';
+      // Dragged out of a table that takes no row drag (dragOut): a copy alone, so that no drop
+      // anywhere can take the entries out of a document that may not be changed.
+      e.dataTransfer.effectAllowed = this._dragsRows ? 'copyMove' : 'copy';
       // A payload is still set so the browser treats this as a real drag across
       // the webview boundary, but the authoritative source lives in the host
       // drag register (dataTransfer doesn't reliably survive the boundary).
       e.dataTransfer.setData('application/dex-rows', JSON.stringify({ rowIds }));
       this._setDragImage(e, rowId, rowIds.length);
     }
+    if (this.dragOut) this._followDrag();
     this.dispatchEvent(
       new CustomEvent<RowDragStartDetail>('dex-row-drag-start', {
         detail: { rowIds },
@@ -3228,7 +3250,37 @@ export class DexTreeTable extends LitElement {
     e.dataTransfer.setDragImage(blank, -10, -10);
   }
 
+  // While a drag of this table's rows is over the rest of the page (dragOut), the box at the pointer
+  // goes with it: the native drag image is hidden (_setDragImage), so it is the only thing there that
+  // says what is being dragged. A dragover anywhere in the document reaches this listener, captured
+  // on the document so a part that stops the event (a drop zone) still lets the box move; one over
+  // a table that takes row drags is the table's own to answer (_onRowDragOver, _onBodyDragOver),
+  // which say an action. Elsewhere, and over a table that takes no drop, whose rows answer nothing,
+  // the action is not the table's to say: the part under the pointer shows its own.
+  private _boundFollow: ((e: Event) => void) | null = null;
+
+  private _followDrag(): void {
+    this._stopFollowingDrag();
+    const follow = (e: Event): void => {
+      if (this._dragsRows && e.composedPath().includes(this)) return;
+      const drag = e as DragEvent;
+      this._dropTooltipX = drag.clientX;
+      this._dropTooltipY = drag.clientY;
+      this._dropTooltip = '';
+      this._dropForbidden = false;
+    };
+    this._boundFollow = follow;
+    document.addEventListener('dragover', follow, true);
+  }
+
+  private _stopFollowingDrag(): void {
+    if (!this._boundFollow) return;
+    document.removeEventListener('dragover', this._boundFollow, true);
+    this._boundFollow = null;
+  }
+
   private _onRowDragEnd(_e: DragEvent): void {
+    this._stopFollowingDrag();
     this._dragSourceId = null;
     this._dropTargetId = null;
     this._dropPosition = null;
@@ -4530,7 +4582,7 @@ export class DexTreeTable extends LitElement {
                         : 'drop-target-on'
                       : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''}"
                     data-row-id="${row.ID}"
-                    draggable=${this._dragsRows ? 'true' : 'false'}
+                    draggable=${this._dragsOut ? 'true' : 'false'}
                     @contextmenu=${(e: MouseEvent) => this._onRowContextMenu(row.ID, e)}
                     @dragstart=${(e: DragEvent) => this._onRowDragStart(row.ID, e)}
                     @dragend=${(e: DragEvent) => this._onRowDragEnd(e)}

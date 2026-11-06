@@ -35,6 +35,7 @@ import { createTextStore, type PageTextStore } from '../edit/textStore.js';
 import { MatEngine, type MatSave } from '../edit/matEngine.js';
 import { MODEL_FILE } from '../edit/modelFile.js';
 import { createRegisters, type Registers } from '../edit/registers.js';
+import { dragEntries } from '../edit/clipboardAction.js';
 import { newDictionaryBytes } from './newDictionary.js';
 import { docKindOf, readDocument, type DocKind, type Reading } from './readDocument.js';
 import { sourceUri } from './sourceUri.js';
@@ -73,7 +74,9 @@ export interface WorkspaceOptions {
    * limit the extension's table editor has) or compressed. Its table is then an
    * EditableTableSource (connectTable's `editing` wires a table to it), its edits go on an undo
    * stack of its own (a JSON dictionary's text's), and it saves through the Doc's `serialize` and
-   * `saved`. Default false: every document is read-only, as before.
+   * `saved`. A document it keeps read-only (a `.mdl`, a dictionary past the text limit) still lets
+   * its rows be dragged out, to be copied into one it edits: its table has `dragStart` and `dragEnd`.
+   * Default false: every document is read-only, as before.
    */
   editing?: boolean;
   /**
@@ -267,6 +270,8 @@ interface Shared {
   usage: UsageSource | undefined;
   usageReposts: UsageReposts | undefined;
   registers: Registers;
+  /** Whether the workspace edits (WorkspaceOptions.editing): what its registers are there for. */
+  editing: boolean;
   notify: Notify | undefined;
   closed(doc: Doc): void;
 }
@@ -311,7 +316,47 @@ class InPageDoc implements HeldDoc {
         this.listeners.add(listener);
         return () => void this.listeners.delete(listener);
       },
+      // Its rows dragged out of its table, to be copied into a document the page edits: only where
+      // the workspace edits, since only then does a document take a drop.
+      ...(shared.editing ? { dragStart: (rowIds: readonly string[]) => this.dragStart(rowIds), dragEnd: () => this.dragEnd() } : {}),
     };
+  }
+
+  /**
+   * Take the entries of the rows dragged out of its table into the drag register the editable
+   * documents share, as theirs do (dragEntries), for a copy: no deleter is registered for this
+   * document, and its table allows no move. A drag that cannot start says why in its table.
+   */
+  private dragStart(rowIds: readonly string[]): void {
+    const registers = this.shared.registers;
+    if (this.disposed || !this.reading) return;
+    dragEntries(rowIds, this.uri, {
+      session: this.shared.registry.session,
+      registers,
+      // Its tree is the file as read, which nothing changes.
+      refresh: () => {},
+      findNode: (rowId) => this.find(rowId),
+      post: (message) => this.tell({ kind: 'error', message: message.message }),
+      broadcast: () => registers.broadcastDragState(),
+    });
+  }
+
+  private dragEnd(): void {
+    if (this.disposed) return;
+    this.shared.registers.clearDrag();
+    this.shared.registers.broadcastDragState();
+  }
+
+  /** Tell every subscriber `change`, each on its own terms. */
+  private tell(change: TableChange): void {
+    const report = listenerFailure(this.shared.notify, this.name);
+    for (const listener of [...this.listeners]) {
+      try {
+        listener(change);
+      } catch (err) {
+        report(err);
+      }
+    }
   }
 
   onDirty(): () => void {
@@ -377,21 +422,20 @@ class InPageDoc implements HeldDoc {
       change = { kind: 'error', message: messageOf(err) };
     }
     if (this.disposed) return;
-    const report = listenerFailure(this.shared.notify, this.name);
-    for (const listener of [...this.listeners]) {
-      try {
-        listener(change);
-      } catch (err) {
-        // One listener's failure is its own: the others still hear the change.
-        report(err);
-      }
-    }
+    // One listener's failure is its own: the others still hear the change.
+    this.tell(change);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.reposts?.dispose();
+    // A drag of its rows still on goes with it, so the register holds no entries of a closed file.
+    const registers = this.shared.registers;
+    if (registers.getDrag()?.sourceDocUri === this.uri) {
+      registers.clearDrag();
+      registers.broadcastDragState();
+    }
     this.unload();
     this.listeners.clear();
     this.shared.closed(this);
@@ -1129,6 +1173,7 @@ export function createWorkspace(options: WorkspaceOptions = {}): Workspace {
     usage: options.usage,
     usageReposts: options.usageReposts,
     registers: options.registers ?? createRegisters(),
+    editing: !!options.editing,
     notify: options.notify,
     closed: (doc) => {
       if (docs.get(doc.uri) === doc) docs.delete(doc.uri);

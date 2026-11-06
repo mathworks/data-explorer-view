@@ -260,6 +260,15 @@ async function save() {
 - The documents of a workspace share one clipboard and drag register
   (`registers`, `createRegisters()` by default), so a cut in one pastes into
   another and the original goes.
+- `dragOut: true` lets a table's rows be dragged out of it, onto another part of
+  the page that takes them (the app shell's Explorer, onto an open file): the
+  box at the pointer goes with them, and a document that may not be edited lets
+  its rows go too, as a copy (a workspace's read-only documents can). What takes
+  them drops them through the target document's handle, as its own rows would:
+  `handle.dropDecision(rowId, mode)` predicts the drop there (`rowId` null is
+  the document as a whole: the section the entries came from, else the first
+  that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
+  document, settling with whether it was refused and why.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own
@@ -761,6 +770,7 @@ app turns parts of it off or over:
 |---|---|---|
 | `readonly` (`readonly`) | `false` | no cell editor, no `+ Add`, no row drag or drop |
 | `canAdd`, `rowDrag` | `false`, `true` | the `+ Add` button; dragging rows |
+| `dragOut` (`drag-out`) | `false` | rows dragged out onto the page, from a table that takes no row drag too (as a copy) |
 | `expandTopLevel` (`expand-top-level`) | `false` | open the top level of the first rows, then keep what the user opened |
 | `expandedIds`, `expand(ids)`, `collapse(ids)` | | which rows are open |
 | `storageKey` (`storage-key`) | `'dex'` | the prefix of the localStorage keys the column choices are kept under; `null` keeps them out of storage |

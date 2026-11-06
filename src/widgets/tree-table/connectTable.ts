@@ -37,7 +37,16 @@ import {
 } from '../../model/source/tableSource.js';
 import { usedByGroup } from '../../model/inspector/inspectorPages.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
-import { wireEditing, type EditingRun, type EditingWire, type TableTextView } from './editingWire.js';
+import {
+  wireEditing,
+  type DragOutSource,
+  type DropResult,
+  type EditingRun,
+  type EditingWire,
+  type TableDropDecision,
+  type TableTextView,
+} from './editingWire.js';
+import type { DragMode } from '../../model/actions/dropDecision.js';
 import type { MenuRow } from './menuItems.js';
 
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
@@ -152,6 +161,16 @@ export interface ConnectTableOptions {
    * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
    */
   copyText?: boolean;
+  /**
+   * With `editing`: rows are dragged out of the table onto other parts of the page that take them
+   * (the app shell's Explorer, which drops them onto an open file through that file's handle:
+   * `dropDecision` and `drop`). The table's `dragOut` is set: its box at the pointer follows a row
+   * drag over the page. And a document that may not be edited lets its rows be dragged out too, as a
+   * copy alone, where its source can put them in the drag register (an editable source, or a read-only
+   * one with `dragStart` and `dragEnd`, as a workspace's read-only documents have). Default false: a
+   * document that may not be edited drags nothing, as the VS Code extension's read-only views.
+   */
+  dragOut?: boolean;
   /**
    * The pages an inspector following this table (its handle) is sent past the first selected
    * row's properties: the file's own page while no row is selected (what it is, where, whether it
@@ -311,6 +330,28 @@ export interface TableHandle extends InspectorFeed {
    * document may not be edited.
    */
   edit(edit: CellEdit): void;
+  /**
+   * With `editing`: what a drop of the row drag in flight would do on `rowId` of this table's
+   * document, as the table predicts a drop on its own row there (its cursor and its tooltip), with
+   * the row it lands on; `rowId` null is the document as a whole, which lands in the section every
+   * dragged entry came from where the document has it and it takes them, else the first section that
+   * takes them (a MAT-file, which is one target, in itself: ''). For a part of the page outside the
+   * table that drops onto its document, such as an app's list of its open files, so that it invites
+   * exactly the drops the table's rows would take, though the table is not on screen. A no-op (a move
+   * back into the section every entry came from) says so (`noop`). Null where no drop can be
+   * predicted: no drag in flight, a document that may not be edited, a row whose section takes no
+   * drop, and without `editing`.
+   */
+  dropDecision(rowId: string | null, mode: DragMode): TableDropDecision | null;
+  /**
+   * With `editing`: drop the row drag in flight onto `rowId` (a row `dropDecision` named), as a drop
+   * on that row of the table does: the source's `drop`, so it is one edit of this document, undone by
+   * its Undo, and a move takes the entries out of the document they came from. Handed over at once,
+   * where `dropDecision` allows it; call it while the drag is on (from the `drop` event), since its
+   * end lets the entries go. Settles a task later, with whether the source refused it and why, for the
+   * app to say: the table's banner says it too. It is no editing menu item, and tells no `ran`.
+   */
+  drop(rowId: string, mode: DragMode): Promise<DropResult>;
   /**
    * Ask the source for the inspector's page again, for a change the table does not hear of: that
    * the document now holds edits, or none, on the file's page (`inspectorPages`). A listener is sent
@@ -596,7 +637,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       }
       case 'error':
         // A gesture just handed to the source did not happen, whatever the banner says of it.
-        editing?.failed();
+        editing?.failed(change.message);
         return failed(change.message);
       default:
         // The editing changes, which a table that does not edit ignores.
@@ -708,6 +749,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     editing = wireEditing({
       table,
       source: isEditable(source) ? source : null,
+      dragOut: !!options.dragOut,
+      dragOutSource: dragOutSourceOf(source),
       textView: options.textView,
       undoChords: !!options.undoChords,
       errorDialog: dialog!,
@@ -936,6 +979,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       table.commitEdit();
       return editing ? editing.editsSettled() : Promise.resolve();
     },
+    dropDecision(rowId, mode) {
+      return editing && !disposed ? editing.dropDecision(rowId, mode) : null;
+    },
+    drop(rowId, mode) {
+      return editing && !disposed ? editing.drop(rowId, mode) : Promise.resolve({ dropped: false, count: 0 });
+    },
     undo() {
       editing?.history('undo');
     },
@@ -991,6 +1040,17 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       pageListeners.clear();
     },
   };
+}
+
+/**
+ * Who takes a table's rows into the drag register as they are dragged out of it: its source, where it
+ * takes edits, or where it is read-only and has `dragStart` and `dragEnd` (a workspace's read-only
+ * document); else none.
+ */
+function dragOutSourceOf(source: TableSource): DragOutSource | null {
+  if (isEditable(source)) return source;
+  const { dragStart, dragEnd } = source;
+  return typeof dragStart === 'function' && typeof dragEnd === 'function' ? (source as TableSource & DragOutSource) : null;
 }
 
 /** The menu a read-only table gives a selection: its names and values, to copy. */
