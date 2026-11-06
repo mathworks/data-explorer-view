@@ -7,7 +7,7 @@
 // function, as connectHierarchy takes one, since the shell's note is a property of its folder
 // element rather than an element of the page.
 
-import { isGraphPath } from 'data-explorer-core';
+import { isGraphPath, type SourceFile } from 'data-explorer-core';
 import { createFolderSession, type FolderSession } from '../../../model/folder/folderSession.js';
 import { folderReader } from '../../../model/source/folderReader.js';
 import { portFromMessagePort } from '../../../model/source/ports.js';
@@ -34,7 +34,11 @@ export interface FolderView {
   projectStore(uri: string): Promise<ProjectStore | null>;
   /** The marker (its uri) of the project in the folder `dir`, if the folder holds one. */
   projectIn(dir: string): Promise<string | undefined>;
-  /** The folder's files a relationship graph draws (core's `isGraphPath`), read afresh; one that cannot be read is left out. */
+  /**
+   * The folder's files a relationship graph draws (core's `isGraphPath`), listed afresh: a file whose
+   * version is the one last read is kept as it was read, the rest are read now; one that cannot be
+   * read is left out.
+   */
   graphSources(): Promise<RawSource[]>;
   /** Hear the folder change: `uris` the files it touched, none for anything. */
   onChange(listener: (uris?: readonly string[]) => void): () => void;
@@ -52,6 +56,17 @@ export function showFolder(
   const reader = folderReader(portFromMessagePort(port));
   const session = createFolderSession({ files: reader, reader: () => reader, watch: (changed) => reader.onChange(changed) });
   const handle = connectHierarchy(tree, session.hierarchy, { empty: options.empty, expandTopLevel: true });
+  // The graph's files as last read, by uri, with the version they were read at.
+  const read = new Map<string, { version: string; bytes: ArrayBuffer }>();
+  const readNow = async (file: SourceFile): Promise<ArrayBuffer | null> => {
+    const version = await reader.version(file);
+    const kept = read.get(file.uriString);
+    if (kept && version !== null && kept.version === version) return kept.bytes;
+    const bytes = await reader.bytes(file);
+    if (bytes && version !== null) read.set(file.uriString, { version, bytes });
+    else read.delete(file.uriString);
+    return bytes;
+  };
   handle.on('open', options.open);
   handle.on('error', options.error);
   return {
@@ -66,11 +81,14 @@ export function showFolder(
       return reader.projectStore({ uriString: uri, path: uriPath(uri) });
     },
     projectIn: async (dir) => (await session.projectIn(sourceUri(dir)))?.id,
-    // Listed again, as the host answers bytes only for a file of its last listing.
+    // Listed again, as the host answers bytes only for a file of its last listing; a file listed
+    // no more is let go.
     async graphSources() {
       const files = (await reader.list()).filter((f) => isGraphPath(f.path));
-      const read = await Promise.all(files.map(async (f) => ({ f, bytes: await reader.bytes(f) })));
-      return read.flatMap(({ f, bytes }) => (bytes ? [{ uriString: f.uriString, path: f.path, bytes }] : []));
+      const listed = new Set(files.map((f) => f.uriString));
+      for (const uri of [...read.keys()]) if (!listed.has(uri)) read.delete(uri);
+      const answers = await Promise.all(files.map(async (f) => ({ f, bytes: await readNow(f) })));
+      return answers.flatMap(({ f, bytes }) => (bytes ? [{ uriString: f.uriString, path: f.path, bytes }] : []));
     },
     onChange: (listener) => reader.onChange(listener),
     dispose() {

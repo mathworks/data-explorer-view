@@ -3,10 +3,11 @@
 // The relationship graph's wiring: <dex-relationship-graph>, which the Explorer's Root shows in the
 // center while files are open, drawn from every open file's bytes (what the host read, and after a
 // save what was saved, as the tabs keep them) and the shown folder's files, read through the
-// folder's reader. Built again, after a pause (REBUILD_MS), whenever that may have changed: a tab
-// whose bytes are other than the last build's (a file opened, closed, saved or reloaded), a folder
-// shown or changed (`stale`). Only while it is shown, since each build reads every file of the
-// folder: a graph that went out of date behind a tab is built as Root is shown again.
+// folder's reader. Built again whenever that may have changed: a tab whose bytes are other than the
+// last build's (a file opened, closed, saved or reloaded), a folder shown or changed (`stale`). Only
+// while it is shown, since each build lists the folder and asks each file's version (reading again
+// the files whose version moved): a graph that went out of date behind a tab is built as Root is
+// shown again.
 //
 // What the graph asks: a double-click opens a box's file, or an item's on its row (the shell opens
 // it as a preview); a ghost, a file referenced and not open, is looked for as a link to it would
