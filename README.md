@@ -749,7 +749,7 @@ it serves them. With Vite:
 export default {
   optimizeDeps: {
     exclude: ['data-explorer-view'],
-    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/guard.js', 'lit/directives/live.js', 'lit/directives/repeat.js'],
   },
   build: {
     assetsInlineLimit: 0,
