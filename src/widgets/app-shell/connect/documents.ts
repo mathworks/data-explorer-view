@@ -24,6 +24,7 @@ import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
 import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
+import { rowIn, sectionOf } from './rows.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 
@@ -59,17 +60,22 @@ export function copyText(host: ShellHost, text: string): Promise<void> {
   return host.copyText ? host.copyText(text) : pageClipboard(text);
 }
 
-/** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
+/**
+ * How the tab row draws `tab`: its name and its kind's icon, its path as the tooltip, its marks. While
+ * its selection is in a section of its file (a dictionary's Design Data, a model's Model Workspace),
+ * the section's name and icon, with the file's name as the subtitle: the section the Explorer marks
+ * for the same selection, and what the prototype's tab read for a section it showed.
+ */
 export function docTabOf(tab: OpenTab): DocTab {
+  const rows = tab.table?.rows ?? [];
+  const rowId = tab.selection[0];
+  const section = rowId === undefined ? undefined : sectionOf(rows, rowId);
+  const row = section === undefined ? undefined : rowIn(rows, section);
   const group = fileGroupOf(tab.path);
-  return {
-    id: tab.id,
-    label: tab.name,
-    ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }),
-    title: tab.path,
-    dirty: !!tab.dirty,
-    preview: !!tab.preview,
-  };
+  const shown = row
+    ? { label: row.Name.label, subtitle: tab.name, ...(row.Name.iconId ? { icon: row.Name.iconId } : {}) }
+    : { label: tab.name, ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }) };
+  return { id: tab.id, ...shown, title: tab.path, dirty: !!tab.dirty, preview: !!tab.preview };
 }
 
 /** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */

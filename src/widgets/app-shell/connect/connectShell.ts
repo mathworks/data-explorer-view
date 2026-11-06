@@ -239,8 +239,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   function paint(): void {
     const active = tabs.active;
-    strip.tabs = tabs.items.map(docTabOf);
-    strip.active = active?.id ?? '';
     for (const tab of tabs.items) tab.panel.hidden = tab !== active;
     // Root: the relationship graph while files are open, the welcome while none is.
     docs.welcome = tabs.items.length === 0;
@@ -276,6 +274,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // First: at Root, the location bar draws the file the inspector shows.
     followInspector();
     toolbar.items = toolbarItems(toolbarState());
+    // The tab row, each tab as its selection names it (the section it is in), here with what else
+    // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
+    strip.tabs = tabs.items.map((t) => docTabOf(t));
+    strip.active = active?.id ?? '';
+    strip.hidden = !active;
     explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, dirty: t.dirty, rows: t.handle?.view?.rows })));
     // The rows the active table holds now: its paint, the entries repainted since, the children
     // it was answered; none for a project page or a file still being read.

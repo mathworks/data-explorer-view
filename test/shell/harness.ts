@@ -245,16 +245,17 @@ export const inspectorNote = () => document.querySelector<HTMLElement>('.dex-ins
 export const statusText = () => document.querySelector<HTMLElement>('[slot="status"]')?.textContent ?? '';
 
 const tabEls = () => [...(docTabs()?.shadowRoot?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-const labelOf = (el: Element) => el.querySelector('.label')?.textContent ?? '';
+// A tab by its file's name: its subtitle, while its label names the section its selection is in.
+const labelOf = (el: Element) => (el.querySelector('.subtitle') ?? el.querySelector('.label'))?.textContent ?? '';
 
-/** The tab row's tabs, by name. */
+/** The tab row's tabs, by their files' names. */
 export const tabNames = () => tabEls().map(labelOf);
 export const activeTab = () => tabEls().find((t) => t.getAttribute('aria-selected') === 'true') ?? null;
 export const tabNamed = (name: string) => tabEls().find((t) => labelOf(t) === name);
 export const dirtyTabs = () => tabEls().filter((t) => t.classList.contains('dirty')).map(labelOf);
 export const previewTabs = () => tabEls().filter((t) => t.classList.contains('preview')).map(labelOf);
 /** The id of the tab drawn for `name`: what the tab row's and the Explorer's requests name it by. */
-export const tabIdOf = (name: string) => docTabs().tabs.find((t) => t.label === name)!.id;
+export const tabIdOf = (name: string) => docTabs().tabs.find((t) => (t.subtitle ?? t.label) === name)!.id;
 
 /** The welcome in the documents' area is on screen. */
 export const welcomeShown = () => docsArea().shadowRoot?.querySelector<HTMLElement>('.welcome')?.hidden === false;

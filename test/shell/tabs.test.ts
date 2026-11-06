@@ -15,10 +15,14 @@ import {
   dirtyTabs,
   edit,
   explorer,
+  locationBar,
   open,
   previewTabs,
   rowOf,
   searchPanel,
+  sectionOf,
+  selectRow,
+  selectTab,
   serveFolderTo,
   settled,
   startPage,
@@ -127,6 +131,43 @@ describe('the tab row', () => {
     await until(() => docTabs().active === tabIdOf('a.sldd'));
     page.command('previous-tab');
     await until(() => docTabs().active === tabIdOf('c.sldd'));
+  });
+
+  it('reads the section its selection is in, with its icon and the file as the subtitle, and the file again with no row selected', async () => {
+    // As the Explorer marks the section a selection is in, and the prototype's tab named the section
+    // it showed: "params.sldd ▸ Design Data". Each tab by its own selection.
+    const page = startPage({ 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' });
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    const design = await sectionOf('params.sldd', 'Design Data');
+    await selectTab('params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    const tabOf = (id: string) => docTabs().tabs.find((t) => t.id === id)!;
+    const params = tabIdOf('params.sldd');
+    await until(() => tabOf(params).subtitle === 'params.sldd');
+    expect(tabOf(params)).toEqual({ id: params, label: 'Design Data', subtitle: 'params.sldd', icon: design.Name.iconId, title: '/work/params.sldd', dirty: false, preview: false });
+    // A MAT-file's variables are under no section: its tab reads its name, and the other keeps its section.
+    await selectTab('ParamMat.mat');
+    await selectRow('ParamMat.mat', 'ParamMat');
+    await settled();
+    expect(tabOf(tabIdOf('ParamMat.mat'))).toMatchObject({ label: 'ParamMat.mat', icon: 'matlabWorkspaceFile' });
+    expect(tabOf(tabIdOf('ParamMat.mat')).subtitle).toBeUndefined();
+    expect(tabOf(params).label).toBe('Design Data');
+    // The file itself, from the location bar's segment: no row, the file's name.
+    await selectTab('params.sldd');
+    locationBar().dispatchEvent(new CustomEvent('dex-location-go', { detail: { to: 1 }, bubbles: true, composed: true }));
+    await until(() => tabOf(params).subtitle === undefined);
+    expect(tabOf(params)).toMatchObject({ label: 'params.sldd', icon: 'simulinkDataDictionary_FT' });
+  });
+
+  it('is hidden at Root and while no file is open, the graph or the welcome filling the center', async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    expect(docTabs().hidden).toBe(true);
+    await open(page, 'params.sldd');
+    await until(() => !docTabs().hidden);
+    explorer().dispatchEvent(new CustomEvent('dex-explorer-open', { detail: { fileId: null, pin: false }, bubbles: true, composed: true }));
+    await until(() => docTabs().hidden);
+    page.command('next-tab');
+    await until(() => !docTabs().hidden);
   });
 });
 
