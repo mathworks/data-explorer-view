@@ -84,9 +84,13 @@ interface Letter {
   afterSpace: boolean;
 }
 
-/** The query trimmed, runs of space made one, case folded: what the prefix test compares. */
+// More than anyone types into a palette: a longer query is a paste by mistake (a file's text),
+// matched by its first 200 code units rather than searched for whole.
+const MAX_QUERY = 200;
+
+/** The query trimmed, runs of space made one, case folded and cut to MAX_QUERY: what is matched. */
 function normalise(query: string): string {
-  return fold(query.trim().replace(/\s+/g, ' '));
+  return fold(query.trim().replace(/\s+/g, ' ')).slice(0, MAX_QUERY).trimEnd();
 }
 
 // By code unit, as the text is indexed: a letter outside the BMP is two, matched one by one.
@@ -108,24 +112,30 @@ function lettersOf(normalised: string): Letter[] {
 /**
  * How `query` matches `text`, or null when it does not: the text holds the query's letters in
  * order, case ignored. An empty query (or spaces alone) matches every text, as a prefix, at no
- * position.
+ * position. A query longer than 200 code units is matched by its first 200. Time and memory grow
+ * as the query's length times the text's, whatever the two hold.
  */
 export function fuzzyMatch(query: string, text: string): FuzzyMatch | null {
   const q = normalise(query);
   if (q === '') return { tier: 'prefix', positions: [] };
-  const prefix = prefixMatch(q, text);
-  if (prefix) return { tier: 'prefix', positions: prefix };
+  // The text folded once, a code unit at a time, for the three tests to share.
+  const chars = Array.from({ length: text.length }, (_, j) => fold(text[j]!));
   const letters = lettersOf(q);
-  const word = wordMatch(letters, text);
+  // The loosest test first, and the cheapest: a text without the letters in order matches none
+  // of the three, and most of the commands in a palette are such texts for any query typed.
+  const loose = subsequenceMatch(letters, chars);
+  if (!loose) return null;
+  const prefix = prefixMatch(q, text, chars);
+  if (prefix) return { tier: 'prefix', positions: prefix };
+  const word = wordMatch(letters, text, chars);
   if (word) return { tier: 'word', positions: word };
-  const loose = subsequenceMatch(letters, text);
-  return loose ? { tier: 'subsequence', positions: loose } : null;
+  return { tier: 'subsequence', positions: loose };
 }
 
 // Character by character rather than text.toLowerCase().startsWith(q): folding a whole text can
 // change its length (İ folds to two code units), and the positions are indices into the text as
 // given. A space in the query matches any white space in the text.
-function prefixMatch(q: string, text: string): number[] | null {
+function prefixMatch(q: string, text: string, chars: readonly string[]): number[] | null {
   if (text.length < q.length) return null;
   const positions: number[] = [];
   for (let i = 0; i < q.length; i++) {
@@ -133,7 +143,7 @@ function prefixMatch(q: string, text: string): number[] | null {
       if (!/\s/.test(text[i]!)) return null;
       continue;
     }
-    if (fold(text[i]!) !== q[i]) return null;
+    if (chars[i] !== q[i]) return null;
     positions.push(i);
   }
   return positions;
@@ -142,39 +152,58 @@ function prefixMatch(q: string, text: string): number[] | null {
 // The first letter begins a word; each next one runs on from the letter before it or begins a
 // word itself, and after a space in the query it must begin one. The first place that works
 // for a letter can strand the ones after it (Show's S for "se" in "Show Search", with no word
-// starting with e after it), so the search goes back and tries the next place. Each (letter,
-// place) that failed once is remembered, which keeps the search to letters × text² steps
-// however many word starts the text has.
-function wordMatch(letters: Letter[], text: string): number[] | null {
-  const failed = new Set<number>();
-  const positions: number[] = [];
-  const place = (k: number, prev: number): boolean => {
-    if (k === letters.length) return true;
-    const key = k * (text.length + 1) + (prev + 1);
-    if (failed.has(key)) return false;
-    const { ch, afterSpace } = letters[k]!;
-    for (let j = prev + 1; j < text.length; j++) {
-      if (fold(text[j]!) !== ch) continue;
-      const runsOn = k > 0 && !afterSpace && j === prev + 1;
-      if (!runsOn && !isWordStart(text, j)) continue;
-      positions.push(j);
-      if (place(k + 1, j)) return true;
-      positions.pop();
+// starting with e after it), so which places can lead to a whole match is worked out first,
+// from the last letter back, and the match is then read off from the front, each letter at the
+// first place that can. Two tables of letters × text cells, each filled once: no search goes
+// back over a place, however many word starts the text has, and nothing recurses.
+function wordMatch(letters: Letter[], text: string, chars: readonly string[]): number[] | null {
+  const k = letters.length;
+  const n = text.length;
+  if (k > n) return null;
+  const width = n + 1;
+  const starts = Uint8Array.from({ length: n }, (_, j) => (isWordStart(text, j) ? 1 : 0));
+  // can[i·width + j]: letter i at j, and every letter after it placed after j.
+  // later[i·width + j]: letter i can go at a word start at j or after, so it can follow any
+  // letter placed before j. Column n is the end of the text, where neither can be.
+  const can = new Uint8Array(k * width);
+  const later = new Uint8Array(k * width);
+  for (let i = k - 1; i >= 0; i--) {
+    const row = i * width;
+    const next = (i + 1) * width;
+    const runOnAllowed = i + 1 < k && !letters[i + 1]!.afterSpace;
+    for (let j = n - 1; j >= 0; j--) {
+      let ok = chars[j] === letters[i]!.ch;
+      if (ok && i + 1 < k) ok = (runOnAllowed && can[next + j + 1] === 1) || later[next + j + 1] === 1;
+      can[row + j] = ok ? 1 : 0;
+      later[row + j] = (ok && starts[j] === 1) || later[row + j + 1] === 1 ? 1 : 0;
     }
-    failed.add(key);
-    return false;
-  };
-  return place(0, -1) ? positions : null;
+  }
+  if (later[0] !== 1) return null;
+  const positions: number[] = [];
+  let prev = -1;
+  for (let i = 0; i < k; i++) {
+    const row = i * width;
+    let j = prev + 1;
+    // Running on is the earliest place there is; failing that, the first word start that can.
+    // The tables say one is there; the bound only keeps a mistake in them from looping.
+    if (!(i > 0 && !letters[i]!.afterSpace && can[row + j] === 1)) {
+      while (j < n && !(starts[j] === 1 && can[row + j] === 1)) j++;
+      if (j === n) return null;
+    }
+    positions.push(j);
+    prev = j;
+  }
+  return positions;
 }
 
 // Each letter at the first place after the last one: if the letters are in the text in order at
 // all, this finds them, and at the earliest start.
-function subsequenceMatch(letters: Letter[], text: string): number[] | null {
+function subsequenceMatch(letters: Letter[], chars: readonly string[]): number[] | null {
   const positions: number[] = [];
   let j = 0;
   for (const { ch } of letters) {
-    while (j < text.length && fold(text[j]!) !== ch) j++;
-    if (j === text.length) return null;
+    while (j < chars.length && chars[j] !== ch) j++;
+    if (j === chars.length) return null;
     positions.push(j++);
   }
   return positions;

@@ -80,6 +80,23 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('   ', 'Save')).toEqual({ tier: 'prefix', positions: [] });
   });
 
+  it('answers at once for a long query that is a subsequence of a long label and no word match', () => {
+    // Every 'a' starts a word and the 'b' at the end follows an 'x', so the letters are all there
+    // in order but no word match exists: the word search has to rule out every way of placing
+    // the a's, and a search that went back over them took seconds here.
+    const started = Date.now();
+    expect(fuzzyMatch(`${'a'.repeat(199)}b`, `${'a '.repeat(1000)}xb`)?.tier).toBe('subsequence');
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+
+  it('matches the first 200 characters of a longer query', () => {
+    // A query pasted by mistake (a whole file's text) is cut short rather than searched for.
+    const started = Date.now();
+    const match = fuzzyMatch('a'.repeat(10_000), 'a'.repeat(300));
+    expect(match).toEqual({ tier: 'prefix', positions: Array.from({ length: 200 }, (_, i) => i) });
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+
   it('answers at once for a query it cannot place among many word starts', () => {
     // The word search backtracks. Here every 'a' starts a word, so a search that tried each way
     // of placing sixty of them among a hundred before giving up on the 'b' would never finish.

@@ -47,10 +47,13 @@ const RECENT_MAX = 5;
  * sending nothing.
  *
  * It is a modal, as `<dex-confirm-dialog>` is: while it is open Tab stays in its input, no key
- * pressed in it reaches the page, and Escape is heard wherever the focus is. When it closes the
- * focus goes back where it was, before `dex-palette-run` is sent, so a command that moves the
- * focus itself (showing the Explorer) keeps it there. It paints at z-index 10000, as the dialogs
- * do: append it last in the body, outside any element that makes a stacking context of its own.
+ * pressed in it reaches the page, a press in it keeps the focus in its input, and Escape is heard
+ * wherever the focus is, but for a key pressed in another modal opened over it (an element with
+ * `aria-modal="true"`, such as a confirm dialog a command asked), which is that modal's. When it
+ * closes the focus goes back where it was, before `dex-palette-run` is sent, so a command that
+ * moves the focus itself (showing the Explorer) keeps it there. It paints at z-index 10000, as
+ * the dialogs do: append it last in the body, outside any element that makes a stacking context
+ * of its own.
  *
  * @tagname dex-command-palette
  */
@@ -377,7 +380,7 @@ export class DexCommandPalette extends LitElement {
   // listeners on the way up never act on what is behind a modal. An Escape that cancels an IME
   // composition is the input method's.
   private _onDocumentKeyDown = (e: KeyboardEvent): void => {
-    if (!this._open) return;
+    if (!this._open || this._inAnotherModal(e)) return;
     if (e.key === 'Escape' && !e.isComposing) {
       e.stopPropagation();
       this.close();
@@ -389,6 +392,19 @@ export class DexCommandPalette extends LitElement {
       this._input()?.focus();
     }
   };
+
+  // A key pressed in another modal opened over the palette (a confirm dialog a command asked, or
+  // the host's own) is that modal's: its Tab cycles its own buttons and its Escape answers it,
+  // and the palette, which heard the key first on the document, would otherwise pull the focus
+  // back into its input or close under it as well. An element of the path with aria-modal that
+  // is not the palette's own is such a modal. Until the overlays share one stack of modals, the
+  // newest knowing about the rest, this is how the palette steps aside.
+  private _inAnotherModal(e: KeyboardEvent): boolean {
+    return e.composedPath().some((node) => {
+      const el = node as Element;
+      return typeof el.getAttribute === 'function' && el.getAttribute('aria-modal') === 'true' && !this.shadowRoot?.contains(el);
+    });
+  }
 
   // A click is sent to the nearest element holding both the press and the release, so a drag
   // that selects the typed text and lets go over the backdrop clicks the host. Only a press that
@@ -404,10 +420,13 @@ export class DexCommandPalette extends LitElement {
     if (pressed && e.target === this && e.composedPath()[0] === this) this.close();
   };
 
-  // A press in the list keeps the focus in the input, which a press on a row (no control) would
-  // take to the body: a click on a disabled row leaves the palette open, and typing must go on.
-  private _onListMouseDown(e: MouseEvent): void {
-    e.preventDefault();
+  // A press anywhere in the palette but its input keeps the focus in the input. A row, the padding
+  // round the input, the "No matching commands" note and the card's edge are no controls, and a
+  // press on one would take the focus to the body; a click on a disabled row or on the padding
+  // leaves the palette open, and typing must go on. A press in the input itself places the caret
+  // or selects the text, as it does in any field.
+  private _onPaletteMouseDown(e: MouseEvent): void {
+    if (e.composedPath()[0] !== this._input()) e.preventDefault();
   }
 
   // The label, with each run of the characters the query matched in a span of its own.
@@ -439,6 +458,7 @@ export class DexCommandPalette extends LitElement {
         aria-label="Command Palette"
         @click=${(e: MouseEvent) => e.stopPropagation()}
         @keydown=${(e: KeyboardEvent) => e.stopPropagation()}
+        @mousedown=${this._onPaletteMouseDown}
       >
         <div class="search">
           <input
@@ -462,7 +482,6 @@ export class DexCommandPalette extends LitElement {
           id="list"
           role="listbox"
           aria-label="Commands"
-          @mousedown=${this._onListMouseDown}
         >
           ${list.map(({ item, positions }, i) => html`
             <div

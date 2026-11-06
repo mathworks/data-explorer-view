@@ -16,6 +16,7 @@ import {
   type PaletteCommand,
   type PaletteRunDetail,
 } from '../src/widgets/app-shell/modules/dex-command-palette.js';
+import { DexConfirmDialog, defineConfirmDialog } from '../src/widgets/app-shell/dex-confirm-dialog.js';
 
 defineCommandPalette();
 
@@ -344,12 +345,28 @@ describe('the pointer', () => {
     expect(el.open).toBe(false);
   });
 
-  it('keeps the focus in the input on a press in the list', async () => {
-    // A press on a disabled row leaves the palette open, and typing must still go on.
+  it('keeps the focus in the input on a press anywhere else in it', async () => {
+    // A press on a disabled row, the padding round the input, the "No matching commands" note or
+    // the card's edge leaves the palette open, and would take the focus to the body: typing must
+    // still go on in the input.
+    const el = await open();
+    const pressed = (target: Element): boolean => {
+      const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(down);
+      return down.defaultPrevented;
+    };
+    expect(pressed(options(el)[3]!)).toBe(true);
+    expect(pressed(el.shadowRoot!.querySelector('.search')!)).toBe(true);
+    expect(pressed(el.shadowRoot!.querySelector('.palette')!)).toBe(true);
+    await type(el, 'qqq');
+    expect(pressed(el.shadowRoot!.querySelector('.empty')!)).toBe(true);
+  });
+
+  it('lets a press in the input through, to place the caret or select the text', async () => {
     const el = await open();
     const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
-    options(el)[3]!.dispatchEvent(down);
-    expect(down.defaultPrevented).toBe(true);
+    input(el).dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(false);
   });
 
   it('closes on a click on the backdrop, sending nothing', async () => {
@@ -582,6 +599,71 @@ describe('opening and closing', () => {
     const el = await open();
     before.remove();
     expect(() => el.close()).not.toThrow();
+  });
+
+  describe('with a modal opened over it', () => {
+    // A command can ask a question (Save changes before closing?) while the palette is still up,
+    // or a host can: the confirm dialog over it takes the keys, and the palette waits. Before,
+    // the palette heard each key first, on the document: its Tab pulled the focus back into its
+    // own input, and one Escape closed the palette and answered the question both.
+    let confirm: DexConfirmDialog | null = null;
+    let answer: Promise<string> | null = null;
+
+    async function ask(): Promise<DexConfirmDialog> {
+      defineConfirmDialog();
+      confirm = new DexConfirmDialog();
+      document.body.appendChild(confirm);
+      answer = confirm.show({
+        title: 'Unsaved Changes',
+        message: 'Save changes to a.sldd?',
+        buttons: [{ id: 'discard', label: "Don't Save", kind: 'danger' }, { id: 'save', label: 'Save', kind: 'primary' }],
+        cancelId: 'cancel',
+      });
+      await confirm.updateComplete;
+      await Promise.resolve();
+      return confirm;
+    }
+
+    const focusedIn = (dialog: DexConfirmDialog): string | undefined => dialog.shadowRoot!.activeElement?.textContent?.trim();
+    const keyIn = (dialog: DexConfirmDialog, k: string): void => {
+      (dialog.shadowRoot!.activeElement as HTMLElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true }),
+      );
+    };
+
+    afterEach(() => {
+      confirm?.close();
+      confirm?.remove();
+      confirm = null;
+      answer = null;
+    });
+
+    it("leaves Escape to it: the question is answered and the palette stays open", async () => {
+      const el = await open();
+      const dialog = await ask();
+      expect(focusedIn(dialog)).toBe('Save');
+      keyIn(dialog, 'Escape');
+      await expect(answer).resolves.toBe('cancel');
+      expect(el.open).toBe(true);
+      // The question answered, the focus is back in the palette, and its own Escape works again.
+      expect(el.shadowRoot!.activeElement).toBe(input(el));
+      input(el).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true }));
+      expect(el.open).toBe(false);
+    });
+
+    it('leaves Tab to it: the focus cycles among its buttons', async () => {
+      // Taken by the palette, the Tab moved the focus into its input before the dialog's own
+      // trap ran; under happy-dom that shows as a throw from the dialog's read of its active
+      // element, whose ShadowRoot.activeElement fails while the focus is in another component.
+      await open();
+      const dialog = await ask();
+      keyIn(dialog, 'Tab');
+      expect(focusedIn(dialog)).toBe("Don't Save");
+      keyIn(dialog, 'Tab');
+      expect(focusedIn(dialog)).toBe('Save');
+      // The document's view of the focus, retargeted to the dialog's host.
+      expect(document.activeElement).toBe(dialog);
+    });
   });
 
   it('takes a list that is not an array as no commands', async () => {
