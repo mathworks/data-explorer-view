@@ -9,8 +9,8 @@
 //
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
-// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; and a drop opens
-// through openDropped.
+// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; a drop opens
+// through openDropped; and New's files are made in newFile.ts.
 
 import { isSupportedPath } from 'data-explorer-core';
 import type { ShellHost } from '../widgets/app-shell/connect/types.js';
@@ -18,6 +18,7 @@ import { dropSources, type DroppedItem } from './drop.js';
 import { folderLooks, serveWebFolder, type WebFolderServer } from './folder.js';
 import { WebFiles, type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
+import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
 import type { BrowserDir } from './walk.js';
@@ -114,10 +115,10 @@ interface Shown {
 
 /**
  * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
- * inputs, reads and saves through WebFiles (in place where the browser gives a handle, a download
- * where it does not), open files watched, a folder served in the page, and drops. The shell gets
- * its folder and its files' changes back through `onFolder` and `onChanged`; docs/browser-host.md
- * says what works in which browser.
+ * inputs, New through its save picker or as a file the page keeps, reads and saves through WebFiles
+ * (in place where the browser gives a handle, a download where it does not), open files watched, a
+ * folder served in the page, and drops. The shell gets its folder and its files' changes back
+ * through `onFolder` and `onChanged`; docs/browser-host.md says what works in which browser.
  */
 export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const files = new WebFiles();
@@ -128,6 +129,7 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const deps = { window: win, document: doc, navigator: nav };
   const { onFolder, onChanged } = options;
   const watcher: OpenFileWatch | undefined = onChanged ? watchOpenFiles(files, onChanged, deps) : undefined;
+  const made = new NewFiles(files, deps);
   let shown: Shown | undefined;
   let edited = false;
 
@@ -231,6 +233,12 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       get: (path) => files.get(path),
       has: (path) => files.has(path),
     },
+    async newFile(suggestedName) {
+      const path = await made.make(suggestedName);
+      // A file on disk is watched from now on, as one read is, by what the next look sees there.
+      if (path !== null && !made.keeps(path)) watcher?.watch(path);
+      return path;
+    },
     pickFiles: () => pickFiles(files, deps),
     ...(onFolder && {
       async pickFolder() {
@@ -260,7 +268,9 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       return bytes;
     },
     closeFile: (path) => watcher?.unwatch(path),
-    saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes), () => true),
+    // A new file the page keeps, with no save picker to have named one on disk, is downloaded.
+    saveFile: (path, bytes) =>
+      writing(path, async () => (made.keeps(path) ? made.save(path, bytes) : saveFile(files, path, bytes)), () => true),
     saveFileAs: (path, bytes) => writing(path, () => saveFileAs(files, path, bytes, deps), (to) => to?.path === path),
     setEdited(value) {
       edited = value;

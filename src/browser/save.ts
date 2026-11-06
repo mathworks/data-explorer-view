@@ -106,8 +106,11 @@ async function write(handle: FileSystemFileHandle, bytes: Uint8Array): Promise<v
   }
 }
 
-/** Hand `bytes` to the browser as a download named `name`. */
-function download(document: Document, name: string, bytes: Uint8Array): void {
+/**
+ * Hand `bytes` to the browser as a download named `name`: Save As with no save picker, and the Save
+ * of a new file the page keeps (newFile.ts).
+ */
+export function download(document: Document, name: string, bytes: Uint8Array): void {
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }));
   const a = document.createElement('a');
   a.href = url;

@@ -35,6 +35,7 @@ turns the API off), get the right column.
 
 | | Chromium (Chrome, Edge), secure context | Firefox, Safari, plain http, Brave |
 |---|---|---|
+| New | `showSaveFilePicker`: the file named there, saved in place from its first Save | `untitled.sldd`, kept in the page: each Save downloads it |
 | Open File | `showOpenFilePicker`: handles | a hidden `<input type=file multiple>`: Files |
 | Open Folder | `showDirectoryPicker` | `<input webkitdirectory>`: the folder as it was picked |
 | Drop | handles, files and folders (`getAsFileSystemHandle`) | entries (`webkitGetAsEntry`): a folder read through once, at the drop, up to 10,000 files |
@@ -49,6 +50,11 @@ a Chromium drop without handles) refers to the file on disk, and a browser may r
 once another program has written it (Chromium does; Firefox may): the read then says to open the
 file again.
 
+New (`host.newFile`) only says where the shell's new dictionary goes. With the save picker, the page
+writes nothing to the file named there until its first Save, and watches it from then on, as it
+watches a file it opened. With none, the page keeps the file itself, under the name the shell offers,
+and each Save of it is a download, which marks it saved as a Save As download does.
+
 Safari before 16.4 never says a file dialog was cancelled: an Open File or Open Folder cancelled
 there leaves nothing to answer, and the next one works as usual.
 
@@ -58,7 +64,9 @@ A browser shows a file dialog, and asks whether a page may write a file, only ri
 or a key press. Asked at any other time, a picker rejects and a file input never opens. So:
 
 - `pickFiles` and `pickFolder` reject at once, with a message that says to try again from a click
-  or a key press, when `navigator.userActivation` says none led to them.
+  or a key press, when `navigator.userActivation` says none led to them. New and Save As say the
+  same when the browser refuses its save picker for want of one. Chromium keeps Cmd/Ctrl+N for a
+  new window, so in a browser tab New is the toolbar's or the command palette's.
 - A save that needs leave to write, started without one (a save as the page closes, say), rejects
   with "Save again from a click or a key press, or use Save As."
 - A picker opened while another is open answers that nothing was picked.
