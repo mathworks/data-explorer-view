@@ -48,9 +48,11 @@ const SIDEBARS = ['left', 'right'] as const;
 /** How far an arrow key moves a separator, in px. */
 const KEY_STEP = 16;
 
-// The fixed sizes the stylesheet draws, in px, written there from these. The room a side has is
-// counted from them and the main area's box, so it can be counted for a layout not drawn yet: a
-// side about to open is fitted before it is drawn, and never overflows the window for a frame.
+// The fixed sizes the stylesheet draws, in px. The room a side has is counted from them and the
+// main area's box, so it can be counted for a layout not drawn yet: a side about to open is
+// fitted before it is drawn, and never overflows the window for a frame. The stylesheet writes
+// them again as literals (a css template is CSS text, with nothing of TypeScript put into it), and
+// appShell.test.ts holds each literal to its constant.
 /** An activity bar: 36 px of buttons and the 1 px line beside them. */
 const ACTIVITY_WIDTH = 37;
 /** A separator, across its side's axis. */
@@ -134,14 +136,14 @@ export class DexAppShell extends LitElement {
     }
 
     /* --- Activity bars --- */
-    /* 36 px of buttons and the line beside them, in its width: the room a resize leaves is counted
-       from these numbers before the bar is drawn. */
+    /* 36 px of buttons and the line beside them, in its width. 37 px is ACTIVITY_WIDTH: the room a
+       resize leaves is counted from it before the bar is drawn. */
     .activity {
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      flex: 0 0 ${ACTIVITY_WIDTH}px;
-      width: ${ACTIVITY_WIDTH}px;
+      flex: 0 0 37px;
+      width: 37px;
       background: var(--dex-bg-activity-bar, #f0f0f0);
     }
 
@@ -289,8 +291,9 @@ export class DexAppShell extends LitElement {
     }
 
     /* --- Separators --- */
+    /* 4 px is SASH_WIDTH, which the room a resize leaves is counted from. */
     .resizer {
-      flex: 0 0 ${SASH_WIDTH}px;
+      flex: 0 0 4px;
       background: transparent;
       touch-action: none;
       z-index: 10;
@@ -310,12 +313,13 @@ export class DexAppShell extends LitElement {
     }
 
     /* --- Status bar --- */
+    /* 28 px, its line included, is STATUS_HEIGHT, which the bottom panel's room is counted from. */
     .status-bar {
       display: flex;
       align-items: stretch;
-      flex: 0 0 ${STATUS_HEIGHT}px;
+      flex: 0 0 28px;
       box-sizing: border-box;
-      height: ${STATUS_HEIGHT}px;
+      height: 28px;
       background: var(--dex-bg-activity-bar, #f0f0f0);
       border-top: 1px solid var(--dex-border-color, #d0d0d0);
     }

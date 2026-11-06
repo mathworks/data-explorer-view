@@ -13,6 +13,9 @@
 // happy-dom lays nothing out, so every box measures 0 there and a resize is held only to the
 // side's minimum; the test of the room a resize leaves the center gives the boxes sizes of its own.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { CSSResult } from 'lit';
 import { DexAppShell, defineAppShell, type ShellActionDetail, type ShellViewChangedDetail } from '../src/widgets/app-shell/dex-app-shell.js';
 import { DexShellAction, DexShellView } from '../src/widgets/app-shell/dex-shell-view.js';
 import type { ShellSide } from '../src/model/shell/shellLayout.js';
@@ -831,6 +834,45 @@ describe('a shell taken off the page', () => {
     document.body.append(shell);
     await settle(shell);
     expect(left()).toEqual(['Explorer', 'Search', 'Later', 'Settings']);
+  });
+});
+
+describe('the fixed sizes', () => {
+  // The room a side has is counted from three constants of dex-app-shell.ts before anything is
+  // drawn, and the stylesheet draws the same sizes as literals: a css template takes nothing
+  // interpolated (widgetStylesheets.test.ts). A literal changed without its constant would fit
+  // every side to a room a few px off what is drawn.
+  const source = readFileSync(join(process.cwd(), 'src', 'widgets', 'app-shell', 'dex-app-shell.ts'), 'utf8');
+  const constant = (name: string): number => Number(source.match(new RegExp(`^const ${name} = (\\d+);$`, 'm'))?.[1]);
+  const stylesheet = [DexAppShell.styles]
+    .flat(Infinity)
+    .map((s) => (s as CSSResult).cssText)
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  // A declaration of the rule whose selector is exactly this one (not `.activity.left`).
+  const declared = (selector: string, property: string): string | undefined => {
+    const escaped = selector.replace(/[.]/g, '\\.');
+    const body = stylesheet.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1];
+    return body?.match(new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*([^;]+?)\\s*(?:;|$)`))?.[1];
+  };
+
+  it('draws the sizes the room is counted from', () => {
+    const bar = constant('ACTIVITY_WIDTH');
+    const sash = constant('SASH_WIDTH');
+    const status = constant('STATUS_HEIGHT');
+    expect([bar, sash, status].every(Number.isInteger)).toBe(true);
+    // Border boxes, so the line beside the buttons and the line above the status bar are in them.
+    expect([declared('.activity', 'box-sizing'), declared('.activity', 'flex'), declared('.activity', 'width')]).toEqual([
+      'border-box',
+      `0 0 ${bar}px`,
+      `${bar}px`,
+    ]);
+    expect(declared('.resizer', 'flex')).toBe(`0 0 ${sash}px`);
+    expect([declared('.status-bar', 'box-sizing'), declared('.status-bar', 'flex'), declared('.status-bar', 'height')]).toEqual([
+      'border-box',
+      `0 0 ${status}px`,
+      `${status}px`,
+    ]);
   });
 });
 
