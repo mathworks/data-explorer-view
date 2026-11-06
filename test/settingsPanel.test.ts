@@ -3,10 +3,11 @@
 //
 // The shell's Settings popover, opened from the gear at the foot of an activity bar: a segmented
 // control for each setting, the theme, the toolbar's density, the icons' style and the tables'
-// rules, in that order. It only shows what it is given and asks for a change; the app applies the theme, keeps the settings, and sets them back. So what is
-// pinned here is that contract: the checked segments are exactly `settings`, a click or an arrow
-// key sends the whole new record and changes nothing by itself, and the popover stays open while
-// a person tries the themes one after another.
+// rules, in that order. It only shows what it is given and asks for a change; the app applies the
+// theme, keeps the settings, and sets them back. So what is pinned here is that contract: the
+// checked segments are exactly `settings`, a click or an arrow key sends the whole new record and
+// changes nothing by itself, and the popover stays open while a person tries the themes one after
+// another.
 //
 // And that it gets out of the way the way a popover must. Escape and a press outside close it;
 // a press inside, or on the gear that toggles it, does not. Its document listeners exist only

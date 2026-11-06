@@ -97,8 +97,10 @@ function iconUrl(id: string): string {
 // every one at 0.75 or lighter none, the rest between. The icons are drawn in two bands that this
 // splits: their strokes and glyphs in mid greys and deep colours (#616161 to #888888, green
 // #008013, blue #1656A7, red #902622, at most 0.55), their tiles and fills in white, light grey and
-// pastels (#D9D9D9 and lighter, at least 0.84); Delete's red tile (0.70) is the one between, a
-// faint fill. The colour rows are zero: the flood colours it.
+// pastels (#D9D9D9 and lighter, at least 0.84). Two are drawn between and come out part ink: the
+// gear's middle disc (settings.svg, #A6A6A6, luma 0.65, alpha 0.5), which reads as a ring, and
+// Delete's red tile (#FF9D9A, 0.70, alpha 0.27), a faint fill. The colour rows are zero: the flood
+// colours it.
 const INK_MATRIX = '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.0625 -3.577 -0.3605 0 3.75';
 
 /**
@@ -143,8 +145,10 @@ export class DexIcon extends LitElement {
    * Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an
    * activity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so
    * the button's own background shows through them. The dark set's `--dex-icon-filter` is not
-   * applied: the colour is the theme's already. Off, the default, draws the icon in the colours
-   * its file has. Attribute `mono`.
+   * applied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so
+   * it is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id
+   * with no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the
+   * icon in the colours its file has. Attribute `mono`.
    */
   @property({ type: Boolean }) mono = false;
 

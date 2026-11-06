@@ -326,6 +326,10 @@ describe('in one colour (mono)', () => {
     const fills = ['#FFFFFF', '#F5F5F5', '#D9D9D9', '#FFF5BC', '#B4DEFF', '#CBFFBE'];
     for (const c of strokes) expect(alphaOf(el, c), c).toBe(1);
     for (const c of fills) expect(alphaOf(el, c), c).toBe(0);
+    // The two drawn between, part ink: the gear's middle disc (settings.svg), half, which reads
+    // as a ring; Delete's red tile, a faint fill.
+    expect(alphaOf(el, '#A6A6A6')).toBeCloseTo(0.5, 1);
+    expect(alphaOf(el, '#FF9D9A')).toBeCloseTo(0.27, 1);
   });
 
   it('is decorative, as the <img> is', async () => {
@@ -337,6 +341,8 @@ describe('in one colour (mono)', () => {
     // The token turns an <img> over; on the mono glyph it would turn a light ink dark again.
     const text = String(DexIcon.styles);
     expect(text).not.toMatch(/svg[^{]*\{[^}]*--dex-icon-filter/);
+    // Nor on the host, which would filter the glyph with everything else in it.
+    expect(text).not.toMatch(/:host[^{]*\{[^}]*--dex-icon-filter/);
   });
 
   it('maps a data-model kind, and draws nothing for no id', async () => {

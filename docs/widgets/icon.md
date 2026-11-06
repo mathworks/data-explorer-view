@@ -18,14 +18,15 @@ document.body.insertAdjacentHTML('beforeend', '<dex-icon icon-id="typeBus" size=
 ```
 
 A data-model kind (`bus`, `struct`, `signal`, …) is drawn as the icon that stands for it; an id
-with no file draws a broken image, and an empty one draws nothing.
+with no file draws a broken image (nothing, with `mono`), and an empty one draws nothing.
 
 With `mono` the same file is drawn in one colour, the element's own `color`, as a toolbar's glyph
 is: its strokes and dark shapes in that colour and its light fills left out, so it follows the
 theme and forced colours with no filter. It is an SVG `<image>` of the file, fetched as an `<img>`
 is (under `img-src`, and from `file://` too), not a CSS mask, which a `file://` page is refused.
 The shell's toolbar, location bar and activity bars draw their icons so under its Minimal icon
-style.
+style. Each mono icon runs an SVG filter of its own: it is for the handful of glyphs an app's
+chrome draws, not for every row of a long list.
 
 ```html
 <button class="tool"><dex-icon icon-id="undo" mono></dex-icon> Undo</button>
