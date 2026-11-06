@@ -4,7 +4,7 @@
 // picker gives a handle the page may write, so the file the user names there is saved in place from
 // then on, as one opened through a picker is. A browser with none (Firefox, Safari) has no way to
 // name a file on disk, so the page keeps the file itself, under the name the shell offered, and its
-// Save downloads it, as Save As does there.
+// Save downloads it, as the Save of any file the page has no handle to does (save.ts).
 //
 // Chromium makes the file its save picker names, or empties the one that was there, as the picker
 // closes, before the page has said a word. A New the user then discarded would leave a file of no
@@ -14,14 +14,14 @@
 import { extOf, isSlddFile } from 'data-explorer-core';
 import { newDictionaryBytes } from '../model/source/newDictionary.js';
 import { pickedNothing, wantedGesture } from './fsAccess.js';
-import { download, saveFile } from './save.js';
-/** The new files a browser host makes, and the Save of the ones the page keeps itself. */
+import { saveFile } from './save.js';
+/** The new files a browser host makes, and which of them the page keeps itself. */
 export class NewFiles {
     /** New files among `files`, picked and downloaded through `deps`. */
     constructor(files, deps) {
         this.files = files;
         this.deps = deps;
-        /** The new files the page keeps, with no file on disk: each Save of one downloads it. */
+        /** The new files the page keeps, with no file on disk: each Save of one downloads it (save.ts). */
         this.kept = new Set();
     }
     /**
@@ -59,18 +59,11 @@ export class NewFiles {
             this.files.replace(known, { kind: 'handle', handle });
         const path = known ?? (await this.files.addPicked(handle.name, { kind: 'handle', handle }));
         if (!open(path) && isSlddFile(handle.name))
-            await saveFile(this.files, path, newDictionaryBytes());
+            await saveFile(this.files, path, newDictionaryBytes(), this.deps.document);
         return path;
     }
-    /** Whether `path` is a new file the page keeps, whose Save is `save`'s. */
+    /** Whether `path` is a new file the page keeps, with no file on disk to watch. */
     keeps(path) {
         return this.kept.has(path);
-    }
-    /** Save the kept new file `path`: a download of `bytes` under its name, which the page then holds as the file. */
-    save(path, bytes) {
-        const name = this.files.get(path)?.name ?? path.slice(path.lastIndexOf('/') + 1);
-        download(this.deps.document, name, bytes);
-        this.files.replace(path, { kind: 'bytes', bytes: bytes.slice() });
-        return { overwritten: false };
     }
 }

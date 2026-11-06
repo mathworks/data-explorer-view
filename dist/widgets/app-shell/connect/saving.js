@@ -45,7 +45,9 @@ export class Saver {
                 // after it is a change over the document's own (view's Doc.keepOver).
                 doc.saved(out.at);
                 tab.bytes = out.bytes;
-                return to.overwritten ? { kind: 'saved', overwritten: true } : { kind: 'saved' };
+                if (to.overwritten)
+                    return { kind: 'saved', overwritten: true };
+                return to.downloaded ? { kind: 'saved', downloaded: true } : { kind: 'saved' };
             }
             // Cancelled, or written elsewhere: this document's file holds what it held.
             doc.notSaved(out.at);

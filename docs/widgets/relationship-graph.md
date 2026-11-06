@@ -153,8 +153,9 @@ lays out; before the element has a size (not on the page yet, or hidden), once i
 ### `focus(options?: FocusOptions): void`
 
 Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
-there is no graph to draw yet (an app still building it), once there is, unless the focus has
-gone somewhere in the page by then (anywhere but its body).
+there is no graph to draw yet (`graph` null: an app still building it), once there is. Not if
+the focus has gone anywhere in the page meanwhile, even if it is back on the body by then, nor
+if the graph comes with nothing to draw: then the request is forgotten.
 
 ### `reveal(id: string): void`
 

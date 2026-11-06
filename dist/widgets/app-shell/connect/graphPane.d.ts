@@ -41,6 +41,8 @@ export interface GraphPaneContext {
      * background, an arrow key, a reveal, a build. For the shell to show `selectedFile()` again.
      */
     selected?(): void;
+    /** What a selected file's page says of where it is: its path in the host's words (ShellHost.pathTitle). Default the path. */
+    titleOf?(path: string): string;
 }
 /** The graph pane, as connectShell drives it. */
 export interface GraphPane {

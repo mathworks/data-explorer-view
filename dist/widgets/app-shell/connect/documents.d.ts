@@ -39,8 +39,20 @@ export declare function copyText(host: ShellHost, text: string): Promise<void>;
  * read for a section it showed.
  */
 export declare function docTabOf(tab: OpenTab, title?: string): DocTab;
-/** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
-export declare function statusOf(tab: OpenTab | undefined): string;
+/** What the status bar says of a file: its format, as its pill names it (`SLDD`); its kind, in words; whether it holds edits. */
+export interface FileStatus {
+    format: string;
+    kind: string;
+    modified: boolean;
+}
+/**
+ * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
+ * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
+ * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
+ * shell names.
+ */
+export declare function statusOf(tab: Pick<OpenTab, 'path' | 'dirty'> | undefined): FileStatus;
 /**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
  * than clearing, so the selection goes as a click on no row takes it, the table's own event saying

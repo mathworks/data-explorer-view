@@ -58,7 +58,19 @@ export interface MenuInput {
      * leaves them.
      */
     history?: Pick<EditHistory, 'canUndo' | 'canRedo'>;
+    /**
+     * Whether '+' adds a child, as the table answers it where it is asked to (ConnectTableOptions
+     * .addChildChord): Add Child then labels it, as Copy labels its chord. Without it Add Child names
+     * no chord, as the VS Code extension's table has none.
+     */
+    addChildChord?: boolean;
 }
+/**
+ * Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is
+ * Backspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace
+ * alike. Exported so that an app's toolbar names the key the menu does.
+ */
+export declare function deleteKeyLabel(mac: boolean): string;
 export type ShortcutAction = 'copy' | 'cut' | 'paste' | 'delete';
 export declare function resolveShortcutAction(e: KeyboardEvent): ShortcutAction | null;
 /**

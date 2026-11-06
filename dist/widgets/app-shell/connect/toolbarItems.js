@@ -8,18 +8,22 @@
 //
 // The editing buttons are the active table's editing menu: each is enabled exactly when the menu's
 // own item is (TableHandle.can), so a button and the right-click menu never disagree, and pressing
-// one runs that item (TableHandle.run). Their chords are the table's (the menu's labels), the rest
-// the shell's own (keys.ts), so a tooltip names the chord that works.
+// one runs that item (TableHandle.run). Their chords are the table's, written as the menu labels
+// them (Delete's key is Del, ⌫ on macOS), the rest the shell's own (keys.ts), so a tooltip names the
+// chord that works. A button whose label leans on its icon ("Open") says in its tooltip what it
+// opens, as the prototype's did ("Open File").
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
+import { deleteKeyLabel } from '../../tree-table/menuItems.js';
 import { chordOf } from './keys.js';
 /** The chords of the buttons that are the table's editing menu, as its menu labels them. */
 const TABLE_CHORDS = {
     undo: 'Mod+Z',
     redo: 'Mod+Shift+Z',
+    // The shell's tables answer it (connectTable's addChildChord).
+    'add-child': '+',
     cut: 'Mod+X',
     copy: 'Mod+C',
     paste: 'Mod+V',
-    delete: 'Delete',
 };
 /** Each editing button's item of the table's menu. */
 const TABLE_ACTIONS = {
@@ -39,25 +43,30 @@ export function tableActionOf(command) {
 export function toolbarItems(state) {
     const item = (id, label, icon, group, disabled, align) => {
         const chord = TABLE_CHORDS[id] ?? chordOf(id);
+        // Delete's is a key the menu names itself, not a chord.
+        const shortcut = id === 'delete' ? deleteKeyLabel(state.mac) : chord ? chordLabel(parseChord(chord), state.mac) : undefined;
         return {
             id,
             label,
             icon,
             group,
-            ...(chord ? { shortcut: chordLabel(parseChord(chord), state.mac) } : {}),
+            ...(shortcut ? { shortcut } : {}),
             disabled,
             ...(align ? { align } : {}),
         };
     };
     const { active } = state;
     const table = (id, label, icon, group) => item(id, label, icon, group, !state.can(TABLE_ACTIONS[id]), 'end');
+    // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
+    // Blue and grey are all that tells the two apart, so on a Minimal toolbar, whose glyphs are one
+    // colour, the unsaved one keeps its colours: the one icon in colour on the row.
+    const save = item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty));
     return [
         // A new data dictionary, the one kind of file New makes, as the prototype's tooltip said.
-        ...(state.canNewFile ? [newFile(item('new-file', 'New', 'new_server', 'open', false))] : []),
-        item('open-file', 'Open', 'openFolder', 'open', false),
-        ...(state.canOpenFolder ? [item('open-folder', 'Folder', 'folder', 'open', false)] : []),
-        // The floppy turns blue while the active file holds edits it does not, as the prototype's did.
-        item('save', 'Save', active?.dirty ? 'unsaved' : 'saved', 'save', !(active?.editable && active.dirty)),
+        ...(state.canNewFile ? [titled(item('new-file', 'New', 'new_server', 'open', false), 'New Data Dictionary')] : []),
+        titled(item('open-file', 'Open', 'openFolder', 'open', false), 'Open File'),
+        ...(state.canOpenFolder ? [titled(item('open-folder', 'Folder', 'folder', 'open', false), 'Open Folder')] : []),
+        active?.dirty ? { ...save, colorful: true } : save,
         item('save-as', 'Save As', 'saveAs', 'save', !active?.editable),
         item('save-all', 'Save All', 'save_all', 'save', !state.anyDirty),
         item('close-tab', 'Close', 'close', 'close', active === null),
@@ -72,9 +81,9 @@ export function toolbarItems(state) {
         table('delete', 'Delete', 'delete', 'delete'),
     ];
 }
-/** The New button, whose tooltip names what it makes. */
-function newFile(item) {
-    return { ...item, title: `New Data Dictionary${item.shortcut ? ` (${item.shortcut})` : ''}` };
+/** A button whose tooltip says `what` it makes or opens, rather than its label, with its chord. */
+function titled(item, what) {
+    return { ...item, title: `${what}${item.shortcut ? ` (${item.shortcut})` : ''}` };
 }
 /**
  * The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or

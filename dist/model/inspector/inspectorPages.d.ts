@@ -55,8 +55,9 @@ export declare function selectionPropertyGroups(nodes: readonly unknown[], count
  * A table row's Usage cell (`UsedBy`) as a group of the inspector's, its links the cell's: for a
  * block's row, what its parameters read ("Uses": each parameter, its value a link to the variable,
  * or core's own cell before a usage graph filled it); for any other, who uses it ("Used By": each
- * block a link to it, with its path and model, or core's own list of links). Null for a cell with
- * nothing in it, which the page leaves out.
+ * block a link to it, with its path where the block is inside a subsystem and its model where it is
+ * another's, or core's own list of links). Null for a cell with nothing in it, which the page leaves
+ * out.
  */
 export declare function usedByGroup(row: {
     UsedBy?: unknown;
@@ -79,11 +80,12 @@ export declare function namesFile(ref: string, name: string): boolean;
  * the graph knows of the file (it need not be open: the graph draws a folder's files too), its
  * References and Referenced By the boxes its edges between files reach, each a link to its file (a
  * ghost, a file referenced and not found, by the name it was referenced by). `open` says whether a
- * file is open, and holding edits. Null for an id the graph does not draw.
+ * file is open, and holding edits; `titleOf` what to say of where it is, its path in the host's
+ * words (default the path). Null for an id the graph does not draw.
  */
 export declare function graphFilePage(graph: RelationshipGraph, id: string, open: (uri: string) => {
     dirty: boolean;
-} | undefined): {
+} | undefined, titleOf?: (path: string) => string): {
     box: GraphBox;
     groups: PropertyGroup[];
 } | null;

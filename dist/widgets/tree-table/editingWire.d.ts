@@ -81,6 +81,8 @@ export interface EditingHost {
     textView?: TableTextView;
     /** Whether the table answers the Undo and Redo chords itself (ConnectTableOptions.undoChords). */
     undoChords?: boolean;
+    /** Whether the table answers '+' with Add Child (ConnectTableOptions.addChildChord). */
+    addChildChord?: boolean;
     errorDialog: DexErrorDialog;
     /** Listen on the table until the connection is disposed. */
     listen(type: string, listener: (e: Event) => void, capture?: boolean): void;

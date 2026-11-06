@@ -1,10 +1,10 @@
 import type { WebFiles } from './files.js';
 import { type SaveDeps } from './save.js';
-/** The new files a browser host makes, and the Save of the ones the page keeps itself. */
+/** The new files a browser host makes, and which of them the page keeps itself. */
 export declare class NewFiles {
     private readonly files;
     private readonly deps;
-    /** The new files the page keeps, with no file on disk: each Save of one downloads it. */
+    /** The new files the page keeps, with no file on disk: each Save of one downloads it (save.ts). */
     private readonly kept;
     /** New files among `files`, picked and downloaded through `deps`. */
     constructor(files: WebFiles, deps: SaveDeps);
@@ -16,10 +16,6 @@ export declare class NewFiles {
      * holding a new dictionary until a Save.
      */
     make(suggestedName: string, open: (path: string) => boolean): Promise<string | null>;
-    /** Whether `path` is a new file the page keeps, whose Save is `save`'s. */
+    /** Whether `path` is a new file the page keeps, with no file on disk to watch. */
     keeps(path: string): boolean;
-    /** Save the kept new file `path`: a download of `bytes` under its name, which the page then holds as the file. */
-    save(path: string, bytes: Uint8Array): {
-        overwritten: boolean;
-    };
 }

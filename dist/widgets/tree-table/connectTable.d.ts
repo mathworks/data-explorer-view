@@ -100,6 +100,12 @@ export interface ConnectTableOptions {
      */
     undoChords?: boolean;
     /**
+     * With `editing`: the table answers '+' (with Shift or without, as the layout types it) with Add
+     * Child, on the selected row, outside its fields and where the editing menu offers the item, which
+     * then labels it. Default false: the VS Code extension's table has no such chord.
+     */
+    addChildChord?: boolean;
+    /**
      * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
      * `<body>`, and takes away again on dispose().
      */
@@ -136,6 +142,12 @@ export interface ConnectTableOptions {
      * and nothing for no row or a section heading, as the VS Code extension's inspector shows them.
      */
     inspectorPages?: boolean;
+    /**
+     * With `inspectorPages`: what the file's page says of where the file is (its File row), the host's
+     * words for its path where its paths mean nothing to the user (the browser host's are its own
+     * making: ShellHost.pathTitle). Default the path the document's uri names.
+     */
+    inspectorFileTitle?: string;
     /**
      * With `editing`: the inspector's rows are editable where the document takes an edit of the
      * property, and a change of one (`dex-property-changed`, which connectInspector hands to

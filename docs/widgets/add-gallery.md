@@ -52,6 +52,16 @@ the table the user is working in, and taking the keyboard from them is the oppos
 popover's first focus is for; leaves Escape to the page, as there is nothing to close; and is
 a group rather than a dialog. Attribute `inline`.
 
+### `compact`
+
+type `boolean` · default `false` · attribute `compact`, reflected
+
+Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app
+shell's sidebar), with no frame until one is pointed at or focused, and each badge under its
+label: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole
+palette is on screen. Default false: the popover's 96px tiles, as the table draws them.
+Attribute `compact`, reflected, which the layout's rules select on.
+
 ### `classes`
 
 type `readonly string[] | null` · default `null` · property only
@@ -142,4 +152,5 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-color-accent` | `#0078d4` |  |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-secondary` | `#555` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |

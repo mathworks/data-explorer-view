@@ -5,9 +5,13 @@ import type { Theme } from '../../../model/shell/settings.js';
  * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
  * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
  * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
- * goes to the Explorer's Root, where the relationship graph is.
+ * goes to the Explorer's Root, where the relationship graph is. The documents split in two panes
+ * side by side: `split-right` moves the active tab into a pane on the right (a new one, or the
+ * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
+ * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
+ * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
  */
-export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
+export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';
 /**
@@ -50,19 +54,25 @@ export interface ShellHost {
     closeFile?(path: string): void;
     /**
      * Write `bytes` over the open file `path`. `overwritten`: another program wrote the file after
-     * the save, so the disk holds its file rather than the one saved.
+     * the save, so the disk holds its file rather than the one saved. `downloaded`: the bytes were
+     * handed to the user as a download rather than written over the file (a browser page with no way
+     * to write it): the document is saved all the same, and the shell says the file was downloaded
+     * rather than saved. Absent, false.
      */
     saveFile(path: string, bytes: Uint8Array): Promise<{
         overwritten: boolean;
+        downloaded?: boolean;
     }>;
     /**
      * Ask where to save the open file `path`, and write `bytes` there. Resolves to the path written
      * (`path` itself, for a Save As onto it), or null when cancelled. `overwritten`, for a Save As onto
      * the file itself, as for saveFile: another program wrote it after the save. Elsewhere, false.
+     * `downloaded`, as for saveFile: the bytes went to a download (`path` itself the answer).
      */
     saveFileAs(path: string, bytes: Uint8Array): Promise<{
         path: string;
         overwritten: boolean;
+        downloaded?: boolean;
     } | null>;
     /** Ask whether to save the unsaved edits of the files `names` before they close. Absent: the in-page confirm dialog. */
     confirmClose?(names: string[]): Promise<CloseAnswer>;

@@ -4,7 +4,7 @@ import type { ExplorerFile, ExplorerGroup } from '../dex-explorer.js';
 export type FileKind = Exclude<ExplorerGroup, 'other'>;
 /** The icon of each kind of file, on its Explorer row, its tab and its location segment. */
 export declare const FILE_ICONS: Readonly<Record<FileKind, string>>;
-/** What the status bar calls each kind of file. */
+/** What each kind of file is called in words: the tooltip of the status bar's format pill. */
 export declare const FILE_FORMATS: Readonly<Record<FileKind, string>>;
 /** The heading the file at `path` goes under, by its name: core's kind tests, which a tab's label agrees with. */
 export declare function fileGroupOf(path: string): ExplorerGroup;

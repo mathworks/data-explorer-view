@@ -9,7 +9,7 @@
 // (newTable, newProjectPage, paintProject, and the connectTable options of its open()).
 import { projectPageMessage } from '../../../model/source/projectPage.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
-import { isSupportedPath } from 'data-explorer-core';
+import { extOf, isSupportedPath } from 'data-explorer-core';
 import { connectTable } from '../../tree-table/connectTable.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import { onMac } from './keys.js';
@@ -46,10 +46,19 @@ export function docTabOf(tab, title = tab.path) {
         : { label: tab.name, ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }) };
     return { id: tab.id, ...shown, title, dirty: !!tab.dirty, preview: !!tab.preview };
 }
-/** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
+/**
+ * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
+ * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
+ * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
+ * shell names.
+ */
 export function statusOf(tab) {
     const group = tab ? fileGroupOf(tab.path) : 'other';
-    return group === 'other' ? '' : `${FILE_FORMATS[group]}${tab?.dirty ? ' · Modified' : ''}`;
+    if (!tab || group === 'other')
+        return { format: '', kind: '', modified: false };
+    const format = group === 'project' ? FILE_FORMATS.project.toUpperCase() : extOf(tab.path).slice(1).toUpperCase();
+    return { format, kind: FILE_FORMATS[group], modified: !!tab.dirty };
 }
 /**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
@@ -99,11 +108,13 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         contextMenu: wiring.menu,
         // Every document wired for editing: one that takes no edits (a .mdl, a .slx or MAT-file
         // kept for viewing only) gets the read-only menu, and an editing menu ends with Copy Name
-        // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself.
+        // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself, and '+' with Add
+        // Child, the prototype's chord.
         editing: true,
         readOnlyMenu: true,
         copyText: true,
         undoChords: true,
+        addChildChord: true,
         // Its rows can be dragged onto the Explorer, to a file or a section of one (explorerDrop.ts): from
         // a document that may not be edited too, to be copied.
         dragOut: true,
@@ -111,6 +122,8 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
         inspectorPages: true,
         inspectorEditing: true,
+        // Where the file's page says it is: the host's words for its path, where it has them.
+        ...(host.pathTitle ? { inspectorFileTitle: host.pathTitle(tab.path) } : {}),
         errorDialog: wiring.dialog,
         // The host's clipboard, or the page's for a host without one, asked at each copy.
         copy: (text) => copyText(host, text),

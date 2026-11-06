@@ -20,10 +20,10 @@ function sidesOf(items) {
 }
 /**
  * A row of buttons, the items an app hands it: each an icon over a small label (beside it with
- * `compact`, and in the label's colour with `mono`), the items of a group together with a separator
- * between groups, and the `end` items pushed to the right. A click on an item that is not disabled
- * sends `dex-toolbar-action` with its id; a disabled item is greyed and sends nothing. Each item's
- * tooltip is its `title`, or its label and shortcut.
+ * `compact`, and in the label's colour with `mono`, but for an item that is `colorful`), the items
+ * of a group together with a separator between groups, and the `end` items pushed to the right. A
+ * click on an item that is not disabled sends `dex-toolbar-action` with its id; a disabled item is
+ * greyed and sends nothing. Each item's tooltip is its `title`, or its label and shortcut.
  *
  * The toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and
  * wrap at either end; Home and End go to the first and the last; Enter and Space press the one the
@@ -52,9 +52,9 @@ export class DexToolbar extends LitElement {
         this.compact = false;
         /**
          * Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's
-         * toolbar drew its glyphs; off, the default, draws them in their files' colours. A disabled
-         * item's icon is greyed with its label either way. Attribute `mono`, reflected so a page's
-         * stylesheet can follow it.
+         * toolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in
+         * their files' colours. A disabled item's icon is greyed with its label either way. Attribute
+         * `mono`, reflected so a page's stylesheet can follow it.
          */
         this.mono = false;
         /**
@@ -267,7 +267,7 @@ export class DexToolbar extends LitElement {
         @click=${() => this._press(item)}
         @focus=${() => (this._focusId = item.id)}
       >
-        ${item.icon ? html `<dex-icon .iconId=${item.icon} .size=${this.compact ? 14 : 18} .mono=${this.mono}></dex-icon>` : nothing}
+        ${item.icon ? html `<dex-icon .iconId=${item.icon} .size=${this.compact ? 14 : 18} .mono=${this.mono && !item.colorful}></dex-icon>` : nothing}
         <span class="label">${item.label}</span>
       </button>
     `;

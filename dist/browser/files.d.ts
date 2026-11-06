@@ -73,7 +73,14 @@ export declare class WebFiles {
         paths: string[];
         replaced: string[];
     }>;
-    /** The path of a file read through a handle to the file `handle` is to, if the page has one. */
+    /**
+     * The path of a file read through a handle to the file `handle` is to, if the page has one; else,
+     * for a file inside a folder shown through a handle (the latest shown first), its place there,
+     * which the page then reads through `handle` as the folder's listing would. Chromium's New and
+     * Save As may write a file into the folder the Explorer shows, one it has not listed yet: under a
+     * pick's path, the folder's next look listed it a second time, and opening it there opened it in
+     * a second tab.
+     */
     pathOf(handle: FileSystemFileHandle): Promise<string | undefined>;
     /**
      * The root a shown folder takes: `/<name>`, or `/<name> (2)` and on when another folder of that

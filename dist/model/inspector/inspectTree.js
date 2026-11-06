@@ -25,7 +25,7 @@ export function inspectTree(tree, selection, options = {}) {
         if (options.pages) {
             const first = rowIds[0];
             if (first === undefined || (rowIds.length === 1 && tree.fileIds.includes(first)))
-                return filePage(tree);
+                return filePage(tree, options.fileTitle);
             if (rowIds.length > 1) {
                 const nodes = rowIds.filter((id) => !isSectionRowId(id)).map((id) => tree.find(id)).filter((n) => !!n);
                 return { rowId: first, groups: selectionPropertyGroups(nodes, rowIds.length) };
@@ -48,8 +48,8 @@ export function inspectTree(tree, selection, options = {}) {
 }
 /** The name of the file `tree` is of. */
 const nameOf = (tree) => tree.name || uriPathBasename(tree.fileIds[0] ?? '');
-/** The file's page: what it is, and the open files it references and is referenced by. */
-function filePage(tree) {
+/** The file's page: what it is, where (`title`, the host's words for its path, or the path), and the open files it references and is referenced by. */
+function filePage(tree, title) {
     const root = tree.root();
     const uri = tree.fileIds[0];
     if (!root || uri === undefined)
@@ -70,7 +70,7 @@ function filePage(tree) {
         .map((o) => ({ name: o.name, target: o.uri, state: 'Open' }));
     const groups = filePropertyGroups({
         name,
-        path: uriPath(uri),
+        path: title || uriPath(uri),
         modified: tree.dirty?.() ?? false,
         more: rootRows(root, (node) => buildPropertyGroups(node)),
         references,

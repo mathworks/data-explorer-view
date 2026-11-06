@@ -397,6 +397,7 @@ export function connectTable(table, source, options = {}) {
             dragOutSource: dragOutSourceOf(source),
             textView: options.textView,
             undoChords: !!options.undoChords,
+            addChildChord: !!options.addChildChord,
             errorDialog: dialog,
             listen: (type, listener, capture = false) => {
                 table.addEventListener(type, listener, capture);
@@ -541,7 +542,8 @@ export function connectTable(table, source, options = {}) {
     const inspectOptions = () => {
         const pages = !!options.inspectorPages;
         const editable = !!options.inspectorEditing && !!editing?.editable();
-        return pages || editable ? { pages, editable } : undefined;
+        const title = pages && options.inspectorFileTitle ? { fileTitle: options.inspectorFileTitle } : {};
+        return pages || editable ? { pages, editable, ...title } : undefined;
     };
     // The page for `rowIds`, and with `inspectorPages` its row's Usage links as a group of their own,
     // as the table's cell holds them.

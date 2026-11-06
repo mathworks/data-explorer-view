@@ -9,11 +9,12 @@ export interface SettingsChangeDetail {
 /**
  * The shell's Settings popover, opened from the gear of an activity bar: the theme (Auto, Light,
  * Dark, Hi-Con), the toolbar's density (Normal, Compact: smaller icons with the labels beside
- * them), the icons of the shell's buttons (Minimal, in one colour, or Colorful) and the tables'
- * rules (Grid or Rows), each a row of segments that is a radio group. It shows `settings` and asks
- * for a change: a click, or an arrow key inside a group, sends `dex-settings-change` with the whole
- * new record and changes nothing by itself. The app applies the settings, keeps them, and sets
- * `settings` back; the popover stays open, so the themes can be tried one after another.
+ * them), the icons of the shell's buttons (Minimal, in one colour, or Colorful), the tables' rules
+ * (Grid or Rows) and the layout of Root's relationship graph (Tree or Indented), each a row of
+ * segments that is a radio group. It shows `settings` and asks for a change: a click, or an arrow
+ * key inside a group, sends `dex-settings-change` with the whole new record and changes nothing by
+ * itself. The app applies the settings, keeps them, and sets `settings` back; the popover stays
+ * open, so the themes can be tried one after another.
  *
  * show() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),
  * focused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes

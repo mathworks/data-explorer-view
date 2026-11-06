@@ -546,8 +546,17 @@
       "path": "dist/widgets/app-shell/dex-doc-tabs.js",
       "declarations": [
         {
+          "kind": "variable",
+          "name": "TAB_DRAG_TYPE",
+          "type": {
+            "text": "string"
+          },
+          "default": "'application/x-dex-tab'",
+          "description": "The type a tab's drag carries its id under. One of the app's own, so a drag of anything else (a\nfile from the desktop, text from another page) never reads as a tab. Exported for the part of an\napp that takes a tab dropped elsewhere (the documents' area of the shell, to split it)."
+        },
+        {
           "kind": "class",
-          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end.",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
           "name": "DexDocTabs",
           "members": [
             {
@@ -569,6 +578,38 @@
               "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
               "attribute": "active",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "group",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Rows of one page with the same group take each other's tabs (an app's two panes, side by\nside): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id\nnot in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.",
+              "attribute": "group",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "unfocused",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the\naccent kept for the focused pane's row. Default false. Attribute `unfocused`.",
+              "attribute": "unfocused",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "focusActive",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Puts the keyboard on the active tab, once it is drawn: an app's chord that takes the user to\nthis row's pane. Nothing for a row with no active tab."
             }
           ],
           "events": [
@@ -598,7 +639,7 @@
               "type": {
                 "text": "CustomEvent<TabMoveDetail>"
               },
-              "description": "Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`."
+              "description": "Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from\n`tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert."
             }
           ],
           "attributes": [
@@ -610,6 +651,24 @@
               "default": "''",
               "description": "The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.",
               "fieldName": "active"
+            },
+            {
+              "name": "group",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Rows of one page with the same group take each other's tabs (an app's two panes, side by\nside): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id\nnot in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.",
+              "fieldName": "group"
+            },
+            {
+              "name": "unfocused",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the\naccent kept for the focused pane's row. Default false. Attribute `unfocused`.",
+              "fieldName": "unfocused"
             }
           ],
           "superclass": {
@@ -692,6 +751,14 @@
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "TAB_DRAG_TYPE",
+          "declaration": {
+            "name": "TAB_DRAG_TYPE",
+            "module": "dist/widgets/app-shell/dex-doc-tabs.js"
+          }
+        },
         {
           "kind": "js",
           "name": "DexDocTabs",
@@ -1102,7 +1169,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The shell's Settings popover, opened from the gear of an activity bar: the theme (Auto, Light,\nDark, Hi-Con), the toolbar's density (Normal, Compact: smaller icons with the labels beside\nthem), the icons of the shell's buttons (Minimal, in one colour, or Colorful) and the tables'\nrules (Grid or Rows), each a row of segments that is a radio group. It shows `settings` and asks\nfor a change: a click, or an arrow key inside a group, sends `dex-settings-change` with the whole\nnew record and changes nothing by itself. The app applies the settings, keeps them, and sets\n`settings` back; the popover stays open, so the themes can be tried one after another.\n\nshow() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),\nfocused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes\nback to the button.",
+          "description": "The shell's Settings popover, opened from the gear of an activity bar: the theme (Auto, Light,\nDark, Hi-Con), the toolbar's density (Normal, Compact: smaller icons with the labels beside\nthem), the icons of the shell's buttons (Minimal, in one colour, or Colorful), the tables' rules\n(Grid or Rows) and the layout of Root's relationship graph (Tree or Indented), each a row of\nsegments that is a radio group. It shows `settings` and asks for a change: a click, or an arrow\nkey inside a group, sends `dex-settings-change` with the whole new record and changes nothing by\nitself. The app applies the settings, keeps them, and sets `settings` back; the popover stays\nopen, so the themes can be tried one after another.\n\nshow() opens it beside the button that opened it (placeBeside, in data-explorer-view/model),\nfocused on the chosen theme; Escape, a press outside it, or close() closes it, and focus goes\nback to the button.",
           "name": "DexSettingsPanel",
           "members": [
             {
@@ -1685,7 +1752,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A row of buttons, the items an app hands it: each an icon over a small label (beside it with\n`compact`, and in the label's colour with `mono`), the items of a group together with a separator\nbetween groups, and the `end` items pushed to the right. A click on an item that is not disabled\nsends `dex-toolbar-action` with its id; a disabled item is greyed and sends nothing. Each item's\ntooltip is its `title`, or its label and shortcut.\n\nThe toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and\nwrap at either end; Home and End go to the first and the last; Enter and Space press the one the\nkeyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit\nopen in a table's cell stays open too (the table commits one as its editor loses the focus), and\nthe app commits it, with connectTable's `handle.commitEdit()`, before it acts on\n`dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`\nas what they can do changes, and does what `dex-toolbar-action` asks.",
+          "description": "A row of buttons, the items an app hands it: each an icon over a small label (beside it with\n`compact`, and in the label's colour with `mono`, but for an item that is `colorful`), the items\nof a group together with a separator between groups, and the `end` items pushed to the right. A\nclick on an item that is not disabled sends `dex-toolbar-action` with its id; a disabled item is\ngreyed and sends nothing. Each item's tooltip is its `title`, or its label and shortcut.\n\nThe toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and\nwrap at either end; Home and End go to the first and the last; Enter and Space press the one the\nkeyboard is on. A mouse press takes no focus: it stays where the user was working. So an edit\nopen in a table's cell stays open too (the table commits one as its editor loses the focus), and\nthe app commits it, with connectTable's `handle.commitEdit()`, before it acts on\n`dex-toolbar-action`. The toolbar knows nothing of files or tables: the app gives it new `items`\nas what they can do changes, and does what `dex-toolbar-action` asks.",
           "name": "DexToolbar",
           "members": [
             {
@@ -1715,7 +1782,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs; off, the default, draws them in their files' colours. A disabled\nitem's icon is greyed with its label either way. Attribute `mono`, reflected so a page's\nstylesheet can follow it.",
+              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in\ntheir files' colours. A disabled item's icon is greyed with its label either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
               "attribute": "mono",
               "reflects": true
             },
@@ -1755,7 +1822,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs; off, the default, draws them in their files' colours. A disabled\nitem's icon is greyed with its label either way. Attribute `mono`, reflected so a page's\nstylesheet can follow it.",
+              "description": "Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's\ntoolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in\ntheir files' colours. A disabled item's icon is greyed with its label either way. Attribute\n`mono`, reflected so a page's stylesheet can follow it.",
               "fieldName": "mono"
             },
             {
@@ -3586,7 +3653,7 @@
                   }
                 }
               ],
-              "description": "Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while\nthere is no graph to draw yet (an app still building it), once there is, unless the focus has\ngone somewhere in the page by then (anywhere but its body)."
+              "description": "Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while\nthere is no graph to draw yet (`graph` null: an app still building it), once there is. Not if\nthe focus has gone anywhere in the page meanwhile, even if it is back on the body by then, nor\nif the graph comes with nothing to draw: then the request is forgotten."
             },
             {
               "kind": "method",
@@ -6551,6 +6618,17 @@
             },
             {
               "kind": "field",
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app\nshell's sidebar), with no frame until one is pointed at or focused, and each badge under its\nlabel: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole\npalette is on screen. Default false: the popover's 96px tiles, as the table draws them.\nAttribute `compact`, reflected, which the layout's rules select on.",
+              "attribute": "compact",
+              "reflects": true
+            },
+            {
+              "kind": "field",
               "name": "classes",
               "type": {
                 "text": "readonly string[] | null"
@@ -6609,6 +6687,15 @@
               "default": "false",
               "description": "Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather\nthan as the table's `+ Add` popover. Default false: the popover.\n\nInline, it is open for as long as it is shown, so it draws no header row and no Keep open\nbox, which could change nothing; takes no focus when it first draws, since it is drawn beside\nthe table the user is working in, and taking the keyboard from them is the opposite of what a\npopover's first focus is for; leaves Escape to the page, as there is nothing to close; and is\na group rather than a dialog. Attribute `inline`.",
               "fieldName": "inline"
+            },
+            {
+              "name": "compact",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app\nshell's sidebar), with no frame until one is pointed at or focused, and each badge under its\nlabel: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole\npalette is on screen. Default false: the popover's 96px tiles, as the table draws them.\nAttribute `compact`, reflected, which the layout's rules select on.",
+              "fieldName": "compact"
             }
           ],
           "superclass": {
@@ -6666,6 +6753,10 @@
             {
               "name": "--dex-color-text-secondary",
               "default": "#555"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
             },
             {
               "name": "--dex-font-family",
@@ -8276,6 +8367,24 @@
       "declarations": [
         {
           "kind": "function",
+          "name": "deleteKeyLabel",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "mac",
+              "type": {
+                "text": "boolean"
+              }
+            }
+          ],
+          "description": "Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is\nBackspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace\nalike. Exported so that an app's toolbar names the key the menu does."
+        },
+        {
+          "kind": "function",
           "name": "resolveShortcutAction",
           "return": {
             "type": {
@@ -8351,6 +8460,14 @@
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "deleteKeyLabel",
+          "declaration": {
+            "name": "deleteKeyLabel",
+            "module": "dist/widgets/tree-table/menuItems.js"
+          }
+        },
         {
           "kind": "js",
           "name": "resolveShortcutAction",

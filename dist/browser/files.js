@@ -149,12 +149,27 @@ export class WebFiles {
         }
         return { paths, replaced };
     }
-    /** The path of a file read through a handle to the file `handle` is to, if the page has one. */
+    /**
+     * The path of a file read through a handle to the file `handle` is to, if the page has one; else,
+     * for a file inside a folder shown through a handle (the latest shown first), its place there,
+     * which the page then reads through `handle` as the folder's listing would. Chromium's New and
+     * Save As may write a file into the folder the Explorer shows, one it has not listed yet: under a
+     * pick's path, the folder's next look listed it a second time, and opening it there opened it in
+     * a second tab.
+     */
     async pathOf(handle) {
         // One file has one name: only the files of that name are asked about.
         for (const [path, { name, source }] of this.entries) {
             if (name === handle.name && source.kind === 'handle' && (await source.handle.isSameEntry(handle)))
                 return path;
+        }
+        for (const [root, dir] of [...this.folders].reverse()) {
+            if (dir.kind !== 'handle')
+                continue;
+            // A browser that cannot say (no resolve, or a refusal) has the file in none of them.
+            const parts = await Promise.resolve(dir.handle.resolve?.(handle)).catch(() => null);
+            if (parts && parts.length > 0)
+                return this.addInFolder(root, parts.join('/'), { kind: 'handle', handle });
         }
         return undefined;
     }
@@ -172,6 +187,8 @@ export class WebFiles {
                 continue;
             const taken = this.folders.get(root);
             if (!taken || (await sameDir(taken, dir))) {
+                // Last in the map: the latest shown, which pathOf asks first.
+                this.folders.delete(root);
                 this.folders.set(root, dir);
                 return root;
             }

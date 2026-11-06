@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The open files as the Explorer lists them, and the kind of file each is: the heading it goes
-// under, the icon its row and its tab draw, and the words the status bar says it in. Pure:
+// under, the icon its row and its tab draw, and the words the status bar's tooltip says it in. Pure:
 // connectShell hands the Explorer these again whenever a tab opens, closes, moves, takes an edit
 // or is painted.
 //
@@ -18,7 +18,7 @@ export const FILE_ICONS = {
     mat: 'matlabWorkspaceFile',
     project: 'simulink_project',
 };
-/** What the status bar calls each kind of file. */
+/** What each kind of file is called in words: the tooltip of the status bar's format pill. */
 export const FILE_FORMATS = {
     model: 'Simulink model',
     sldd: 'Data dictionary',

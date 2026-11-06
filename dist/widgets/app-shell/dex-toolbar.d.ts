@@ -7,6 +7,12 @@ export interface ToolbarItem {
     label: string;
     /** The `<dex-icon>` id drawn over the label (`saved`, `undo`). None draws the label alone. */
     icon?: string;
+    /**
+     * The icon in its file's colours even on a `mono` toolbar: for an icon whose colour is what it
+     * says (the shell's blue Save, while the active file holds unsaved edits, is the grey one's
+     * shape), which a glyph in one colour would lose. Default false: the toolbar's style.
+     */
+    colorful?: boolean;
     /** The tooltip. Default the label, with the shortcut after it in brackets when there is one. */
     title?: string;
     /**
@@ -35,10 +41,10 @@ export interface ToolbarActionDetail {
 }
 /**
  * A row of buttons, the items an app hands it: each an icon over a small label (beside it with
- * `compact`, and in the label's colour with `mono`), the items of a group together with a separator
- * between groups, and the `end` items pushed to the right. A click on an item that is not disabled
- * sends `dex-toolbar-action` with its id; a disabled item is greyed and sends nothing. Each item's
- * tooltip is its `title`, or its label and shortcut.
+ * `compact`, and in the label's colour with `mono`, but for an item that is `colorful`), the items
+ * of a group together with a separator between groups, and the `end` items pushed to the right. A
+ * click on an item that is not disabled sends `dex-toolbar-action` with its id; a disabled item is
+ * greyed and sends nothing. Each item's tooltip is its `title`, or its label and shortcut.
  *
  * The toolbar is one tab stop: the arrow keys move along the items, disabled ones included, and
  * wrap at either end; Home and End go to the first and the last; Enter and Space press the one the
@@ -66,9 +72,9 @@ export declare class DexToolbar extends LitElement {
     compact: boolean;
     /**
      * Draws each item's icon in one colour, its label's (`<dex-icon mono>`), as the prototype's
-     * toolbar drew its glyphs; off, the default, draws them in their files' colours. A disabled
-     * item's icon is greyed with its label either way. Attribute `mono`, reflected so a page's
-     * stylesheet can follow it.
+     * toolbar drew its glyphs, but for an item that is `colorful`; off, the default, draws them in
+     * their files' colours. A disabled item's icon is greyed with its label either way. Attribute
+     * `mono`, reflected so a page's stylesheet can follow it.
      */
     mono: boolean;
     /**

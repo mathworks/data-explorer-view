@@ -518,12 +518,16 @@ export class DexTreeTable extends LitElement {
         // answer (_onRowDragOver, _onBodyDragOver), which say an action. Elsewhere, and over a table that
         // takes no drop, whose rows answer nothing, the action is the part under the pointer's to say, by
         // the attributes its element under the pointer carries (dragOut): read off the event's path, so
-        // the table knows nothing of what that part is. It says it once drawn, which the dragover that
-        // follows, a few milliseconds later, shows.
+        // the table knows nothing of what that part is. The box moves at once; the words are read a frame
+        // later, off the same path, since this listener hears the dragover before the part does, and the
+        // part writes its answer to that dragover (the Explorer's row, once drawn) after it: read at once,
+        // they were the last dragover's, the row before's words or none, and blinked between rows.
         //
         // A drop anywhere ends the following, and the box: the dragend that clears it is sent to the row the
-        // drag started on, which a move may have taken out of the table by then.
+        // drag started on, which a move may have taken out of the table by then. A frame still to come is
+        // let go then too, and as the drag comes back over this table's own rows, which say their own words.
         this._boundFollow = null;
+        this._hintFrame = 0;
         // The keys of every editor: Enter (with or without Ctrl/Cmd) commits and Escape cancels, as in
         // VS Code's own inline inputs; Tab and a click away commit too, through the blur. An Enter
         // that confirms an IME candidate is the input method's, not a commit, as VS Code treats it.
@@ -3057,13 +3061,18 @@ export class DexTreeTable extends LitElement {
         const over = (e) => {
             const path = e.composedPath();
             if (this._dragsRows && path.includes(this))
-                return;
+                return this._cancelHint();
             const drag = e;
             this._dropTooltipX = drag.clientX;
             this._dropTooltipY = drag.clientY;
-            const hinted = path.find((node) => typeof node.hasAttribute === 'function' && node.hasAttribute(DROP_HINT));
-            this._dropTooltip = hinted?.getAttribute(DROP_HINT) ?? '';
-            this._dropForbidden = !!hinted?.hasAttribute(DROP_REFUSED);
+            // The latest dragover's path alone: a frame reads once, however many dragovers came in it.
+            this._cancelHint();
+            this._hintFrame = requestAnimationFrame(() => {
+                this._hintFrame = 0;
+                const hinted = path.find((node) => typeof node.hasAttribute === 'function' && node.hasAttribute(DROP_HINT));
+                this._dropTooltip = hinted?.getAttribute(DROP_HINT) ?? '';
+                this._dropForbidden = !!hinted?.hasAttribute(DROP_REFUSED);
+            });
         };
         const drop = () => {
             this._stopFollowingDrag();
@@ -3077,7 +3086,14 @@ export class DexTreeTable extends LitElement {
         document.addEventListener('dragover', over, true);
         document.addEventListener('drop', drop, true);
     }
+    _cancelHint() {
+        if (this._hintFrame === 0)
+            return;
+        cancelAnimationFrame(this._hintFrame);
+        this._hintFrame = 0;
+    }
     _stopFollowingDrag() {
+        this._cancelHint();
         if (!this._boundFollow)
             return;
         document.removeEventListener('dragover', this._boundFollow.over, true);

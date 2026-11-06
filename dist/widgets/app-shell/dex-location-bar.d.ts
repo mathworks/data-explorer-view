@@ -21,6 +21,12 @@ export interface LocationSegment {
      * in the graph', for a preview). None, the default, says nothing more.
      */
     description?: string;
+    /**
+     * What a screen reader names the segment by, in place of its label, for a label that reads badly
+     * aloud: "<3 selected>" is heard as "less than 3 selected greater than", so the app says "3 rows
+     * selected". None, the default, names it by its label.
+     */
+    ariaLabel?: string;
 }
 /** What `dex-location-go` carries: where the user asked to go. */
 export interface LocationGoDetail {

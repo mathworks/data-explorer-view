@@ -111,6 +111,12 @@ export interface ShellSettings {
   iconStyle: 'minimal' | 'colorful';
   /** How the tables are ruled: `grid`, a line round every cell, or `rows`, a faint line between rows alone. */
   tableStyle: 'grid' | 'rows';
+  /**
+   * How Root's relationship graph is laid out, in the graph's own words (GraphLayoutStyle): `tree`,
+   * two columns of top-down trees, or `indented`, each column a file tree, one box a row, which
+   * draws a large set of files narrower and so at a larger scale.
+   */
+  graphLayout: 'tree' | 'indented';
 }
 
 /** A theme a page can be drawn in: the three theme.css defines. */

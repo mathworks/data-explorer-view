@@ -218,7 +218,7 @@ export function connectGraphPane(el, context) {
             const tab = tabs.find((t) => sourceUri(t.path) === uri);
             return tab ? { dirty: !!tab.dirty } : undefined;
         };
-        const file = graph && selected !== null ? graphFilePage(graph, selected, state) : null;
+        const file = graph && selected !== null ? graphFilePage(graph, selected, state, context.titleOf) : null;
         page = { graph, selected, open, file };
         return file;
     };

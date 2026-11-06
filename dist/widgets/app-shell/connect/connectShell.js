@@ -2,10 +2,11 @@
 //
 // The app in a shell: open files as tabs, each a table connected to its document in one editing
 // workspace (a MAT-file, a dictionary and a .slx's Model Workspace take edits; a .mdl stays
-// read-only), the inspector following the active tab, one variable editor, menu and dialog for
-// them all; and around them the shell's parts, the toolbar, the location bar, the Explorer with
-// the folder under it, Settings, About and the toasts. The same code runs in the Electron app and
-// in a browser page: what differs is the host (types.ts), which a page hands in.
+// read-only), in one pane or two side by side, the inspector following the active tab (the tab of
+// the pane the user is in), one variable editor, menu and dialog for them all; and around them the
+// shell's parts, the toolbar, the location bar, the Explorer with the folder under it, Settings,
+// About and the toasts. The same code runs in the Electron app and in a browser page: what differs
+// is the host (types.ts), which a page hands in.
 //
 // Lifted from data-explorer-app src/renderer/app.ts and main.ts at 0983920, the app's renderer:
 // its rules, in its order, with its comments. What changed is where things are drawn (the shell's
@@ -16,7 +17,8 @@
 // settings and popovers (popovers.ts), the history (navigation.ts), the questions (questions.ts),
 // the parts' requests (requests.ts), the rows dropped on the Explorer (explorerDrop.ts), the
 // document commands (carryOut.ts), the folder shown (shownFolder.ts), the modules' views
-// (modules.ts: Raw, Search, the Gallery, the Terminal), and Root's relationship graph (graphPane.ts).
+// (modules.ts: Raw, Search, the Gallery, the Terminal), Root's relationship graph (graphPane.ts),
+// and the panes' rows and panels (panes.ts).
 import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
@@ -38,6 +40,7 @@ import { linkDestination } from './links.js';
 import { locationOf } from './location.js';
 import { ShellNavigation } from './navigation.js';
 import { connectModules } from './modules.js';
+import { PaneRows, keepSplit, keptSplit, slotPanels } from './panes.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
 import { rowIn, sectionOf } from './rows.js';
@@ -49,7 +52,7 @@ import { Saver, settle } from './saving.js';
 import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf } from './toolbarItems.js';
-import { carryOut } from './carryOut.js';
+import { carryOut, showRootFrom } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
@@ -90,7 +93,13 @@ export function connectShell(shell, options) {
     const { toolbar, location, explorer, folderPart, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
     let disposed = false;
     const stops = [];
+    // The open tabs, in one pane or two (tabs.ts): the active tab is the one the focused pane shows.
     const tabs = new TabList();
+    // Each pane's row of tabs, the first's the shell's own, a second's made as a second pane comes;
+    // and the divider between two panes where the user left it, kept with the layout.
+    const paneRows = new PaneRows(docs, strip);
+    const store = pageStorage();
+    docs.ratio = keptSplit(store, shell.storageKey);
     let nextId = 0;
     // The Log, which every part of the shell writes to.
     const log = (level, text) => parts.log.appendEntry({ level, message: text });
@@ -166,6 +175,7 @@ export function connectShell(shell, options) {
         appName,
         about: options.about ?? [],
         tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
+        layoutGraph: (layout) => graph.setLayout(layout),
     });
     stops.push(() => popovers.dispose());
     // The shell's confirm dialog, one question at a time (questions.ts), for a host with none.
@@ -222,8 +232,10 @@ export function connectShell(shell, options) {
     }
     function paint() {
         const active = tabs.active;
-        for (const tab of tabs.items)
-            tab.panel.hidden = tab !== active;
+        // Each pane its tab, side by side; at Root, none, and one pane, where the graph fills the area.
+        slotPanels(tabs, !!active);
+        docs.split = !!active && tabs.panes.length > 1;
+        docs.focusedPane = tabs.focused;
         // Root: the relationship graph while files are open, the welcome while none is.
         docs.welcome = tabs.items.length === 0;
         parts.graphPanel.hidden = !!active || tabs.items.length === 0;
@@ -235,7 +247,7 @@ export function connectShell(shell, options) {
             document.title = title;
         // The window's edited mark (macOS), and the host's cue to ask before it closes.
         host.setEdited?.(tabs.items.some((t) => t.dirty));
-        status.textContent = statusOf(active);
+        Object.assign(status, statusOf(active));
         later();
     }
     // What follows the active table's selection and source (the toolbar's buttons, the Explorer, the
@@ -261,13 +273,11 @@ export function connectShell(shell, options) {
         // First: at Root, the location bar draws the file the inspector shows.
         followInspector();
         toolbar.items = toolbarItems(toolbarState());
-        // The tab row, each tab as its selection names it (the section it is in), here with what else
-        // follows a selection; hidden at Root, where the graph fills the center, and with no file open.
-        strip.tabs = tabs.items.map((t) => docTabOf(t, titleOf(t.path)));
-        strip.active = active?.id ?? '';
-        if (!active && strip.shadowRoot?.activeElement)
+        // Each pane's tab row, each tab as its selection names it (the section it is in), here with what
+        // else follows a selection; hidden at Root, where the graph fills the center, and with no file open.
+        if (!active && paneRows.holdsFocus())
             rootTakesTheKeyboard();
-        strip.hidden = !active;
+        paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOf(t.path)));
         explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })));
         // The rows the active table holds now: its paint, the entries repainted since, the children
         // it was answered; none for a project page or a file still being read.
@@ -276,7 +286,7 @@ export function connectShell(shell, options) {
         const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
         explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
         const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
-        const at = locationOf(place, rowId, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
+        const at = locationOf(place, active?.selection ?? null, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
         nav.located(at);
         located = at.segments;
         location.segments = at.segments;
@@ -291,22 +301,90 @@ export function connectShell(shell, options) {
     }
     // The tab row hides at Root with the focus on one of its tabs (Alt+Up from a tab): rather than fall
     // to the page's body, the keyboard goes to the Explorer's Root row, where the user went, or, with
-    // the Explorer off screen, to the graph that fills the center where the row was (once it is drawn,
-    // if it is still being built).
+    // the Explorer off screen, to what fills the center where the row was: the graph (once it is
+    // drawn, if it is still being built), or with the last file closed the welcome's Open File….
     function rootTakesTheKeyboard() {
-        strip.shadowRoot?.activeElement?.blur();
+        paneRows.blur();
         const left = shell.layout.left;
         if (left.open && left.view === 'explorer' && explorer.focusRow({ fileId: null }))
             return;
-        parts.graph.focus();
+        if (tabs.items.length === 0)
+            docs.focusOpenFile();
+        else
+            parts.graph.focus();
     }
     // Another tab is the active one (or none, at Root): the variable editor was the last one's, and
-    // everything that follows the active tab follows this one; the user has been here.
+    // everything that follows the active tab follows this one; the user has been here. Closed, the
+    // editor gives the keyboard back to its glyph in the table it was opened from, which may be in
+    // the other pane: that is no press of the user's there (showing, below).
+    let showing = 0;
     function shown() {
-        editor.close();
-        paint();
-        follow();
-        visit();
+        showing++;
+        try {
+            editor.close();
+            paint();
+            follow();
+            visit();
+        }
+        finally {
+            showing--;
+        }
+    }
+    // The tabs moved between the panes, or a pane came or went: shown, if the active tab is another
+    // now (the tab moved is shown, and focused, where it went), else drawn again where they are.
+    function rearranged(before) {
+        if (tabs.active !== before)
+            shown();
+        else
+            paint();
+    }
+    // A tab moved to the other pane, or into a pane of its own, by `change` (a drop, a move along
+    // the rows, Split Right): rearranged, if it moved. A press on a tab focuses it, so a drag of one
+    // starts with the keyboard on it, as does a chord pressed on one: the keyboard goes with the tab,
+    // to the focused pane's row once that row is drawn (later's refresh, queued before), rather than
+    // to the body as the tab's element leaves the row it was in.
+    function rearrange(change) {
+        const before = tabs.active;
+        const keyboard = paneRows.holdsFocus();
+        if (!change())
+            return;
+        rearranged(before);
+        if (keyboard) {
+            queueMicrotask(() => {
+                if (!disposed)
+                    paneRows.rows[tabs.focused]?.focusActive();
+            });
+        }
+    }
+    // The user is in the pane `pane`: a press or the focus came into it. Not at Root, where the graph
+    // fills the first pane's place, nor while the shell itself is moving the keyboard.
+    function focusPane(pane) {
+        if (showing > 0 || !tabs.active)
+            return;
+        if (tabs.focus(pane))
+            shown();
+    }
+    // Mod+1 or Mod+2: the pane `pane` focused (from Root, the documents shown again), and the
+    // keyboard put on its active tab once its row is drawn (later's refresh, queued before), so the
+    // next key pressed is that pane's.
+    function goToPane(pane) {
+        if (pane >= tabs.panes.length || tabs.items.length === 0)
+            return;
+        if (tabs.focus(pane))
+            shown();
+        queueMicrotask(() => {
+            if (!disposed)
+                paneRows.rows[pane]?.focusActive();
+        });
+    }
+    // What the panes' commands would do now, for the palette's rows.
+    function paneCommands() {
+        const active = tabs.active;
+        return {
+            splitRight: !!active && tabs.splits(active, 'right'),
+            moveToOther: !!active && tabs.splits(active, tabs.otherSide(active)),
+            panes: tabs.items.length === 0 ? 0 : tabs.panes.length,
+        };
     }
     function activate(tab) {
         if (tabs.activate(tab))
@@ -325,9 +403,10 @@ export function connectShell(shell, options) {
     }
     // --- Saving and closing ------------------------------------------------------------------------
     // Save writes over the file, Save As where the user says, which the tab then shows. A save
-    // that cannot be made says why.
+    // that cannot be made says why; one the host made a download of says so, as the file on disk is
+    // as it was.
     const saver = new Saver(host);
-    const saved = (name) => say('info', `Saved ${name}`, 2000);
+    const saved = (name, downloaded = false) => say('info', `${downloaded ? 'Downloaded' : 'Saved'} ${name}`, 2000);
     async function save(tab, as = false, fromCommand = false) {
         // The Terminal's lines before it are the document's first: an edit one made went to the source,
         // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
@@ -344,10 +423,10 @@ export function connectShell(shell, options) {
         // that saved first does not go on.
         if (result.kind === 'saved' && result.overwritten) {
             await reloads.changedOnDisk(tab, true, true);
-            return !tab.doc?.dirty;
+            return tab.doc?.dirty ? false : 'saved';
         }
         if (result.kind === 'saved' && writes)
-            saved(tab.name);
+            saved(tab.name, result.downloaded);
         if (result.kind === 'saved-as') {
             close(tab);
             saved((await open(result.path)).name);
@@ -360,8 +439,12 @@ export function connectShell(shell, options) {
             popovers.closeAll();
             dialog.show({ title: `Could Not Save ${tab.name}`, reason: result.error });
         }
-        return result.kind !== 'not-saved';
+        if (result.kind === 'not-saved')
+            return false;
+        return result.kind === 'saved' && result.downloaded ? 'downloaded' : 'saved';
     }
+    /** Whether `tab` was saved, written or downloaded: what a close waiting on its save goes on by. */
+    const saveOk = async (tab) => (await save(tab)) !== false;
     // A tab with unsaved edits closes once the user says to save them (and they are) or discard them.
     // An edit a Terminal line still running makes is one too, as it is for a save.
     async function requestClose(tab) {
@@ -369,7 +452,7 @@ export function connectShell(shell, options) {
         // What a cell editor still open holds is an unsaved edit too, and so is an inspector field's.
         inspector.commit();
         await tab.handle?.commitEdit();
-        if ((await settle([tab], confirmClose, (t) => save(t))) && tabs.items.includes(tab))
+        if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab))
             close(tab);
     }
     // A tab's listeners, table and document let go, and the host told its file is closed.
@@ -383,15 +466,13 @@ export function connectShell(shell, options) {
     function close(tab) {
         release(tab);
         tab.panel.remove();
-        const wasActive = tab === tabs.active;
+        const before = tabs.active;
+        // A pane left with no tab goes, and the other is focused: its tab is then the active one.
         tabs.remove(tab);
         // Back must not land on a place that went with the tab, nor a question stay up about it.
         nav.forget(tab.id);
         questions.recheck();
-        if (wasActive)
-            shown();
-        else
-            paint();
+        rearranged(before);
     }
     // --- Opening -----------------------------------------------------------------------------------
     /**
@@ -413,11 +494,8 @@ export function connectShell(shell, options) {
             await existing.ready;
             return existing;
         }
-        const replaced = how.preview ? tabs.find((t) => !!t.preview && !t.dirty) : undefined;
-        const at = replaced ? tabs.items.indexOf(replaced) : -1;
-        // Its neighbour is active only until the new tab is: no place the user went to.
-        if (replaced)
-            nav.quietly(() => close(replaced));
+        // One preview tab in each pane: the focused pane's, which the new tab goes into.
+        const replaced = how.preview ? tabs.panes[tabs.focused]?.items.find((t) => !!t.preview && !t.dirty) : undefined;
         const panel = document.createElement('section');
         panel.className = 'doc-panel';
         panel.setAttribute('role', 'tabpanel');
@@ -427,8 +505,13 @@ export function connectShell(shell, options) {
         const name = isProjectFile(path) ? projectFallbackName(path) : basenameOf(path);
         const tab = { id: `tab-${++nextId}`, path, name, panel, preview: !!how.preview, selection: [], stops: [], ready: Promise.resolve() };
         tabs.add(tab);
-        if (at >= 0)
-            tabs.move(tab, at);
+        // In the preview's place, which closes once the new tab is there, so the pane is never left
+        // without a tab (it would go); the preview was not the active tab by then, and its close is
+        // no place the user went to.
+        if (replaced) {
+            tabs.move(tab, tabs.panes[tabs.focused].items.indexOf(replaced));
+            nav.quietly(() => close(replaced));
+        }
         shown();
         // Until the file is shown (its table, its banner, its page), the panel says it is opening it.
         const note = openingNote(tab);
@@ -497,11 +580,12 @@ export function connectShell(shell, options) {
                 if (note)
                     say('info', note, 2000);
             }), 
-            // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box) brought forward.
+            // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box)
+            // brought forward, and the keyboard kept as Show Graph's is (showRootFrom).
             handle.on('action', ({ actionId, rowId }) => {
                 if (actionId !== SHOW_IN_GRAPH.id)
                     return;
-                showRoot();
+                showRootFrom(tab.panel, showRoot, rootTakesTheKeyboard);
                 graph.showRow(uri, tab.table?.rows ?? [], rowId);
             }), 
             // For the toolbar, the Explorer and the Gallery: each whole paint, the first too (which no
@@ -629,7 +713,7 @@ export function connectShell(shell, options) {
             if (parts.modalOpen())
                 return;
             popovers.closeAll();
-            return parts.palette.show(paletteCommands(toolbarState()));
+            return parts.palette.show(paletteCommands(toolbarState(), paneCommands()));
         }
         const view = viewOfCommand(id);
         if (view) {
@@ -647,7 +731,21 @@ export function connectShell(shell, options) {
         });
     }
     // What the document commands are carried out with (carryOut.ts).
-    const carrying = { host, tabs, nav, openPaths, openNew, save, close: (tab) => void requestClose(tab), shown, later, failed };
+    const carrying = {
+        host,
+        tabs,
+        nav,
+        openPaths,
+        openNew,
+        save: async (tab, as) => (await save(tab, as)) !== false,
+        close: (tab) => void requestClose(tab),
+        shown,
+        keyboardToRoot: rootTakesTheKeyboard,
+        rearrange,
+        goToPane,
+        later,
+        failed,
+    };
     // --- The modules' views ------------------------------------------------------------------------
     // Raw, Search, the Gallery and the Terminal (modules.ts), over the active tab and the folder.
     const modules = connectModules({
@@ -658,9 +756,11 @@ export function connectShell(shell, options) {
         tabs: () => tabs.items,
         folder: folderNow,
         openOn,
+        // The Terminal's line says what the toast does: a download is no save over the file.
         async save(tab) {
-            if (await save(tab, false, true))
-                return `Saved ${tab.name}.`;
+            const how = await save(tab, false, true);
+            if (how)
+                return `${how === 'downloaded' ? 'Downloaded' : 'Saved'} ${tab.name}.`;
             throw new Error(`${tab.name} was not saved.`);
         },
         failed,
@@ -677,8 +777,11 @@ export function connectShell(shell, options) {
         failed,
         // Its selection is the inspector's page at Root, and the location bar's dimmed file.
         selected: later,
+        titleOf,
     });
     stops.push(() => graph.dispose());
+    // Drawn in the layout Settings names from the start; a change of it is told through layoutGraph.
+    graph.setLayout(popovers.graphLayout());
     // --- The parts' requests -----------------------------------------------------------------------
     // Each part's request (requests.ts), a tab named by its id.
     stops.push(connectRequests(shell, parts, {
@@ -688,7 +791,17 @@ export function connectShell(shell, options) {
         close: (tab) => void requestClose(tab),
         save: (tab, as) => void save(tab, as),
         pin,
-        move: (tab, index) => tabs.move(tab, index) && paint(),
+        move(tab, index, pane) {
+            // Along its own row, the shown tab kept; into the other pane's, shown and focused there.
+            if (tabs.paneOf(tab) !== pane)
+                return rearrange(() => tabs.moveTo(tab, pane, index));
+            if (tabs.move(tab, index))
+                paint();
+        },
+        paneOfRow: (row) => paneRows.paneOf(row),
+        focusPane,
+        drop: (tab, pane, side) => rearrange(() => (side ? tabs.split(tab, side) : tabs.moveTo(tab, pane))),
+        resized: (ratio) => keepSplit(store, shell.storageKey, ratio),
         showRoot,
         toStep(index) {
             // The dimmed file at Root opens, as a double-click on its box does; any other is a place.
@@ -708,7 +821,16 @@ export function connectShell(shell, options) {
         },
     }));
     // New's chord only for a host that makes files, asked at each press as the host's members are.
-    stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers: (id) => id !== 'new-file' || !!host.newFile }));
+    // Mod+1 and Mod+2 only while the documents are in two panes: with one, they are the browser's,
+    // which switches its own tabs by them.
+    const offers = (id) => {
+        if (id === 'new-file')
+            return !!host.newFile;
+        if (id === 'focus-pane-1' || id === 'focus-pane-2')
+            return tabs.panes.length > 1;
+        return true;
+    };
+    stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers }));
     // Files dragged over the page, where the page's installFileDrop takes them: the documents' area
     // is outlined as where they open.
     stops.push(followDropMark(docs, (dragging) => (docs.dropping = dragging)));
@@ -787,7 +909,7 @@ export function connectShell(shell, options) {
             await modules.idle();
             inspector.commit();
             await Promise.all(tabs.items.map((t) => t.handle?.commitEdit()));
-            return settle(tabs.items, confirmClose, (t) => save(t));
+            return settle(tabs.items, confirmClose, saveOk);
         },
         dispose() {
             if (disposed)

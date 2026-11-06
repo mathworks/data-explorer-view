@@ -15,10 +15,27 @@ export interface CarryOutContext {
     close(tab: OpenTab): void;
     /** Another tab is active: everything that follows the active tab follows it. */
     shown(): void;
+    /** Root is shown: the keyboard to the Explorer's Root row, or to what fills the center. */
+    keyboardToRoot(): void;
+    /**
+     * Move a tab between the panes by `change` (true if it moved): shown where it went, the keyboard
+     * going with it from a tab row that had it.
+     */
+    rearrange(change: () => boolean): void;
+    /** Go to the pane at `index` (0 the left): focused, the keyboard on its active tab. Nothing for a pane there is not. */
+    goToPane(index: number): void;
     later(): void;
     /** Something could not be done: say so. */
     failed(message: string): void;
 }
+/**
+ * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel
+ * (a table's, Show Graph's chord or Show in Graph used there) to the page's body: that one goes to
+ * `toRoot`, where the tab row's does as Root shows. Read before the panel hides, by the shadow host
+ * the focus is in, which :focus-within matches the panel by; and let go of first, as the tab row's
+ * is, so a graph still being drawn takes it once it is.
+ */
+export declare function showRootFrom(panel: HTMLElement | undefined, show: () => void, toRoot: () => void): void;
 /**
  * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
  * `untitled1.sldd` and on, as Simulink names a new model, so two new files are told apart.

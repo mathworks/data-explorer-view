@@ -59,9 +59,27 @@ type `string` · default `''` · attribute `active`, reflected
 
 The id of the tab shown, which is marked selected and scrolled into view. Default none. Attribute `active`.
 
+### `group`
+
+type `string` · default `''` · attribute `group`, reflected
+
+Rows of one page with the same group take each other's tabs (an app's two panes, side by
+side): a tab dragged from one and dropped on the other is that row's `dex-tab-move`, with an id
+not in its `tabs`. Empty, the default: the row takes only its own tabs. Attribute `group`.
+
+### `unfocused`
+
+type `boolean` · default `false` · attribute `unfocused`, reflected
+
+The row is of a pane the user is not in: its active tab's mark is drawn in a muted grey, the
+accent kept for the focused pane's row. Default false. Attribute `unfocused`.
+
 ## Methods
 
-None.
+### `focusActive(): void`
+
+Puts the keyboard on the active tab, once it is drawn: an app's chord that takes the user to
+this row's pane. Nothing for a row with no active tab.
 
 ## Events
 
@@ -111,14 +129,16 @@ export interface TabPinDetail {
 
 ### `dex-tab-move`
 
-Move this tab: it was dropped on the tab at `index`. Remove it from `tabs`, then insert it at `index`.
+Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from
+`tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert.
 
 `detail` is a `TabMoveDetail`:
 
 ```ts
 /**
  * What `dex-tab-move` carries: the tab dragged, and its index once moved, which is the index of the
- * tab it was dropped on. Remove it from `tabs`, then insert it at `index`.
+ * tab it was dropped on. Remove it from `tabs`, then insert it at `index`. A tab dragged from
+ * another row of the same `group` is not in `tabs`: insert it at `index`.
  */
 export interface TabMoveDetail {
   id: string;

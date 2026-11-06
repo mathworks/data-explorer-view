@@ -15,10 +15,17 @@ export interface ShellSettings {
     iconStyle: 'minimal' | 'colorful';
     /** How the tables are ruled: `grid`, a line round every cell, or `rows`, a faint line between rows alone. */
     tableStyle: 'grid' | 'rows';
+    /**
+     * How Root's relationship graph is laid out, in the graph's own words (GraphLayoutStyle): `tree`,
+     * two columns of top-down trees, or `indented`, each column a file tree, one box a row, which
+     * draws a large set of files narrower and so at a larger scale.
+     */
+    graphLayout: 'tree' | 'indented';
 }
 /**
  * The settings before anyone changes them: the system's theme, the labelled toolbar, the icons in
- * one colour (the prototype's default), and the tables in a grid (the table's own).
+ * one colour (the prototype's default), the tables in a grid (the table's own), and the graph in
+ * top-down trees (the graph's own).
  */
 export declare const DEFAULT_SETTINGS: ShellSettings;
 /** The part of the Web Storage API the settings use: `localStorage` is one. */

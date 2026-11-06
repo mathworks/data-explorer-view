@@ -13,12 +13,14 @@ export interface Savable {
     bytes?: Uint8Array;
 }
 /**
- * How a save ended: over its own file (and whether another program then wrote over it), at another
- * path (Save As), or not at all (and why, if it failed).
+ * How a save ended: over its own file (and whether another program then wrote over it, or whether
+ * the host handed it to the user as a download instead), at another path (Save As), or not at all
+ * (and why, if it failed).
  */
 export type SaveResult = {
     kind: 'saved';
     overwritten?: boolean;
+    downloaded?: boolean;
 } | {
     kind: 'saved-as';
     path: string;

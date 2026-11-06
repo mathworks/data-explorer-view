@@ -103,8 +103,9 @@ const str = (x) => (typeof x === 'string' ? x : '');
  * A table row's Usage cell (`UsedBy`) as a group of the inspector's, its links the cell's: for a
  * block's row, what its parameters read ("Uses": each parameter, its value a link to the variable,
  * or core's own cell before a usage graph filled it); for any other, who uses it ("Used By": each
- * block a link to it, with its path and model, or core's own list of links). Null for a cell with
- * nothing in it, which the page leaves out.
+ * block a link to it, with its path where the block is inside a subsystem and its model where it is
+ * another's, or core's own list of links). Null for a cell with nothing in it, which the page leaves
+ * out.
  */
 export function usedByGroup(row) {
     const cell = row?.UsedBy;
@@ -115,8 +116,12 @@ export function usedByGroup(row) {
     }
     else if (isRecord(cell) && 'blockLinks' in cell) {
         for (const b of Array.isArray(cell.blockLinks) ? cell.blockLinks.filter(isRecord) : []) {
+            // What the block's name does not say, as the table's cell reads it: its path, where the block
+            // is not at the top of its system (there the path is the name, which said again read "K: K"),
+            // and its model, where it is another's than the row's (the cell names its own model not).
             const model = str(b.modelName);
-            const where = `${str(b.blockPath)}${model ? ` (${model})` : ''}`;
+            const path = str(b.blockPath) === str(b.blockName) ? '' : str(b.blockPath);
+            const where = [path, model ? `(${model})` : ''].filter((part) => part !== '').join(' ');
             const target = str(b.linkTarget);
             rows.push(target ? { name: str(b.blockName), value: where, editable: false, type: 'link', linkTarget: target } : text(str(b.blockName), where));
         }
@@ -183,9 +188,10 @@ const FILE_EDGES = new Set(['model-ref', 'sldd-ref', 'data-link']);
  * the graph knows of the file (it need not be open: the graph draws a folder's files too), its
  * References and Referenced By the boxes its edges between files reach, each a link to its file (a
  * ghost, a file referenced and not found, by the name it was referenced by). `open` says whether a
- * file is open, and holding edits. Null for an id the graph does not draw.
+ * file is open, and holding edits; `titleOf` what to say of where it is, its path in the host's
+ * words (default the path). Null for an id the graph does not draw.
  */
-export function graphFilePage(graph, id, open) {
+export function graphFilePage(graph, id, open, titleOf = (path) => path) {
     const box = graph.boxes.find((b) => b.id === id) ?? graph.boxes.find((b) => b.items.some((i) => i.id === id));
     if (!box)
         return null;
@@ -209,7 +215,7 @@ export function graphFilePage(graph, id, open) {
     const state = box.ghost ? undefined : open(box.uri);
     const groups = filePropertyGroups({
         name: box.label,
-        path: box.ghost ? '' : uriPath(box.uri),
+        path: box.ghost ? '' : titleOf(uriPath(box.uri)),
         ...(state ? { modified: state.dirty } : {}),
         ...(box.ghost ? { more: [text('File', 'Not found')] } : {}),
         references: linked((edge) => (edge.from === box.id ? edge.to : null)),

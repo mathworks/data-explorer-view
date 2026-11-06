@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The app shell's settings: the theme, how dense the toolbar is, whether the shell's own buttons
-// draw their icons in one colour, and how the tables are ruled. The Settings popover changes them;
+// draw their icons in one colour, how the tables are ruled, and how Root's relationship graph is
+// laid out. The Settings popover changes them;
 // the shell keeps them in a key-value store (an app passes its localStorage) and reads them back
 // when it starts.
 //
@@ -19,13 +20,21 @@
 // the model naming a DOM type, and a test's Map-backed store is another.
 /**
  * The settings before anyone changes them: the system's theme, the labelled toolbar, the icons in
- * one colour (the prototype's default), and the tables in a grid (the table's own).
+ * one colour (the prototype's default), the tables in a grid (the table's own), and the graph in
+ * top-down trees (the graph's own).
  */
-export const DEFAULT_SETTINGS = Object.freeze({ theme: 'auto', toolbar: 'normal', iconStyle: 'minimal', tableStyle: 'grid' });
+export const DEFAULT_SETTINGS = Object.freeze({
+    theme: 'auto',
+    toolbar: 'normal',
+    iconStyle: 'minimal',
+    tableStyle: 'grid',
+    graphLayout: 'tree',
+});
 const THEMES = ['auto', 'light', 'dark', 'high-contrast'];
 const TOOLBARS = ['normal', 'compact'];
 const ICON_STYLES = ['minimal', 'colorful'];
 const TABLE_STYLES = ['grid', 'rows'];
+const GRAPH_LAYOUTS = ['tree', 'indented'];
 /** The field `name` of `record` when it is one of `known`, else its default. */
 function field(record, name, known) {
     const value = record[name];
@@ -48,12 +57,14 @@ export function readSettings(store, key) {
         kept = undefined;
     }
     const record = typeof kept === 'object' && kept !== null && !Array.isArray(kept) ? kept : {};
-    // A record an earlier version kept has no icon or table style: those come to their defaults.
+    // A record an earlier version kept has no icon or table style, or no graph layout: those come to
+    // their defaults.
     return {
         theme: field(record, 'theme', THEMES),
         toolbar: field(record, 'toolbar', TOOLBARS),
         iconStyle: field(record, 'iconStyle', ICON_STYLES),
         tableStyle: field(record, 'tableStyle', TABLE_STYLES),
+        graphLayout: field(record, 'graphLayout', GRAPH_LAYOUTS),
     };
 }
 /**
@@ -64,8 +75,8 @@ export function readSettings(store, key) {
  */
 export function writeSettings(store, key, settings) {
     try {
-        const { theme, toolbar, iconStyle, tableStyle } = settings;
-        store?.setItem(key, JSON.stringify({ theme, toolbar, iconStyle, tableStyle }));
+        const { theme, toolbar, iconStyle, tableStyle, graphLayout } = settings;
+        store?.setItem(key, JSON.stringify({ theme, toolbar, iconStyle, tableStyle, graphLayout }));
     }
     catch {
         // A refused write: see above.

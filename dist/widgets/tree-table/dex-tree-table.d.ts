@@ -444,7 +444,9 @@ export declare class DexTreeTable extends LitElement {
     private _onRowDragStart;
     private _setDragImage;
     private _boundFollow;
+    private _hintFrame;
     private _followDrag;
+    private _cancelHint;
     private _stopFollowingDrag;
     private _onRowDragEnd;
     private _onRowDragOver;

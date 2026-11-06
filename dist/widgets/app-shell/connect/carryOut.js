@@ -7,6 +7,28 @@
 // connectShell's, before any of this.
 import { tableActionOf } from './toolbarItems.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
+/** The element the focus is on, through the shadow roots on the way: a table's grid, not it. */
+function focusedElement() {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement)
+        el = el.shadowRoot.activeElement;
+    return el;
+}
+/**
+ * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel
+ * (a table's, Show Graph's chord or Show in Graph used there) to the page's body: that one goes to
+ * `toRoot`, where the tab row's does as Root shows. Read before the panel hides, by the shadow host
+ * the focus is in, which :focus-within matches the panel by; and let go of first, as the tab row's
+ * is, so a graph still being drawn takes it once it is.
+ */
+export function showRootFrom(panel, show, toRoot) {
+    const held = !!panel && !!document.activeElement && panel.contains(document.activeElement);
+    show();
+    if (!held)
+        return;
+    focusedElement()?.blur();
+    toRoot();
+}
 /**
  * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
  * `untitled1.sldd` and on, as Simulink names a new model, so two new files are told apart.
@@ -66,8 +88,19 @@ export function carryOut(id, tab, on) {
             break;
         case 'next-tab':
         case 'previous-tab':
+            // Round the focused pane's tabs: the other pane's are a Mod+1 or Mod+2 away.
             if (on.tabs.cycle(id === 'next-tab' ? 1 : -1))
                 on.shown();
+            break;
+        case 'split-right':
+        case 'move-to-other-pane':
+            // The tab moves, and is shown and focused where it went; a pane's only tab makes no new pane.
+            if (tab)
+                on.rearrange(() => on.tabs.split(tab, id === 'split-right' ? 'right' : on.tabs.otherSide(tab)));
+            break;
+        case 'focus-pane-1':
+        case 'focus-pane-2':
+            on.goToPane(id === 'focus-pane-1' ? 0 : 1);
             break;
         case 'focus-filter':
             tab?.table?.focusFilter();
@@ -79,9 +112,11 @@ export function carryOut(id, tab, on) {
             on.later();
             break;
         case 'show-graph':
-            // The Explorer's Root, where the relationship graph is drawn.
-            if (on.tabs.deactivate())
-                on.shown();
+            // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).
+            showRootFrom(on.tabs.active?.panel, () => {
+                if (on.tabs.deactivate())
+                    on.shown();
+            }, on.keyboardToRoot);
             break;
     }
 }
