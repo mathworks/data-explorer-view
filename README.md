@@ -599,6 +599,64 @@ addEventListener('beforeunload', (e) => {
 });
 ```
 
+### What a page adds
+
+A page tells the user something of its own with `app.notify`: a toast in the
+window's corner, and the same line in the Log. An `'info'` notice (the
+default) goes by itself; a `'warning'` or an `'error'` stays until it is closed.
+
+```js
+app.notify({ level: 'warning', text: 'samples/plant.slx could not be fetched: 404 Not Found' });
+```
+
+A button of its own goes on an activity bar as a `<dex-shell-action>` the page
+adds to the shell after `connectShell`. The shell draws it after Settings and
+About (on the right bar with `side="right"`), and a press of it, or of its
+`shortcut`, sends `dex-shell-action` from the shell with the action's id and
+the button's box, for the page to answer; the shell answers only its own.
+`settings` and `about` are the shell's ids: an action of the page's with one
+of them is not drawn. The page's actions stay its own, and `app.dispose()`
+leaves them in the shell.
+
+```js
+shell.insertAdjacentHTML('beforeend', '<dex-shell-action side="left" action="samples" label="Samples" icon="documentList"></dex-shell-action>');
+shell.addEventListener('dex-shell-action', (e) => {
+  if (e.detail.actionId === 'samples') openSamples(); // e.detail.anchor: the button's box, for a popover
+});
+```
+
+The Settings' Auto follows the system's theme: the page's media queries
+(`prefers-color-scheme`, `prefers-contrast`, `forced-colors`), or the
+`systemTheme` source the host passes (`{ now(), on(listener) }`). A host that
+hears the theme only once the page is up, as an Electron page hears
+`nativeTheme` over IPC, tells it with `app.setSystemTheme(theme)` (`'light'`,
+`'dark'` or `'high-contrast'`), at once and on each change: from its first
+call the shell follows what the host tells, and no longer the source.
+
+```js
+window.api.ready().then(({ theme }) => app.setSystemTheme(theme));
+window.api.onTheme((theme) => app.setSystemTheme(theme));
+```
+
+About's lines can go under a heading, by `section`: the lines with none come
+first, under the app's name, then each section under its heading. This
+package's version is `VIEW_VERSION`, from `data-explorer-view/model`. Core
+exports no version of its own: an app that shows it reads it at its build,
+as it reads its own.
+
+```js
+import { VIEW_VERSION } from 'data-explorer-view/model';
+
+const app = connectShell(shell, {
+  host,
+  appName: 'My app',
+  about: [
+    { label: 'Version', value: '1.0.0' },
+    { label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' },
+  ],
+});
+```
+
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus

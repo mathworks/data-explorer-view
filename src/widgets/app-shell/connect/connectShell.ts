@@ -58,7 +58,7 @@ import { inPageQuestions, shellPrompts } from './questions.js';
 import { ReloadGate } from './reload.js';
 import { Saver, settle } from './saving.js';
 import { TabList } from './tabs.js';
-import { systemThemeFromMedia } from './theme.js';
+import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, type CarryOutContext } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
@@ -130,8 +130,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       log(notice.level === 'status' ? 'info' : notice.level, notice.message);
     },
   });
-  // What the shell must say: a toast, and its line in the Log; what it caught, as an error.
-  const say = (level: 'info' | 'error', text: string, ms?: number): void => {
+  // What the shell must say: a toast, and its line in the Log; what it caught, as an error. A
+  // page's own notice (notify) is said the same way.
+  const say = (level: LogLevel, text: string, ms?: number): void => {
     toasts.show({ level, message: text, ...(ms === undefined ? {} : { ms }) });
     log(level, text);
   };
@@ -154,10 +155,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
   const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
 
+  // The system's theme for Auto: the source the host gave (the page's media queries by default),
+  // until the host tells one itself (setSystemTheme).
+  const system = settableSystemTheme(options.systemTheme ?? systemThemeFromMedia());
   const popovers = connectPopovers(shell, parts, {
     store: pageStorage(),
     key: `${key}:settings`,
-    system: options.systemTheme ?? systemThemeFromMedia(),
+    system,
     appName,
     about: options.about ?? [],
     tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
@@ -656,6 +660,14 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
     },
     command,
+    notify({ level, text }) {
+      if (disposed) return;
+      // A level from a page in plain JavaScript that is none of the three is the plainest.
+      say(level === 'warning' || level === 'error' ? level : 'info', text);
+    },
+    setSystemTheme(theme) {
+      if (!disposed) system.set(theme);
+    },
     async requestClose() {
       if (disposed) return true;
       await modules.idle();

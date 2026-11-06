@@ -127,13 +127,28 @@ export interface ConnectShellOptions {
    * the shell's own `storage-key`, which is set to `${key}:layout` when the shell has none.
    */
   storageKey?: string;
-  /** The system's theme, for the Auto setting. Default the page's media queries (`systemThemeFromMedia`). */
+  /**
+   * The system's theme, for the Auto setting, for a host that can be asked it now and told of its
+   * changes. Default the page's media queries (`systemThemeFromMedia`). A host that hears it only
+   * after connecting tells it with `ShellHandle.setSystemTheme`.
+   */
   systemTheme?: { now(): Theme; on(listener: (theme: Theme) => void): () => void };
   /**
    * The host has a native menu that owns the File and Edit chords (Electron's): the shell then
    * answers only those a native menu cannot (Back, Forward, Up, Save All and Settings).
    */
   nativeMenu?: boolean;
+}
+
+/** What a page tells the user through the shell (ShellHandle.notify): a toast, and its line in the Log. */
+export interface ShellNotice {
+  /**
+   * How much it matters, as the Log's levels: 'info' goes by itself after a few seconds; a
+   * 'warning' or an 'error' stays until its × is pressed, since it has to be read. Default 'info'.
+   */
+  level?: 'info' | 'warning' | 'error';
+  /** What it says, as text (a line break in it starts a new line). */
+  text: string;
 }
 
 /** A connected shell: what a host drives it by. */
@@ -146,6 +161,20 @@ export interface ShellHandle {
   fileChanged(path: string): void;
   /** Carry out a command, as its toolbar button or chord does. */
   command(id: ShellCommand): void;
+  /**
+   * Tell the user something of the page's own (a file it fetched that could not be, a drop it could
+   * not read): a toast in the window's corner, and the same line in the Log, which keeps what a
+   * toast lets go by.
+   */
+  notify(notice: ShellNotice): void;
+  /**
+   * The system's theme is `theme`, for the Settings' Auto: for a host that hears the theme rather
+   * than asks for it (Electron's nativeTheme, told to the page over IPC once the page is up, then on
+   * each change). Auto draws the page in it at once; a theme the user chose stays. From the first
+   * call the shell follows what the host tells, and no longer the `systemTheme` source it was
+   * connected with (the page's media queries by default), so the two never take turns.
+   */
+  setSystemTheme(theme: Theme): void;
   /**
    * The window is to close: settle every unsaved edit (ask, then save or discard), and resolve to
    * whether it may close. Nothing closes here; the host closes the window on true.

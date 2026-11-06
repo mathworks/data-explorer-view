@@ -5,8 +5,11 @@
 // and systemThemeFromMedia reads the system's from the page's media queries for the Settings
 // popover's Auto: high contrast under forced colours or a request for more contrast, whatever the
 // colour scheme, else dark or light by the colour scheme, and every change of any of them heard.
+// settableSystemTheme lets a host tell the theme after the shell connects (Electron's nativeTheme
+// arrives over IPC, after the page is up): once told, the source is no longer heeded.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyTheme, systemThemeFromMedia } from '../../src/widgets/app-shell/connect/theme.js';
+import type { Theme } from '../../src/model/shell/settings.js';
+import { applyTheme, settableSystemTheme, systemThemeFromMedia } from '../../src/widgets/app-shell/connect/theme.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -73,5 +76,76 @@ describe('systemThemeFromMedia', () => {
     const system = systemThemeFromMedia();
     expect(system.now()).toBe('light');
     expect(() => system.on(() => {})()).not.toThrow();
+  });
+});
+
+describe('settableSystemTheme', () => {
+  /** A system theme source a test moves, as the page's media queries would. */
+  function source(initial: Theme) {
+    let now = initial;
+    const listeners = new Set<(t: Theme) => void>();
+    return {
+      now: () => now,
+      on: (l: (t: Theme) => void) => (listeners.add(l), () => void listeners.delete(l)),
+      move(t: Theme) {
+        now = t;
+        for (const l of listeners) l(t);
+      },
+      listening: () => listeners.size,
+    };
+  }
+
+  it("is the source's theme, and tells its changes, until a host tells one", () => {
+    const media = source('light');
+    const system = settableSystemTheme(media);
+    const heard: Theme[] = [];
+    system.on((t) => heard.push(t));
+    expect(system.now()).toBe('light');
+    media.move('dark');
+    expect(system.now()).toBe('dark');
+    expect(heard).toEqual(['dark']);
+  });
+
+  it('is what the host tells from then on: the source no longer heeded, so the two never take turns', () => {
+    const media = source('light');
+    const system = settableSystemTheme(media);
+    const heard: Theme[] = [];
+    system.on((t) => heard.push(t));
+    system.set('high-contrast');
+    expect(system.now()).toBe('high-contrast');
+    media.move('dark');
+    expect(system.now()).toBe('high-contrast');
+    system.set('dark');
+    expect(heard).toEqual(['high-contrast', 'dark']);
+  });
+
+  it('tells a change only: the theme it already is, told again, is no change', () => {
+    const system = settableSystemTheme(source('dark'));
+    const heard: Theme[] = [];
+    system.on((t) => heard.push(t));
+    system.set('dark');
+    system.set('light');
+    system.set('light');
+    expect(heard).toEqual(['light']);
+  });
+
+  it('passes over what is no theme, as a host in plain JavaScript may tell', () => {
+    const system = settableSystemTheme(source('dark'));
+    system.set('Dark' as Theme);
+    system.set(undefined as unknown as Theme);
+    expect(system.now()).toBe('dark');
+  });
+
+  it('stops telling a listener once it stops, and lets go of the source', () => {
+    const media = source('light');
+    const system = settableSystemTheme(media);
+    const heard: Theme[] = [];
+    const stop = system.on((t) => heard.push(t));
+    expect(media.listening()).toBe(1);
+    stop();
+    expect(media.listening()).toBe(0);
+    media.move('dark');
+    system.set('high-contrast');
+    expect(heard).toEqual([]);
   });
 });
