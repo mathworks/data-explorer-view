@@ -33,8 +33,13 @@ export interface ExplorerDrops {
   tabOfUri(uri: string): OpenTab | undefined;
   /** Say what a drop did. */
   dropped(text: string): void;
-  /** Say why the document refused a drop the Explorer took. */
-  refused(text: string): void;
+  /** A mark of what the workspace has said so far, taken as a drop is handed over, for `refused`. */
+  mark(): number;
+  /**
+   * Say why the document refused a drop the Explorer took, unless the workspace said it since `since`
+   * (a mark): a move that left its original behind is said by both.
+   */
+  refused(text: string, since: number): void;
 }
 
 /** Where a drop the Explorer takes lands: the tab, its table's row, the mode, and how to name the place. */
@@ -84,9 +89,10 @@ export function connectExplorerDrop(explorer: DexExplorer, on: ExplorerDrops): (
     const landing = judge(sectionId === undefined ? { fileId } : { fileId, sectionId }, mode)?.landing;
     if (!landing) return;
     // Handed over now, in the drop's own event: the drag's end, which follows, lets the entries go.
+    const since = on.mark();
     void landing.tab.handle!.drop(landing.rowId, landing.mode).then((result) => {
       if (result.dropped) on.dropped(dropNote(landing.mode, result.count, landing.where));
-      else if (result.reason) on.refused(result.reason);
+      else if (result.reason) on.refused(result.reason, since);
     });
   };
   explorer.addEventListener('dex-explorer-drop', onDrop);

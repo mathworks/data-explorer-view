@@ -168,8 +168,11 @@ const sectionsOf = (file: ExplorerFile): ExplorerSection[] => (Array.isArray(fil
  * the pointer, with the mode the keys held ask (a move; a copy with Option on macOS and Ctrl
  * elsewhere, as a drag in a table asks), and outlines the row in the accent for a drop it takes, in
  * the error colour for one it refuses, the answer's words its tooltip and said to a screen reader;
- * no answer draws nothing and takes no drop. A drop it still takes sends `dex-explorer-drop`, in the
- * mode of the last dragover. Root, a heading and a drag of anything else are no drop target.
+ * no answer draws nothing and takes no drop. The row carries the words in `data-drop-hint` too, and
+ * `data-drop-refused` for a refusal, which the dragged table's box at the pointer says (the tree
+ * table's `dragOut`): the browser shows no tooltip during a drag. A drop it still takes sends
+ * `dex-explorer-drop`, in the mode of the last dragover. Root, a heading and a drag of anything else
+ * are no drop target.
  *
  * @tagname dex-explorer
  */
@@ -273,7 +276,6 @@ export class DexExplorer extends LitElement {
 
     .row.drop-refused {
       box-shadow: inset 0 0 0 2px var(--dex-color-error, #d32f2f);
-      cursor: no-drop;
     }
 
     .sr-only {
@@ -659,7 +661,8 @@ export class DexExplorer extends LitElement {
     const level = line.kind === 'section' ? 2 : 1;
     const twisty = line.kind === 'file' && sectionsOf(line.file).length > 0;
     const open = line.kind === 'file' && line.open;
-    // A drag of table rows over it: its cue, and the predictor's words as its tooltip meanwhile.
+    // A drag of table rows over it: its cue, and the predictor's words as its tooltip meanwhile, and as
+    // the hint the dragged table's box at the pointer says (the browser shows no tooltip in a drag).
     const drop = this._drop?.key === line.key ? this._drop : null;
     const cue = drop ? (drop.canDrop ? ' drop-allowed' : ' drop-refused') : '';
     const title = drop?.tooltip || (line.kind === 'file' && line.file.title) || nothing;
@@ -675,6 +678,8 @@ export class DexExplorer extends LitElement {
         aria-selected=${String(line.key === selectedKey)}
         tabindex=${line.key === tabbable ? '0' : '-1'}
         title=${title}
+        data-drop-hint=${drop ? drop.tooltip : nothing}
+        data-drop-refused=${drop && !drop.canDrop ? '' : nothing}
         @click=${() => this._send(line, false)}
         @dblclick=${() => this._send(line, true)}
         @contextmenu=${(e: MouseEvent) => this._onContextMenu(e, line)}

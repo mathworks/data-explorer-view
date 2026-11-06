@@ -7,7 +7,8 @@
 // row under the pointer, with the mode the keys held ask (a move; a copy with Option on macOS and
 // Ctrl elsewhere, as a drag inside a table), and draws what it answers: an outline in the accent
 // for a drop it takes, in the error colour for one it refuses, the answer's words as the row's
-// tooltip and to a screen reader, and the cursor the drop would have; nothing for no answer. A drop
+// tooltip, to a screen reader, and as the hint the dragged table's box at the pointer says (the
+// browser shows no tooltip in a drag), and the cursor the drop would have; nothing for no answer. A drop
 // the predictor still takes sends `dex-explorer-drop` with the row and the mode of the LAST
 // dragover (the drop event's keys are unreliable on Chromium/macOS, as the table's comment says).
 // Root, a heading, and a drag of anything else (files from the OS) are no drop target.
@@ -142,6 +143,24 @@ describe('a row drag over a file or a section', () => {
     expect(dataTransfer.dropEffect).toBe('none');
     expect(rows(el).map(cue)).toEqual(['', '', '']);
     expect(announced(el)).toBe('');
+  });
+
+  it("marks the row with the words for the dragged table's box to say, the browser showing no tooltip in a drag", async () => {
+    let verdict = ALLOW;
+    const el = await explorer(() => verdict);
+    await over(el, 'v.mat');
+    const row = rowOf(el, 'v.mat');
+    expect(row.dataset.dropHint).toBe(ALLOW.tooltip);
+    expect(row.hasAttribute('data-drop-refused')).toBe(false);
+    verdict = REFUSE;
+    await over(el, 'v.mat');
+    expect(row.dataset.dropHint).toBe(REFUSE.tooltip);
+    expect(row.hasAttribute('data-drop-refused')).toBe(true);
+    fire(row, 'dragleave');
+    await el.updateComplete;
+    expect(row.hasAttribute('data-drop-hint')).toBe(false);
+    expect(row.hasAttribute('data-drop-refused')).toBe(false);
+    expect(rows(el).some((r) => r.hasAttribute('data-drop-hint'))).toBe(false);
   });
 
   it('keeps the title a file row has of its own (its path) under the cue, and gives it back after', async () => {

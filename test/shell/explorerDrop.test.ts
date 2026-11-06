@@ -21,9 +21,11 @@
 import { describe, expect, it } from 'vitest';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
 import {
+  choose,
   dirtyTabs,
   explorer,
   explorerRowOf,
+  menuOn,
   open,
   rowOf,
   selectTab,
@@ -78,7 +80,9 @@ async function startDrag(file: string, row: string) {
   const r = await rowOf(file, row);
   await tableOf(file)!.updateComplete;
   const transfer = stubTransfer();
-  const start = fire(trOf(file, r), 'dragstart', transfer);
+  // The row the drag started on, which the browser sends the dragend to, whatever became of it.
+  const from = trOf(file, r);
+  const start = fire(from, 'dragstart', transfer);
   return {
     transfer,
     start,
@@ -91,7 +95,7 @@ async function startDrag(file: string, row: string) {
     /** Let go over `at`, and the drag's end at the row it started on, as the browser follows a drop. */
     async drop(at: HTMLElement) {
       fire(at, 'drop', transfer);
-      fire(trOf(file, r), 'dragend', transfer);
+      fire(from, 'dragend', transfer);
       await explorer().updateComplete;
     },
   };
@@ -231,6 +235,42 @@ describe('a drop onto a section', () => {
     const drag = await startDrag('params.sldd', 'Kp');
     const shown = await drag.over(await sectionRow('acs_ref.slx', 'Model Elements'));
     expect(shown).toMatchObject({ taken: false, cue: 'refused', title: 'Nothing can be dropped in Model Elements' });
+  });
+});
+
+describe('a move within one document, and one whose original cannot be taken out', () => {
+  it("moves an entry into another section of the file it is in, as one edit its Undo takes back", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const drag = await startDrag('params.sldd', 'Kp');
+    expect(await drag.over(await sectionRow('params.sldd', 'Architectural Data'))).toMatchObject({ taken: true, cue: 'allowed' });
+    await drag.drop(await sectionRow('params.sldd', 'Architectural Data'));
+    const parentOfKp = () => tableOf('params.sldd')!.rows.filter((r) => r.Name.label === 'Kp').map((r) => r.parent);
+    await until(() => parentOfKp().join() === 'section:arch');
+    await until(() => toastTexts().includes('Entry moved to Architectural Data in params.sldd'));
+    expect(dirtyTabs()).toEqual(['params.sldd']);
+    page.command('undo');
+    await until(() => parentOfKp().join() === 'section:design');
+    await until(() => dirtyTabs().length === 0);
+  });
+
+  it('lands, and says once that the original could not be taken out, where it went from its file meanwhile', async () => {
+    const page = startPage(FILES);
+    await open(page, 'ParamMat.mat', 'params.sldd');
+    const drag = await startDrag('params.sldd', 'Kp');
+    // Deleted from its file while it is dragged: the move's delete there finds nothing to take out.
+    expect((await menuOn('params.sldd', 'Kp')).find((i) => i.id === 'delete')?.disabled).toBeFalsy();
+    choose('delete');
+    await until(() => !holds('params.sldd', 'Kp'));
+    expect(await drag.over(explorerRowOf('ParamMat.mat')!)).toMatchObject({ taken: true, cue: 'allowed' });
+    await drag.drop(explorerRowOf('ParamMat.mat')!);
+    await until(() => holds('ParamMat.mat', 'Kp'));
+    await until(() => toastTexts().some((t) => t.includes('the original in params.sldd')));
+    await settled(60);
+    const said = toastTexts().filter((t) => t.includes('the original in params.sldd'));
+    expect(said).toHaveLength(1);
+    // Not said to have moved: what happened is the message's.
+    expect(toastTexts()).not.toContain('Entry moved to ParamMat.mat');
   });
 });
 

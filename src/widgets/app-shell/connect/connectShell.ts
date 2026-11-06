@@ -129,19 +129,21 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // Its documents share one clipboard, so a row copied in one tab pastes into another, and one drag
   // register, whose drag in flight the Explorer's drops are judged by (explorerDrop.ts). What a
   // document says the table cannot show is a toast, as it stands, and a line of the Log, which
-  // keeps what a toast lets go by; the last few are kept, so that a drop's refusal the workspace
-  // said already (a move that left its original behind) is not said twice.
+  // keeps what a toast lets go by. Each is counted, and the latest kept, so that a drop's refusal the
+  // workspace said since the drop was handed over (a move that left its original behind) is not said
+  // twice.
   const registers = createRegisters();
   let dragging: DragDescriptor | null = null;
   stops.push(registers.listen({ drag: (descriptor) => void (dragging = descriptor) }));
-  const noticed: string[] = [];
+  let notices = 0;
+  const noticed: { at: number; message: string }[] = [];
   const ws = createWorkspace({
     editing: true,
     registers,
     usage: openUsage,
     notify(notice) {
-      noticed.push(notice.message);
-      if (noticed.length > 8) noticed.shift();
+      noticed.push({ at: ++notices, message: notice.message });
+      if (noticed.length > 16) noticed.shift();
       toasts.show(notice);
       log(notice.level === 'status' ? 'info' : notice.level, notice.message);
     },
@@ -701,8 +703,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       tabOf: (id) => tabs.find((t) => t.id === id),
       tabOfUri: (uri) => tabs.find((t) => t.doc?.uri === uri),
       dropped: (text) => say('info', text, 2000),
-      refused: (text) => {
-        if (!noticed.includes(text)) failed(text);
+      mark: () => notices,
+      refused: (text, since) => {
+        if (!noticed.some((n) => n.at > since && n.message === text)) failed(text);
       },
     }),
   );
