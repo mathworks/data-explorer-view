@@ -93,6 +93,11 @@ describe('the breadcrumb', () => {
     expect(getComputedStyle(segments(el)[1]!).opacity).toBe('0.7');
   });
 
+  it("tells a screen reader a segment's description, where it has one", async () => {
+    const el = await bar({ segments: [{ label: 'Root' }, { label: 'plant.sldd', preview: true, description: 'selected in the graph' }] });
+    expect(segments(el).map((b) => b.getAttribute('aria-description'))).toEqual([null, 'selected in the graph']);
+  });
+
   it('gives a segment its title as a tooltip, and one without none', async () => {
     const el = await bar({ segments: PATH });
     expect(segments(el).map((b) => b.getAttribute('title'))).toEqual([null, '/work/dd.sldd', null]);

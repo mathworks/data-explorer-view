@@ -168,6 +168,31 @@ describe('inspectorEditing', () => {
     expect(row(pages.at(-1), 'Name')?.value).toBe('Kp');
   });
 
+  it('is undone as a cell edit is, one step, and the page follows', async () => {
+    const { handle, last, select, table, rowNamed } = await mount('params.sldd', { editing: true, inspectorEditing: true }, true);
+    await select('Kp');
+    handle.edit({ rowId: rowNamed('Kp').ID, columnId: 'Value', oldValue: '1', newValue: '5' });
+    await settle(table);
+    await settle(table);
+    expect(row(last(), 'Value')?.value).toBe('5');
+    handle.undo();
+    await settle(table);
+    await settle(table);
+    expect(table.rows.find((r) => r.Name.label === 'Kp')?.Value).toBe('1');
+    expect(row(last(), 'Value')?.value).toBe('1');
+  });
+
+  it("writes the change to its row and shows the next row's page when the selection moves on before it lands", async () => {
+    const { handle, last, select, table, rowNamed } = await mount('params.sldd', { editing: true, inspectorEditing: true }, true);
+    await select('Kp');
+    handle.edit({ rowId: rowNamed('Kp').ID, columnId: 'Value', oldValue: '1', newValue: '5' });
+    await select('Uo');
+    await settle(table);
+    await settle(table);
+    expect(table.rows.find((r) => r.Name.label === 'Kp')?.Value).toBe('5');
+    expect(row(last(), 'Name')?.value).toBe('Uo');
+  });
+
   it('commitEdit() waits for a change written from the inspector', async () => {
     const { handle, select, table, rowNamed, doc } = await mount('params.sldd', { editing: true, inspectorEditing: true }, true);
     await select('Kp');

@@ -97,6 +97,12 @@ describe("a file's own page", () => {
     expect(rowsOf(page.groups[0])).toContain('Kind: Simulink model');
   });
 
+  it("leaves out a fact core has no value for: a .mdl's release", async () => {
+    const { doc } = await opened({ 'legacy_ctrl.mdl': shellFixture('legacy_ctrl.mdl') });
+    const rows = rowsOf((await doc('legacy_ctrl.mdl').table.inspect([], { pages: true })).groups[0]);
+    expect(rows).toEqual(['Name: legacy_ctrl.mdl', 'Kind: Simulink model', 'File: /work/legacy_ctrl.mdl', 'Modified: No']);
+  });
+
   it('says Modified while the document holds an edit, in an editing workspace', async () => {
     const { doc } = await opened({ 'params.sldd': shellFixture('params.sldd') }, true);
     const d = doc('params.sldd');
@@ -162,6 +168,21 @@ describe("a row's properties, editable", () => {
     const rows = (await doc('arch.sldd').table.inspect(alias.ID, { editable: true })).groups.flatMap((g) => g.properties);
     expect(rows.find((p) => p.name === 'Data Scope')).toMatchObject({ editable: true, key: 'dataScope', options: ['Auto', 'Exported', 'Imported'] });
     expect(rows.find((p) => p.name === 'Description')).toMatchObject({ editable: true, key: 'Description', multiline: true });
+  });
+
+  it("keeps a Value shown as a summary read-only, though core offers an editor seeded with its whole text", () => {
+    // `<1x500 double>` is not the value: an edit of that text would write it over the value. The
+    // table asks for the whole text as its editor opens; the inspector leaves it to the table.
+    const value = { key: 'Value' };
+    const node = {
+      toPIObject: () => ({
+        propertySheet: { properties: [{ name: 'Value', displayName: 'Value', editable: true }], groups: [{ name: 'G', displayName: 'General', items: [{ name: 'Value', type: 'property' }] }] },
+        objects: [{ Value: '<1x500 double>' }],
+      }),
+      getPILayout: () => [{ group: 'General', items: [value] }],
+      getPropInfo: () => ({ key: 'Value', editable: true, editor: 'text' }),
+    };
+    expect(buildPropertyGroups(node, { editable: true })[0]!.properties[0]).toEqual({ name: 'Value', value: '<1x500 double>', editable: false, type: 'text', linkTarget: undefined });
   });
 
   it('keeps a matrix value read-only: its glyph, and the variable editor, are where it is edited', async () => {

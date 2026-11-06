@@ -82,12 +82,13 @@ export function filePropertyGroups(facts: FileFacts): PropertyGroup[] {
 
 /**
  * The rows of a file's root node core describes it by, past its name: a dictionary's release, file
- * format and number of entries, a model's release. Read-only: none is an edit of the document.
+ * format and number of entries, a model's release. Not a fact core has no value for (a .mdl's
+ * release, which its text may not say). Read-only: none is an edit of the document.
  */
 export function rootRows(root: any, rows: (node: any) => PropertyGroup[]): PropertyRow[] {
   return rows(root)
     .flatMap((group) => group.properties)
-    .filter((row) => row.name !== 'Name')
+    .filter((row) => row.name !== 'Name' && row.value !== '')
     .map((row) => ({ ...row, editable: false }));
 }
 

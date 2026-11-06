@@ -196,6 +196,7 @@ describe('the Properties view at Root', () => {
     await until(() => rows().includes('Name: params.sldd'));
     expect(rows('Referenced By')).toEqual(['shadow_ws.slx: Open']);
     await until(() => segments().join() === 'Root,params.sldd (preview)');
+    expect(locationBar().segments[1]!.description).toBe('selected in the graph');
     // An item's box, for an item.
     graphClick(box('shadow_ws.slx').items[0]!.id);
     await until(() => rows().includes('Name: shadow_ws.slx'));

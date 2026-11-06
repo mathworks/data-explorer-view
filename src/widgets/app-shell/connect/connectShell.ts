@@ -79,11 +79,11 @@ function pageFeed(file: SelectedFile): InspectorFeed {
   };
 }
 
-/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path. */
+/** The location bar's dimmed segment for the file selected in the graph: its name, icon and path, and why it is dimmed. */
 function previewOf(file: SelectedFile | undefined): LocationSegment | undefined {
   if (!file) return undefined;
   const { box } = file;
-  return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}) };
+  return { label: box.label, icon: FILE_ICONS[box.kind], ...(box.uri ? { title: uriPath(box.uri) } : {}), description: 'selected in the graph' };
 }
 
 /**

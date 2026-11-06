@@ -25,6 +25,11 @@ export interface LocationSegment {
    * Off, the default, is a place on the way to where the user is.
    */
   preview?: boolean;
+  /**
+   * What a screen reader hears of the segment past its label: why it is drawn as it is ('selected
+   * in the graph', for a preview). None, the default, says nothing more.
+   */
+  description?: string;
 }
 
 /** What `dex-location-go` carries: where the user asked to go. */
@@ -230,6 +235,7 @@ export class DexLocationBar extends LitElement {
           type="button"
           class=${segment.preview ? 'segment preview' : 'segment'}
           title=${segment.title ?? nothing}
+          aria-description=${segment.description ?? nothing}
           aria-current=${current ? 'location' : nothing}
           @click=${() => this._go(index)}
         >
