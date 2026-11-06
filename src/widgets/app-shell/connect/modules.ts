@@ -128,8 +128,8 @@ export function connectModules(context: ModulesContext): Modules {
         name: tab.name,
         view: handle.view,
         editable,
-        // A file that takes no entry: a .mdl, or once painted, one kept for viewing only.
-        ...(!doc.editable || (handle.view && !editable) ? { note: `${tab.name} takes no edits.` } : {}),
+        // Painted, and still taking no entry: a .mdl, a file kept for viewing only.
+        ...(handle.view && !editable ? { note: `${tab.name} takes no edits.` } : {}),
         // What a cell editor still open holds is the document's before the add.
         add: async (entry) => {
           await handle.commitEdit();

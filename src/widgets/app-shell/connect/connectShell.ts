@@ -388,10 +388,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           showRoot();
           graph.reveal(uri, rowId === null ? undefined : graphNameOf(tab.table?.rows ?? [], rowId));
         }),
-        // For the toolbar, any change at all: an edit, the clipboard, a repaint. What the document
-        // refused, and why, is a line of the Log, past the dialog that said it. (Its `error`
-        // changes are its banner's, and what failed is said where it failed: the workspace's
-        // notice, a read, a save.)
+        // For the toolbar, the Explorer and the Gallery: each whole paint, the first too (which no
+        // change may follow), and any change at all. What the document refused, and why, is a line
+        // of the Log, past the dialog that said it. (Its `error` changes are its banner's, and what
+        // failed is said where it failed: the workspace's notice, a read, a save.)
+        handle.on('painted', () => later()),
         doc.table.subscribe((change) => {
           if (change.kind === 'refused') log('warning', `${change.title}: ${change.reason}`);
           else if (change.kind === 'invalid') log('warning', change.reason);

@@ -13,6 +13,8 @@ import {
   docsArea,
   edit,
   enabledItems,
+  explorer,
+  galleryPanel,
   menuOn,
   choose,
   open,
@@ -69,6 +71,30 @@ describe('the toolbar', () => {
     await open(page, 'legacy_ctrl.mdl');
     await until(lacks('save', 'save-as', 'undo'));
     expect(enabledItems()).toEqual(expect.arrayContaining(['save-all', 'close-tab']));
+  });
+
+  it("is drawn, with the Explorer and the Gallery, from a table's first paint, before any selection or change", async () => {
+    const page = startPage(FILES);
+    // What the toolbar and the rest show the moment a file is open and painted, asked once, not waited for.
+    const opened = async (file: string) => {
+      await open(page, file);
+      await settled();
+      return { enabled: enabledItems(), sections: explorer().files.find((f) => f.label === file)?.sections?.length ?? 0 };
+    };
+    const dictionary = await opened('params.sldd');
+    expect(dictionary.enabled).toContain('save-as');
+    expect(dictionary.enabled).not.toEqual(expect.arrayContaining(['save']));
+    expect(['copy', 'cut', 'delete', 'save'].filter((id) => dictionary.enabled.includes(id))).toEqual([]);
+    expect(dictionary.sections).toBeGreaterThan(0);
+    // A model kept for viewing only: no change follows its paint, which is all there is to draw from.
+    const model = await opened('legacy_ctrl.mdl');
+    expect(['copy', 'delete', 'save', 'save-as'].filter((id) => model.enabled.includes(id))).toEqual([]);
+    expect(model.sections).toBeGreaterThan(0);
+    expect(galleryPanel().note).toBe('legacy_ctrl.mdl takes no edits.');
+    // Copy and Delete once a row is selected, as its menu has them.
+    selectTab('params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    await until(has('copy', 'delete'));
   });
 
   it("enables the editing buttons as the active table's menu would, as the selection and the clipboard move", async () => {
