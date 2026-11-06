@@ -487,8 +487,11 @@ export class DexAddGallery extends LitElement {
       border-color: var(--dex-border-color-light, #e0e0e0);
     }
 
+    /* The shared ring as well as the accent border: on a tile this small, a 1px border alone is
+       easily missed. */
     :host([compact]) .tile:focus-visible {
       border-color: var(--dex-color-accent, #0078d4);
+      box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
     }
 
     :host([compact]) .tile-line {
@@ -535,6 +538,15 @@ export class DexAddGallery extends LitElement {
       .tile:focus-visible {
         outline: 2px solid Highlight !important;
         outline-offset: 1px !important;
+      }
+      /* A compact tile is framed only under the pointer, as it is outside this mode: a word wider
+         than the tile (a 50px "Connection" in a 45px tile) spills past its edge, and would run
+         through a frame drawn round it at rest. Its focus is the Highlight outline above. */
+      :host([compact]) .tile {
+        border-color: Canvas !important;
+      }
+      :host([compact]) .tile:hover {
+        border-color: ButtonText !important;
       }
     }
   `];

@@ -71,6 +71,23 @@ describe('dex-add-gallery compact', () => {
     expect(rule(':host([compact]) .tile')).toContain('font-size: 9px');
     expect(rule(':host([compact]) .tile:hover')).toContain('border-color: var(--dex-border-color-light, #e0e0e0)');
     expect(rule(':host([compact]) .tile:focus-visible')).toContain('border-color: var(--dex-color-accent, #0078d4)');
+    // The shared focus ring too: a 1px accent border alone on a tile this small is easily missed.
+    expect(rule(':host([compact]) .tile:focus-visible')).toContain('box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4))');
+  });
+
+  it('in forced colours, frames a tile only under the pointer, so a wide word does not cross a frame at rest', () => {
+    // The popover's tiles are framed in ButtonText there; a compact tile's word may spill past its
+    // edge (a 50px "Connection" in a 45px tile), and would run through a frame drawn round it.
+    const forced = (sheet().split('@media (forced-colors: active)')[1] ?? '').replace(/^\s*\{/, '');
+    const inForced = (selector: string) =>
+      [...forced.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter(([, selectors]) => selectors!.split(',').some((one) => one.trim() === selector))
+        .map(([, , body]) => body)
+        .join(';');
+    expect(inForced(':host([compact]) .tile')).toContain('border-color: Canvas !important');
+    expect(inForced(':host([compact]) .tile:hover')).toContain('border-color: ButtonText !important');
+    // The popover's frame stays.
+    expect(inForced('.tile')).toContain('border: 1px solid ButtonText !important');
   });
 
   it('puts a badge under the label, in the flow, and keeps the destination in the name', async () => {
