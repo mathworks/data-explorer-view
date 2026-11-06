@@ -4,7 +4,8 @@
 // the one window listener that answers them.
 //
 // The Electron app bound these in its native menu (data-explorer-app src/main/menu.ts at 0983920:
-// CmdOrCtrl+O, +Shift+O, +S, +Shift+S, +W, Ctrl+Tab, Ctrl+Shift+Tab, CmdOrCtrl+F); a browser page
+// CmdOrCtrl+O, +Shift+O, +S, +Shift+S, +W, +Z, Shift+CmdOrCtrl+Z, CmdOrCtrl+F, Ctrl+Tab,
+// Ctrl+Shift+Tab); a browser page
 // has no such menu, so the shell answers them itself, along with the shell's own (Save All,
 // Back, Forward, Up, Settings, as the prototype had them). A host with a native menu says so,
 // and then the menu fires its chords through the handle and the shell answers only the ones a
@@ -15,9 +16,17 @@
 // and a press already spent is left alone. A press typed into a field (the search box, a cell
 // editor, a column filter, read off the composed path as the table reads it) is the field's,
 // but for Save and Open, which an editor answers wherever the caret is.
+//
+// Undo and Redo are the native Edit menu's in Electron, and a browser page has none: here they
+// undo the active document from wherever the focus is but two places. In a field they are left
+// to the browser, which undoes the field's typing, as the app's Edit > Undo did with execCommand;
+// and in a table they are the table's (connectTable's undoChords), which answers them where its
+// document takes edits and knows when it does not: answered here too, a press would undo twice,
+// or undo a document whose table chose not to.
 
 import { matchesChord, parseChord, type Chord } from '../../../model/shell/chords.js';
 import { isMacPlatform } from '../../shared/dragMode.js';
+import { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import { isTypingInField } from '../../tree-table/editingWire.js';
 import type { ShellCommand } from './types.js';
 
@@ -33,6 +42,10 @@ export interface ShellChord {
   inField?: boolean;
   /** Answered again as a held key repeats: a move, which a person holds to go further. */
   repeats?: boolean;
+  /** Left to a table the press is in, which answers it itself. */
+  tablesOwn?: boolean;
+  /** Off macOS only: a chord of Windows and Linux (Ctrl+Y), which is no chord on a Mac. */
+  offMac?: boolean;
 }
 
 /** The chords the shell answers, in the order the toolbar and the menus list them. */
@@ -46,6 +59,9 @@ export const SHELL_CHORDS: readonly ShellChord[] = [
   { chord: 'Ctrl+Tab', command: 'next-tab', repeats: true },
   { chord: 'Ctrl+Shift+Tab', command: 'previous-tab', repeats: true },
   { chord: 'Mod+F', command: 'focus-filter' },
+  { chord: 'Mod+Z', command: 'undo', repeats: true, tablesOwn: true },
+  { chord: 'Mod+Shift+Z', command: 'redo', repeats: true, tablesOwn: true },
+  { chord: 'Ctrl+Y', command: 'redo', repeats: true, tablesOwn: true, offMac: true },
   { chord: 'Alt+ArrowLeft', command: 'back', withNativeMenu: true, repeats: true },
   { chord: 'Alt+ArrowRight', command: 'forward', withNativeMenu: true, repeats: true },
   { chord: 'Alt+ArrowUp', command: 'up', withNativeMenu: true, repeats: true },
@@ -65,7 +81,7 @@ export function onMac(): boolean {
 /**
  * Answer the shell's chords on the window with `run`, until the returned function is called. Each
  * chord answered is spent (preventDefault). With `nativeMenu`, only the chords a native menu has
- * no item for.
+ * no item for: Undo and Redo among the rest are the menu's.
  */
 export function installKeys(run: (command: ShellCommand) => void, options: { nativeMenu?: boolean } = {}): () => void {
   const chords: { chord: Chord; spec: ShellChord }[] = SHELL_CHORDS.filter((spec) => !options.nativeMenu || spec.withNativeMenu).map((spec) => ({
@@ -75,9 +91,10 @@ export function installKeys(run: (command: ShellCommand) => void, options: { nat
   const onKeydown = (e: KeyboardEvent): void => {
     if (e.defaultPrevented) return;
     const mac = onMac();
-    const hit = chords.find(({ chord }) => matchesChord(chord, e, mac));
+    const hit = chords.find(({ chord, spec }) => !(mac && spec.offMac) && matchesChord(chord, e, mac));
     if (!hit) return;
     if (!hit.spec.inField && isTypingInField(e)) return;
+    if (hit.spec.tablesOwn && e.composedPath().some((el) => el instanceof DexTreeTable)) return;
     // Spent even when held, so a held Mod+S does not reach the browser's Save Page on its repeats.
     e.preventDefault();
     if (e.repeat && !hit.spec.repeats) return;

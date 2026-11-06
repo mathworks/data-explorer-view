@@ -6,11 +6,13 @@
 // work, as in any editor) and what a widget has taken for itself (a table's own Cmd/Ctrl+Z). With
 // a native menu, which owns the File and Edit chords and fires them itself, only those it cannot
 // have are answered here. Each chord answered is spent (preventDefault), so the browser does not
-// also print, or open its own Open dialog.
+// also print, or open its own Open dialog. Undo and Redo are answered outside a table and a field
+// only: a table answers them itself, and a field undoes its own typing.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
-import { at, dirtyTabs, docTabs, edit, open, settingsPanel, startPage, tabIdOf, tabNames, tableOf, until } from './harness.js';
+import { defineTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
+import { at, dirtyTabs, docTabs, edit, open, rowOf, settingsPanel, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -146,6 +148,66 @@ describe('the shell answers its chords', () => {
   });
 });
 
+describe('Undo and Redo, outside a table', () => {
+  it('off macOS: Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y, each spent', () => {
+    onPlatform('Win32');
+    const ran = listen();
+    expect(press({ key: 'z', ctrlKey: true })).toBe(true);
+    expect(press({ key: 'Z', ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(press({ key: 'y', ctrlKey: true })).toBe(true);
+    expect(ran).toEqual(['undo', 'redo', 'redo']);
+  });
+
+  it('on macOS: Command+Z and Shift+Command+Z; Ctrl+Y is no chord there', () => {
+    onPlatform('MacIntel');
+    const ran = listen();
+    press({ key: 'z', metaKey: true });
+    press({ key: 'z', metaKey: true, shiftKey: true });
+    expect(press({ key: 'y', ctrlKey: true })).toBe(false);
+    expect(press({ key: 'z', ctrlKey: true })).toBe(false);
+    expect(ran).toEqual(['undo', 'redo']);
+  });
+
+  it("are a text field's own, which undoes its typing as the browser does: neither answered nor spent", () => {
+    onPlatform('Win32');
+    const ran = listen();
+    const input = document.createElement('input');
+    document.body.append(input);
+    expect(press({ key: 'z', ctrlKey: true }, input)).toBe(false);
+    expect(press({ key: 'y', ctrlKey: true }, input)).toBe(false);
+    expect(ran).toEqual([]);
+  });
+
+  it("are a table's own, which answers them where its document takes edits, and nowhere else", () => {
+    onPlatform('Win32');
+    defineTreeTable();
+    const ran = listen();
+    const table = document.createElement('dex-tree-table');
+    document.body.append(table);
+    expect(press({ key: 'z', ctrlKey: true }, table)).toBe(false);
+    expect(press({ key: 'Z', ctrlKey: true, shiftKey: true }, table)).toBe(false);
+    // Its other chords' neighbours are still the shell's there: Save, say.
+    expect(press({ key: 's', ctrlKey: true }, table)).toBe(true);
+    expect(ran).toEqual(['save']);
+  });
+
+  it("with a native menu, are the menu's Edit > Undo and Redo", () => {
+    onPlatform('Win32');
+    const ran = listen({ nativeMenu: true });
+    expect(press({ key: 'z', ctrlKey: true })).toBe(false);
+    expect(press({ key: 'y', ctrlKey: true })).toBe(false);
+    expect(ran).toEqual([]);
+  });
+
+  it('go on as the key is held, as an editor\'s do', () => {
+    onPlatform('Win32');
+    const ran = listen();
+    press({ key: 'z', ctrlKey: true });
+    press({ key: 'z', ctrlKey: true, repeat: true });
+    expect(ran).toEqual(['undo', 'undo']);
+  });
+});
+
 describe('the chords, connected', () => {
   const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
   const ctrl = (key: string, more: KeyboardEventInit = {}) => press({ key, ctrlKey: true, ...more });
@@ -178,6 +240,41 @@ describe('the chords, connected', () => {
     expect(settingsPanel().open).toBe(true);
     ctrl(',');
     expect(settingsPanel().open).toBe(false);
+  });
+
+  it("Undo and Redo, with the focus outside the table, take back the active document's edit and make it again", async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => dirtyTabs().length === 1);
+    const kp = async () => textOf(await rowOf('params.sldd', 'Kp'));
+    expect(ctrl('z')).toBe(true);
+    await until(() => dirtyTabs().length === 0);
+    expect(await kp()).toBe('1');
+    ctrl('y');
+    await until(() => dirtyTabs().length === 1);
+    expect(await kp()).toBe('5');
+    ctrl('z');
+    await until(() => dirtyTabs().length === 0);
+    ctrl('Z', { shiftKey: true });
+    await until(() => dirtyTabs().length === 1);
+    expect(await kp()).toBe('5');
+  });
+
+  it('pressed in the table, Undo takes back one edit: the table answers, and the shell leaves it', async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    await edit('params.sldd', 'Kp', '5');
+    await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp')) === '5');
+    await edit('params.sldd', 'Kp', '6');
+    await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp')) === '6');
+    expect(press({ key: 'z', ctrlKey: true }, tableOf('params.sldd')!)).toBe(true);
+    await until(() => textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp')) === '5');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp'))).toBe('5');
+    expect(dirtyTabs()).toEqual(['params.sldd']);
   });
 
   it('with a native menu, leaves Save to the menu, which sends it through the handle', async () => {
