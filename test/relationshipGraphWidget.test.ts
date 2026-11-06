@@ -23,6 +23,7 @@ import { buildRelationshipGraph } from '../src/model/graph/relationshipGraph.js'
 import type { RelationshipGraph } from '../src/model/graph/graphTypes.js';
 import { layoutGraph } from '../src/model/graph/layout.js';
 import { readModuleGraph, runtimeEdges } from './tools/moduleGraph.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineRelationshipGraph());
 afterEach(() => document.body.replaceChildren());
@@ -648,6 +649,54 @@ describe('the legend', () => {
     toggle.click();
     await el.updateComplete;
     expect(list.hidden).toBe(true);
+  });
+});
+
+describe('contrast, in every theme', () => {
+  // WCAG 2's contrast ratio. A line or a box's border is a graphical object, 3:1 against what it
+  // is drawn on; a label is text, 4.5:1. The light set's first values (ts's muted palette) were
+  // 1.9 to 2.9 against the canvas, and the dark set's ghost label was 3.9 on a dark box.
+  const channel = (v: number): number => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const luminance = (hex: string): number => {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h;
+    const [r, g, b] = [0, 2, 4].map((i) => channel(parseInt(full.slice(i, i + 2), 16) / 255));
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const ratio = (a: string, b: string): number => {
+    const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+    return (x! + 0.05) / (y! + 0.05);
+  };
+  const KINDS = ['model', 'sldd', 'mat'];
+  const EDGES = ['model-ref', 'sldd-ref', 'data-link', 'param-usage', 'ws-usage'];
+
+  for (const [name, set] of Object.entries(THEME_SETS)) {
+    const get = (token: string): string => {
+      const v = set.get(token);
+      if (!v || !/^#[0-9a-f]{3,6}$/i.test(v)) throw new Error(`${name} ${token} is ${v}, not a colour this test reads`);
+      return v;
+    };
+    const canvas = get('--dex-bg-tertiary');
+
+    it(`${name}: every edge, box border and selected border at 3:1 against the canvas`, () => {
+      const lines = [...EDGES.map((e) => `--dex-graph-edge-${e}`), ...KINDS.flatMap((k) => [`--dex-graph-${k}-border`, `--dex-graph-${k}-selected`])];
+      for (const token of lines) expect(ratio(get(token), canvas), `${name} ${token}`).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${name}: a box's label, a ghost's, and an edge's at 4.5:1 against what they are on`, () => {
+      for (const k of KINDS) {
+        const bg = get(`--dex-graph-${k}-bg`);
+        expect(ratio(get('--dex-color-text'), bg), `${name} label on ${k}`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(get('--dex-graph-ghost-fg'), bg), `${name} ghost label on ${k}`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(ratio(get('--dex-color-text-secondary'), canvas), `${name} edge label`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
+  it("inks a ghost's label with its own token, and an edge's label as text", () => {
+    const css = readFileSync(join(ROOT, 'src/widgets/app-shell/modules/relationship-graph.styles.ts'), 'utf8').replace(/\s+/g, ' ');
+    expect(css).toContain('.box.ghost .label { color: var(--dex-graph-ghost-fg, #666); }');
+    expect(css).toMatch(/text\.edge-label \{ font-size: 8px; fill: var\(--dex-color-text-secondary, #555\); \}/);
   });
 });
 

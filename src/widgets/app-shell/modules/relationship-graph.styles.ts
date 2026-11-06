@@ -107,28 +107,28 @@ export const relationshipGraphStyles = css`
   }
 
   .model-ref {
-    stroke: var(--dex-graph-edge-model-ref, #7ba3c4);
-    fill: var(--dex-graph-edge-model-ref, #7ba3c4);
+    stroke: var(--dex-graph-edge-model-ref, #6788a4);
+    fill: var(--dex-graph-edge-model-ref, #6788a4);
   }
 
   .sldd-ref {
-    stroke: var(--dex-graph-edge-sldd-ref, #7bab8a);
-    fill: var(--dex-graph-edge-sldd-ref, #7bab8a);
+    stroke: var(--dex-graph-edge-sldd-ref, #658d72);
+    fill: var(--dex-graph-edge-sldd-ref, #658d72);
   }
 
   .data-link {
-    stroke: var(--dex-graph-edge-data-link, #8a9a6b);
-    fill: var(--dex-graph-edge-data-link, #8a9a6b);
+    stroke: var(--dex-graph-edge-data-link, #7c8a60);
+    fill: var(--dex-graph-edge-data-link, #7c8a60);
   }
 
   .param-usage {
-    stroke: var(--dex-graph-edge-param-usage, #9b8bb4);
-    fill: var(--dex-graph-edge-param-usage, #9b8bb4);
+    stroke: var(--dex-graph-edge-param-usage, #8d7ea4);
+    fill: var(--dex-graph-edge-param-usage, #8d7ea4);
   }
 
   .ws-usage {
-    stroke: var(--dex-graph-edge-ws-usage, #6b9b8b);
-    fill: var(--dex-graph-edge-ws-usage, #6b9b8b);
+    stroke: var(--dex-graph-edge-ws-usage, #618d7e);
+    fill: var(--dex-graph-edge-ws-usage, #618d7e);
   }
 
   /* The markers' shapes are filled, not stroked. */
@@ -159,33 +159,33 @@ export const relationshipGraphStyles = css`
 
   .box.model {
     background: var(--dex-graph-model-bg, #e8f0f7);
-    border-color: var(--dex-graph-model-border, #8bafc4);
+    border-color: var(--dex-graph-model-border, #6c8899);
   }
 
   .box.sldd {
     background: var(--dex-graph-sldd-bg, #e8f4ec);
-    border-color: var(--dex-graph-sldd-border, #8bb8a0);
+    border-color: var(--dex-graph-sldd-border, #6a8c7a);
   }
 
   .box.mat {
     background: var(--dex-graph-mat-bg, #f4f0e8);
-    border-color: var(--dex-graph-mat-border, #c4b08b);
+    border-color: var(--dex-graph-mat-border, #918267);
   }
 
   /* Selected: a darker border, a pixel wider by a ring outside it, so nothing inside moves. */
   .box.model.selected {
-    border-color: var(--dex-graph-model-selected, #4a7a99);
-    box-shadow: 0 0 0 1px var(--dex-graph-model-selected, #4a7a99);
+    border-color: var(--dex-graph-model-selected, #436e8a);
+    box-shadow: 0 0 0 1px var(--dex-graph-model-selected, #436e8a);
   }
 
   .box.sldd.selected {
-    border-color: var(--dex-graph-sldd-selected, #4a8a66);
-    box-shadow: 0 0 0 1px var(--dex-graph-sldd-selected, #4a8a66);
+    border-color: var(--dex-graph-sldd-selected, #3e7456);
+    box-shadow: 0 0 0 1px var(--dex-graph-sldd-selected, #3e7456);
   }
 
   .box.mat.selected {
-    border-color: var(--dex-graph-mat-selected, #8a7044);
-    box-shadow: 0 0 0 1px var(--dex-graph-mat-selected, #8a7044);
+    border-color: var(--dex-graph-mat-selected, #7d653e);
+    box-shadow: 0 0 0 1px var(--dex-graph-mat-selected, #7d653e);
   }
 
   .box.ghost {
@@ -193,7 +193,7 @@ export const relationshipGraphStyles = css`
   }
 
   .box.ghost .label {
-    color: var(--dex-color-text-muted, #666);
+    color: var(--dex-graph-ghost-fg, #666);
   }
 
   .box.dim {
@@ -399,23 +399,23 @@ export const relationshipGraphStyles = css`
   }
 
   .swatch.line.model-ref {
-    border-color: var(--dex-graph-edge-model-ref, #7ba3c4);
+    border-color: var(--dex-graph-edge-model-ref, #6788a4);
   }
 
   .swatch.line.sldd-ref {
-    border-color: var(--dex-graph-edge-sldd-ref, #7bab8a);
+    border-color: var(--dex-graph-edge-sldd-ref, #658d72);
   }
 
   .swatch.line.data-link {
-    border-color: var(--dex-graph-edge-data-link, #8a9a6b);
+    border-color: var(--dex-graph-edge-data-link, #7c8a60);
   }
 
   .swatch.line.param-usage {
-    border-color: var(--dex-graph-edge-param-usage, #9b8bb4);
+    border-color: var(--dex-graph-edge-param-usage, #8d7ea4);
   }
 
   .swatch.line.ws-usage {
-    border-color: var(--dex-graph-edge-ws-usage, #6b9b8b);
+    border-color: var(--dex-graph-edge-ws-usage, #618d7e);
   }
 
   .swatch.file {
@@ -428,17 +428,17 @@ export const relationshipGraphStyles = css`
 
   .swatch.file.model {
     background: var(--dex-graph-model-bg, #e8f0f7);
-    border-color: var(--dex-graph-model-border, #8bafc4);
+    border-color: var(--dex-graph-model-border, #6c8899);
   }
 
   .swatch.file.sldd {
     background: var(--dex-graph-sldd-bg, #e8f4ec);
-    border-color: var(--dex-graph-sldd-border, #8bb8a0);
+    border-color: var(--dex-graph-sldd-border, #6a8c7a);
   }
 
   .swatch.file.mat {
     background: var(--dex-graph-mat-bg, #f4f0e8);
-    border-color: var(--dex-graph-mat-border, #c4b08b);
+    border-color: var(--dex-graph-mat-border, #918267);
   }
 
   .swatch.file.ghost {

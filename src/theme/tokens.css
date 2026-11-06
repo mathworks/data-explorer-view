@@ -121,26 +121,28 @@
   --dex-bg-tabbar: #f0f0f0;
   --dex-shell-resizer-hover: #0078d4;
   /* The relationship graph (dex-relationship-graph): each kind of box's surface, border and
-     selected border, each kind of edge (the legend's swatches too), and the items inside a box,
-     a model's workspace variables in a tint of the workspace edge. */
+     selected border, each kind of edge (the legend's swatches too), the items inside a box (a
+     model's workspace variables in a tint of the workspace edge), and a ghost's label. ts's hues,
+     darkened until every line and border is 3:1 against the canvas. */
   --dex-graph-model-bg: #e8f0f7;
-  --dex-graph-model-border: #8bafc4;
-  --dex-graph-model-selected: #4a7a99;
+  --dex-graph-model-border: #6c8899;
+  --dex-graph-model-selected: #436e8a;
   --dex-graph-sldd-bg: #e8f4ec;
-  --dex-graph-sldd-border: #8bb8a0;
-  --dex-graph-sldd-selected: #4a8a66;
+  --dex-graph-sldd-border: #6a8c7a;
+  --dex-graph-sldd-selected: #3e7456;
   --dex-graph-mat-bg: #f4f0e8;
-  --dex-graph-mat-border: #c4b08b;
-  --dex-graph-mat-selected: #8a7044;
-  --dex-graph-edge-model-ref: #7ba3c4;
-  --dex-graph-edge-sldd-ref: #7bab8a;
-  --dex-graph-edge-data-link: #8a9a6b;
-  --dex-graph-edge-param-usage: #9b8bb4;
-  --dex-graph-edge-ws-usage: #6b9b8b;
+  --dex-graph-mat-border: #918267;
+  --dex-graph-mat-selected: #7d653e;
+  --dex-graph-edge-model-ref: #6788a4;
+  --dex-graph-edge-sldd-ref: #658d72;
+  --dex-graph-edge-data-link: #7c8a60;
+  --dex-graph-edge-param-usage: #8d7ea4;
+  --dex-graph-edge-ws-usage: #618d7e;
   --dex-graph-item-bg: rgba(0, 0, 0, 0.04);
   --dex-graph-item-border: rgba(0, 0, 0, 0.1);
   --dex-graph-ws-item-bg: rgba(107, 155, 139, 0.08);
   --dex-graph-ws-item-border: rgba(107, 155, 139, 0.25);
+  --dex-graph-ghost-fg: #666;
 }
 
 [data-theme="dark"] {
@@ -239,6 +241,8 @@
   --dex-graph-item-border: rgba(255, 255, 255, 0.14);
   --dex-graph-ws-item-bg: rgba(111, 179, 160, 0.12);
   --dex-graph-ws-item-border: rgba(111, 179, 160, 0.35);
+  /* The muted ink is 3.9:1 on these boxes; a ghost's name is text, and needs 4.5. */
+  --dex-graph-ghost-fg: #a0a0a0;
 }
 
 [data-theme="high-contrast"] {
@@ -332,4 +336,5 @@
   --dex-graph-item-border: #555;
   --dex-graph-ws-item-bg: #fff;
   --dex-graph-ws-item-border: #00695c;
+  --dex-graph-ghost-fg: #333;
 }
