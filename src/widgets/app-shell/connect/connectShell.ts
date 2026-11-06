@@ -347,9 +347,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // --- Saving and closing ------------------------------------------------------------------------
 
   // Save writes over the file, Save As where the user says, which the tab then shows. A save
-  // that cannot be made says why.
+  // that cannot be made says why; one the host made a download of says so, as the file on disk is
+  // as it was.
   const saver = new Saver(host);
-  const saved = (name: string) => say('info', `Saved ${name}`, 2000);
+  const saved = (name: string, downloaded = false) => say('info', `${downloaded ? 'Downloaded' : 'Saved'} ${name}`, 2000);
   async function save(tab: OpenTab, as = false, fromCommand = false): Promise<boolean> {
     // The Terminal's lines before it are the document's first: an edit one made went to the source,
     // with no cell editor for commitEdit to wait on. (The Terminal's own `save` is one of them.)
@@ -367,7 +368,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       await reloads.changedOnDisk(tab, true, true);
       return !tab.doc?.dirty;
     }
-    if (result.kind === 'saved' && writes) saved(tab.name);
+    if (result.kind === 'saved' && writes) saved(tab.name, result.downloaded);
     if (result.kind === 'saved-as') {
       close(tab);
       saved((await open(result.path)).name);

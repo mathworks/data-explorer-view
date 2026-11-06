@@ -3,9 +3,13 @@
 // Saving in a browser. A file the page reads through a handle (Chromium's pickers, a shown folder's
 // handle, a drop there) is written in place, once the user lets the page write it: the browser
 // writes a temporary file and moves it over the old one when the stream closes, as core's safe write
-// does on the desktop. A file the page has only as a File (Firefox, Safari) may be read and not
-// written, so Save says to use Save As, which there downloads the bytes. The messages are the user's
-// to read: connectShell shows a save's rejection in its dialog.
+// does on the desktop. A file the page has only as a File (Firefox, Safari, a drop with no handles)
+// or as bytes (the app's own, a new file the page keeps) cannot be written in place, so its Save is a
+// download under its name, and so is Save As with no save picker. A download marks the document
+// saved, since the user has the file; the page reads the file as it downloaded it from then on, so
+// the tab, and the file opened again, show what was saved, and the shell says the file was
+// downloaded rather than saved. The messages are the user's to read: connectShell shows a save's
+// rejection in its dialog.
 //
 // Lifted from data-explorer-app src/web/save.ts at b13a860.
 
@@ -24,13 +28,21 @@ export interface SaveDeps {
 /** How long a download's URL is kept: the browser reads it after the click, not during it. */
 export const REVOKE_MS = 60_000;
 
-/** Write `bytes` over the open file `path`, in place. */
-export async function saveFile(files: WebFiles, path: string, bytes: Uint8Array): Promise<{ overwritten: boolean }> {
+/** How a save in a browser ended: ShellHost's answer, `downloaded` where the bytes were handed to the browser as a download. */
+export interface WebSaved {
+  overwritten: boolean;
+  downloaded?: true;
+}
+
+/**
+ * Write `bytes` over the open file `path`, in place, or, for a file the page has no handle to, hand
+ * them to the browser as a download under its name (made in `document`), which the page then holds
+ * as the file.
+ */
+export async function saveFile(files: WebFiles, path: string, bytes: Uint8Array, document: Document): Promise<WebSaved> {
   const file = files.get(path);
   if (!file) throw new Error('Not a file this page has open.');
-  if (file.source.kind !== 'handle') {
-    throw new Error(`The browser lets the page read ${file.name} but not write it in place. Use Save As.`);
-  }
+  if (file.source.kind !== 'handle') return downloaded(files, path, bytes, document);
   await askToWrite(file.source.handle, file.name);
   await write(file.source.handle, bytes);
   // The browser does not say whether another program wrote the file after this write: none is known to.
@@ -40,19 +52,17 @@ export async function saveFile(files: WebFiles, path: string, bytes: Uint8Array)
 /**
  * Write the open file `path`'s `bytes` where the user says, a file of its own kind: the path
  * written (`path` itself for a Save As onto it), or null when the user cancels. With no save picker
- * the bytes are downloaded, and the answer is `path`: the user has the file, so the document is saved.
+ * the bytes are downloaded, as a Save of a file with no handle is, and the answer is `path`: the
+ * user has the file, so the document is saved.
  */
 export async function saveFileAs(
   files: WebFiles,
   path: string,
   bytes: Uint8Array,
   deps: SaveDeps,
-): Promise<{ path: string; overwritten: boolean } | null> {
+): Promise<({ path: string } & WebSaved) | null> {
   const name = files.get(path)?.name ?? path.slice(path.lastIndexOf('/') + 1);
-  if (!deps.window.showSaveFilePicker) {
-    download(deps.document, name, bytes);
-    return { path, overwritten: false };
-  }
+  if (!deps.window.showSaveFilePicker) return { path, ...downloaded(files, path, bytes, deps.document) };
   const ext = extOf(name);
   let handle: FileSystemFileHandle;
   try {
@@ -107,9 +117,16 @@ async function write(handle: FileSystemFileHandle, bytes: Uint8Array): Promise<v
 }
 
 /**
- * Hand `bytes` to the browser as a download named `name`: Save As with no save picker, and the Save
- * of a new file the page keeps (newFile.ts).
+ * The open file `path`'s `bytes` handed to the browser as a download under its name, and held by the
+ * page as the file from now on: what it reads of it is what was saved.
  */
+function downloaded(files: WebFiles, path: string, bytes: Uint8Array, document: Document): WebSaved {
+  download(document, files.get(path)?.name ?? path.slice(path.lastIndexOf('/') + 1), bytes);
+  files.replace(path, { kind: 'bytes', bytes: bytes.slice() });
+  return { overwritten: false, downloaded: true };
+}
+
+/** Hand `bytes` to the browser as a download named `name`. */
 export function download(document: Document, name: string, bytes: Uint8Array): void {
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }));
   const a = document.createElement('a');

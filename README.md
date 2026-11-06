@@ -567,7 +567,7 @@ shell runs.
 | `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
 | `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` (MATLAB R2027a opens what it writes; older releases are unverified) | no New: the host makes no files |
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
-| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
+| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close; an answer with `downloaded` (a browser's download, for a file it cannot write) is said "Downloaded NAME" | needed |
 | `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
 | `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's Open Folder…; the folder comes back by `app.showFolder` | no Folder button: the host shows no folders |
 | `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |

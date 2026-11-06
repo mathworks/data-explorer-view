@@ -39,16 +39,20 @@ turns the API off), get the right column.
 | Open File | `showOpenFilePicker`: handles | a hidden `<input type=file multiple>`: Files |
 | Open Folder | `showDirectoryPicker` | `<input webkitdirectory>`: the folder as it was picked |
 | Drop | handles, files and folders (`getAsFileSystemHandle`) | entries (`webkitGetAsEntry`): a folder read through once, at the drop, up to 10,000 files |
-| Save | in place (`createWritable`), once the user allows writing | not possible: Save says to use Save As |
+| Save | in place (`createWritable`), once the user allows writing | a download, under the file's name |
 | Save As | `showSaveFilePicker` | a download |
 | Changed on disk | open files looked at every 2 s while the page is shown | not seen |
 | A shown folder's changes | listed again when the page is shown or focused (at most once every 3 s) | not seen |
 | Unsaved edits | the shell's own dialog, and `host.edited` for `beforeunload` | the same |
 
-A Save As download marks the document saved: the user has the file. A File (the right column, or
-a Chromium drop without handles) refers to the file on disk, and a browser may refuse to read it
-once another program has written it (Chromium does; Firefox may): the read then says to open the
-file again.
+A download marks the document saved: the user has the file. The page holds the file as it
+downloaded it from then on, so the tab, and the file opened again, show what was saved; the file on
+disk is as it was, and the shell says "Downloaded plant.sldd" rather than "Saved". The same holds
+in Chromium for a file the page has no handle to (a drop without handles, or bytes of the app's
+own): its Save is a download too, and Save As there writes a file the page may then save in place.
+A File (the right column, or a Chromium drop without handles) refers to the file on disk, and a
+browser may refuse to read it once another program has written it (Chromium does; Firefox may):
+the read then says to open the file again.
 
 New (`host.newFile`) says where the shell's new dictionary goes. With the save picker, the browser
 makes the file named there, or empties the one that was there, as the picker closes (Chromium does,
@@ -58,8 +62,8 @@ writes the user's dictionary over it, and the page watches the file from New on,
 file it opened. A file a tab has open is not made a new file: the picker has emptied it, and the
 shell writes the tab's copy back (or, where that write fails, keeps a tab the page edits unsaved,
 for a Save to write it). With no save picker, the page keeps the file itself, under the name the shell offers,
-holding a new dictionary, and each Save of it is a download, which marks it saved as a Save As
-download does.
+holding a new dictionary, and each Save of it is a download, as for any file the page has no
+handle to.
 
 Safari before 16.4 never says a file dialog was cancelled: an Open File or Open Folder cancelled
 there leaves nothing to answer, and the next one works as usual.

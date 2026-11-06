@@ -203,8 +203,8 @@ describe('the browser host makes new files', () => {
     // The page holds MATLAB's new dictionary as the file until a Save.
     expect(await host.readFile(path!)).toEqual(MATLAB_NEW);
     expect(made).toEqual([]);
-    expect(await host.saveFile(path!, bytesOf('one'))).toEqual({ overwritten: false });
-    expect(await host.saveFile(path!, bytesOf('two'))).toEqual({ overwritten: false });
+    expect(await host.saveFile(path!, bytesOf('one'))).toEqual({ overwritten: false, downloaded: true });
+    expect(await host.saveFile(path!, bytesOf('two'))).toEqual({ overwritten: false, downloaded: true });
     expect(made.map((d) => d.name)).toEqual(['untitled.sldd', 'untitled.sldd']);
     expect(await Promise.all(made.map((d) => d.bytes()))).toEqual(['one', 'two']);
     // The page holds what was saved last, which is what it reads of the file.
@@ -214,9 +214,14 @@ describe('the browser host makes new files', () => {
     expect(await host.newFile!('untitled.sldd')).toBe('/files/2/untitled.sldd');
   });
 
-  it("downloads a Save of only the files it made: a picked File's Save still says to use Save As", async () => {
+  it("downloads the Save of a file picked with no handle as it does a new file's", async () => {
+    vi.useFakeTimers();
+    const made = downloads();
     const host = hostOf();
     const path = await host.files.addPicked('a.sldd', { kind: 'bytes', bytes: bytesOf('old') });
-    await expect(host.saveFile(path, bytesOf('new'))).rejects.toThrow('The browser lets the page read a.sldd but not write it in place. Use Save As.');
+    expect(await host.saveFile(path, bytesOf('new'))).toEqual({ overwritten: false, downloaded: true });
+    expect(made.map((d) => d.name)).toEqual(['a.sldd']);
+    expect(text(await host.readFile(path))).toBe('new');
+    vi.advanceTimersByTime(REVOKE_MS);
   });
 });

@@ -97,15 +97,19 @@ export interface ShellHost {
   closeFile?(path: string): void;
   /**
    * Write `bytes` over the open file `path`. `overwritten`: another program wrote the file after
-   * the save, so the disk holds its file rather than the one saved.
+   * the save, so the disk holds its file rather than the one saved. `downloaded`: the bytes were
+   * handed to the user as a download rather than written over the file (a browser page with no way
+   * to write it): the document is saved all the same, and the shell says the file was downloaded
+   * rather than saved. Absent, false.
    */
-  saveFile(path: string, bytes: Uint8Array): Promise<{ overwritten: boolean }>;
+  saveFile(path: string, bytes: Uint8Array): Promise<{ overwritten: boolean; downloaded?: boolean }>;
   /**
    * Ask where to save the open file `path`, and write `bytes` there. Resolves to the path written
    * (`path` itself, for a Save As onto it), or null when cancelled. `overwritten`, for a Save As onto
    * the file itself, as for saveFile: another program wrote it after the save. Elsewhere, false.
+   * `downloaded`, as for saveFile: the bytes went to a download (`path` itself the answer).
    */
-  saveFileAs(path: string, bytes: Uint8Array): Promise<{ path: string; overwritten: boolean } | null>;
+  saveFileAs(path: string, bytes: Uint8Array): Promise<{ path: string; overwritten: boolean; downloaded?: boolean } | null>;
   /** Ask whether to save the unsaved edits of the files `names` before they close. Absent: the in-page confirm dialog. */
   confirmClose?(names: string[]): Promise<CloseAnswer>;
   /**

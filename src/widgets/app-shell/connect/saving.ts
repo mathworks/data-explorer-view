@@ -25,10 +25,14 @@ export interface Savable {
 }
 
 /**
- * How a save ended: over its own file (and whether another program then wrote over it), at another
- * path (Save As), or not at all (and why, if it failed).
+ * How a save ended: over its own file (and whether another program then wrote over it, or whether
+ * the host handed it to the user as a download instead), at another path (Save As), or not at all
+ * (and why, if it failed).
  */
-export type SaveResult = { kind: 'saved'; overwritten?: boolean } | { kind: 'saved-as'; path: string } | { kind: 'not-saved'; error?: string };
+export type SaveResult =
+  | { kind: 'saved'; overwritten?: boolean; downloaded?: boolean }
+  | { kind: 'saved-as'; path: string }
+  | { kind: 'not-saved'; error?: string };
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -67,7 +71,8 @@ export class Saver {
         // after it is a change over the document's own (view's Doc.keepOver).
         doc.saved(out.at);
         tab.bytes = out.bytes;
-        return to.overwritten ? { kind: 'saved', overwritten: true } : { kind: 'saved' };
+        if (to.overwritten) return { kind: 'saved', overwritten: true };
+        return to.downloaded ? { kind: 'saved', downloaded: true } : { kind: 'saved' };
       }
       // Cancelled, or written elsewhere: this document's file holds what it held.
       doc.notSaved(out.at);

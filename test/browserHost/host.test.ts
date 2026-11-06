@@ -162,8 +162,14 @@ describe('browserHost', () => {
     // A copy written elsewhere is no change to the open file.
     await vi.advanceTimersByTimeAsync(POLL_MS);
     expect(changed).toEqual([]);
-    const blocked = await files.addPicked('c.sldd', { kind: 'bytes', bytes: bytesOf('held') });
-    await expect(host.saveFile(blocked, bytesOf('x'))).rejects.toThrow(/Use Save As/);
+    // A file with no handle to write it through is downloaded, and the page holds what it downloaded.
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:saved');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const held = await files.addPicked('c.sldd', { kind: 'bytes', bytes: bytesOf('held') });
+    expect(await host.saveFile(held, bytesOf('x'))).toEqual({ overwritten: false, downloaded: true });
+    expect(clicked).toHaveBeenCalledTimes(1);
+    expect(text(await host.readFile(held))).toBe('x');
   });
 
   it('looks at the shown folder again when the page is shown or its window focused, at most once every LOOK_EVERY_MS', async () => {

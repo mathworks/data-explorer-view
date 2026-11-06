@@ -290,9 +290,9 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     },
     // The paths are this host's making: a tooltip says what each means to the user.
     pathTitle: titleOfPath,
-    // A new file the page keeps, with no save picker to have named one on disk, is downloaded.
-    saveFile: (path, bytes) =>
-      writing(path, async () => (made.keeps(path) ? made.save(path, bytes) : saveFile(files, path, bytes)), () => true),
+    // A file with no handle to write it through (a new file the page keeps, one picked as a File,
+    // the app's own bytes) is downloaded.
+    saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes, doc), () => true),
     saveFileAs: (path, bytes) => writing(path, () => saveFileAs(files, path, bytes, deps), (to) => to?.path === path),
     setEdited(value) {
       edited = value;

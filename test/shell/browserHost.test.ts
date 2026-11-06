@@ -3,17 +3,17 @@
 //
 // The shell over the browser's own host (browserHost, src/browser/), as a plain web page runs it:
 // Open File asks the window's picker, the file opens in a tab, and Save writes it in place through
-// its handle. And the app's own files fetched at different times into one group (the web version's
+// its handle, or downloads a file the page has no handle to. And the app's own files fetched at different times into one group (the web version's
 // samples, and the files its address names): a link from a model fetched first finds the
 // dictionary fetched after it, where files given to the host one at a time never could, each in a
 // folder of its own. The File System Access API is test/browserHost/fakeFs.ts's.
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { browserHost, type BrowserHost } from '../../src/browser/index.js';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
 import type { ShellHandle } from '../../src/widgets/app-shell/connect/types.js';
 import { asFile, FakeFileHandle } from '../browserHost/fakeFs.js';
-import { dirtyTabs, fixture, tabNames, textOf, until, valueIn } from './harness.js';
+import { dirtyTabs, fixture, tabNames, textOf, toastTexts, until, valueIn } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -56,6 +56,33 @@ describe('the shell over the browser host', () => {
     await until(() => params.writes.length === 1 && dirtyTabs().length === 0);
     expect(await valueIn(params.bytes, 'params.sldd', 'Kp')).toBe('5');
     expect(textOf(table()!.rows.find((r) => r.Name.label === 'Kp') as never)).toBe('5');
+  });
+
+  it('downloads a file it has no handle to at Save, says so, and marks the tab saved', async () => {
+    // A file the page holds as bytes, as the app's own samples are (and as a Firefox pick is a File):
+    // nothing to write in place, so the Save is a download under the file's name. The user has the
+    // file: the tab is saved, and the toast says where it went rather than "Saved".
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:saved');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
+    const { handle, host } = browserPage([]);
+    const [path] = await host.files.addToGroup('samples', [fetched('params.sldd')]);
+    await handle.openPaths([path!]);
+    await until(() => (table()?.rows.length ?? 0) > 0);
+    const kp = table()!.rows.find((r) => r.Name.label === 'Kp')!;
+    table()!.dispatchEvent(new CustomEvent('dex-edit-completed', { detail: { rowId: kp.ID, columnId: 'Value', oldValue: '1', newValue: '5' }, bubbles: true, composed: true }));
+    await until(() => dirtyTabs().length === 1);
+    handle.command('save');
+    await until(() => dirtyTabs().length === 0);
+    expect(downloads).toEqual(['params.sldd']);
+    expect(toastTexts()).toContain('Downloaded params.sldd');
+    expect(toastTexts()).not.toContain('Saved params.sldd');
+    // The page holds what it downloaded: the file read again is the one saved.
+    expect(await valueIn(await host.readFile(path!), 'params.sldd', 'Kp')).toBe('5');
+    vi.restoreAllMocks();
   });
 
   it("follows a link into a file the app added to the model's group later, as it would into one fetched with it", async () => {

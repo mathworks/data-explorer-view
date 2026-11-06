@@ -2,7 +2,8 @@
 // @vitest-environment happy-dom
 //
 // Saving in a browser (src/browser/save.ts): in place through a handle, once the user lets the page
-// write it; Save As through the save picker, or a download where there is none. Each refusal says
+// write it, and a download for a file the page has no handle to; Save As through the save picker,
+// or a download where there is none. Each refusal says
 // what to do next, since connectShell shows it to the user, and a Save As onto a file the page has
 // keeps that file's path, so it is not opened twice. Ported from data-explorer-app
 // test/unit/web/save.test.ts.
@@ -21,6 +22,18 @@ afterEach(() => {
 const bytesOf = (s: string) => new TextEncoder().encode(s);
 const text = (bytes: Uint8Array | undefined) => (bytes ? new TextDecoder().decode(bytes) : bytes);
 const deps = (pickers: FilePickers = {}) => ({ window: pickers, document });
+
+/** The downloads a test's saves make: each blob handed to the browser, and each link clicked. */
+function downloads(): { blobs: Blob[]; clicked: HTMLAnchorElement[] } {
+  const blobs: Blob[] = [];
+  const clicked: HTMLAnchorElement[] = [];
+  vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => (blobs.push(blob as Blob), 'blob:saved'));
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    clicked.push(this);
+  });
+  return { blobs, clicked };
+}
 
 async function opened(content = 'old') {
   const files = new WebFiles();
@@ -60,11 +73,24 @@ describe('saveFile', () => {
     await expect(saveFile(files, path, bytesOf('one'))).rejects.toBe(broken);
   });
 
-  it('says to use Save As for a file the page may read but not write', async () => {
+  it('downloads a file the page may read but not write, under its name, and holds what it downloaded', async () => {
+    // A File (Firefox, Safari, a drop with no handles) or bytes of the app's own: there is nothing to
+    // write in place, so the bytes go to the browser as a download, which marks the document saved
+    // (the user has the file), and the page reads the file as downloaded from then on, so the tab,
+    // or the file opened again, shows what was saved. The file on disk is as it was.
+    vi.useFakeTimers();
+    const { blobs, clicked } = downloads();
     const files = new WebFiles();
-    const path = await files.addPicked('a.sldd', { kind: 'file', file: fileOf('a.sldd', 'old') });
-    await expect(saveFile(files, path, bytesOf('new'))).rejects.toThrow('The browser lets the page read a.sldd but not write it in place. Use Save As.');
-    await expect(saveFile(files, '/files/9/other.sldd', bytesOf('new'))).rejects.toThrow(/Not a file this page has open/);
+    for (const source of [{ kind: 'file' as const, file: fileOf('a.sldd', 'old') }, { kind: 'bytes' as const, bytes: bytesOf('old') }]) {
+      const path = await files.addPicked('a.sldd', source);
+      expect(await saveFile(files, path, bytesOf('new'), document)).toEqual({ overwritten: false, downloaded: true });
+      expect(clicked.at(-1)!.download).toBe('a.sldd');
+      expect(text(new Uint8Array(await blobs.at(-1)!.arrayBuffer()))).toBe('new');
+      expect(text(await files.bytes(path))).toBe('new');
+      expect(files.get(path)?.name).toBe('a.sldd');
+    }
+    await expect(saveFile(files, '/files/9/other.sldd', bytesOf('new'), document)).rejects.toThrow(/Not a file this page has open/);
+    expect(clicked).toHaveLength(2);
   });
 
   it('leaves the file as it was when the write fails', async () => {
@@ -140,7 +166,9 @@ describe('saveFileAs', () => {
       clicked.push(this);
     });
 
-    expect(await saveFileAs(files, path, bytesOf('saved'), deps())).toEqual({ path, overwritten: false });
+    expect(await saveFileAs(files, path, bytesOf('saved'), deps())).toEqual({ path, overwritten: false, downloaded: true });
+    // As a Save's download: the page holds what it downloaded.
+    expect(text(await files.bytes(path))).toBe('saved');
     expect(clicked).toHaveLength(1);
     expect(clicked[0].download).toBe('a.sldd');
     expect(clicked[0].href).toBe('blob:saved');
