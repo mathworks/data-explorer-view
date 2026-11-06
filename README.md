@@ -34,7 +34,7 @@ release notes before you move the pin.
 `data-explorer-core` and `lit` are peer dependencies: your app installs them
 itself, so a page holds one copy of each. For core that matters beyond size:
 the model recognises core's nodes with `instanceof`, which two copies of core
-would break. This release accepts core `^1.54.0` and lit `^3.2.0`.
+would break. This release accepts core `^1.58.0` and lit `^3.2.0`.
 
 Releases are tags, and `dist/` is committed, so installing needs no build step.
 
@@ -70,6 +70,8 @@ defineVariableEditor();
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | [`<dex-project-page>`](docs/widgets/project-page.md), a project's page, and the HTML renderer and stylesheet it draws with |
 | `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
+| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, and `installFileDrop` |
+| `data-explorer-view/browser-host` | `browserHost`, a `ShellHost` for a plain browser page with no backend (see [docs/browser-host.md](docs/browser-host.md)) |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
 | `data-explorer-view/theme.css` | the colour, font and size tokens |
@@ -470,6 +472,172 @@ usageReposts)`, which repaints every open table it shows (dictionaries, MAT-file
 and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
 [the folder session's page](docs/folder-session.md).
 
+## Build an app on the shell
+
+`data-explorer-view/app-shell` is the window of a whole app, laid out as
+the prototype laid out its own. A toolbar and a location bar run across the
+top. Each side has an activity bar and a sidebar: the Explorer (the open files,
+and a folder's hierarchy under them), the Gallery (the Add gallery's tiles) and
+Search on the left, the Properties and the Raw pane on the right. The open
+files are tabs in the middle, and Root shows the relationship graph of them
+all. The Terminal (a MATLAB-style command window) and the Log share the bottom
+panel, over a status bar. Settings and About are on the activity bar, and a
+command palette opens over it all. `connectShell` builds all of it in an empty
+`<dex-app-shell>` and runs it over one editing workspace: it opens files in
+tabs, saves them, asks before unsaved edits are lost, reloads a file that
+changed on disk, follows links from file to file, and shows a folder with its
+Usage and search, each as the sections above describe.
+
+```js
+import 'data-explorer-view/theme.css';
+import { useIconAssets } from 'data-explorer-view/icon-assets';
+import { connectShell, defineShellWidgets } from 'data-explorer-view/app-shell';
+
+defineShellWidgets(); // the shell, its parts and modules, and the widgets documents are shown in
+useIconAssets();      // or setIconBase('./icons/')
+
+const shell = document.querySelector('dex-app-shell'); // empty, and as large as the window
+const app = connectShell(shell, {
+  host,                                          // what the page can do with files (below)
+  appName: 'My app',                             // the toolbar's name, the window's title, About's heading
+  about: [{ label: 'Version', value: '1.0.0' }], // About's lines
+});
+
+// What the host hears, it hands to the shell:
+app.openPaths(paths);       // files to open, each in a tab of its own (a command line, a drop)
+app.showFolder(root, port); // a folder picked, served across `port` by serveFolder
+app.fileChanged(path);      // a watcher saw an open file change
+onWindowClose(async () => {
+  if (await app.requestClose()) closeWindow(); // unsaved edits saved or discarded first
+});
+```
+
+Nothing opens until the host says so: the window starts on a welcome with Open
+File… and Open Folder… buttons. `app.command(id)` carries out a command
+(`'save'`, `'undo'`, `'show-search'`, …) as its button or its chord does, for a
+native menu's items, and `app.dispose()` takes the app down. The settings, the
+layout the user left and each file's column choices are kept in localStorage
+under connectShell's `storageKey` (`'dex-shell'` by default).
+
+### The host
+
+A `ShellHost` is what the shell asks of the page it runs in. Four members are
+needed; without any of the others the shell does without, or asks in the page.
+Each member is read when it is needed, so a host may replace one while the
+shell runs.
+
+| Member | When the shell calls it | Without it |
+|---|---|---|
+| `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
+| `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
+| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
+| `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
+| `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's Open Folder…; the folder comes back by `app.showFolder` | no Folder button: the host shows no folders |
+| `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |
+| `confirmClose(names)` | a tab, or the window, is to close with unsaved edits: save, discard or cancel | the shell's own dialog in the page |
+| `confirmReload(name)` | a file with unsaved edits changed on disk, or another program wrote over a save of it: reload, or keep the edits | the shell's own dialog in the page |
+| `setEdited(edited)` | each repaint: whether any open file has unsaved edits (the window's edited mark, a prompt before it closes) | nothing |
+| `setTitle(title)` | each repaint: `● plant.sldd — My app` | `document.title` |
+| `copyText(text)` | Copy Name, Copy Value | `navigator.clipboard` |
+| `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
+| `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
+
+An Electron app writes its own host: each member a call over IPC to its main
+process, which answers with a native dialog, the disk (core's
+`data-explorer-core/node/save`) and its watcher, and serves a folder with
+`serveFolder` as above, posting the page the port for `app.showFolder`. Its
+native menu owns the File and Edit chords, so it passes `nativeMenu: true`, and
+each item calls `app.command(id)`:
+
+```js
+// The page; window.api is the preload's bridge to main.
+const host = {
+  pickFiles: () => window.api.openFile(),
+  pickFolder: () => window.api.openFolder(), // main serves it, and posts its port for app.showFolder
+  readFile: (path) => window.api.readFile(path),
+  closeFile: (path) => window.api.closeFile(path),
+  saveFile: (path, bytes) => window.api.saveFile(path, bytes),
+  saveFileAs: (path, bytes) => window.api.saveFileAs(path, bytes),
+  confirmClose: (names) => window.api.confirmClose(names), // a native message box
+  setEdited: (edited) => window.api.setEdited(edited),
+};
+const app = connectShell(shell, { host, appName: 'My app', nativeMenu: true });
+window.api.onMenu((id) => app.command(id));
+```
+
+A plain browser page, with no backend, has one ready-made:
+`browserHost()` (`data-explorer-view/browser-host`) picks, reads and saves
+files in the browser (in place with Chromium's File System Access API, by file
+inputs and downloads elsewhere), watches the open files where it can, and
+serves a picked or dropped folder in the page, so the hierarchy, Usage, search
+and project pages work as on the desktop. See
+[docs/browser-host.md](docs/browser-host.md) for what works in which browser.
+
+```js
+import { connectShell, defineShellWidgets, installFileDrop } from 'data-explorer-view/app-shell';
+import { browserHost } from 'data-explorer-view/browser-host';
+
+defineShellWidgets();
+const host = browserHost({
+  onFolder: (root, port) => app.showFolder(root, port),
+  onChanged: (path) => app.fileChanged(path),
+});
+const app = connectShell(document.querySelector('dex-app-shell'), { host, appName: 'My app' });
+installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)));
+addEventListener('beforeunload', (e) => {
+  if (host.edited) e.preventDefault(); // the browser asks before unsaved edits are lost
+});
+```
+
+### Keyboard shortcuts
+
+Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus
+is, but leaves it to a text field that has the focus, except Open and Save,
+and leaves Undo and Redo to a table, which undoes its own document.
+
+| Keys | |
+|---|---|
+| Cmd/Ctrl+O, Cmd/Ctrl+Shift+O | Open File…, Open Folder… |
+| Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Alt+S | Save, Save As…, Save All |
+| Cmd/Ctrl+W | close the tab |
+| Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
+| Cmd/Ctrl+F | the active table's search |
+| Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
+| Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
+| Cmd/Ctrl+, | Settings |
+| Cmd/Ctrl+Shift+P | the command palette |
+| Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Explorer, the Gallery, Search |
+| Cmd/Ctrl+Shift+I, Cmd/Ctrl+Shift+W | the Properties, Raw |
+| Cmd/Ctrl+\`, Cmd/Ctrl+Shift+D | the Terminal, the Log |
+
+A view's chord shows it, or closes its side when it is the one shown. With
+`nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
+the command palette and the views' chords, and the menu the rest. In a browser
+tab, a few chords are the browser's whatever the page does: Chromium keeps
+Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs, and there the
+toolbar, the tab row and the command palette do the same.
+
+### Every part on its own
+
+Each part of the shell is an element of its own, which an app can use without
+`connectShell`, or without the shell: [`<dex-app-shell>`](docs/widgets/app-shell.md)
+with its [views](docs/widgets/shell-view.md) and
+[actions](docs/widgets/shell-action.md), the [toolbar](docs/widgets/toolbar.md),
+the [tab row](docs/widgets/doc-tabs.md), the
+[location bar](docs/widgets/location-bar.md), the
+[Explorer](docs/widgets/explorer.md), the
+[Settings](docs/widgets/settings-panel.md) and
+[About](docs/widgets/about-panel.md) popovers, the
+[toasts](docs/widgets/toast-host.md), the
+[confirm dialog](docs/widgets/confirm-dialog.md), and the modules: the
+[Raw pane](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md),
+the [Gallery](docs/widgets/gallery-panel.md), the
+[relationship graph](docs/widgets/relationship-graph.md), the
+[command window](docs/widgets/command-window.md), the
+[Log](docs/widgets/log-panel.md) and the
+[command palette](docs/widgets/command-palette.md). Each draws what it is given
+and asks for the rest with its events; its page says what it takes and sends.
+
 ## What is in it
 
 **`model/`** builds what the widgets show from core's data model: the table's
@@ -487,8 +655,8 @@ const { rows } = await doc.table.open(); // the table's rows
 
 **`widgets/`** are [Lit](https://lit.dev) custom elements: the tree table (with
 its filter bar, column filter and Add gallery), the property inspector, the
-variable editor, the context menu, the error dialog, the folder hierarchy and
-the project page.
+variable editor, the context menu, the error dialog, the folder hierarchy, the
+project page, and the app shell with its parts and modules.
 Importing a widget defines nothing: call its define function before the
 first element is created, as above. It defines the parts the widget draws (the table's
 filter bar, for example) under their default names, then the widget, under
