@@ -144,6 +144,21 @@ describe('a model, edited by the MAT-file engine', () => {
     assert.deepStrictEqual(rules.rules, []);
   });
 
+  it("opens a model Simulink did not package for viewing only, saying why in a user's words, not the package's", async () => {
+    // A package with no [Content_Types].xml, which names its parts: core's reason names that part,
+    // which means nothing to someone who only saved a model.
+    const parts = unzipSync(model('slxcases.slx'));
+    assert.ok(parts['[Content_Types].xml']);
+    delete parts['[Content_Types].xml'];
+    const o = await open('unpackaged.slx', zipSync(parts), { file: MODEL_FILE });
+    const set = o.view.posts.find((p) => p.type === 'setRows');
+    assert.strictEqual(set.editable, false);
+    assert.strictEqual(
+      set.notice,
+      'Read-only: unpackaged.slx is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.',
+    );
+  });
+
   it('edits the workspace of a model saved before R2019b, a whole MAT-file', async () => {
     const o = await openModel('slxcases_R2018a.slx');
     o.view.send({ type: 'edit', rowId: wsRow(o.view.posts, 'tau').ID, columnId: 'Value', oldValue: '', newValue: '0.75' });

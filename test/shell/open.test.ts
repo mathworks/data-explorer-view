@@ -34,9 +34,12 @@ describe('the shell opens files as tabs', () => {
     expect(['params.sldd', 'rt_bin.sldd', 'ParamMat.mat', 'shared_gain.slx'].map((n) => tableOf(n)!.readonly)).toEqual([false, false, false, false]);
     expect(tableOf('legacy_ctrl.mdl')!.readonly).toBe(true);
     // shared_gain.slx was made by hand and names none of its parts: its Model Workspace opens for
-    // viewing only, as a MAT-file a save could not keep does, and says why.
+    // viewing only, as a MAT-file a save could not keep does, and says why in a user's words, not
+    // the package's part names (core's reason was 'it holds no "[Content_Types].xml"').
     await until(() => !!tableOf('shared_gain.slx')!.banners?.notice);
-    expect(tableOf('shared_gain.slx')!.banners?.notice).toMatch(/^Read-only: Cannot edit "shared_gain\.slx": it holds no "\[Content_Types\]\.xml"/);
+    expect(tableOf('shared_gain.slx')!.banners?.notice).toBe(
+      'Read-only: shared_gain.slx is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.',
+    );
   });
 
   it('a file already open is its tab again, not a second one', async () => {

@@ -119,12 +119,20 @@ export const MODEL_FILE: EngineFile = {
     return rowId === buildSectionRowId(CONFIG_SECTION) || rowId.startsWith(id + '/') ? { sectionName: CONFIG_SECTION, containerId: id } : null;
   },
   readOnly: (variables) => !editsAsMatFile(variables) || !!variables.readOnly,
-  // Core's words, which say why: a workspace made anew from another source as the model opens, a
-  // package a save could not put back together.
+  // Why, for the banner. Core's words where they are a user's: a workspace made anew from another
+  // source as the model opens ("…is loaded from the MAT-file "init.mat" each time the model
+  // opens…"), a MAT-file's own refusal. A package a save could not put back together is core's
+  // package verdict, which names the package's parts ('it holds no "[Content_Types].xml"'): it is
+  // said here as what it means to the user, a file Simulink did not save as it saves a model.
   readOnlyWhy(name, variables) {
     if (!editsAsMatFile(variables)) return `Read-only: ${name}'s Model Workspace is held in a way this editor does not save, so it opens for viewing only.`;
     if (!variables.readOnly) return undefined;
     const why = variables._fileRefusal();
+    // The verdict ModelWorkspaceNode keeps of the model's package once it has found one; a core
+    // that keeps none gets its own words, as every other refusal does.
+    if (why && why === variables._packageVerdict) {
+      return `Read-only: ${name} is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.`;
+    }
     return `Read-only: ${why ?? `${name} takes no edit of its Model Workspace.`}`;
   },
 };
