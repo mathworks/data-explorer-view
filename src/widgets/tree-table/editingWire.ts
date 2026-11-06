@@ -10,10 +10,14 @@
 // its keyboard chords, the drop predictor, the dialogs a refusal is shown in, and every gesture as
 // the source's command of the same name. Each rule is table-main's, in table-main's order, so that
 // the extension, once its webview is wired with this, sends exactly what it sends today.
+//
+// Two things are view's own, and leave the extension as it was: Undo and Redo follow the source's
+// undo stack, for a source that says where it stands (its `history`; the extension's does not), and
+// each menu item's gesture handed to the source is told (`ran`), for an app's "Copied to clipboard".
 import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { dropDecision, type DragMode, type DropTarget } from '../../model/actions/dropDecision.js';
-import { sectionRowIdOf } from '../../model/actions/operands.js';
+import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import type { SectionRule } from '../../model/actions/sectionRules.js';
 import { sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
 import type { EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
@@ -40,6 +44,26 @@ export interface TableTextView {
   locate(rowId: string): void;
 }
 
+/**
+ * One editing gesture the table handed its source (the handle's `ran`): which of the editing menu's
+ * items it was, the rows it carried, and how many it acted on.
+ */
+export interface EditingRun {
+  /** The editing menu's item: 'copy', 'cut', 'paste', 'delete', 'addChild', 'undo', 'redo', 'locateInText', 'setActiveConfigSet'. */
+  actionId: string;
+  /**
+   * The rows it was handed: the selection, for Copy, Cut and Delete; the row it was anchored at, for
+   * the rest (none for a paste into the document itself, and for Undo and Redo).
+   */
+  rowIds: string[];
+  /**
+   * How many it acted on, as its item's label counts them: the entries Copy or Cut carried, the
+   * items Delete took, the entries the clipboard held for Paste; one for a gesture on one row; none
+   * for Undo and Redo.
+   */
+  count: number;
+}
+
 /** What the editing half needs of the connected table it is part of. */
 export interface EditingHost {
   table: DexTreeTable;
@@ -58,6 +82,8 @@ export interface EditingHost {
   view(): TableView | undefined;
   select(rowIds: readonly string[]): void;
   beginRename(rowId: string): void;
+  /** A gesture handed to the source was not refused by the end of the task it was handed in. */
+  ran(run: EditingRun): void;
 }
 
 /** What connectTable asks of the editing half. */
@@ -83,8 +109,13 @@ export interface EditingWire {
   run(actionId: string): boolean;
   /** Settled once every cell edit handed to the source so far is the document's, or refused. */
   editsSettled(): Promise<void>;
-  /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */
+  /**
+   * Undo or Redo, as its menu item does, where the document may be edited and its source does not
+   * say there is nothing to undo (or redo); false where not.
+   */
   history(action: 'undo' | 'redo'): boolean;
+  /** The source said an error (the banner's): no gesture handed to it this task is told as done. */
+  failed(): void;
 }
 
 // Whether a value read off a change is an object — the one shape every list element below
@@ -194,18 +225,58 @@ export function wireEditing(host: EditingHost): EditingWire {
         ? { sectionName: rule.sectionName, sectionLabel: rule.sectionLabel, isDerived: rule.isDerived, allowedTypes: rule.allowedTypes }
         : null,
       docUri: host.docUri(),
+      // Where the document's undo stack stands, when the source says: Undo and Redo only where
+      // there is a step. A source whose stack is an editor's says nothing, and offers both.
+      ...(source?.history ? { history: source.history } : {}),
     });
+  };
+
+  // The gestures handed to the source in this task, each told (`ran`) once the task ends unless the
+  // source refused or failed one meanwhile. A source in the page refuses as it is called, or a few
+  // promise turns later (a JSON dictionary's structural edits wait their turn on its text), so before
+  // the task ends; one across a channel answers later than that, and its gesture is told before. A
+  // refusal marks every gesture still waiting, as which one it was is not said: none is told rather
+  // than the wrong one.
+  let waiting: { run: EditingRun; refused: boolean }[] = [];
+  let telling: ReturnType<typeof setTimeout> | null = null;
+  // Hand the gesture over (`give`), waiting before it is given, so that a refusal said while the
+  // source takes it is its own; one the source throws for is not told, and the throw goes on.
+  const hand = (actionId: string, rowIds: string[], count: number, give: () => void): void => {
+    const w = { run: { actionId, rowIds, count }, refused: false };
+    waiting.push(w);
+    telling ??= setTimeout(() => {
+      telling = null;
+      const done = waiting;
+      waiting = [];
+      for (const d of done) if (!d.refused) host.ran(d.run);
+    }, 0);
+    try {
+      give();
+    } catch (err) {
+      w.refused = true;
+      throw err;
+    }
+  };
+  const refused = (): void => {
+    for (const w of waiting) w.refused = true;
+  };
+  // How many a selection's gesture acts on, as its item's label counts them (buildContextMenuItems).
+  const countOf = (actionId: string, rowIds: string[]): number => {
+    const ops = resolveOperands(rowIds, host.rowsNow());
+    return (actionId === 'delete' ? ops.deleteIds : ops.entryIds).length;
   };
 
   // An action, as the source's command with the operand shape that action takes.
   const act = (actionId: string, anchorRowId: string | null): boolean => {
     if (!EDITING_ACTIONS.has(actionId)) return false;
     if (actionId === 'undo' || actionId === 'redo') {
-      source?.[actionId]();
+      if (source) hand(actionId, [], 0, () => source[actionId as 'undo' | 'redo']());
       return true;
     }
     if (SELECTION_ACTIONS.has(actionId)) {
-      source?.[actionId as 'copy' | 'cut' | 'delete'](host.selectedRowIds());
+      if (!source) return true;
+      const rowIds = host.selectedRowIds();
+      hand(actionId, rowIds, countOf(actionId, rowIds), () => source[actionId as 'copy' | 'cut' | 'delete'](rowIds));
       return true;
     }
     if (!anchorRowId) {
@@ -214,12 +285,18 @@ export function wireEditing(host: EditingHost): EditingWire {
       // only one that offers it, and this says so again here rather than trusting every
       // path that reaches act to have asked: a dictionary has no section to put a row-less
       // paste in.
-      if (actionId === 'paste' && wholeFileRule()) source?.paste('');
+      if (actionId === 'paste' && wholeFileRule() && source) hand('paste', [], clipboardState.items.length, () => source.paste(''));
       return true;
     }
-    if (actionId === 'locateInText') host.textView?.locate(anchorRowId);
-    else if (actionId === 'setActiveConfigSet') source?.setActiveConfigSet?.(anchorRowId);
-    else source?.[actionId as 'paste' | 'addChild'](anchorRowId);
+    const count = actionId === 'paste' ? clipboardState.items.length : 1;
+    const textView = host.textView;
+    if (actionId === 'locateInText') {
+      if (textView) hand(actionId, [anchorRowId], count, () => textView.locate(anchorRowId));
+    } else if (actionId === 'setActiveConfigSet') {
+      if (source?.setActiveConfigSet) hand(actionId, [anchorRowId], count, () => source.setActiveConfigSet?.(anchorRowId));
+    } else if (source) {
+      hand(actionId, [anchorRowId], count, () => source[actionId as 'paste' | 'addChild'](anchorRowId));
+    }
     return true;
   };
 
@@ -339,10 +416,12 @@ export function wireEditing(host: EditingHost): EditingWire {
     true,
   );
 
-  // Undo and Redo, as their menu items do, where the document may be edited (their items are
-  // disabled where it may not).
+  // Undo and Redo, as their menu items do, where the document may be edited and the source does not
+  // say there is nothing to take back or make again (their items are disabled there).
   const history = (action: 'undo' | 'redo'): boolean => {
     if (!editable) return false;
+    const stack = source?.history;
+    if (stack && !(action === 'undo' ? stack.canUndo : stack.canRedo)) return false;
     act(action, null);
     return true;
   };
@@ -484,6 +563,7 @@ export function wireEditing(host: EditingHost): EditingWire {
           if (typeof change.rowId === 'string') host.beginRename(change.rowId);
           return true;
         case 'invalid':
+          refused();
           // An invalid cell edit: the dialog scoped to this table. The source follows it with a
           // repaint of the rejected row's entry, so the cell is back to its previous value by
           // the time the dialog is dismissed.
@@ -495,6 +575,7 @@ export function wireEditing(host: EditingHost): EditingWire {
           });
           return true;
         case 'refused':
+          refused();
           // A refused Add Child, Delete or Add: the same dialog, titled by the gesture, which
           // stays until it is closed. A banner would be cleared by the next repaint.
           errorDialog.show({ title: change.title, reason: change.reason });
@@ -525,5 +606,6 @@ export function wireEditing(host: EditingHost): EditingWire {
     run,
     editsSettled: () => Promise.all([...writing]).then(() => undefined),
     history,
+    failed: refused,
   };
 }

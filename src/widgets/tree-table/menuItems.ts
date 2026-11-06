@@ -3,6 +3,7 @@ import type { ContextMenuItem } from '../context-menu/dex-context-menu.js';
 import { isNoopMove, rejectReason, type DragItem, type DropTarget } from '../../model/actions/dropDecision.js';
 import { resolveOperands, type OperandRow } from '../../model/actions/operands.js';
 import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import type { EditHistory } from '../../model/source/tableSource.js';
 
 // The subset of row data the menu builder needs. The host attaches the capability
 // flags in rowStamp.stampRow, for both row builders; section rows lack them (all falsy),
@@ -55,6 +56,13 @@ export interface MenuInput {
   pasteTarget: PasteTarget | null;
   /** This document's uri, which a cut's `sourceDocUri` is compared with. */
   docUri?: string;
+  /**
+   * Where the document's undo stack stands, when its source says (EditableTableSource.history):
+   * Undo is offered only where there is an edit to undo, and Redo one to redo. Without it both are
+   * offered wherever the document may be edited, as a source whose stack is an editor's (VS Code's)
+   * leaves them.
+   */
+  history?: Pick<EditHistory, 'canUndo' | 'canRedo'>;
 }
 
 // A display name short enough that the label fits the menu's max-width, with the whole
@@ -161,8 +169,8 @@ export function shouldOpenCellEditor(editable: boolean): boolean {
  * Build the right-click context menu for the CURRENT SELECTION.
  *
  * Pure and synchronous: enablement comes from the host-computed row flags, the cached
- * clipboard state, the target section's rules, and whether the document is editable —
- * no round-trip. Two things it deliberately does NOT decide: which rows are operands
+ * clipboard state, the target section's rules, whether the document is editable, and where its
+ * undo stack stands when the source says — no round-trip. Two things it deliberately does NOT decide: which rows are operands
  * (resolveOperands does, so the keyboard cannot diverge) and whether a payload may land
  * in a section (dropDecision.rejectReason does, so a Paste offered here is a drop the
  * hover feedback would allow).
@@ -223,9 +231,17 @@ export function buildContextMenuItems(input: MenuInput): ContextMenuItem[] {
     return base;
   };
 
+  // Greyed where the document may not be edited, and, where the source says where its stack stands,
+  // where there is no step to take back or make again: saying so, as Paste says its clipboard is
+  // empty. A source that does not say leaves both offered, as an editor's stack (VS Code's) is.
+  const step = (id: 'undo' | 'redo', label: string, shortcut: string, can: boolean | undefined): ContextMenuItem => {
+    const nothing = editable && can === false;
+    return { id, label, shortcut, disabled: !editable || nothing, ...(nothing ? { reason: `Nothing to ${id}` } : {}) };
+  };
+  const { history } = input;
   const undoRedo: ContextMenuItem[] = [
-    { id: 'undo', label: 'Undo', shortcut: `${MOD}Z`, disabled: !editable },
-    { id: 'redo', label: 'Redo', shortcut: `${SHIFT}${MOD}Z`, disabled: !editable },
+    step('undo', 'Undo', `${MOD}Z`, history && !!history.canUndo),
+    step('redo', 'Redo', `${SHIFT}${MOD}Z`, history && !!history.canRedo),
   ];
 
   // A selection with no data-row operands is a header selection (or nothing at all).

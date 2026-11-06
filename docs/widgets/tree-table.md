@@ -8,7 +8,9 @@ rows, so a dictionary of a hundred thousand entries scrolls as a small one does.
 It holds no document. The app gives it rows and answers what it asks for; every user action
 goes out as a `dex-*` event, and the table never changes the document itself. Its defaults are a
 full editor: `readonly` makes it a viewer, `canAdd` and `rowDrag` turn the `+ Add` button and
-dragging on and off.
+dragging on and off. `keyboardMenu` gives the keyboard the row menu: Shift+F10 and the ContextMenu
+key on the grid send `dex-table-context-menu` for the keyboard's row, placed under it (off by
+default, which leaves both keys to the browser, whose own event names no row).
 
 `connectTable` feeds it from a table source: a document opened in the page
 (`createWorkspace().open(bytes, name)`), or a host across a channel (`messageSource(port)`). It
@@ -70,6 +72,10 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
 - **The menu and its chords:** the right-click menu is the editing one (Copy, Cut, Paste, Add
   Child, Delete, Undo, Redo), with its chords (Cmd/Ctrl+C, X and V, Delete), each enabled as its
   item is.
+- **Undo and Redo:** a source that says where its undo stack stands (its `history`, which a
+  workspace's documents have) gets each only where there is a step to take back or make again. A
+  source that does not (a host's across a channel, whose stack is its editor's) gets both wherever
+  the document may be edited.
 - **What the source sends back:** a selection, a rename to begin, and the clipboard, drag and
   drop rules the menu and the drop predictor are built from. A refused edit opens the error
   dialog (`errorDialog`, or one connectTable makes).
@@ -83,7 +89,10 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
   with the row's reason (`_setActiveWhy`) where the set is not made active; a reference's row says
   what making it active cannot check (`_setActiveCaution`), as the item's tooltip.
 - **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
-  and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
+  and `menuFor(anchorRowId)` is the editing menu a right-click there would show. `ran` says each
+  of the menu's gestures the source took, from the menu, a chord or `run()`: which item, the rows
+  it carried and how many it acted on, a task later, and not where the source refused it, for an
+  app's "Copied to clipboard" or "2 entries deleted".
 
 ```js
 const handle = connectTable(table, messageSource(port), {

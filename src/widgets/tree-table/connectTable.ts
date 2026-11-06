@@ -34,7 +34,7 @@ import {
   type TableView,
 } from '../../model/source/tableSource.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
-import { wireEditing, type EditingWire, type TableTextView } from './editingWire.js';
+import { wireEditing, type EditingRun, type EditingWire, type TableTextView } from './editingWire.js';
 import type { MenuRow } from './menuItems.js';
 
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
@@ -206,6 +206,15 @@ export interface TableHandleEventMap {
    * the table goes on.)
    */
   painted: TableView;
+  /**
+   * With `editing`: an editing menu item's gesture was handed to the source, from the menu, its
+   * chord, `run()` or `undo()`/`redo()`, with the rows it carried and how many it acted on: for an
+   * app to say "Copied to clipboard" or "2 entries deleted". Told a task later, and not at all where
+   * the source refused it or said an error meanwhile, as a source in the page does before then; a
+   * source across a channel (the VS Code extension's) answers later, and its gesture is told before
+   * any refusal arrives. A disabled item hands nothing, and tells nothing.
+   */
+  ran: EditingRun;
 }
 
 /** A table wired to a source: what connectTable returns. */
@@ -247,7 +256,8 @@ export interface TableHandle extends InspectorFeed {
    * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
    * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
    * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
-   * source says (its clipboard, a repaint). False where the document may not be edited, for Copy
+   * source says (its clipboard, a repaint, and where its undo stack stands: its `history`, whose
+   * `onChange` says when Undo and Redo move). False where the document may not be edited, for Copy
    * Name and Copy Value (`copyText`) and the items the app added (`menuItems`), which are not the
    * editing menu's own, and without `editing`.
    */
@@ -268,7 +278,8 @@ export interface TableHandle extends InspectorFeed {
   commitEdit(): Promise<void>;
   /**
    * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
-   * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+   * app's Edit menu. Nothing where the document may not be edited, where its source's `history` says
+   * there is nothing to undo (or redo), or without `editing`.
    */
   undo(): void;
   redo(): void;
@@ -317,6 +328,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     action: new Set(),
     copyFailed: new Set(),
     painted: new Set(),
+    ran: new Set(),
   };
   // Each listener on its own: one that throws is the app's to fix, said on the console as the
   // workspace says a listener's failure, and costs the table nothing (what a paint does after it,
@@ -549,6 +561,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         return;
       }
       case 'error':
+        // A gesture just handed to the source did not happen, whatever the banner says of it.
+        editing?.failed();
         return failed(change.message);
       default:
         // The editing changes, which a table that does not edit ignores.
@@ -676,6 +690,9 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       view: () => view,
       select: selectRows,
       beginRename: beginRenameRow,
+      ran: (run) => {
+        if (!disposed) emit('ran', run);
+      },
     });
   }
 
