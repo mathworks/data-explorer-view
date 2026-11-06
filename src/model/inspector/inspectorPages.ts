@@ -212,12 +212,14 @@ const FILE_EDGES: ReadonlySet<GraphEdgeKind> = new Set<GraphEdgeKind>(['model-re
  * the graph knows of the file (it need not be open: the graph draws a folder's files too), its
  * References and Referenced By the boxes its edges between files reach, each a link to its file (a
  * ghost, a file referenced and not found, by the name it was referenced by). `open` says whether a
- * file is open, and holding edits. Null for an id the graph does not draw.
+ * file is open, and holding edits; `titleOf` what to say of where it is, its path in the host's
+ * words (default the path). Null for an id the graph does not draw.
  */
 export function graphFilePage(
   graph: RelationshipGraph,
   id: string,
   open: (uri: string) => { dirty: boolean } | undefined,
+  titleOf: (path: string) => string = (path) => path,
 ): { box: GraphBox; groups: PropertyGroup[] } | null {
   const box = graph.boxes.find((b) => b.id === id) ?? graph.boxes.find((b) => b.items.some((i) => i.id === id));
   if (!box) return null;
@@ -241,7 +243,7 @@ export function graphFilePage(
   const state = box.ghost ? undefined : open(box.uri);
   const groups = filePropertyGroups({
     name: box.label,
-    path: box.ghost ? '' : uriPath(box.uri),
+    path: box.ghost ? '' : titleOf(uriPath(box.uri)),
     ...(state ? { modified: state.dirty } : {}),
     ...(box.ghost ? { more: [text('File', 'Not found')] } : {}),
     references: linked((edge) => (edge.from === box.id ? edge.to : null)),

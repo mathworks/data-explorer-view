@@ -187,6 +187,12 @@ export interface ConnectTableOptions {
    */
   inspectorPages?: boolean;
   /**
+   * With `inspectorPages`: what the file's page says of where the file is (its File row), the host's
+   * words for its path where its paths mean nothing to the user (the browser host's are its own
+   * making: ShellHost.pathTitle). Default the path the document's uri names.
+   */
+  inspectorFileTitle?: string;
+  /**
    * With `editing`: the inspector's rows are editable where the document takes an edit of the
    * property, and a change of one (`dex-property-changed`, which connectInspector hands to
    * `handle.edit`) is written back as a cell edit is, a refusal shown in the table's dialog. Not
@@ -902,7 +908,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const inspectOptions = (): InspectOptions | undefined => {
     const pages = !!options.inspectorPages;
     const editable = !!options.inspectorEditing && !!editing?.editable();
-    return pages || editable ? { pages, editable } : undefined;
+    const title = pages && options.inspectorFileTitle ? { fileTitle: options.inspectorFileTitle } : {};
+    return pages || editable ? { pages, editable, ...title } : undefined;
   };
   // The page for `rowIds`, and with `inspectorPages` its row's Usage links as a group of their own,
   // as the table's cell holds them.

@@ -86,6 +86,15 @@ describe('without the options', () => {
 });
 
 describe('inspectorPages', () => {
+  it("says where the file is as `inspectorFileTitle` has it, and by its path without one", async () => {
+    // A browser host's paths are its own making: the shell gives the host's words for the file's.
+    const titled = await mount('params.sldd', { inspectorPages: true, inspectorFileTitle: 'plant/params.sldd' });
+    expect(row(titled.pages[0], 'File')?.value).toBe('plant/params.sldd');
+    document.body.replaceChildren();
+    const plain = await mount('params.sldd', { inspectorPages: true });
+    expect(row(plain.pages[0], 'File')?.value).toBe('/work/params.sldd');
+  });
+
   it("sends the file's page while no row is selected, from the first, and again as the selection goes", async () => {
     const { pages, select, table } = await mount('params.sldd', { inspectorPages: true });
     expect(pages[0]?.rowId).toBe(uriOf('params.sldd'));

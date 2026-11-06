@@ -129,6 +129,12 @@ export interface InspectOptions {
    */
   pages?: boolean;
   /**
+   * With `pages`: what the file's page says of where the file is (its File row), in the host's words
+   * for its path, where the host's paths mean nothing to the user (a browser host's are its own
+   * making). Default the path the document's uri names.
+   */
+  fileTitle?: string;
+  /**
    * A row's properties editable where core offers an editor of them (PropertyGroupOptions'
    * `editable`), each keyed by the property an edit names, for an inspector that writes a change
    * back as a cell edit. For a document whose view may be edited; nothing else is.

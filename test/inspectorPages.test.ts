@@ -293,6 +293,13 @@ describe('graphFilePage', () => {
     expect(rowsOf(groupNamed(dictionary.groups, 'Referenced By'))).toEqual([`shadow_ws.slx: Open -> ${uriOf('shadow_ws.slx')}`]);
   });
 
+  it("says where the file is in the host's words, where a host has words for its paths", () => {
+    // A browser page's paths are its host's own making (/files/4/params.sldd): the page says what
+    // the path means to the user, as the shell's tooltips do (ShellHost.pathTitle).
+    const page = graphFilePage(graph, uriOf('params.sldd'), () => undefined, (path) => `the ${path.slice(path.lastIndexOf('/') + 1)} picked`)!;
+    expect(rowsOf(page.groups[0])).toContain('File: the params.sldd picked');
+  });
+
   it("is the page of an item's box for an item, a ghost's for a file referenced and not found, and none for an id it does not draw", () => {
     const item = graph.boxes.find((b) => b.items.length > 0)!.items[0]!;
     expect(graphFilePage(graph, item.id, () => undefined)?.box.id).toBe(item.boxId);

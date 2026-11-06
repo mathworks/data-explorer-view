@@ -700,6 +700,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     failed,
     // Its selection is the inspector's page at Root, and the location bar's dimmed file.
     selected: later,
+    titleOf,
   });
   stops.push(() => graph.dispose());
   // Drawn in the layout Settings names from the start; a change of it is told through layoutGraph.

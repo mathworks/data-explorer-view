@@ -183,6 +183,21 @@ describe('the Properties view, beside a tab', () => {
     await until(() => rows('References').join() === 'params.sldd: Open');
   });
 
+  it("says where the file is in the host's words, beside its tab and at Root, where the host has words for its paths", async () => {
+    // A browser host's paths are its own making (/files/4/params.sldd): the File row says what the
+    // path means to the user, as the tab's tooltip does.
+    const page = startPage(FILES);
+    page.host.pathTitle = (path) => `plant${path.slice(path.lastIndexOf('/'))}`;
+    await open(page, 'params.sldd', 'shadow_ws.slx');
+    await until(() => rows().includes('Name: shadow_ws.slx'));
+    expect(rows()).toContain('File: plant/shadow_ws.slx');
+    root();
+    await until(() => (graph().graph?.boxes.length ?? 0) === 2);
+    graphClick(graph().graph!.boxes.find((b) => b.label === 'params.sldd')!.id);
+    await until(() => rows().includes('Name: params.sldd'));
+    expect(rows()).toContain('File: plant/params.sldd');
+  });
+
   it("lists a row's Usage links, and goes where one points", async () => {
     const page = startPage(FILES);
     await open(page, 'shadow_ws.slx', 'params.sldd');

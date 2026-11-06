@@ -174,6 +174,8 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
     inspectorPages: true,
     inspectorEditing: true,
+    // Where the file's page says it is: the host's words for its path, where it has them.
+    ...(host.pathTitle ? { inspectorFileTitle: host.pathTitle(tab.path) } : {}),
     errorDialog: wiring.dialog,
     // The host's clipboard, or the page's for a host without one, asked at each copy.
     copy: (text) => copyText(host, text),

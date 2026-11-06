@@ -70,6 +70,8 @@ export interface GraphPaneContext {
    * background, an arrow key, a reveal, a build. For the shell to show `selectedFile()` again.
    */
   selected?(): void;
+  /** What a selected file's page says of where it is: its path in the host's words (ShellHost.pathTitle). Default the path. */
+  titleOf?(path: string): string;
 }
 
 /** The graph pane, as connectShell drives it. */
@@ -299,7 +301,7 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       const tab = tabs.find((t) => sourceUri(t.path) === uri);
       return tab ? { dirty: !!tab.dirty } : undefined;
     };
-    const file = graph && selected !== null ? graphFilePage(graph, selected, state) : null;
+    const file = graph && selected !== null ? graphFilePage(graph, selected, state, context.titleOf) : null;
     page = { graph, selected, open, file };
     return file;
   };
