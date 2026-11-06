@@ -88,11 +88,11 @@ describe('the shell opens files as tabs', () => {
     expect(tableOf('params.sldd')!.storageKey).toBe(`my-app:${sourceUri(at('params.sldd'))}`);
   });
 
-  it('a dictionary outside a folder has no Usage column; a model has its own', async () => {
+  it('with no folder shown, a dictionary has a Usage column as a model does (openUsage.test.ts says what fills it)', async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
     await open(page, 'params.sldd', 'shadow_ws.slx');
     await until(() => !!tableOf('shadow_ws.slx')!.columns?.includes('UsedBy'));
-    expect(tableOf('params.sldd')!.columns).not.toContain('UsedBy');
+    await until(() => !!tableOf('params.sldd')!.columns?.includes('UsedBy'));
   });
 
   it('closing a tab activates its neighbour and the inspector shows its empty text', async () => {
@@ -152,10 +152,9 @@ describe('the shell opens files as tabs', () => {
   it('a link into another file opens it, beside the file it is in, and selects the row it names', async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
     await open(page, 'shadow_ws.slx');
-    // The WsGain block's Usage, Gain=Kp: Kp in the dictionary the model names.
-    const block = await rowOf('shadow_ws.slx', 'WsGain');
-    const link = (block.UsedBy as { linkTarget?: string }).linkTarget;
-    expect(link).toBe('Kp@params.sldd');
+    // An entry of another file, named by its name and the file's, as a cell's link names one the
+    // file alone tells of (a type's, say): Kp in the dictionary the model names, beside it.
+    const link = 'Kp@params.sldd';
     tableOf('shadow_ws.slx')!.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: link }, bubbles: true, composed: true }));
     await until(() => tabNames().includes('params.sldd') && (tableOf('params.sldd')?.selectedRowIds.length ?? 0) > 0);
     const kp = await rowOf('params.sldd', 'Kp');

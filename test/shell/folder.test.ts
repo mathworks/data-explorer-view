@@ -57,7 +57,8 @@ describe('a folder in the Explorer', () => {
     const dict = path.join(dir, 'params.sldd');
     void page.handle.openPaths([dict]);
     await until(() => (tableAt(dict)?.columns?.length ?? 0) > 0);
-    expect(tableAt(dict)!.columns).not.toContain('UsedBy');
+    // Before: the open tabs' answer, and no model is open.
+    expect(usedBy(dict, 'Uo')).toEqual([]);
     show(page, dir);
     await until(() => !!tableAt(dict)!.columns?.includes('UsedBy') && usedBy(dict, 'Uo').includes('DictOnly'));
     expect(usedBy(dict, 'Kp')).toContain('PlantGain');

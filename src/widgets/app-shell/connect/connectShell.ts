@@ -21,6 +21,7 @@
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
+import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
 import { basenameOf, isProjectFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
@@ -84,12 +85,24 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   let nextId = 0;
   // The Log, which every part of the shell writes to.
   const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
-  // The Usage column is filled from the shown folder's session (ws.setUsage when one is shown).
+  // The Usage column is answered over the open tabs, as each holds its file (read or saved), until
+  // a folder is shown, whose session answers it from then on (ws.setUsage). A change to what is
+  // open (a tab opened, closed, saved or reloaded; refresh() tells it) repaints, once the burst is
+  // over, each table whose column was answered over other tabs than are open now.
+  const openUsage = createOpenFilesUsage({
+    files: () => tabs.items.flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
+    refill(uris) {
+      if (disposed || folderNow()) return;
+      for (const uri of uris) void ws.get(uri)?.repaint().catch((err) => log('error', `Could not fill the Usage column: ${message(err)}`));
+    },
+  });
+  stops.push(() => openUsage.dispose());
   // Its documents share one clipboard, so a row copied in one tab pastes into another. What a
   // document says the table cannot show is a toast, as it stands, and a line of the Log, which
   // keeps what a toast lets go by.
   const ws = createWorkspace({
     editing: true,
+    usage: openUsage,
     notify(notice) {
       toasts.show(notice);
       log(notice.level === 'status' ? 'info' : notice.level, notice.message);
@@ -213,6 +226,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     location.canUp = nav.canUp;
     modules.refresh();
     graph.refresh();
+    // A tab opened, closed, saved or reloaded since: the Usage it answers is owed to the others.
+    if (!folderNow()) openUsage.changed();
   }
 
   // Another tab is the active one (or none, at Root): the variable editor was the last one's, and

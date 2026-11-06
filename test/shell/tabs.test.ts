@@ -250,9 +250,10 @@ describe('preview tabs', () => {
   it("a link opens its file in a preview tab", async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
     await open(page, 'shadow_ws.slx');
-    const block = await rowOf('shadow_ws.slx', 'WsGain');
+    // The model's External Data row: its dictionary, by name, which links the file beside it.
+    const source = await rowOf('shadow_ws.slx', 'params.sldd');
     tableOf('shadow_ws.slx')!.dispatchEvent(
-      new CustomEvent('dex-link-clicked', { detail: { target: (block.UsedBy as { linkTarget: string }).linkTarget }, bubbles: true, composed: true }),
+      new CustomEvent('dex-link-clicked', { detail: { target: (source.Value as { linkTarget: string }).linkTarget }, bubbles: true, composed: true }),
     );
     await until(() => tabNames().includes('params.sldd'));
     expect(previewTabs()).toEqual(['params.sldd']);

@@ -132,9 +132,13 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     errorDialog: wiring.dialog,
     // The host's clipboard, or the page's for a host without one, asked at each copy.
     copy: (text) => copyText(host, text),
-    // Usage is core's in a model; in a dictionary or a MAT-file the shown folder's usage
-    // graphs fill it, so a file outside the folder has none.
-    columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),
+    // Usage is answered over the open tabs until a folder is shown, and from then on over the
+    // folder: a model's is its own blocks' and workspace's either way, but a dictionary or a
+    // MAT-file outside the folder shown has none.
+    columns: (column) => {
+      const folder = wiring.folder();
+      return column !== 'UsedBy' || doc.kind === 'model' || !folder || folder.lists(doc.uri);
+    },
     // A name a link holds means the file the folder's tree shows for it.
     resolveLink: (link: LinkTarget, fromUri: string) => wiring.folder()?.resolveLink(link, fromUri),
     // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).
