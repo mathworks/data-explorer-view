@@ -62,7 +62,7 @@ async function settle(el: DexExplorer): Promise<void> {
 }
 
 const rows = (el: DexExplorer): HTMLElement[] => [...el.shadowRoot!.querySelectorAll<HTMLElement>('[role="treeitem"]')];
-// A row's name, with its unsaved mark after it as the user reads it ("dd.sldd *").
+// A row's name, with its unsaved mark after it as the user reads it ("dd.sldd ●").
 const labelOf = (row: Element): string => {
   const mark = row.querySelector('.dirty');
   return row.querySelector('.label')!.textContent! + (mark ? ` ${mark.textContent}` : '');
@@ -160,19 +160,20 @@ describe('the rows', () => {
     expect(labels(el)).toEqual(['Workspace']);
   });
 
-  it('marks a file with unsaved changes, as the prototype shows "dd.sldd *", and says so to a screen reader', async () => {
+  it("marks a file with unsaved changes with the tab's ● in its colour, and says so to a screen reader", async () => {
+    // The prototype wrote "dd.sldd *" here and the shell's tab draws ●: two marks for one fact.
     const el = await explorer([{ ...DD, dirty: true }, MODEL]);
-    expect(labels(el)).toEqual(['Root', 'm.slx', 'dd.sldd *']);
-    const dd = rowOf(el, 'dd.sldd *');
+    expect(labels(el)).toEqual(['Root', 'm.slx', 'dd.sldd ●']);
+    const dd = rowOf(el, 'dd.sldd ●');
     // The mark is a part of its own after the name, not in it: a name too long for the sidebar
     // is cut short with an ellipsis, and the mark is still drawn after it.
     const name = dd.querySelector('.label')!;
     expect(name.textContent).toBe('dd.sldd');
     const mark = name.nextElementSibling!;
     expect(mark.classList.contains('dirty')).toBe(true);
-    expect(mark.textContent).toBe('*');
+    expect(mark.textContent).toBe('●');
     expect(mark.getAttribute('aria-hidden')).toBe('true');
-    expect(cssOf(DexExplorer.styles)).toContain('.dirty { flex-shrink: 0; }');
+    expect(cssOf(DexExplorer.styles)).toContain('.dirty { flex-shrink: 0; font-size: 10px; color: var(--dex-color-modified, #b45309); }');
     expect(dd.querySelector('.sr-only')!.textContent).toBe('(unsaved changes)');
     expect(rowOf(el, 'm.slx').querySelector('.dirty, .sr-only')).toBeNull();
   });
@@ -490,11 +491,11 @@ describe('selected', () => {
     expect(labels(el)).toEqual(['Root', 'dd.sldd']);
     el.files = [{ ...DD, dirty: true }];
     await el.updateComplete;
-    expect(labels(el)).toEqual(['Root', 'dd.sldd *']);
+    expect(labels(el)).toEqual(['Root', 'dd.sldd ●']);
     // Another of its sections: open again.
     el.selected = { fileId: DD.id, sectionId: 'configs' };
     await el.updateComplete;
-    expect(rowOf(el, 'dd.sldd *').getAttribute('aria-expanded')).toBe('true');
+    expect(rowOf(el, 'dd.sldd ●').getAttribute('aria-expanded')).toBe('true');
     expect(rowOf(el, 'Configurations').getAttribute('aria-selected')).toBe('true');
   });
 
@@ -528,7 +529,7 @@ describe('selected', () => {
     twisty(rowOf(el, 'dd.sldd')).click();
     el.files = [{ ...DD, dirty: true }];
     await el.updateComplete;
-    expect(labels(el)).toEqual(['Root', 'dd.sldd *']);
+    expect(labels(el)).toEqual(['Root', 'dd.sldd ●']);
   });
 
   it('gives up a wait for sections once the selection moves on', async () => {
@@ -605,7 +606,7 @@ describe('files that come and go', () => {
     await el.updateComplete;
     expect(labels(el)).toEqual([
       'Root',
-      'dd.sldd *',
+      'dd.sldd ●',
       'Design Data',
       'Architectural Data',
       'Configurations',

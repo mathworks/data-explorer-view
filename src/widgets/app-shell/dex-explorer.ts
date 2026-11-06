@@ -34,7 +34,7 @@ export interface ExplorerFile {
   group: ExplorerGroup;
   /** Its row's tooltip: the file's path, say. */
   title?: string;
-  /** It has changes not saved: its row reads ` *` after the name. */
+  /** It has changes not saved: its row shows ● after the name, as its tab does. */
   dirty?: boolean;
   /** Its sections, drawn under it while it is open. None, or an empty list, gives it no twisty. */
   sections?: ExplorerSection[];
@@ -263,9 +263,12 @@ export class DexExplorer extends LitElement {
     }
 
     /* The unsaved mark is a part of its own, after the name and the row's gap from it: a name too
-       long for the sidebar gives way to the ellipsis, and the mark stays. */
+       long for the sidebar gives way to the ellipsis, and the mark stays. The tab's dot, in its
+       size and colour, so the two read as one fact. */
     .dirty {
       flex-shrink: 0;
+      font-size: 10px;
+      color: var(--dex-color-modified, #b45309);
     }
 
     /* A drag of table rows over the row: the outline the table's own rows draw for a drop they take
@@ -643,11 +646,11 @@ export class DexExplorer extends LitElement {
   private _label(line: Line) {
     if (line.kind === 'root') return html`<span class="label">${this.rootLabel}</span>`;
     if (line.kind === 'section') return html`<span class="label">${line.section.label}</span>`;
-    // The mark is the prototype's, and its tab's: `*` after the name, the row's gap the space before
-    // it. A screen reader hears what it means instead.
+    // The mark is its tab's: ● after the name, the row's gap the space before it (the prototype
+    // wrote `*`, and the shell's tab ●: one fact, one mark). A screen reader hears what it means.
     const name = html`<span class="label">${line.file.label}</span>`;
     return line.file.dirty
-      ? html`${name}<span class="dirty" aria-hidden="true">*</span><span class="sr-only">(unsaved changes)</span>`
+      ? html`${name}<span class="dirty" aria-hidden="true">●</span><span class="sr-only">(unsaved changes)</span>`
       : name;
   }
 

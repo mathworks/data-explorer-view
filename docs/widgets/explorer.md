@@ -4,7 +4,7 @@ The open files, as the app shell's Explorer lists them: Root first, the row for 
 at once, then each kind of file under a heading of its own (Simulink Models, Data Dictionaries,
 MAT-Files, Projects, Other, always in that order, and a heading only over files). A file with
 sections has a twisty that opens it onto them (a dictionary's Design Data, Configurations, …),
-and a file with unsaved changes reads ` *` after its name.
+and a file with unsaved changes shows ● after its name, as its tab in the shell does.
 
 It draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open` for
 it, unpinned, for an app that shows it in a preview tab; a double-click or Enter sends it pinned;
