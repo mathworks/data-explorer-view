@@ -60,13 +60,17 @@ addEventListener('beforeunload', (e) => {
   e.returnValue = ''; // what older browsers ask on
 });
 
-/** The folder shown, then the gallery's files open, the last one active. */
+/**
+ * The folder shown, then the gallery's files open, the last one active: the text dictionary, so
+ * the page shows a file's rows first, not the banner of a model kept for viewing only.
+ */
 async function start(): Promise<void> {
   const files: ListedFile[] = await Promise.all(
     Object.entries(FOLDER).map(async ([rel, url]) => ({ rel, file: new File([await bytesOf(url)], rel.slice(rel.lastIndexOf('/') + 1)) })),
   );
   await host.openFolder({ kind: 'list', root: 'plant', files });
-  const paths = await Promise.all(FIXTURES.map(async (f) => host.files.addPicked(f.name, { kind: 'bytes', bytes: await bytesOf(f.url) })));
+  const opened = [...FIXTURES].reverse();
+  const paths = await Promise.all(opened.map(async (f) => host.files.addPicked(f.name, { kind: 'bytes', bytes: await bytesOf(f.url) })));
   await app.openPaths(paths);
 }
 

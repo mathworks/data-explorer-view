@@ -25,10 +25,10 @@ const folderRow = (page: Page, name: string) => page.locator('dex-hierarchy').ge
 /** A view's button on the shell's activity bars. */
 const viewButton = (page: Page, view: string) => page.locator(`dex-app-shell button[data-view="${view}"]`);
 
-/** The page, its files open: the last of the gallery's active. */
+/** The page, its files open: the text dictionary, opened last, active. */
 async function opened(page: Page): Promise<void> {
   await page.goto(APP);
-  await expect(tab(page, 'shared_gain.slx')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab(page, 'numeric_json.sldd')).toHaveAttribute('aria-selected', 'true');
   await expect(folderRow(page, 'ctrlA.slx')).toBeVisible();
 }
 
@@ -40,7 +40,10 @@ test('lays the app out: the toolbar, the location bar, the Explorer, the tabs an
   // The inspector says what to do while nothing is selected.
   await expect(page.locator('.dex-inspector-empty')).toHaveText('Select an entry to view its properties.');
   await expect(page.locator('dex-doc-tabs [role="tab"]')).toHaveCount(4);
-  await expect(page).toHaveTitle('shared_gain.slx — Data Explorer');
+  await expect(page).toHaveTitle('numeric_json.sldd — Data Explorer');
+  // A dictionary's rows, not a model kept for viewing only's banner, are what the page shows first.
+  await expect(tableRow(page, 'Array')).toBeVisible();
+  await expect(page.locator('dex-doc-tabs [role="tab"]').last()).toHaveAccessibleName('numeric_json.sldd');
   // The toolbar, named for the app, with Folder, as the browser host shows folders.
   await expect(page.locator('dex-toolbar [role="toolbar"]')).toHaveAttribute('aria-label', 'Data Explorer');
   await expect(page.locator('dex-toolbar button').filter({ hasText: exactly('Folder') })).toBeVisible();
