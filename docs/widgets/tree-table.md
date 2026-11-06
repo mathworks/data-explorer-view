@@ -40,8 +40,11 @@ app's own items, whose choice comes out as `action`. `contextMenu` is a menu sev
 share: the table that opened it acts on its choice, and a dismissed menu leaves none waiting.
 `banners` draws the banners somewhere else. `copy` puts what Copy Name and Copy Value copy on
 the app's own clipboard instead of the page's; a copy that fails, on either, says so in the error
-banner and as the handle's `copyFailed`. `columns` narrows the source's columns, on every paint,
-to those a list names or a test passes: to leave out one nothing fills in this document.
+banner and as the handle's `copyFailed`. The handle's `painted` says each whole paint is drawn,
+the first one too, with its view: what an app reads off the handle then (`view`, `can()`) is the
+paint's, for a toolbar enabled as the file stands before any selection. `columns` narrows the
+source's columns, on every paint, to those a list names or a test passes: to leave out one
+nothing fills in this document.
 
 ```js
 // No Usage column where no row has a usage to show.

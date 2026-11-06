@@ -37,7 +37,10 @@ const specifier = (key: string): string => `${NAME}${key.slice(1)}`;
 const file = (target: string): string => join(ROOT, target);
 
 const TAGS = ['dex-tree-table', 'dex-filter-bar', 'dex-column-filter', 'dex-add-gallery', 'dex-property-inspector',
-  'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-matrix-open', 'dex-icon'];
+  'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-matrix-open', 'dex-icon',
+  // The app shell's, and its internal elements, which defineShellWidgets defines too.
+  'dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette',
+  'dex-shell-docs', 'dex-shell-folder', 'dex-shell-note'];
 // An icon, through the one pattern; and the 0.x module paths, which 1.0 no longer exports.
 const ICON_PATH = 'icons/wsTable.svg';
 const OLD_PATHS = ['model/rows/rowBuilder.js', 'widgets/tree-table/dex-tree-table.js', 'theme/global.css', 'theme/tokens.css'];
@@ -90,6 +93,8 @@ describe('every entry in package.json exports', () => {
       './error-dialog',
       './project-page',
       './hierarchy',
+      './app-shell',
+      './browser-host',
       './icon',
       './icon-assets',
       './theme.css',
@@ -226,6 +231,28 @@ describe('the host entry', () => {
     const host = loaded.exports[specifier('./host')]!;
     expect(host.length).toBeGreaterThan(10);
     expect(host.filter(([name]) => model.has(name))).toEqual([]);
+  });
+});
+
+describe('the browser host entry', () => {
+  // A page's host, which any app shell connects over: the DOM and the model, and no widget and no
+  // lit (it names the shell's host types, which the build erases), so an app that draws its own
+  // window can use it.
+  it('loads the model and core, and no widget and no lit', () => {
+    const { files, bare } = closure(file((EXPORTS['./browser-host'] as { default: string }).default));
+    expect(files.filter((f) => !f.startsWith('dist/model/') && !f.startsWith('dist/browser/'))).toEqual([]);
+    expect([...bare]).toEqual(['data-explorer-core']);
+  });
+});
+
+describe('the app shell entry', () => {
+  it('exports every element of the shell with its define, and connectShell with what it needs', () => {
+    const names = new Map(loaded.exports[specifier('./app-shell')]);
+    for (const name of ['DexAppShell', 'DexRelationshipGraph', 'DexCommandPalette', 'defineAppShell', 'defineShellWidgets', 'connectShell', 'installFileDrop']) {
+      expect(names.get(name), name).toBe('function');
+    }
+    // Its internal elements and connectShell's pieces stay its own.
+    for (const name of ['DexShellDocs', 'DexShellFolder', 'DexShellNote', 'connectGraphPane', 'RAW_DRAW_LIMIT', 'cellEditor']) expect(names.has(name), name).toBe(false);
   });
 });
 

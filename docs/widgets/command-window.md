@@ -33,3 +33,82 @@ clear() empties the output (`clc` asks for the same, by the answer's `clear`), a
 gives the prompt the keyboard.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
+
+## At a glance
+
+| Tag | Class | Define | Entry |
+|---|---|---|---|
+| `<dex-command-window>` | `DexCommandWindow` | `defineCommandWindow(tag = 'dex-command-window')` | `data-explorer-view/app-shell` |
+
+## Properties
+
+### `maxLines`
+
+type `number` · default `5000` · attribute `max-lines`
+
+The most lines the output keeps; past it the oldest go, so a long session does not grow the
+page without bound. Default 5000. Attribute `max-lines`.
+
+### `heading`
+
+type `string` · default `'Data Explorer'` · attribute `heading`
+
+The app the welcome's first line names, "<heading> — Command Window". Default 'Data Explorer'.
+Attribute `heading`.
+
+## Methods
+
+### `appendOutput(output: CommandOutput): void`
+
+Show a command's answer: its lines, after the ones there, or in place of every line where the
+answer says `clear`. Not `append`, which every element has already, for its child nodes.
+
+### `clear(): void`
+
+Empty the output, the welcome lines included. The prompt and its history stay.
+
+### `focusInput(): void`
+
+Give the prompt the keyboard (once it is drawn, when called before).
+
+## Events
+
+Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
+`HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
+typed with no cast, on the element, the document or the window.
+
+### `dex-command-run`
+
+Enter was pressed on a line that is not blank: run it. The window has shown the line after the
+prompt, kept it in its history and emptied the prompt; the app runs it and hands the answer to
+`appendOutput()`.
+
+`detail` is a `CommandRunDetail`:
+
+```ts
+/** What `dex-command-run` carries: the line typed at the prompt, without the spaces around it. */
+export interface CommandRunDetail {
+  line: string;
+}
+```
+
+## Parts it defines
+
+`defineCommandWindow()` defines `<dex-command-window>` alone.
+
+It has no `::part()` names and no slots.
+
+## Theme tokens it reads
+
+Each falls back to the light default when the page sets none (see `data-explorer-view/theme.css`).
+
+| Token | Light default | |
+|---|---|---|
+| `--dex-bg-primary` | `#fff` |  |
+| `--dex-border-color-light` | `#e0e0e0` |  |
+| `--dex-color-accent` | `#0078d4` |  |
+| `--dex-color-error` | `#d32f2f` |  |
+| `--dex-color-text` | `#333` |  |
+| `--dex-color-text-muted` | `#666` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |

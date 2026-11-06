@@ -34,3 +34,82 @@ A command's `shortcut` is only shown: the palette listens for no chord but its o
 at z-index 10000, as the dialogs do: append it last in the body.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
+
+## At a glance
+
+| Tag | Class | Define | Entry |
+|---|---|---|---|
+| `<dex-command-palette>` | `DexCommandPalette` | `defineCommandPalette(tag = 'dex-command-palette')` | `data-explorer-view/app-shell` |
+
+## Properties
+
+### `open`
+
+type `boolean` · read-only
+
+Whether it is open: from show() until a command runs, Escape, a click outside it or close(). The `open` attribute says the same, for styling.
+
+## Methods
+
+### `show(commands: PaletteCommand[]): void`
+
+Opens the palette over the page with `commands` (a list that is not an array is none), an
+empty query and the focus in its input, on the first command that can run. Open already, it
+takes the new commands and starts the query afresh, and the focus will still go back where it
+was before the first show(). Not on the page, it does not open.
+
+### `close(): void`
+
+Closes the palette, sending nothing; does nothing while closed.
+
+## Events
+
+Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
+`HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
+typed with no cast, on the element, the document or the window.
+
+### `dex-palette-run`
+
+A command was run, by Enter on its row or a click on it: do it. The palette has closed, and
+the focus is back where it was before the palette opened. Never sent for a disabled command.
+
+`detail` is a `PaletteRunDetail`:
+
+```ts
+/** What `dex-palette-run` carries: the `id` of the command run. */
+export interface PaletteRunDetail {
+  id: string;
+}
+```
+
+## Parts it defines
+
+`defineCommandPalette()` defines `<dex-command-palette>` alone.
+
+It has no `::part()` names and no slots.
+
+## Theme tokens it reads
+
+Each falls back to the light default when the page sets none (see `data-explorer-view/theme.css`).
+
+| Token | Light default | |
+|---|---|---|
+| `--dex-bg-hover` | `#e8e8e8` |  |
+| `--dex-bg-primary` | `#fff` |  |
+| `--dex-border-color` | `#d0d0d0` |  |
+| `--dex-border-color-light` | `#e0e0e0` |  |
+| `--dex-color-accent` | `#0078d4` |  |
+| `--dex-color-accent-bg` | `#cde4f7` |  |
+| `--dex-color-text` | `#333` |  |
+| `--dex-color-text-disabled` | `#999` |  |
+| `--dex-color-text-muted` | `#666` |  |
+| `--dex-color-text-secondary` | `#555` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
+| `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |
+| `--dex-font-size` | `13px` |  |
+| `--dex-input-bg` | `#fff` |  |
+| `--dex-input-border` | `#c8c8c8` |  |
+| `--dex-input-fg` | `#333` | A text field (the project page's section filters). |
+| `--dex-input-placeholder-fg` | `#767676` |  |
+| `--dex-selection-fg` | `#333` | The ink on a selected row, whose surface is --dex-color-accent-bg. |

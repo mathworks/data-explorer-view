@@ -47,6 +47,13 @@ export interface EditingWire {
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
     /** A menu item was chosen; false for one that is not the editing menu's. */
     act(actionId: string, anchorRowId: string | null): boolean;
+    /**
+     * Whether the editing menu for the current selection, anchored at its first row as a chord's is,
+     * offers `actionId` enabled, where the document may be edited.
+     */
+    can(actionId: string): boolean;
+    /** Do what that item does, as its chord would; false, and nothing done, where `can` is false. */
+    run(actionId: string): boolean;
     /** Settled once every cell edit handed to the source so far is the document's, or refused. */
     editsSettled(): Promise<void>;
     /** Undo or Redo, as its menu item does, where the document may be edited; false where not. */

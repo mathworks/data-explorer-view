@@ -14,6 +14,12 @@
 // overwhelmingly common case is one add followed by naming it, which is what New File in
 // the Explorer costs. Pinned, the popover stays and adds land immediately, so a run of
 // them is a run of single clicks.
+//
+// The same tiles are also drawn in place, in a page or a sidebar (the app shell's Gallery
+// panel), and there the popover's parts are wrong rather than idle: a pin that cannot change
+// anything, a focus grab while the user works in the table, an Escape that asks to close what
+// has nothing to close. `inline` drops all three, and nothing else: the tiles, their events
+// and their keys are the popover's.
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -62,6 +68,8 @@ const ICON_SIZE = 24;
  * the table turns it into `dex-add-entry`. Its Keep open box pins it open across adds
  * (`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab
  * stop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.
+ * With `inline` it is drawn in place instead (`<dex-gallery-panel>` draws it so): no Keep open
+ * box, no focus taken, Escape left to the page.
  *
  * @tagname dex-add-gallery
  */
@@ -76,6 +84,17 @@ export class DexAddGallery extends LitElement {
          * this one popover. Default false. Attribute `pinned`.
          */
         this.pinned = false;
+        /**
+         * Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather
+         * than as the table's `+ Add` popover. Default false: the popover.
+         *
+         * Inline, it is open for as long as it is shown, so it draws no header row and no Keep open
+         * box, which could change nothing; takes no focus when it first draws, since it is drawn beside
+         * the table the user is working in, and taking the keyboard from them is the opposite of what a
+         * popover's first focus is for; leaves Escape to the page, as there is nothing to close; and is
+         * a group rather than a dialog. Attribute `inline`.
+         */
+        this.inline = false;
         /**
          * The classes a MAT-file can take a new variable of, as core lists them, or null for a
          * dictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has
@@ -490,9 +509,13 @@ export class DexAddGallery extends LitElement {
       }
     }
   `]; }
-    /** Focus the first tile, so the popover is usable from the keyboard on open. */
+    /**
+     * Focus the first tile, so the popover is usable from the keyboard on open. A gallery drawn in
+     * place (`inline`) is drawn while the user works elsewhere, and takes nothing.
+     */
     firstUpdated() {
-        this._focusTile(0);
+        if (!this.inline)
+            this._focusTile(0);
     }
     /** The tiles in drawn order. Read from the DOM, because that IS the order arrows step. */
     _tiles() {
@@ -612,6 +635,9 @@ export class DexAddGallery extends LitElement {
     }
     _onKeyDown(e) {
         if (e.key === 'Escape') {
+            // A gallery drawn in place has nothing to close, so the key is the page's, untouched.
+            if (this.inline)
+                return;
             // Stopped so the table's own Escape — which clears the whole filter — does not also
             // fire. Dismissing a popover must not throw away the user's search.
             e.preventDefault();
@@ -651,22 +677,31 @@ export class DexAddGallery extends LitElement {
         // Signal, not nowhere. Counted here rather than looked up per tile so the number cannot
         // disagree with the DOM order it names.
         let index = 0;
+        // A gallery drawn in place is a group of the page's, not a dialog over it, and its header is
+        // the page's to draw: the one thing this header holds beside the title is the pin.
         return html `
-      <div role="dialog" aria-label=${this.classes && !this.sections?.length ? 'Add a variable' : 'Add an entry'} @keydown=${this._onKeyDown} @focusin=${this._onFocusIn}>
-        <div class="gallery-header">
-          <span class="gallery-title">Add</span>
-          <label
-            class="gallery-pin"
-            title="Stay open after each add. Entries land immediately and are not renamed."
-          >
-            <input
-              type="checkbox"
-              .checked=${this.pinned}
-              @change=${(e) => this._onPin(e.target.checked)}
-            />
-            Keep open
-          </label>
-        </div>
+      <div
+        role=${this.inline ? 'group' : 'dialog'}
+        aria-label=${this.classes && !this.sections?.length ? 'Add a variable' : 'Add an entry'}
+        @keydown=${this._onKeyDown}
+        @focusin=${this._onFocusIn}
+      >
+        ${this.inline
+            ? ''
+            : html `<div class="gallery-header">
+              <span class="gallery-title">Add</span>
+              <label
+                class="gallery-pin"
+                title="Stay open after each add. Entries land immediately and are not renamed."
+              >
+                <input
+                  type="checkbox"
+                  .checked=${this.pinned}
+                  @change=${(e) => this._onPin(e.target.checked)}
+                />
+                Keep open
+              </label>
+            </div>`}
         ${(this.classes ? matCatalog(this.classes, this.sections ?? []) : ADD_CATALOG).map((category) => html `
             <div class="kind-header">
               <span class="kind-name">${category.title}</span>
@@ -710,6 +745,9 @@ export class DexAddGallery extends LitElement {
 __decorate([
     property({ type: Boolean })
 ], DexAddGallery.prototype, "pinned", void 0);
+__decorate([
+    property({ type: Boolean })
+], DexAddGallery.prototype, "inline", void 0);
 __decorate([
     property({ attribute: false })
 ], DexAddGallery.prototype, "classes", void 0);

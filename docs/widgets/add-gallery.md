@@ -39,6 +39,19 @@ Owned by the table, not here, so the choice survives closing and reopening withi
 session: a user who pins is telling you about their next several minutes, not about
 this one popover. Default false. Attribute `pinned`.
 
+### `inline`
+
+type `boolean` · default `false` · attribute `inline`
+
+Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather
+than as the table's `+ Add` popover. Default false: the popover.
+
+Inline, it is open for as long as it is shown, so it draws no header row and no Keep open
+box, which could change nothing; takes no focus when it first draws, since it is drawn beside
+the table the user is working in, and taking the keyboard from them is the opposite of what a
+popover's first focus is for; leaves Escape to the page, as there is nothing to close; and is
+a group rather than a dialog. Attribute `inline`.
+
 ### `classes`
 
 type `readonly string[] | null` · default `null` · property only

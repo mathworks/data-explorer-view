@@ -25,8 +25,12 @@ import { sourceFiles } from './tools/moduleGraph.js';
 
 const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
-const TAGS = ['dex-add-gallery', 'dex-column-filter', 'dex-context-menu', 'dex-error-dialog', 'dex-filter-bar', 'dex-hierarchy', 'dex-icon',
-  'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-tree-table', 'dex-variable-editor'];
+const TAGS = ['dex-about-panel', 'dex-add-gallery', 'dex-app-shell', 'dex-column-filter', 'dex-command-palette',
+  'dex-command-window', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
+  'dex-filter-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
+  'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-raw-viewer',
+  'dex-relationship-graph', 'dex-search-panel', 'dex-settings-panel', 'dex-shell-action', 'dex-shell-view',
+  'dex-toast-host', 'dex-toolbar', 'dex-tree-table', 'dex-variable-editor'];
 
 interface ModuleEvents {
   /** Event name → the type argument of each `new CustomEvent<…>` that dispatches it. */
@@ -189,7 +193,7 @@ let customElementsObserved: Map<string, string[]>;
 beforeAll(async () => {
   const { execFileSync } = await import('node:child_process');
   const script = `
-    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'hierarchy', 'project-page', 'icon'];
+    const entries = ['tree-table', 'property-inspector', 'variable-editor', 'context-menu', 'error-dialog', 'hierarchy', 'project-page', 'icon', 'app-shell'];
     const out = {};
     for (const e of entries) {
       const m = await import('data-explorer-view/' + e);
@@ -234,6 +238,9 @@ describe('an app written in TypeScript, against the built package', () => {
     import { folderReader, type FolderReader, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import { serveFolder, serveTable, type FolderReads, type FolderServer } from 'data-explorer-view/serve';
     import { folderFileList, portFromMessagePort, type FolderFileList } from 'data-explorer-view/model';
+    import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell, type GraphOpenDetail, type ShellHandle } from 'data-explorer-view/app-shell';
+    import { browserHost, type BrowserHost } from 'data-explorer-view/browser-host';
+    import { buildRelationshipGraph, graphIdOf, layoutGraph, runCommand, type CommandTarget, type OutputLine, type RelationshipGraph } from 'data-explorer-view/model';
     import * as serve from 'data-explorer-view/serve';
     import type { TreeTableRow as ModelRow, PropertyGroup as ModelGroup, PropertyRow as ModelPropertyRow } from 'data-explorer-view/model';
     import type { TreeTableRow as TableRow } from 'data-explorer-view/tree-table';
@@ -356,6 +363,7 @@ describe('an app written in TypeScript, against the built package', () => {
       handle.on('navigate', ({ link }) => s(link.kind === 'file' ? link.file : link.source));
       handle.on('select', (rowIds) => rowIds.map(s));
       handle.on('copyFailed', ({ text, message }) => s(text + message));
+      handle.on('painted', (painted: TableView) => b(painted === handle.view));
       const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
       connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
       connectTable(table, doc.table, { columns: (column, v: TableView) => column !== 'UsedBy' || v.rows.length > 0 }).dispose();
@@ -469,6 +477,30 @@ describe('an app written in TypeScript, against the built package', () => {
       served.dispose();
       linked.dispose();
       following.dispose();
+    })();
+
+    // The app shell over the browser's host: every element it draws defined, the app connected over
+    // the host, its commands by name, and what the graph and the interpreter take and give.
+    void (async () => {
+      defineShellWidgets();
+      const shellEl: DexAppShell = document.createElement('dex-app-shell');
+      const host: BrowserHost = browserHost({ onFolder: (root, port) => app.showFolder(root, port), onChanged: (p) => app.fileChanged(p) });
+      const app: ShellHandle = connectShell(shellEl, { host, appName: 'Plant Data', about: [{ label: 'Version', value: '1' }] });
+      app.command('show-graph');
+      // @ts-expect-error no such command
+      app.command('show-nothing');
+      b(await app.requestClose());
+      const graph: RelationshipGraph = buildRelationshipGraph([]);
+      const drawn = document.createElement('dex-relationship-graph');
+      drawn.graph = graph;
+      drawn.addEventListener('dex-graph-open', (e) => { const d: GraphOpenDetail = e.detail; s(d.uri); });
+      s(graphIdOf(graph, 'file:///w/a.slx') ?? '');
+      n(layoutGraph(graph, new Set()).width);
+      const target: CommandTarget = { docs: () => [], rows: () => [], inspect: async () => ({ groups: [] }) };
+      (await runCommand('ls', target)).lines.map((l: OutputLine) => s(l.text));
+      document.createElement('dex-command-window').appendOutput(await runCommand('help', target));
+      installFileDrop(window, (data) => void app.openPaths([...data.files].map((f) => f.name)))();
+      app.dispose();
     })();
 
     // One declaration, named by both entries.

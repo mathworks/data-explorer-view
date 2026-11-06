@@ -144,6 +144,25 @@ export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';
 
+// The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
+// edges built from files already read, where they are drawn, and the id a file's row reveals.
+export { buildRelationshipGraph } from './graph/relationshipGraph.js';
+export { graphIdOf } from './graph/graphTypes.js';
+export type { GraphBox, GraphBoxKind, GraphEdge, GraphEdgeKind, GraphItem, RelationshipGraph } from './graph/graphTypes.js';
+export { layoutGraph } from './graph/layout.js';
+export type { BoxLayout, EdgeLayout, GraphLayout, GraphPoint, GraphRect, ItemLayout } from './graph/layout.js';
+
+// The command window's interpreter (the app shell's Terminal): a line run over a document, through
+// a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.
+export { addChoicesOf, runCommand } from './shell/commands.js';
+export type { AddChoice, CommandDoc, CommandOutput, CommandRaw, CommandTarget, OutputLine } from './shell/commands.js';
+
+// What the app shell's elements name in their public types: its settings and theme, the layout of
+// its sides, and the box a popover opens against.
+export type { ShellSettings, Theme } from './shell/settings.js';
+export type { ShellLayoutState, ShellSide, SideState } from './shell/shellLayout.js';
+export type { Rect } from './shell/placement.js';
+
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).

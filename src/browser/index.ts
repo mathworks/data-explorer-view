@@ -10,10 +10,10 @@
 // a file dialog, or leave to write, only after a click or a key press.
 //
 // ```ts
-// import { connectShell, defineAppShell, installFileDrop } from 'data-explorer-view/app-shell';
+// import { connectShell, defineShellWidgets, installFileDrop } from 'data-explorer-view/app-shell';
 // import { browserHost } from 'data-explorer-view/browser-host';
 //
-// defineAppShell();
+// defineShellWidgets();
 // const shell = document.querySelector('dex-app-shell')!;
 // const host = browserHost({
 //   onFolder: (root, port) => app.showFolder(root, port),

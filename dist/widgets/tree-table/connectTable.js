@@ -58,10 +58,20 @@ export function connectTable(table, source, options = {}) {
         navigate: new Set(),
         action: new Set(),
         copyFailed: new Set(),
+        painted: new Set(),
     };
+    // Each listener on its own: one that throws is the app's to fix, said on the console as the
+    // workspace says a listener's failure, and costs the table nothing (what a paint does after it,
+    // its source's `opened` among it) nor the listeners after it.
     const emit = (type, detail) => {
-        for (const listener of [...listeners[type]])
-            listener(detail);
+        for (const listener of [...listeners[type]]) {
+            try {
+                listener(detail);
+            }
+            catch (err) {
+                console.error(err);
+            }
+        }
     };
     // The one variable editor, made here unless the app has one.
     let editor = options.variableEditor;
@@ -212,6 +222,7 @@ export function connectTable(table, source, options = {}) {
         pendingSelectIds = [];
         pendingRenameId = null;
         refreshInspector();
+        emit('painted', next);
     };
     const failed = (message) => {
         table.loading = false;
@@ -576,6 +587,12 @@ export function connectTable(table, source, options = {}) {
         },
         menuFor(anchorRowId, selection) {
             return editing ? editing.menuFor(anchorRowId, selection) : [];
+        },
+        can(actionId) {
+            return editing ? editing.can(actionId) : false;
+        },
+        run(actionId) {
+            return editing ? editing.run(actionId) : false;
         },
         commitEdit() {
             if (disposed)

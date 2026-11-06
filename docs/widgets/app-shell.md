@@ -51,3 +51,125 @@ modules and dialogs, over a host the page hands it: see
 [Build an app on the shell](../../README.md#build-an-app-on-the-shell) in the README.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
+
+## At a glance
+
+| Tag | Class | Define | Entry |
+|---|---|---|---|
+| `<dex-app-shell>` | `DexAppShell` | `defineAppShell(tag = 'dex-app-shell')` | `data-explorer-view/app-shell` |
+
+## Properties
+
+### `storageKey`
+
+type `string` · default `''` · attribute `storage-key`
+
+The localStorage key the layout is kept under (which view each side shows, which sides are
+open, and their sizes), read back as each side's views first arrive. Empty, the default,
+keeps nothing. Attribute `storage-key`.
+
+### `layout`
+
+type `ShellLayoutState` · read-only
+
+Which view each side shows, whether it is open, and its width or height, as drawn. A size the
+window has no room for is drawn smaller than the one the person chose, and as chosen again
+once there is room; the size kept is the one chosen. Read-only: the buttons, the separators,
+showView and toggleView change it.
+
+## Methods
+
+### `showView(view: string): void`
+
+Shows the view with this id, opening its side if it was closed: what a command that brings a
+view forward does. Never closes a side. Sends `dex-shell-view-changed`, and keeps the layout,
+when that changes anything. A view appended in the same task is one too; an id no view has
+does nothing.
+
+### `toggleView(view: string): void`
+
+What a press of the view's activity button does: shows it, or closes its side when it is the
+view shown. Sends `dex-shell-view-changed` and keeps the layout. An id no view has does nothing.
+
+### `anchorOf(id: string): DOMRect | null`
+
+The box of the activity button of the view or the action with this id, in viewport px, for a
+popover to open against; null when the shell draws no button for the id.
+
+## Events
+
+Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
+`HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
+typed with no cast, on the element, the document or the window.
+
+### `dex-shell-view-changed`
+
+A side shows another view, or was opened or closed: by its activity button, its chord, or
+showView / toggleView. The side as it is now. Not sent for a resize, nor when the page's own
+change of the views moves the layout.
+
+`detail` is a `ShellViewChangedDetail`:
+
+```ts
+/** What `dex-shell-view-changed` carries: a side as it is after a view was shown, or the side opened or closed. */
+export interface ShellViewChangedDetail {
+  /** The side that changed. */
+  side: ShellSide;
+  /** The view it shows, by id: kept while the side is closed, so opening it shows the same view. */
+  view: string | null;
+  /** Whether the side is open. */
+  open: boolean;
+}
+
+/** A side of the shell that holds views: the two sidebars and the bottom panel. */
+export type ShellSide = 'left' | 'right' | 'bottom';
+```
+
+### `dex-shell-action`
+
+An action's button, or its chord, was pressed: open what it stands for, against `anchor`.
+
+`detail` is a `ShellActionDetail`:
+
+```ts
+/** What `dex-shell-action` carries: the action pressed, and where its button is. */
+export interface ShellActionDetail {
+  /** The action's id: its `<dex-shell-action>`'s `action`. */
+  actionId: string;
+  /** The button's box in viewport px (getBoundingClientRect's), for a popover to open against. */
+  anchor: { x: number; y: number; width: number; height: number };
+}
+```
+
+## Parts it defines
+
+`defineAppShell()` defines these first, under their default names, then `<dex-app-shell>`:
+
+- [`<dex-icon>`](icon.md)
+- [`<dex-shell-view>`](shell-view.md)
+- [`<dex-shell-action>`](shell-action.md)
+
+It has no `::part()` names and no slots.
+
+## Theme tokens it reads
+
+Each falls back to the light default when the page sets none (see `data-explorer-view/theme.css`).
+
+| Token | Light default | |
+|---|---|---|
+| `--dex-activity-active` | `#0078d4` |  |
+| `--dex-activity-fg` | `#616161` |  |
+| `--dex-bg-activity-bar` | `#f0f0f0` | The app shell (data-explorer-view/app-shell): its activity bars, toolbar row, tab bar and the line a resizer shows under the pointer. |
+| `--dex-bg-primary` | `#fff` |  |
+| `--dex-bg-secondary` | `#f8f8f8` |  |
+| `--dex-bg-tertiary` | `#f5f5f5` |  |
+| `--dex-bg-toolbar` | `#fff` |  |
+| `--dex-border-color` | `#d0d0d0` |  |
+| `--dex-border-color-light` | `#e0e0e0` |  |
+| `--dex-color-text` | `#333` |  |
+| `--dex-color-text-muted` | `#666` |  |
+| `--dex-color-text-secondary` | `#555` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
+| `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-size` | `13px` |  |
+| `--dex-shell-resizer-hover` | `#0078d4` |  |

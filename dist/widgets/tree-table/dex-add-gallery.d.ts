@@ -18,6 +18,8 @@ export interface AddPinChangedDetail {
  * the table turns it into `dex-add-entry`. Its Keep open box pins it open across adds
  * (`dex-add-pin-changed`), and Escape asks to close it (`dex-add-closed`). The tiles are one tab
  * stop, and the arrow keys move between them. `<dex-tree-table>` draws it, under its search bar.
+ * With `inline` it is drawn in place instead (`<dex-gallery-panel>` draws it so): no Keep open
+ * box, no focus taken, Escape left to the page.
  *
  * @tagname dex-add-gallery
  */
@@ -31,6 +33,17 @@ export declare class DexAddGallery extends LitElement {
      * this one popover. Default false. Attribute `pinned`.
      */
     pinned: boolean;
+    /**
+     * Whether the gallery is drawn in place, in a page or a sidebar (`<dex-gallery-panel>`), rather
+     * than as the table's `+ Add` popover. Default false: the popover.
+     *
+     * Inline, it is open for as long as it is shown, so it draws no header row and no Keep open
+     * box, which could change nothing; takes no focus when it first draws, since it is drawn beside
+     * the table the user is working in, and taking the keyboard from them is the opposite of what a
+     * popover's first focus is for; leaves Escape to the page, as there is nothing to close; and is
+     * a group rather than a dialog. Attribute `inline`.
+     */
+    inline: boolean;
     /**
      * The classes a MAT-file can take a new variable of, as core lists them, or null for a
      * dictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has
@@ -59,7 +72,10 @@ export declare class DexAddGallery extends LitElement {
      * so it is not a number this component can do arithmetic with.
      */
     private _activeIndex;
-    /** Focus the first tile, so the popover is usable from the keyboard on open. */
+    /**
+     * Focus the first tile, so the popover is usable from the keyboard on open. A gallery drawn in
+     * place (`inline`) is drawn while the user works elsewhere, and takes nothing.
+     */
     firstUpdated(): void;
     /** The tiles in drawn order. Read from the DOM, because that IS the order arrows step. */
     private _tiles;
