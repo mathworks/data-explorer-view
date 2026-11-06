@@ -253,6 +253,28 @@ describe('<dex-shell-docs> split in two', () => {
     expect(dropped).toEqual([{ id: 'a', pane: 1 }]);
   });
 
+  it("ends the drag at any drop in the area, a row's own included, and at a drop or a drag's end anywhere in the page", async () => {
+    // A tab dropped on the other row moves there, and its element leaves the row it was dragged
+    // from before the drag's end comes: the end reaches the element alone, out of the page.
+    const { docs, rows } = await area([A, B], [C]);
+    const overlay = () => docs.shadowRoot!.querySelector('.overlay');
+    const start = async () => {
+      drag(tabIn(rows[0]!, 'a'), 'dragstart', transfer());
+      await docs.updateComplete;
+      expect(overlay()).not.toBeNull();
+    };
+    await start();
+    drag(tabIn(rows[1]!, 'c'), 'drop', transfer());
+    await docs.updateComplete;
+    expect(overlay()).toBeNull();
+    for (const [type, at] of [['drop', document.body], ['dragend', document.body], ['drop', document]] as const) {
+      await start();
+      drag(at as Element, type, transfer());
+      await docs.updateComplete;
+      expect(overlay(), `${type} on ${at === document ? 'the document' : 'the body'}`).toBeNull();
+    }
+  });
+
   it('takes no drag but a tab of its own rows, and ends with the drag, however it ends', async () => {
     const { docs, rows } = await area([A, B]);
     const dropped = heard('dex-pane-drop');

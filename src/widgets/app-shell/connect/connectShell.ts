@@ -354,6 +354,23 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     else paint();
   }
 
+  // A tab moved to the other pane, or into a pane of its own, by `change` (a drop, a move along
+  // the rows, Split Right): rearranged, if it moved. A press on a tab focuses it, so a drag of one
+  // starts with the keyboard on it, as does a chord pressed on one: the keyboard goes with the tab,
+  // to the focused pane's row once that row is drawn (later's refresh, queued before), rather than
+  // to the body as the tab's element leaves the row it was in.
+  function rearrange(change: () => boolean): void {
+    const before = tabs.active;
+    const keyboard = paneRows.holdsFocus();
+    if (!change()) return;
+    rearranged(before);
+    if (keyboard) {
+      queueMicrotask(() => {
+        if (!disposed) paneRows.rows[tabs.focused]?.focusActive();
+      });
+    }
+  }
+
   // The user is in the pane `pane`: a press or the focus came into it. Not at Root, where the graph
   // fills the first pane's place, nor while the shell itself is moving the keyboard.
   function focusPane(pane: number): void {
@@ -728,6 +745,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     close: (tab) => void requestClose(tab),
     shown,
     keyboardToRoot: rootTakesTheKeyboard,
+    rearrange,
     goToPane,
     later,
     failed,
@@ -783,18 +801,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       save: (tab, as) => void save(tab, as),
       pin,
       move(tab, index, pane) {
-        const before = tabs.active;
         // Along its own row, the shown tab kept; into the other pane's, shown and focused there.
-        if (tabs.paneOf(tab) === pane) {
-          if (tabs.move(tab, index)) paint();
-        } else if (tabs.moveTo(tab, pane, index)) rearranged(before);
+        if (tabs.paneOf(tab) !== pane) return rearrange(() => tabs.moveTo(tab, pane, index));
+        if (tabs.move(tab, index)) paint();
       },
       paneOfRow: (row) => paneRows.paneOf(row),
       focusPane,
-      drop(tab, pane, side) {
-        const before = tabs.active;
-        if (side ? tabs.split(tab, side) : tabs.moveTo(tab, pane)) rearranged(before);
-      },
+      drop: (tab, pane, side) => rearrange(() => (side ? tabs.split(tab, side) : tabs.moveTo(tab, pane))),
       resized: (ratio) => keepSplit(store, shell.storageKey, ratio),
       showRoot,
       toStep(index) {

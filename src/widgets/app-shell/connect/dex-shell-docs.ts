@@ -273,6 +273,11 @@ export class DexShellDocs extends LitElement {
     this.addEventListener('pointerdown', (e) => this._onPress(e));
     this.addEventListener('focusin', (e) => this._onPress(e));
     this.addEventListener('dragstart', (e) => this._onDragStart(e));
+    // Any drop in the area ends the drag, a row's own included: a tab dropped on the other row
+    // moves there, and its element leaves the row it came from before the drag's end comes, which
+    // then reaches that element alone, out of the page. The page's drops and drag ends are heard
+    // too while a drag is on (_endDrag, _onDragStart), so a drop elsewhere ends it as well.
+    this.addEventListener('drop', () => this._endDrag());
     this.addEventListener('dragend', () => this._endDrag());
   }
 
@@ -353,11 +358,20 @@ export class DexShellDocs extends LitElement {
     const id = e.dataTransfer!.getData(TAB_DRAG_TYPE);
     if (!row || !id) return;
     this._drag = { id, sides: !this.split && (Array.isArray(row.tabs) ? row.tabs.length : 0) > 1 };
+    document.addEventListener('drop', this._onPageDragOver);
+    document.addEventListener('dragend', this._onPageDragOver, true);
   }
 
+  // A drop or a drag's end anywhere in the page, while a tab is dragged: the drag is over. The drop
+  // as it bubbles, once its target (a zone here) has taken it; the end, which nothing takes, as it
+  // comes.
+  private _onPageDragOver = (): void => this._endDrag();
+
   private _endDrag(): void {
-    this._drag = null;
-    this._over = null;
+    document.removeEventListener('drop', this._onPageDragOver);
+    document.removeEventListener('dragend', this._onPageDragOver, true);
+    if (this._drag) this._drag = null;
+    if (this._over) this._over = null;
   }
 
   private _onZoneOver(e: DragEvent, pane: number, zone: PaneZone): void {

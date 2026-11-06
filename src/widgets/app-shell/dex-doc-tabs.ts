@@ -67,6 +67,10 @@ export const TAB_DRAG_TYPE = 'application/x-dex-tab';
 // tab of another window, whose id would name a tab of its own.
 let dragged: { row: DexDocTabs; id: string } | null = null;
 
+// The rows in the page, for a row to tell a tab that went to another row of its group from one
+// that closed.
+const rowsInPage = new Set<DexDocTabs>();
+
 /**
  * The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`
  * marking the one shown. It draws them and asks for everything else: a click (or Enter or Space)
@@ -398,12 +402,14 @@ export class DexDocTabs extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    rowsInPage.add(this);
     // Back in a page after being taken out: watch the strip again. The first time, firstUpdated does.
     if (this.hasUpdated) this._observe();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    rowsInPage.delete(this);
     if (dragged?.row === this) dragged = null;
     this._resize?.disconnect();
     this._resize = null;
@@ -479,17 +485,31 @@ export class DexDocTabs extends LitElement {
 
   // The tab the keyboard was on is gone (closed, most likely by Delete): the focus goes to the tab
   // now in its place, or the last, so a run of Deletes closes one tab after another. Only if the
-  // focus was in the row: a tab closed from elsewhere must not pull the focus here.
+  // focus was in the row: a tab closed from elsewhere must not pull the focus here. A tab that
+  // went to another row of the group (dropped there, or moved by the app) was not closed: the
+  // keyboard is the app's to give to that row, and on a neighbour here it would put the user back
+  // in the pane the tab left. The app gives each row its tabs before either draws them.
   private _keepFocus(previous: DocTab[] | undefined): void {
     const tabs = this._list();
     const id = this._focusId;
     if (id === null || tabs.some((t) => t.id === id)) return;
+    if (this._wentToGroup(id)) {
+      this._focusId = null;
+      this._focusTo = null;
+      return;
+    }
     const was = Array.isArray(previous) ? previous.findIndex((t) => t.id === id) : -1;
     const next = tabs[Math.min(Math.max(was, 0), tabs.length - 1)];
     const focused = this.shadowRoot?.activeElement;
     const inRow = focused instanceof Node && (this._tabElement(id)?.contains(focused) ?? false);
     this._focusId = next?.id ?? null;
     this._focusTo = inRow ? this._focusId : null;
+  }
+
+  // Whether the tab `id` is in another row of this row's group now.
+  private _wentToGroup(id: string): boolean {
+    if (this.group === '') return false;
+    return [...rowsInPage].some((row) => row !== this && row.group === this.group && row._list().some((t) => t.id === id));
   }
 
   // What the room makes of the row, after each draw and each resize, in this order: the … button,

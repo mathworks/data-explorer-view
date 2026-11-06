@@ -27,6 +27,7 @@ import {
   palette,
   rowOf,
   selectRow,
+  settled,
   startPage,
   statusText,
   tableOf,
@@ -78,6 +79,24 @@ function drag(target: Element, type: string, dt: ReturnType<typeof transfer>): E
   return ev;
 }
 
+/** Every row drawn as it is now, a few tasks on: what a browser has done by the time a drag's end comes after its drop. */
+async function redrawn(): Promise<void> {
+  await settled();
+  await Promise.all([docsArea(), ...rows()].map((el) => el.updateComplete));
+}
+
+/**
+ * The end of a drag of `tab`, as a browser sends it: once the drop's work is drawn, to the tab's
+ * element, which a move to another row has taken out of the page by then (so the end reaches no
+ * ancestor of it); and no overlay left over the documents either way.
+ */
+async function ended(tab: HTMLElement, dt: ReturnType<typeof transfer>): Promise<void> {
+  await redrawn();
+  drag(tab, 'dragend', dt);
+  await docsArea().updateComplete;
+  expect(docsArea().shadowRoot!.querySelector('.overlay'), 'the overlay outlived the drag').toBeNull();
+}
+
 /** Drag the tab of `name` onto the documents of `pane`, at `zone`, and drop it there, as the pointer does. */
 async function dropOnDocs(name: string, pane: number, zone: 'left' | 'center' | 'right'): Promise<void> {
   const dt = transfer();
@@ -88,7 +107,7 @@ async function dropOnDocs(name: string, pane: number, zone: 'left' | 'center' | 
   expect(target, `no ${zone} zone in pane ${pane}`).not.toBeNull();
   expect(drag(target!, 'dragover', dt).defaultPrevented).toBe(true);
   drag(target!, 'drop', dt);
-  drag(tab, 'dragend', dt);
+  await ended(tab, dt);
 }
 
 /** Drag the tab of `name` onto the empty end of row `row`, and drop it there. */
@@ -96,10 +115,11 @@ async function dropOnRow(name: string, row: number): Promise<void> {
   const dt = transfer();
   const tab = tabEl(name)!;
   drag(tab, 'dragstart', dt);
+  await docsArea().updateComplete;
   const strip = rows()[row]!.shadowRoot!.querySelector<HTMLElement>('[role="tablist"]')!;
   expect(drag(strip, 'dragover', dt).defaultPrevented).toBe(true);
   drag(strip, 'drop', dt);
-  drag(tab, 'dragend', dt);
+  await ended(tab, dt);
 }
 
 /** A press in the panel of `name`'s file, as a click in its table starts. */
@@ -250,6 +270,43 @@ describe('the focused pane', () => {
     page.command('close-tab');
     await until(() => panes()[0] === 'shadow_ws.slx*');
     expect(panes()[1]).toBe('params.sldd*');
+  });
+});
+
+describe('the keyboard on a tab that moves', () => {
+  // A press on a tab focuses it, so a drag of it begins with the keyboard on it; so does Mod+\
+  // pressed on a tab. The tab leaves the row: the keyboard goes with it, to the pane it went to,
+  // and the row it left takes it for no neighbour of its, which would focus the pane it left.
+  const keyboardIn = (row: number) => rows()[row]?.shadowRoot?.activeElement ?? null;
+
+  it('goes with a tab dropped on a side of the documents, or on the other row', async () => {
+    await opened();
+    tabEl('params.sldd')!.focus();
+    expect(keyboardIn(0)).toBe(tabEl('params.sldd'));
+    await dropOnDocs('params.sldd', 0, 'right');
+    await until(() => keyboardIn(1) === tabEl('params.sldd'));
+    expect(docsArea().focusedPane).toBe(1);
+    expect(segments().at(-1)).toBe('params.sldd');
+    tabEl('ParamMat.mat')!.focus();
+    await until(() => docsArea().focusedPane === 0);
+    await dropOnRow('ParamMat.mat', 1);
+    await until(() => keyboardIn(1) === tabEl('ParamMat.mat'));
+    await redrawn();
+    expect(docsArea().focusedPane).toBe(1);
+    expect(segments().at(-1)).toBe('ParamMat.mat');
+  });
+
+  it('goes with a tab Split Right moves, and to the one pane left when the panes join', async () => {
+    const page = await opened();
+    tabEl('shadow_ws.slx')!.focus();
+    page.command('split-right');
+    await until(() => keyboardIn(1) === tabEl('shadow_ws.slx'));
+    await redrawn();
+    expect(docsArea().focusedPane).toBe(1);
+    page.command('move-to-other-pane');
+    await until(() => rows().length === 1 && keyboardIn(0) === tabEl('shadow_ws.slx'));
+    await redrawn();
+    expect(segments().at(-1)).toBe('shadow_ws.slx');
   });
 });
 

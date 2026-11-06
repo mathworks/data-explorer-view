@@ -27,6 +27,11 @@ export interface CarryOutContext {
   shown(): void;
   /** Root is shown: the keyboard to the Explorer's Root row, or to what fills the center. */
   keyboardToRoot(): void;
+  /**
+   * Move a tab between the panes by `change` (true if it moved): shown where it went, the keyboard
+   * going with it from a tab row that had it.
+   */
+  rearrange(change: () => boolean): void;
   /** Go to the pane at `index` (0 the left): focused, the keyboard on its active tab. Nothing for a pane there is not. */
   goToPane(index: number): void;
   later(): void;
@@ -120,7 +125,7 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
     case 'split-right':
     case 'move-to-other-pane':
       // The tab moves, and is shown and focused where it went; a pane's only tab makes no new pane.
-      if (tab && on.tabs.split(tab, id === 'split-right' ? 'right' : on.tabs.otherSide(tab))) on.shown();
+      if (tab) on.rearrange(() => on.tabs.split(tab, id === 'split-right' ? 'right' : on.tabs.otherSide(tab)));
       break;
     case 'focus-pane-1':
     case 'focus-pane-2':

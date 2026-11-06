@@ -866,6 +866,26 @@ describe('rows of one group', () => {
     expect(labels(two)).toEqual(['d.sldd', 'e.mat']);
   });
 
+  it('leaves the keyboard off its neighbours when the tab it was on went to a row of its group', async () => {
+    // The tab was moved, not closed: the keyboard is the app's to give to the row the tab went to.
+    // On a neighbour, it would put the user back in the pane the tab left.
+    const [one, two] = await rows();
+    tabOf(one, 'b').focus();
+    expect(focused(one)).toBe(tabOf(one, 'b'));
+    // The app moves b: each row is given its tabs before either draws them.
+    one.tabs = [A, C];
+    two.tabs = [D, E, B];
+    await Promise.all([one.updateComplete, two.updateComplete]);
+    await one.updateComplete;
+    expect(focused(one)).toBeNull();
+    // Closed (in no row of the group), the tab's neighbour takes the keyboard, as in any row.
+    tabOf(one, 'c').focus();
+    one.tabs = [A];
+    await one.updateComplete;
+    await one.updateComplete;
+    expect(focused(one)).toBe(tabOf(one, 'a'));
+  });
+
   it('takes no tab from a row of another group, or of none', async () => {
     for (const [left, right] of [['docs', 'other'], ['', ''], ['docs', '']]) {
       const [one, two] = await rows(left, right);
