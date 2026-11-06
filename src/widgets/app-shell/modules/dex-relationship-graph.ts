@@ -33,12 +33,20 @@ export interface GraphSelectedDetail {
   id: string | null;
 }
 
-/** What `dex-graph-open` carries: the file to open, and the row in it to reveal. */
+/**
+ * What `dex-graph-open` carries: the file to open, and the row in it to reveal; or, for a file
+ * referenced and not open (a ghost), the reference to find it by.
+ */
 export interface GraphOpenDetail {
-  /** The file's uri. */
+  /** The file's uri; empty for a ghost, which is no file the app has. */
   uri: string;
   /** For an item, the name its file's table selects it by (`GraphItem.revealName`); absent for a box. */
   name?: string;
+  /**
+   * For a ghost, its reference as the referencing file wrote it (`GraphBox.ref`), for the app to
+   * resolve as it resolves a link to a file. It may find nothing; what then is the app's to say.
+   */
+  ref?: string;
 }
 
 /** What `dex-graph-expand` carries: the box whose items to show or hide. */
@@ -116,7 +124,8 @@ function pathOf(points: readonly GraphPoint[]): string {
  *
  * A click on a box or an item selects it (`dex-graph-selected`), and lights it and what its edges
  * reach, dimming the rest; a click on the background clears it. A double-click asks to open the
- * file (`dex-graph-open`), at the item's row for an item. A box's − or + asks to hide or show its
+ * file (`dex-graph-open`), at the item's row for an item, and a ghost by the reference that names
+ * it, for the app to look for. A box's − or + asks to hide or show its
  * items (`dex-graph-expand`); the app answers by setting `expanded`. The wheel, the + and − buttons
  * and a drag of the background zoom and pan; the fit button and fit() show the whole graph, and
  * reveal() brings one box or item to the middle. A Legend, closed at first, names the kinds.
@@ -387,9 +396,17 @@ export class DexRelationshipGraph extends LitElement {
   private _open(id: string): void {
     const item = this._items.get(id);
     const box = this._boxes.get(item ? item.boxId : id);
-    // A ghost is no file the app has: there is nothing to open.
-    if (!box || box.ghost || !box.uri) return;
-    const detail: GraphOpenDetail = item ? { uri: box.uri, name: item.revealName } : { uri: box.uri };
+    if (!box) return;
+    // A ghost is no file the app has, so it is asked for by its reference, which the app may find
+    // (in the folder, say) or not; one with no reference to give asks for nothing.
+    if (box.ghost || !box.uri) {
+      if (box.ref) this._send({ uri: '', ref: box.ref });
+      return;
+    }
+    this._send(item ? { uri: box.uri, name: item.revealName } : { uri: box.uri });
+  }
+
+  private _send(detail: GraphOpenDetail): void {
     this.dispatchEvent(new CustomEvent<GraphOpenDetail>('dex-graph-open', { detail, bubbles: true, composed: true }));
   }
 
@@ -751,7 +768,10 @@ export interface RelationshipGraphEventMap {
    * background was clicked and nothing is (`id` null). Sent again each time one is chosen.
    */
   'dex-graph-selected': CustomEvent<GraphSelectedDetail>;
-  /** Open this file, at this row: a box or an item was double-clicked, or Enter pressed on it. A request. */
+  /**
+   * Open this file, at this row: a box or an item was double-clicked, or Enter pressed on it. For a
+   * ghost, `uri` is empty and `ref` names the file to look for. A request.
+   */
   'dex-graph-open': CustomEvent<GraphOpenDetail>;
   /**
    * Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`

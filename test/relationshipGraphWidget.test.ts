@@ -239,8 +239,22 @@ describe('opening and the toggle', () => {
     expect(opened).toEqual([{ uri: 'mem:///w/chained.sldd' }, { uri: 'mem:///w/caseRefs.slx', name: '3' }]);
   });
 
-  it('asks nothing for a ghost, which is no file the app has', async () => {
-    const el = await graph(graphOf(['caseRefs.slx']));
+  it('asks to open a ghost by the name its reference spells, with no uri, for the app to resolve as a link', async () => {
+    const g = graphOf(['caseRefs.slx']);
+    const el = await graph(g);
+    sr(el).querySelector('.box.ghost')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    el.selected = g.boxes.find((b) => b.label === 'CaseBp.MAT')!.id;
+    await el.updateComplete;
+    key(el, 'Enter');
+    expect(opened).toEqual([
+      { uri: '', ref: 'caseparams.sldd' },
+      { uri: '', ref: 'CaseBp.MAT' },
+    ]);
+  });
+
+  it('asks nothing for a ghost with no reference to give', async () => {
+    const ghost = { id: '["ghost"]', uri: '', kind: 'sldd' as const, label: 'x.sldd', ghost: true, items: [] };
+    const el = await graph({ boxes: [ghost], edges: [] });
     sr(el).querySelector('.box.ghost')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
     expect(opened).toEqual([]);
   });

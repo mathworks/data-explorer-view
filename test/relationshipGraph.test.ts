@@ -138,15 +138,18 @@ describe('a model, its dictionaries and its MAT-file', () => {
 });
 
 describe('a file referenced and not given', () => {
-  it('is a ghost box, of the kind the reference says, with nothing to open and no items', () => {
+  it('is a ghost box, of the kind the reference says, with no uri, no items, and the reference as written', () => {
     const g = buildRelationshipGraph([file(CASEREFS, 'caseRefs.slx')]);
-    expect(g.boxes.map((b) => [b.label, b.kind, b.ghost, b.uri, b.items.length])).toEqual([
-      ['caseRefs.slx', 'model', false, 'mem:///w/caseRefs.slx', 0],
-      // Labelled as the model spells them: that is the only name there is for a file not read.
-      ['caseparams.sldd', 'sldd', true, '', 0],
-      ['EXTRADICT.SLDD', 'sldd', true, '', 0],
-      ['CaseBp.MAT', 'mat', true, '', 0],
+    expect(g.boxes.map((b) => [b.label, b.kind, b.ghost, b.uri, b.items.length, b.ref])).toEqual([
+      // A file given has no reference to carry: it is named by its uri.
+      ['caseRefs.slx', 'model', false, 'mem:///w/caseRefs.slx', 0, undefined],
+      // Labelled as the model spells them, and carrying that spelling for an app to resolve as it
+      // resolves a link: it is the only name there is for a file not read.
+      ['caseparams.sldd', 'sldd', true, '', 0, 'caseparams.sldd'],
+      ['EXTRADICT.SLDD', 'sldd', true, '', 0, 'EXTRADICT.SLDD'],
+      ['CaseBp.MAT', 'mat', true, '', 0, 'CaseBp.MAT'],
     ]);
+    expect('ref' in g.boxes[0]!).toBe(false);
     expect(edgesOf(g)).toEqual([
       'data-link caseRefs.slx -> caseparams.sldd',
       'data-link caseRefs.slx -> EXTRADICT.SLDD',
@@ -169,9 +172,9 @@ describe('a file referenced and not given', () => {
     ]);
   });
 
-  it('is one box however many files name it, in whatever case', () => {
+  it("is one box however many files name it, in whatever case, with the first one's spelling", () => {
     const g = buildRelationshipGraph([file(USAGEORDER, 'ctrlA.slx'), file(USAGEORDER, 'plantB.slx')]);
-    expect(g.boxes.filter((b) => b.ghost).map((b) => b.label)).toEqual(['sharedParams.sldd']);
+    expect(g.boxes.filter((b) => b.ghost).map((b) => [b.label, b.ref])).toEqual([['sharedParams.sldd', 'sharedParams.sldd']]);
     expect(edgesOf(g)).toEqual([
       'data-link ctrlA.slx -> sharedParams.sldd',
       'data-link plantB.slx -> sharedParams.sldd',

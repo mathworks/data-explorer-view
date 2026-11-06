@@ -102,6 +102,11 @@ export interface GraphBox {
   label: string;
   /** Referenced by a file given and not given itself: drawn dashed, with no items. */
   ghost: boolean;
+  /**
+   * A ghost's reference as the first file to name it wrote it (`VehicleParams.sldd`): what an app
+   * resolves, as it resolves a link to a file, to find the file and open it. Absent on a file given.
+   */
+  ref?: string;
   /** Its blocks and variables that take part in an edge, in the order they are drawn. */
   items: GraphItem[];
 }
@@ -313,7 +318,7 @@ function linkFiles(
 function ghostOf(kind: GraphBoxKind, ref: string, boxById: Map<string, GraphBox>, boxes: GraphBox[]): string {
   const id = ghostId(kind, ref);
   if (!boxById.has(id)) {
-    const box: GraphBox = { id, uri: '', kind, label: basename(ref), ghost: true, items: [] };
+    const box: GraphBox = { id, uri: '', kind, label: basename(ref), ghost: true, items: [], ref };
     boxes.push(box);
     boxById.set(id, box);
   }
