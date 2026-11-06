@@ -9,8 +9,54 @@
 // entry it no longer holds is said in a toast that stays, as the user followed the link to see a
 // row and has to read why none is shown. Nobody waits on the answer to say a failure, so openAt
 // never rejects: what fails is said in the window, as any open's failure is.
-import { describe, expect, it } from 'vitest';
-import { activeTab, at, open, previewTabs, settled, startPage, tabNamed, tabNames, tableOf, toastHost, toastTexts, until } from './harness.js';
+//
+// A table's source that cannot parse its file fails within the open that connected it; one may also
+// fail later, once openAt waits on its paint. The workspace's documents are wrapped here (vi.mock
+// over the real one) so a test can make the next document's table answer open() with an error when
+// it says.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { portFromMessagePort } from '../../src/model/source/ports.js';
+import { serveFolder, type FolderReads } from '../../src/serve/index.js';
+import {
+  activeTab,
+  at,
+  folderReads,
+  open,
+  previewTabs,
+  settled,
+  startPage,
+  tabNamed,
+  tabNames,
+  tableOf,
+  tempFolder,
+  toastHost,
+  toastTexts,
+  treeLabels,
+  until,
+} from './harness.js';
+
+const late = vi.hoisted(() => ({ fail: null as Promise<void> | null }));
+
+vi.mock('../../src/model/source/workspace.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../src/model/source/workspace.js')>();
+  return {
+    ...real,
+    createWorkspace: (options?: Parameters<typeof real.createWorkspace>[0]) => {
+      const ws = real.createWorkspace(options);
+      const openReal = ws.open.bind(ws);
+      ws.open = async (...args) => {
+        const doc = await openReal(...args);
+        const gate = late.fail;
+        late.fail = null;
+        if (gate) doc.table.open = () => gate.then(() => Promise.reject(new Error(`Failed to parse ${args[1]}: it went wrong late`)));
+        return doc;
+      };
+      return ws;
+    },
+  };
+});
 
 const FILES = { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'ParamMat.mat': 'ParamMat.mat' };
 
@@ -114,6 +160,82 @@ describe('openAt opens a file at the entry a link names', () => {
     expect(tabNames()).toEqual([]);
     await settled();
     expect(noEntryToasts()).toEqual([]);
+  });
+
+  it('resolves, saying nothing, when the tab closes while its table waits for its first paint', async () => {
+    // The first paint fills the Usage column from the folder shown, read across its port as the
+    // Electron app's main process serves it. With the folder's reads held from the open on, the
+    // table is connected and not yet painted when its tab closes.
+    const root = tempFolder('plant', { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
+    const file = path.join(root, 'params.sldd');
+    const page = startPage();
+    page.main.files.set(file, new Uint8Array(readFileSync(file)));
+    const held = { on: false, waiting: [] as (() => void)[] };
+    const hold = <T>(read: () => Promise<T>): Promise<T> =>
+      held.on ? new Promise<T>((resolve, reject) => held.waiting.push(() => void read().then(resolve, reject))) : read();
+    const reads = folderReads(root);
+    const slow: FolderReads = {
+      files: reads.files,
+      reader(files) {
+        const reader = reads.reader(files);
+        return { ...reader, version: (f) => hold(() => reader.version(f)), bytes: (f) => hold(() => reader.bytes(f)) };
+      },
+    };
+    const { port1, port2 } = new MessageChannel();
+    const served = serveFolder(slow, portFromMessagePort(port1));
+    try {
+      page.handle.showFolder(root, port2);
+      await until(() => treeLabels().includes('shadow_ws.slx'));
+      await settled();
+      held.on = true;
+      const opening = page.handle.openAt(file, { entry: 'Kp' });
+      const table = () => document.querySelector('.doc-panel dex-tree-table');
+      await until(() => held.waiting.length > 0 && !!table());
+      expect(table()!.rows).toEqual([]);
+      page.command('close-tab');
+      await until(() => tabNames().length === 0);
+      held.on = false;
+      for (const go of held.waiting.splice(0)) go();
+      await opening;
+      await settled();
+      expect(noEntryToasts()).toEqual([]);
+    } finally {
+      served.dispose();
+      port1.close();
+    }
+  });
+
+  it('resolves for a file that reads but cannot be parsed, which its table says, and looks for no entry in it', async () => {
+    const page = startPage();
+    page.main.files.set(at('bad.sldd'), new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0xde, 0xad, 0xbe, 0xef]));
+    await page.handle.openAt(at('bad.sldd'), { entry: 'Kp' });
+    expect(tableOf('bad.sldd')!.banners?.error).toMatch(/^Failed to parse/);
+    await settled();
+    expect(noEntryToasts()).toEqual([]);
+  });
+
+  it('resolves when the source fails after the table is connected, as the banner says, and looks for no entry', async () => {
+    const page = startPage(FILES);
+    let fail!: () => void;
+    late.fail = new Promise<void>((resolve) => (fail = resolve));
+    const opening = page.handle.openAt(at('params.sldd'), { entry: 'Kp' });
+    await until(() => !!tableOf('params.sldd'));
+    await settled();
+    fail();
+    await opening;
+    expect(tableOf('params.sldd')!.banners?.error).toBe('Failed to parse params.sldd: it went wrong late');
+    await settled();
+    expect(noEntryToasts()).toEqual([]);
+  });
+
+  it('resolves, opening nothing, for a path that is no string or is empty, as a page in plain JavaScript may hand', async () => {
+    const page = startPage(FILES);
+    await page.handle.openAt(undefined as unknown as string, { entry: 'Kp' });
+    await page.handle.openAt('', { entry: 'Kp' });
+    expect(tabNames()).toEqual([]);
+    expect(page.main.reads).toEqual([]);
+    await settled();
+    expect(toastTexts()).toEqual([]);
   });
 
   it("selects a MAT-file's variable by its name", async () => {

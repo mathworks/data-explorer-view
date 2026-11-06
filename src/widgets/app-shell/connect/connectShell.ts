@@ -638,9 +638,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // until its × (the user followed the link to see a row, and has to read why none is shown). The
   // caller waits on nothing it could say a failure with, so what fails is said here.
   async function openAt(path: string, at: OpenAtTarget = {}): Promise<void> {
+    // A page in plain JavaScript may hand anything: what is no string names nothing, and a path
+    // that is none names no file (nor a name for the catch below to say it by).
+    if (typeof path !== 'string' || path === '') return;
     try {
       const tab = await open(path);
-      // A page in plain JavaScript may hand anything: what is no string names nothing.
       const entry = typeof at?.entry === 'string' ? at.entry : '';
       const section = typeof at?.section === 'string' ? at.section : '';
       if (entry === '') return;
@@ -656,21 +658,27 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // The rows of `tab`'s table once its first whole paint is in: at once for a table painted
   // already, else at its first `painted`. Null for a tab with no table connected (a project's page,
-  // a file that could not be read, whose banner says why) and for a tab closed, before or while it
-  // waits: its close runs its stops, this one among them.
+  // a file that could not be read, whose banner says why), for a table whose source could not open
+  // its file (`failed`: no paint follows, and the banner says why), and for a tab closed, before or
+  // while it waits: its close runs its stops, this one among them.
   function paintedRows(tab: OpenTab): Promise<readonly TreeTableRow[] | null> {
     const handle = tab.handle;
     if (!isOpen(tab) || !handle) return Promise.resolve(null);
     if (handle.view) return Promise.resolve(handle.table.rows);
+    // Neither painted nor still loading: its source failed already, as one that cannot parse its
+    // file does within the open that connected it, before `failed` could be heard here.
+    if (!handle.table.loading) return Promise.resolve(null);
     return new Promise((resolve) => {
       const done = (rows: readonly TreeTableRow[] | null): void => {
-        off();
+        offPainted();
+        offFailed();
         // Painted: no stop is left for the close to run. (A close empties the list before it runs them.)
         const index = tab.stops.indexOf(stop);
         if (index >= 0) tab.stops.splice(index, 1);
         resolve(rows);
       };
-      const off = handle.on('painted', () => done(handle.table.rows));
+      const offPainted = handle.on('painted', () => done(handle.table.rows));
+      const offFailed = handle.on('failed', () => done(null));
       const stop = (): void => done(null);
       tab.stops.push(stop);
     });

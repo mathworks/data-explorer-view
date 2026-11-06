@@ -11,7 +11,7 @@
 // gone from the next array is gone, and a child merged in later is there as soon as the table has
 // it, with nothing to keep in step with the source's changes.
 
-import { isSectionRowId } from '../../../model/ids/sectionRowId.js';
+import { isEntryRow, isSectionRowId } from '../../../model/ids/sectionRowId.js';
 import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 
 const indexes = new WeakMap<readonly TreeTableRow[], Map<string, TreeTableRow>>();
@@ -62,13 +62,6 @@ export function graphNameOf(rows: readonly TreeTableRow[], rowId: string): strin
 }
 
 /**
- * A top-level entry, as selectByName decides one (connectTable.ts, model/shell/commands.ts): its
- * parent is a section row or, in a table with no section rows (a MAT-file's), it has no parent and
- * is no section row itself.
- */
-const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
-
-/**
  * The entry the row `rowId` is in (itself, for an entry): its name, and its section's label where
  * it is under one (a MAT-file's variables are under none). None for a section's own row, a row
  * `rows` does not hold, or a parent chain that breaks off or loops.
@@ -76,7 +69,7 @@ const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? is
 export function entryOf(rows: readonly TreeTableRow[], rowId: string): { entry: string; section?: string } | undefined {
   const seen = new Set<string>();
   let row = rowIn(rows, rowId);
-  while (row && !isEntry(row)) {
+  while (row && !isEntryRow(row)) {
     // No parent and no entry: a section's own row, which names no entry.
     if (row.parent === null || seen.has(row.ID)) return undefined;
     seen.add(row.ID);
@@ -103,5 +96,5 @@ export function rowOfEntry(rows: readonly TreeTableRow[], entry: string, section
     const heading = rows.find((r) => isSectionRowId(r.ID) && r.Name?.label === section);
     return heading ? rows.find((r) => r.parent === heading.ID && named(r)) : undefined;
   }
-  return rows.find((r) => named(r) && isEntry(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === entry && !isSectionRowId(r.ID));
+  return rows.find((r) => named(r) && isEntryRow(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === entry && !isSectionRowId(r.ID));
 }
