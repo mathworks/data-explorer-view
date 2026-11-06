@@ -43,7 +43,7 @@ import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.j
 import type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from '../../src/widgets/app-shell/connect/types.js';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
-export const fixture = (name: string) => path.join(ROOT, 'test/fixtures/shell', name);
+export const fixture = (name: string) => path.join(ROOT, 'test/shell/fixtures', name);
 /** Where the page's files live: a made-up folder, only ever in `Files`. */
 export const at = (name: string) => `/work/${name}`;
 

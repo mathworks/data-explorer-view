@@ -17,3 +17,7 @@ mathworks/data-explorer-core (`test/fixtures/mat-check/`, `test/parity/artifacts
 | `shadow_ws.slx` | model whose blocks and data source link to `params.sldd` | links into another file |
 
 This file is also what the tests open as a dictionary core cannot read.
+
+They live here, beside the tests, and not in `test/fixtures/`: the golden tests read that folder
+whole as a workspace (`test/goldens/hierarchy.test.ts`, `usage.test.ts`), and files added there
+change the trees and the Usage they pin.
