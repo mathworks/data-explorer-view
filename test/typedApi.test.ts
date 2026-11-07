@@ -240,7 +240,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { folderReader, type FolderReader, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import { serveFolder, serveTable, type FolderReads, type FolderServer } from 'data-explorer-view/serve';
     import { folderFileList, portFromMessagePort, type FolderFileList } from 'data-explorer-view/model';
-    import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell, type GraphOpenDetail, type ShellHandle } from 'data-explorer-view/app-shell';
+    import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell, type GraphOpenDetail, type OpenAtTarget, type ShellEntryTarget, type ShellHandle } from 'data-explorer-view/app-shell';
     import { browserHost, type BrowserHost } from 'data-explorer-view/browser-host';
     import { buildRelationshipGraph, graphIdOf, layoutGraph, runCommand, type CommandTarget, type OutputLine, type RelationshipGraph } from 'data-explorer-view/model';
     import * as serve from 'data-explorer-view/serve';
@@ -366,6 +366,7 @@ describe('an app written in TypeScript, against the built package', () => {
       handle.on('select', (rowIds) => rowIds.map(s));
       handle.on('copyFailed', ({ text, message }) => s(text + message));
       handle.on('painted', (painted: TableView) => b(painted === handle.view));
+      handle.on('failed', (message: string) => s(message));
       const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
       connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
       connectTable(table, doc.table, { columns: (column, v: TableView) => column !== 'UsedBy' || v.rows.length > 0 }).dispose();
@@ -491,6 +492,13 @@ describe('an app written in TypeScript, against the built package', () => {
       app.command('show-graph');
       // @ts-expect-error no such command
       app.command('show-nothing');
+      // A file opened at an entry, as a link names it; and a host that makes such links.
+      await app.openAt('/w/a.sldd', { entry: 'Kp', section: 'Design Data' });
+      const where: OpenAtTarget = { entry: '8' };
+      await app.openAt('/w/a.slx', where);
+      // @ts-expect-error an entry is named by a string
+      app.openAt('/w/a.sldd', { entry: 1 });
+      connectShell(document.createElement('dex-app-shell'), { host: { ...host, entryLink: (t: ShellEntryTarget) => t.path } }).dispose();
       b(await app.requestClose());
       const graph: RelationshipGraph = buildRelationshipGraph([]);
       const drawn = document.createElement('dex-relationship-graph');

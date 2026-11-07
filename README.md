@@ -538,6 +538,7 @@ const app = connectShell(shell, {
 
 // What the host hears, it hands to the shell:
 app.openPaths(paths);       // files to open, each in a tab of its own (a command line, a drop)
+app.openAt(path, { entry: 'Kp', section: 'Design Data' }); // a link's file, at its entry
 app.showFolder(root, port); // a folder picked, served across `port` by serveFolder
 app.fileChanged(path);      // a watcher saw an open file change
 onWindowClose(async () => {
@@ -554,6 +555,16 @@ outlined, and a tab says "Opening plant.sldd…" while its file is read.
 and `app.dispose()` takes the app down. The settings, the layout the user left
 (the divider between two panes with it) and each file's column choices are kept
 in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+
+`app.openAt(path, at)` is for a link from outside the page, such as a desktop
+app's link in a mail or a ticket, or a page's `#entry=`. It opens the file as
+`openPaths` does, in a tab it keeps, or goes to the file's tab. Once the table
+has its rows, it selects the entry named by its Name (`Kp`) or a block's key.
+With a `section`, only a top-level entry under the section row of that label
+counts. A file that holds no such entry stays open, and a warning that stays
+until it is closed says "No entry named Kp" ("… in Model Elements" with a
+section). It never rejects: what fails is said in the window, as any open's
+failure is.
 
 The documents split in two panes side by side, as VS Code's editor groups do. A
 tab dragged onto the left or right fifth of the documents makes a pane there
@@ -594,6 +605,7 @@ shell runs.
 | `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
 | `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
+| `entryLink(target)` | a document row's menu: Copy Link to Entry puts its answer on the clipboard (`target.entry` is the entry's name, or a block's key for a block in a subsystem, as `app.openAt` takes it) | no such item |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's

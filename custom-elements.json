@@ -2651,9 +2651,25 @@
         },
         {
           "kind": "js",
+          "name": "OpenAtTarget",
+          "declaration": {
+            "name": "OpenAtTarget",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "ShellCommand",
           "declaration": {
             "name": "ShellCommand",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellEntryTarget",
+          "declaration": {
+            "name": "ShellEntryTarget",
             "module": "./connect/types.js"
           }
         },

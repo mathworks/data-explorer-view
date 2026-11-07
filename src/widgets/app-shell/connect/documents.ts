@@ -24,7 +24,7 @@ import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import type { FolderView } from './folder.js';
 import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
-import { rowIn, sectionOf } from './rows.js';
+import { linkedEntryOf, rowIn, sectionOf } from './rows.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 
@@ -46,6 +46,9 @@ export interface OpenTab extends ShellTab {
 
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
 export const SHOW_IN_GRAPH = { id: 'showInGraph', label: 'Show in Graph' } as const;
+
+/** A document row's link, for a host that makes links (ShellHost.entryLink): before Show in Graph. */
+export const COPY_ENTRY_LINK = { id: 'copyEntryLink', label: 'Copy Link to Entry' } as const;
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -191,8 +194,13 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     },
     // A name a link holds means the file the folder's tree shows for it.
     resolveLink: (link: LinkTarget, fromUri: string) => wiring.folder()?.resolveLink(link, fromUri),
-    // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).
-    menuItems: () => [{ ...SHOW_IN_GRAPH }],
+    // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file). A row in
+    // an entry has a link to it where the host makes links, asked at each menu; a section's own row,
+    // and the space under the rows, name no entry.
+    menuItems: (context) => [
+      ...(host.entryLink && context.rowId !== null && linkedEntryOf(context.rows, context.rowId) ? [{ ...COPY_ENTRY_LINK }] : []),
+      { ...SHOW_IN_GRAPH },
+    ],
   });
   tab.handle = handle;
   return handle;
