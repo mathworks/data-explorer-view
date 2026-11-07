@@ -4,10 +4,11 @@
 // widgets a document, the folder and a project are shown in (the table, the inspector, the variable
 // editor, the context menu, the error dialog, the folder's tree, a project's page); the shell's
 // parts (the toolbar, the location bar, the Explorer, the tab row, the two popovers, the toasts,
-// the confirm dialog, a compare's view); the modules' views (Raw, Search, the Gallery, the Terminal, the Log, the
-// command palette, the relationship graph); the four internal elements connectShell builds the
-// center, the folder, the empty inspector and the status from; and last the shell itself, with its views and
-// actions (defineAppShell, which stays the layout's own and defines only those).
+// the confirm dialog, a compare's view); the modules' views (Raw, Search, the Gallery, the
+// Terminal, the Log, the command palette, the relationship graph); the four internal elements
+// connectShell builds the center, the folder, the empty inspector and the status from; and last
+// the shell itself, with its views and actions (defineAppShell, which stays the layout's own and
+// defines only those).
 //
 // Each under its default name, as connectShell makes them by those names. Calling it again does
 // nothing: each define is a no-op for its own class (shared/define.ts).

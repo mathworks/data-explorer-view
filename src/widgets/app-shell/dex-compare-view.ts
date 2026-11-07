@@ -102,7 +102,8 @@ const stop = (e: Event): void => e.stopPropagation();
  * and a selection in one is the other's, said in `dex-compare-selected`. The tables keep their rows
  * as given (a sort or a search on one side alone would break the lines) and take no edit; a row's
  * menu is asked for in `dex-compare-menu`, with the side it was asked on, for the app to offer Copy
- * to Left or Right. Previous and Next Change send `dex-compare-step` for the app to say which line
+ * to Left or Right. Only vertical scroll follows: each table keeps its own column widths and choices,
+ * so the same sideways scroll would put different columns under each other. Previous and Next Change send `dex-compare-step` for the app to say which line
  * that is (`select`). The tables' own events stay inside the view.
  *
  * It fills the box it is given, a column: the header, then the two sides, each a caption (the
@@ -329,14 +330,7 @@ export class DexCompareView extends LitElement {
 
   /** The keyboard to the left table's grid. */
   override focus(): void {
-    const table = this._table('left');
-    if (!table) return;
-    // The grid, or the empty table's body, which takes the keyboard as the grid does.
-    const grid = (): HTMLElement | null | undefined => table.shadowRoot?.querySelector<HTMLElement>('[role="treegrid"], .empty-state');
-    // Now where it is drawn already, so a caller's next line finds the focus there; else once it is.
-    const now = grid();
-    if (now) now.focus();
-    else void table.updateComplete.then(() => grid()?.focus());
+    this._table('left')?.focusGrid();
   }
 
   // The tables' own events stop at the view's root: each table's binding below has answered its
@@ -360,11 +354,26 @@ export class DexCompareView extends LitElement {
     this._expanded = new Set(e.detail.expandedIds);
   }
 
-  // A scroll of one: the other to the same place, unless it is there already (its own scroll that
-  // followed would come back here otherwise, and the two would chase each other).
+  // Where each table was scrolled to by the view, as it read back after the scroll (the browser
+  // clamps one past the end): the scroll event that follows is that scroll's echo, not the user's.
+  private _echo = new Map<DexTreeTable, number>();
+
+  // A scroll of one: the other to the same place, unless it is there already. The other's own
+  // scroll event follows a frame later; by then the user may have scrolled the first further, so an
+  // echo is told by the place the view scrolled it to, and not by where the first is now (which
+  // would pull the first back to where it was a frame ago, against a scroll still going).
   private _onScrolled(which: 'left' | 'right', e: CustomEvent<TableScrolledDetail>): void {
+    const from = e.currentTarget as DexTreeTable;
+    const echo = this._echo.get(from);
+    this._echo.delete(from);
+    if (echo === e.detail.top) return;
     const other = this._other(which);
-    if (other && other.bodyScroll.top !== e.detail.top) other.scrollBodyTo(e.detail.top);
+    if (!other || other.bodyScroll.top === e.detail.top) return;
+    const before = other.bodyScroll.top;
+    other.scrollBodyTo(e.detail.top);
+    // A scroll that did not move it (already at the end) sends no event to wait for.
+    const after = other.bodyScroll.top;
+    if (after !== before) this._echo.set(other, after);
   }
 
   private _onSelected(e: CustomEvent<RowSelectedDetail>): void {

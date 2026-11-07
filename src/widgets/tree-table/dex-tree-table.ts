@@ -966,12 +966,44 @@ export class DexTreeTable extends LitElement {
         background: var(--dex-diff-cell-bg, rgba(180, 83, 9, 0.2));
       }
 
+      /* A differing cell is also underlined in the changed bar's colour (3:1 on its wash and on the
+         selection surface), so it is told apart by more than a wash's hue, and still on a selected
+         row, whose surface replaces the wash. An inset shadow, as the focus ring is, which it is
+         drawn with when the cell has the focus. */
+      tr.data-row td.diff-cell {
+        box-shadow: inset 0 -1px 0 0 var(--dex-diff-changed, #b45309);
+      }
+
+      tr.data-row td.diff-cell.focused {
+        box-shadow:
+          inset 0 0 0 1px var(--dex-color-accent, #0078d4),
+          inset 0 -1px 0 0 var(--dex-diff-changed, #b45309);
+      }
+
       tr.data-row.diff-gap td {
         background-image: repeating-linear-gradient(
           135deg,
           var(--dex-diff-gap-stripe, rgba(0, 0, 0, 0.1)) 0 1px,
           transparent 1px 6px
         );
+      }
+
+      /* Read-only ink on a wash. The muted ink is dim against the rows' own surface, and a wash
+         takes some of that contrast away (in the dark set the plain surface leaves it 4.32:1 and a
+         wash below 3.6:1), so a marked row redeclares it, as a selected row does for its surface:
+         the row's text ink at 80%, which stays dim beside the editable text and reads at 6:1 and
+         more on every wash. A differing cell is the one the user came to read: it draws in the full
+         text ink, its muted parts (a read-only value, an object's summary) included. Not on a
+         selected row, whose own ink and its 78% take over (tr.data-row.selected below). */
+      tr.data-row.diff-added:not(.selected),
+      tr.data-row.diff-removed:not(.selected),
+      tr.data-row.diff-changed:not(.selected) {
+        --dex-color-text-muted: color-mix(in srgb, var(--dex-color-text, #333) 80%, transparent);
+      }
+
+      tr.data-row:not(.selected) td.diff-cell {
+        --dex-color-text-muted: var(--dex-color-text, #333);
+        color: var(--dex-color-text, #333);
       }
 
       tr.data-row:hover {
@@ -1187,8 +1219,6 @@ export class DexTreeTable extends LitElement {
         background-color: var(--dex-bg-secondary, #f8f8f8);
       }
 
-      /* Selection is listed after hover for the same reason it is on the <tr>:
-         equal specificity, so a selected row under the cursor reads as selected. */
       /* The frozen Name cell paints its own opaque base (above), so a compare's wash is layered on
          it as its row's state colours are, and before them, which win. */
       tr.data-row.diff-added td:first-child {
@@ -1220,6 +1250,8 @@ export class DexTreeTable extends LitElement {
         );
       }
 
+      /* Selection is listed after hover for the same reason it is on the <tr>:
+         equal specificity, so a selected row under the cursor reads as selected. */
       tr.data-row:hover td:first-child {
         background-image: linear-gradient(
           var(--dex-bg-hover, #e8e8e8),
@@ -1274,6 +1306,20 @@ export class DexTreeTable extends LitElement {
       td:first-child.focused {
         box-shadow:
           inset 0 0 0 1px var(--dex-color-accent, #0078d4),
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
+      }
+
+      /* A differing Name cell's underline (above), with the frozen edge it would otherwise replace. */
+      tr.data-row td.diff-cell:first-child {
+        box-shadow:
+          inset 0 -1px 0 0 var(--dex-diff-changed, #b45309),
+          var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
+      }
+
+      tr.data-row td.diff-cell.focused:first-child {
+        box-shadow:
+          inset 0 0 0 1px var(--dex-color-accent, #0078d4),
+          inset 0 -1px 0 0 var(--dex-diff-changed, #b45309),
           var(--dex-frozen-edge, 0 0 0 0 transparent, 0 0 0 0 transparent);
       }
 
@@ -1874,6 +1920,18 @@ export class DexTreeTable extends LitElement {
     if (!container) return;
     container.scrollTop = top;
     if (left !== undefined) container.scrollLeft = left;
+  }
+
+  /**
+   * Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,
+   * and the menu keys open a row's menu. An empty table's body takes it where there are no rows.
+   * Nothing while the table is loading. Called before the table is drawn, once it is.
+   */
+  focusGrid(): void {
+    const grid = (): HTMLElement | null => this.renderRoot.querySelector<HTMLElement>('.table-container, .empty-state');
+    const now = grid();
+    if (now) now.focus();
+    else void this.updateComplete.then(() => grid()?.focus());
   }
 
   // Whether the `+ Add` button is drawn and the gallery can open.

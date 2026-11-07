@@ -212,6 +212,38 @@ describe('the two tables, kept together', () => {
     expect(scroll).toHaveBeenCalledTimes(1);
   });
 
+  // The follower's scroll event comes a frame after the view scrolled it; by then the user may have
+  // scrolled the leader further. That echo must not pull the leader back to where it was.
+  it("takes the follower's late echo for an echo, against a scroll still going", async () => {
+    const view = await mount();
+    const [left, right] = tables(view);
+    const scrolled = (table: DexTreeTable, top: number): void =>
+      void table.dispatchEvent(new CustomEvent('dex-table-scrolled', { detail: { top, left: 0 }, bubbles: true, composed: true }));
+    const leftScroll = vi.spyOn(left, 'scrollBodyTo');
+    const rightScroll = vi.spyOn(right, 'scrollBodyTo');
+
+    scrolled(left, 56);
+    expect(rightScroll).toHaveBeenLastCalledWith(56);
+    // The user goes on: the leader is at 64 before the follower's echo of 56 arrives.
+    left.scrollBodyTo(64);
+    leftScroll.mockClear();
+    scrolled(right, 56);
+    expect(leftScroll).not.toHaveBeenCalled();
+    expect(left.bodyScroll.top).toBe(64);
+    // The leader's own event for 64 is followed, and the follower's echo of that is an echo too.
+    scrolled(left, 64);
+    expect(rightScroll).toHaveBeenLastCalledWith(64);
+    scrolled(right, 64);
+    expect(leftScroll).not.toHaveBeenCalled();
+
+    // A scroll of the follower's own, once its echoes are in, leads.
+    right.scrollBodyTo(100);
+    rightScroll.mockClear();
+    scrolled(right, 100);
+    expect(leftScroll).toHaveBeenLastCalledWith(100);
+    expect(left.bodyScroll.top).toBe(100);
+  });
+
   it('selects a line in the other as it is selected in one, and keeps the tables’ own events inside', async () => {
     const view = await mount((v) => (v.expandedIds = ['S']));
     const [left, right] = tables(view);
@@ -224,6 +256,23 @@ describe('the two tables, kept together', () => {
     expect(view.selectedIds).toEqual(['b']);
     expect(selected).toEqual([{ lineIds: ['b'] }]);
     expect(outside).toEqual([]);
+  });
+
+  it("keeps every other event of its tables inside", async () => {
+    const view = await mount();
+    const [left, right] = tables(view);
+    const names = ['dex-table-scrolled', 'dex-expansion-changed', 'dex-request-children', 'dex-link-clicked'];
+    const outside = names.map((name) => heard<unknown>(document, name));
+    const details: Record<string, unknown> = {
+      'dex-table-scrolled': { top: 0, left: 0 },
+      'dex-expansion-changed': { expandedIds: [] },
+      'dex-request-children': { nodeId: 'S' },
+      'dex-link-clicked': { target: 'file:///w/a.sldd#Kb' },
+    };
+    for (const table of [left, right]) {
+      for (const name of names) table.dispatchEvent(new CustomEvent(name, { detail: details[name], bubbles: true, composed: true }));
+    }
+    expect(outside.map((events) => events.length)).toEqual([0, 0, 0, 0]);
   });
 
   it("asks for a line's menu, saying which side and which lines", async () => {
