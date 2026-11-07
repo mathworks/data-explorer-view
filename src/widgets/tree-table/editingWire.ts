@@ -23,7 +23,7 @@ import { documentDrop } from '../../model/actions/documentDrop.js';
 import { dropDecision, type DragMode, type DropDecision, type DropTarget } from '../../model/actions/dropDecision.js';
 import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import type { SectionRule } from '../../model/actions/sectionRules.js';
-import { uriBasename } from '../../model/ids/pathUtil.js';
+import { fileNameOf } from '../../model/ids/pathUtil.js';
 import { buildSectionRowId, sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
 import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DragDescriptor } from '../../model/source/wire.js';
@@ -185,7 +185,8 @@ export interface EditingWire {
   /**
    * With `editing`: `drop(rowId, 'copy')` with the entries of `replacing` (rows of this table's
    * document) taken out first in the same edit (the source's `dropReplacing`): one edit of this
-   * document, undone by one Undo. Judged and settled as `drop` is (dropDecision first, then the
+   * document, undone by one Undo. Until core can paste in place, the copy goes last in its section.
+   * Judged and settled as `drop` is (dropDecision first, then the
    * source's promise and a task). A source without `dropReplacing` refuses it:
    * `{ dropped: false, count, reason: '<file> does not replace entries.' }`. No `ran` is told.
    */
@@ -199,16 +200,6 @@ export interface EditingWire {
 
 // Whether a value read off a change is an object — the one shape every list element below
 // has to be before a field of it is read.
-// The file name a document's uri ends in, decoded, for a message the app shows.
-function fileNameOf(uri: string): string {
-  const raw = uriBasename(uri);
-  try {
-    return decodeURIComponent(raw) || raw;
-  } catch {
-    return raw;
-  }
-}
-
 function isRecord(x: unknown): x is Record<string, any> {
   return typeof x === 'object' && x !== null;
 }

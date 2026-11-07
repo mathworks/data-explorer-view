@@ -78,7 +78,8 @@ import { sectionTarget, type SectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
-import { replacedEntries, replacedGone, runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
+import { replacingOrRefuse } from './replacing.js';
+import { runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -834,14 +835,8 @@ export class BinaryView implements EditableTableSource {
     if (this.closed) return;
     const registers = this.doc.options.registers;
     const register = registers.dragRegister('copy', () => registers.broadcastDragState());
-    const selectors = replacedEntries(replacing, this.findNode);
-    if (!selectors) {
-      // Ends the drag as a drop does, refused or not.
-      register.clear();
-      register.broadcast();
-      this.error(replacedGone(this.name));
-      return;
-    }
+    const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+    if (!selectors) return;
     return runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps()).then(
       () => undefined,
       () => undefined,

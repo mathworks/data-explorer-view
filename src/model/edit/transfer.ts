@@ -5,7 +5,8 @@
 // commit to that file). Two differences: TransferRefused is core's (v1.53.0), not a class of its
 // own, since core's paste rules (refuseDisallowedPaste) throw it, and the policy below tells a
 // refusal by it; and a copy may name entries of the target it replaces (TransferRequest.replacing,
-// a compare's Copy to Right), which the extension has no gesture for.
+// a compare's Copy to Right), which the extension has no gesture for. And fileNameOf is pathUtil's,
+// where a table's own messages find it too.
 //
 // What a paste or a drop MEANS, said once for every editable table.
 //
@@ -37,8 +38,8 @@
 // a custom document's own stack, a session gesture over core's tree — is the adapter's, and
 // this module neither knows nor imports any of it. That is also why it is vscode-free: every
 // branch above is unit-tested with a fake adapter (test/transfer.test.ts).
-import { TransferRefused, entrySelectorOf, owningEntryOf, type EntrySelector } from 'data-explorer-core';
-import { uriBasename } from '../ids/pathUtil.js';
+import { TransferRefused, entrySelectorOf, type EntrySelector } from 'data-explorer-core';
+import { fileNameOf } from '../ids/pathUtil.js';
 
 /** One entry a transfer carries: what to paste, and the section it was taken from. */
 export interface TransferItem {
@@ -201,8 +202,9 @@ export interface TransferRequest {
   /**
    * Entries of THIS document the transferred ones take the place of (a compare's Copy to Right of a
    * changed entry), by their selectors in this document: taken out in the same edit before the
-   * paste, so the copies keep their names and the whole is one undo step. A copy only: a register
-   * holding a move is refused with it. Absent or empty: none.
+   * paste, so the copies keep their names and the whole is one undo step. Until core can paste in
+   * place, each copy goes last in its section, not where the entry it replaces was. A copy only: a
+   * register holding a move is refused with it. Absent or empty: none.
    */
   replacing?: readonly EntrySelector[];
 }
@@ -380,30 +382,6 @@ function refusedOrFailed(err: unknown, adapter: TransferAdapter<any>): TransferO
 }
 
 /**
- * The entries a replacing copy takes the place of (TransferRequest.replacing), from the rows that
- * name them: each row's entry (a row inside an entry stands for its entry, as a copy carries whole
- * entries), by the selector its commit takes it out by, once each. Null where a row finds no node:
- * the entry is no longer in the document, and the copy is refused before anything changes.
- */
-export function replacedEntries(rowIds: readonly string[], findNode: (rowId: string) => unknown): EntrySelector[] | null {
-  const out: EntrySelector[] = [];
-  const seen = new Set<string>();
-  for (const rowId of rowIds) {
-    const entry = owningEntryOf(findNode(rowId) as Parameters<typeof owningEntryOf>[0]);
-    if (!entry) return null;
-    const selector = entrySelectorOf(entry);
-    const key = `${selector.name}\u0000${selector.uuid ?? ''}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(selector);
-  }
-  return out;
-}
-
-/** What a replacing copy says of a row whose entry is no longer in its document `name`. */
-export const replacedGone = (name: string): string => `An entry to replace is no longer in ${name}.`;
-
-/**
  * Why an entry that shares its name in its document cannot be cut or moved, naming it and the
  * document: the move would take its original out by that name, and could take the other one.
  * Said where a cut is refused (clipboardAction) and where a move-mode drop is (above), in the
@@ -434,14 +412,4 @@ export function sourceKeptMessage(
   // Nothing to remove by hand: what holds the original's name there now is something else.
   if (gone) return `${verb} here; ${what}${where} ${count === 1 ? 'is' : 'are'} no longer there to remove: ${why}.`;
   return `${verb} here, but ${what}${where} could not be removed: ${why}. Remove ${count === 1 ? 'it' : 'them'} there by hand.`;
-}
-
-/** The file name a uri string ends in, decoded, for a message. */
-export function fileNameOf(uriString: string): string {
-  const raw = uriBasename(uriString);
-  try {
-    return decodeURIComponent(raw) || raw;
-  } catch {
-    return raw;
-  }
 }

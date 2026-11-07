@@ -73,9 +73,8 @@ import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refuse
 import { NOT_FOUND_REASON, reach, type DeleteTarget, type Registers } from './registers.js';
 import { MAT_FILE, type EngineFile } from './engineFile.js';
 import { replacementsIn, SaveMarks, type SaveMark, type SaveSnapshot } from './saveMarks.js';
+import { replacingOrRefuse } from './replacing.js';
 import {
-  replacedEntries,
-  replacedGone,
   runTransfer,
   TransferRefused,
   type SourceDeleteResult,
@@ -1581,14 +1580,8 @@ class MatView implements EditableTableSource {
     this.handle('drop', () => {
       const registers = this.doc.options.registers;
       const register = registers.dragRegister('copy', () => registers.broadcastDragState());
-      const selectors = replacedEntries(replacing, this.findNode);
-      if (!selectors) {
-        // Ends the drag as a drop does, refused or not.
-        register.clear();
-        register.broadcast();
-        this.error(replacedGone(this.name));
-        return;
-      }
+      const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+      if (!selectors) return;
       run = runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps());
       this.transferred(run);
     });

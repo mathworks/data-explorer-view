@@ -82,6 +82,7 @@ describe("the handle's dropReplacing", () => {
     at.dragEnd();
     await settle(table);
     expect(result).toEqual({ dropped: true, count: 1 });
+    // Sorted: until core can paste in place, the copy goes last in its section.
     const names = table.rows.filter((row) => row.parent === 'section:design').map((row) => row.Name.label);
     expect(names.sort()).toEqual(['Ki', 'Kp', 'Uo']);
     expect(rowNamed(table.rows, 'Kp').Value).toBe('1');
@@ -98,6 +99,16 @@ describe("the handle's dropReplacing", () => {
     await settle(table);
     // Nothing was pasted beside it.
     expect(table.rows.filter((row) => row.parent === 'section:design').map((row) => row.Name.label)).toEqual(['Kp', 'Uo', 'Ki']);
+  });
+
+  it("says why, for the app, when a row it replaces is no longer in the document", async () => {
+    const { at, bt } = await twoSides();
+    const { table, handle } = await mount(bt);
+    at.dragStart([rowNamed((await at.open()).rows, 'Kp').ID]);
+    await settle(table);
+    const result = await handle.dropReplacing('section:design', ['file:///b/params.sldd/design/Gone']);
+    at.dragEnd();
+    expect(result).toEqual({ dropped: false, count: 1, reason: 'An entry to replace is no longer in params.sldd.' });
   });
 
   it('drops nothing with no drag in flight', async () => {

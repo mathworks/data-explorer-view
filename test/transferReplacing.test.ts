@@ -128,6 +128,24 @@ async function twoSides(rel: string): Promise<{ a: Doc; b: Doc; at: EditableTabl
   return { a, b, at: a.table as EditableTableSource, bt: b.table as EditableTableSource };
 }
 
+/** One editing workspace with two files open, a under /a/ and b under /b/. */
+async function twoFiles(relA: string, relB: string): Promise<{ a: Doc; b: Doc; at: EditableTableSource; bt: EditableTableSource }> {
+  const ws = createWorkspace({ editing: true });
+  workspaces.push(ws);
+  const open = (rel: string, side: string) => ws.open(fixture(rel), rel.split('/').pop()!, sourceUri(`/${side}/${rel.split('/').pop()!}`));
+  const a = await open(relA, 'a');
+  const b = await open(relB, 'b');
+  for (const doc of [a, b]) {
+    await doc.table.open();
+    doc.table.opened?.();
+  }
+  await settle();
+  return { a, b, at: a.table as EditableTableSource, bt: b.table as EditableTableSource };
+}
+
+/** Whether two byte arrays hold the same bytes. */
+const sameBytes = (x: Uint8Array, y: Uint8Array): boolean => x.length === y.length && x.every((byte, i) => byte === y[i]);
+
 const rowsOf = async (table: EditableTableSource): Promise<TreeTableRow[]> => (await table.open()).rows;
 /** The row labelled `label` (under the row labelled `under`, where given). */
 function rowNamed(rows: readonly TreeTableRow[], label: string, under?: string): TreeTableRow {
@@ -156,6 +174,8 @@ async function setValue(table: EditableTableSource, row: TreeTableRow, now: stri
   await settle();
 }
 
+// The names are compared sorted: until core can paste in place, the copy goes last in its section,
+// so a replace keeps a section's names but not their order.
 describe('a replacing copy, in each kind of document', () => {
   it('a JSON dictionary: the copy takes its entry’s name and place, and one Undo puts it back', async () => {
     const { bt, at } = await twoSides('fixtures/params.sldd');
@@ -226,6 +246,7 @@ describe('a replacing copy, in each kind of document', () => {
     const changes: TableChange[] = [];
     bt.subscribe((change) => void changes.push(change));
     const before = namesUnder(await rowsOf(bt), 'section:workspace');
+    const bytes = b.serialize().bytes;
     await copyOver(at, bt, 'section:workspace', 'tau');
     expect(changes.filter((c) => c.kind === 'error')).toEqual([
       {
@@ -239,6 +260,28 @@ describe('a replacing copy, in each kind of document', () => {
     expect(valueOf(rowNamed(after, 'tau'))).toBe('0.25');
     expect(b.dirty).toBe(false);
     expect(bt.history?.canUndo).toBe(false);
+    expect(sameBytes(b.serialize().bytes, bytes)).toBe(true);
+  });
+
+  // A copy core will not paste into the file is refused before the variable it replaces goes: core
+  // is asked deeply first (the paste made and taken back, seen by no one), as the paste's own refusal
+  // would come only once the variable was gone.
+  it('a MAT-file: a copy core will not paste is refused before the variable it replaces goes', async () => {
+    const { b, bt, at } = await twoFiles('shell/fixtures/slxcases.slx', 'fixtures/nd_numeric.mat');
+    const changes: TableChange[] = [];
+    bt.subscribe((change) => void changes.push(change));
+    const bytes = b.serialize().bytes;
+    at.dragStart([rowNamed(await rowsOf(at), 'Const').ID]);
+    await bt.dropReplacing!('', [rowNamed(await rowsOf(bt), 'Mat').ID]);
+    at.dragEnd();
+    await settle();
+    expect(changes.filter((c) => c.kind === 'error')).toEqual([
+      { kind: 'error', message: 'Cannot paste into "nd_numeric.mat": what was handed over is not an entry, a name and a value. Nothing was pasted.' },
+    ]);
+    expect(namesUnder(await rowsOf(bt), null)).toEqual(['Mat', 'Nd', 'Nd4', 'Vec']);
+    expect(bt.history?.canUndo).toBe(false);
+    expect(b.dirty).toBe(false);
+    expect(sameBytes(b.serialize().bytes, bytes)).toBe(true);
   });
 
   it('refuses to replace an entry that is no longer there, changing nothing', async () => {
@@ -248,10 +291,19 @@ describe('a replacing copy, in each kind of document', () => {
     const dirty = b.dirty;
     at.dragStart([rowNamed(await rowsOf(at), 'Kp').ID]);
     await bt.dropReplacing!('section:design', ['file:///b/params.sldd/design/Gone']);
-    at.dragEnd();
     await settle();
     expect(changes.filter((c) => c.kind === 'error')).toEqual([{ kind: 'error', message: 'An entry to replace is no longer in params.sldd.' }]);
     expect(b.dirty).toBe(dirty);
+    expect(namesUnder(await rowsOf(bt), 'section:design')).toEqual(['Kp', 'Uo', 'Ki']);
+    // It ended the drag, as a drop does whatever became of it: a drop after it, before the source's
+    // dragEnd, finds nothing to drop.
+    await bt.drop('section:design', 'copy');
+    at.dragEnd();
+    await settle();
+    expect(changes.filter((c) => c.kind === 'error').map((c) => (c as { message: string }).message)).toEqual([
+      'An entry to replace is no longer in params.sldd.',
+      'Nothing to drop.',
+    ]);
     expect(namesUnder(await rowsOf(bt), 'section:design')).toEqual(['Kp', 'Uo', 'Ki']);
   });
 });

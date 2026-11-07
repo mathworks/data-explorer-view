@@ -43,6 +43,19 @@ export function uriBasename(uriString: string): string {
 }
 
 /**
+ * The file name a uri string ends in, decoded, for a message: what a transfer's refusals name a
+ * document by (transfer.ts), and a table's editing answers too (editingWire.ts), so both say it alike.
+ */
+export function fileNameOf(uriString: string): string {
+  const raw = uriBasename(uriString);
+  try {
+    return decodeURIComponent(raw) || raw;
+  } catch {
+    return raw;
+  }
+}
+
+/**
  * The last segment of a uri's path, decoded: what `basename(uri.path)` gives for a VS Code uri, whose
  * `path` is decoded. The path is the uri after its scheme and authority, before any `?query` or
  * `#fragment`; decoded first and split after (on both separators, as `basename` splits), so an
