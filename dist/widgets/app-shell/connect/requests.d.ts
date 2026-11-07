@@ -13,6 +13,16 @@ export interface ShellRequests {
     activate(tab: OpenTab): void;
     /** Close `tab`, asking first about unsaved edits. */
     close(tab: OpenTab): void;
+    /** Every open tab, pane by pane. */
+    tabs(): readonly OpenTab[];
+    /** Close every tab but `tab`, asking once about their unsaved edits. */
+    closeOthers(tab: OpenTab): void;
+    /** A tab's menu's Copy Link at `tab`: null for a host that makes no links, else whether it links a file. */
+    link(tab: OpenTab): {
+        enabled: boolean;
+    } | null;
+    /** Copy Link at `tab`'s selection. */
+    copyLink(tab: OpenTab): void;
     save(tab: OpenTab, as: boolean): void;
     pin(tab: OpenTab): void;
     /** Move `tab` to `index` of the pane `pane`, its place once moved: along its row, or into the other pane's. */

@@ -6,7 +6,7 @@ export declare const URL_TIMEOUT_MS = 30000;
 export interface UrlTarget {
     /** The address as given, trimmed: what a link writes back, and what a message names. */
     given: string;
-    /** What is fetched: `given` without its fragment, or for a GitHub or GitLab file page the raw file behind it. */
+    /** What is fetched: `given` without its fragment, or for a GitHub file page or a forge's `/-/blob/` link the raw file behind it. */
     url: string;
     /** The file's name: the last part of `url`'s path, decoded. */
     name: string;
@@ -17,7 +17,7 @@ export interface UrlTarget {
  * `given` (what the user typed, or a `?url=` value) as the address to fetch, or why it is not
  * fetched: an address that is not `https:` (unless it is on `origin`, the page's own), one with a
  * user name or password in it, and one that names no file this app opens, are refused. GitHub's
- * and GitLab's file pages are rewritten to their raw files.
+ * file pages and a forge's `/-/blob/` links are rewritten to their raw files.
  */
 export declare function urlTargetOf(given: string, origin: string): UrlTarget | {
     problem: string;
