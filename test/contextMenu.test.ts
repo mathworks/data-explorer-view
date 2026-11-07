@@ -137,6 +137,29 @@ describe('showing and dismissing the menu', () => {
     expect(ids).toEqual([]);
   });
 
+  it('a contextmenu with no mousedown before it, on another row, opens that row\'s menu, which stays open', async () => {
+    // A touch long-press, or an assistive tool's "show menu", sends a contextmenu alone. The row
+    // hears it first and shows its menu over the open one; the event then goes on up to the
+    // document, where the old menu's dismissal, were it still listening, would close the new one.
+    const el = await makeMenu(ITEMS);
+    const closed: number[] = [];
+    el.addEventListener('dex-menu-closed', () => closed.push(1));
+    const row = document.createElement('div');
+    document.body.appendChild(row);
+    row.addEventListener('contextmenu', (e) => el.show(e.clientX, e.clientY, [{ id: 'undo', label: 'Undo' }]));
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, clientX: 20, clientY: 20 }));
+    await frame();
+    await el.updateComplete;
+    expect(el.hasAttribute('open')).toBe(true);
+    expect(itemEls(el).map((i) => i.textContent!.trim())).toEqual(['Undo']);
+    // The old menu's items were said to go, once; the new menu is dismissed as any is.
+    expect(closed).toHaveLength(1);
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(closed).toHaveLength(2);
+    row.remove();
+  });
+
   it('reopening replaces the previous items rather than appending', async () => {
     const el = await makeMenu(ITEMS);
     el.show(5, 5, [{ id: 'undo', label: 'Undo' }]);
