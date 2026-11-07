@@ -219,7 +219,7 @@ describe("MATLAB's commands", () => {
     expect(inspector().groups.at(-1)).toEqual({
       title: 'MATLAB',
       properties: [
-        { name: 'In MATLAB', value: '3' },
+        { name: 'In MATLAB', value: '3', multiline: true },
         { name: 'Class', value: 'double' },
         { name: 'Size', value: '1×1' },
       ],
@@ -236,7 +236,7 @@ describe("MATLAB's commands", () => {
     await rowMenu('params.sldd', 'Kp');
     choose('matlab-evaluate');
     await until(() => !!matlabGroupShown());
-    expect(matlabGroupShown()!.properties).toEqual([{ name: 'In MATLAB', value: "Error: Unrecognized function or variable 'Kp'." }]);
+    expect(matlabGroupShown()!.properties).toEqual([{ name: 'In MATLAB', value: "Error: Unrecognized function or variable 'Kp'.", multiline: true }]);
     matlab.set({ state: 'off' });
     await until(() => !matlabGroupShown());
   });
@@ -252,6 +252,16 @@ describe("MATLAB's commands", () => {
     await until(() => commands(matlab).length === 1);
     expect(commands(matlab)[0]).toEqual({ name: 'open', arg: { model: at('shared_gain.slx'), block: gain._blockPath } });
     await until(() => said(toasts).includes(`info Opened shared_gain in Simulink at ${gain._blockPath}`));
+  });
+
+  it("open a model's data source row in the Data Explorer as the model, naming no entry MATLAB would refuse", async () => {
+    const { page, matlab } = matlabPage(fakeMatlab(CONNECTED), { 'shadow_ws.slx': 'shadow_ws.slx' });
+    await open(page, 'shadow_ws.slx');
+    const items = read(await rowMenu('shadow_ws.slx', 'params.sldd'));
+    expect(items.slice(items.indexOf('Show in Graph') + 2)).toEqual(['Open in Simulink', 'Update Diagram', "Open in MATLAB's Data Explorer"]);
+    choose('matlab-data-explorer');
+    await until(() => commands(matlab).length === 1);
+    expect(commands(matlab)[0]).toEqual({ name: 'openInDataExplorer', arg: { path: at('shadow_ws.slx') } });
   });
 
   it("say Update Diagram's warnings and errors in a toast, and each in the Log", async () => {

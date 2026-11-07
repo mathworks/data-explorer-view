@@ -14,7 +14,7 @@
 // a Get, the host's watcher tells the shell the file changed, and its clean tab reloads.
 
 import { modelNameOf } from 'data-explorer-core';
-import { isSectionRowId, sectionNameFromRowId } from '../../../model/ids/sectionRowId.js';
+import { isSectionRowId } from '../../../model/ids/sectionRowId.js';
 import type { PropertyGroup } from '../../../model/inspector/piBuilder.js';
 import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import type { InspectorFeed, InspectorView } from '../../../model/source/tableSource.js';
@@ -80,27 +80,37 @@ export interface MatlabTarget {
   value?: string;
 }
 
+/** Whether a row's Value cell is a link to another file or entry (a model's data source, a reference), which names it. */
+const isLink = (row: TreeTableRow): boolean => typeof row.Value === 'object' && !!row.Value?.linkTarget;
+
 /**
  * A row's Value as text MATLAB can evaluate: none when it is empty, a summary MATLAB would not read
- * (`<10x10 double>`), or a link to another file or entry (a model's data source), which names it and
- * is no value.
+ * (`<10x10 double>`), or a link, which names another file and is no value.
  */
 function valueOf(row: TreeTableRow): string | undefined {
+  if (isLink(row)) return undefined;
   const cell = row.Value;
-  if (typeof cell === 'object' && cell?.linkTarget) return undefined;
   const text = (typeof cell === 'string' ? cell : (cell?.text ?? '')).trim();
   return text === '' || /^<.*>$/.test(text) ? undefined : text;
 }
 
 /**
+ * A name MATLAB takes an entry by (the package's `isvarname` check): a letter, then letters, digits
+ * and underscores, 63 at most. A config set may be named with spaces, which no workspace variable is.
+ */
+const VARIABLE_NAME = /^[A-Za-z]\w{0,62}$/;
+
+/**
  * The section a top-level entry is in, as MATLAB names it: the label of its section's row (`Design
  * Data`, `Model Workspace`), not the row id's short name (`section:design`); a MAT-file's variable
- * is in none (''). Undefined for a row that is no top-level entry (a field of one).
+ * is in none (''). Undefined for a row that is no entry MATLAB can name: a field of one, a link, a
+ * name no variable has, or a row under a section row the table does not hold.
  */
 function sectionOfEntry(row: TreeTableRow, rows: readonly TreeTableRow[], kind: MatlabTarget['kind']): string | undefined {
+  if (isLink(row) || !VARIABLE_NAME.test(row.Name.label)) return undefined;
   if (kind === 'mat') return row.parent === null ? '' : undefined;
   if (row.parent === null || !isSectionRowId(row.parent)) return undefined;
-  return rows.find((r) => r.ID === row.parent)?.Name.label ?? sectionNameFromRowId(row.parent) ?? undefined;
+  return rows.find((r) => r.ID === row.parent)?.Name.label;
 }
 
 /** `tab`'s row `rowId` (null: the file) as MATLAB takes it; undefined for a tab of no model, dictionary or MAT-file (a project), or none read yet. */
@@ -169,10 +179,11 @@ const WAITS: Partial<Record<MatlabAction, string>> = {
 };
 
 /**
- * The dictionary sections MATLAB moves an entry between the file and its workspace in: the ones the
- * MATLAB package takes by name. An entry of another (Architectural Data) is not offered Send and Get.
+ * The sections the MATLAB package takes by name: a dictionary's it moves entries in and evaluates
+ * in, and a model's workspace. An entry of another (Architectural Data) is not offered Send and Get,
+ * and is evaluated in its dictionary rather than in its section.
  */
-const DICTIONARY_SECTIONS: readonly string[] = ['Design Data', 'Other Data', 'Embedded Coder', 'Configurations'];
+const MATLAB_SECTIONS: readonly string[] = ['Design Data', 'Other Data', 'Embedded Coder', 'Configurations', 'Model Workspace'];
 
 /** The label of `id` while `status` holds: a MATLAB with no Data Explorer opens a file in Model Explorer. */
 export function matlabActionLabel(id: MatlabAction, status: MatlabStatus | undefined): string {
@@ -184,7 +195,7 @@ export function matlabActionLabel(id: MatlabAction, status: MatlabStatus | undef
 function takes(id: MatlabAction, target: MatlabTarget, status: Extract<MatlabStatus, { state: 'connected' }>): boolean {
   const { kind, entry } = target;
   const { simulink, dataExplorer } = status;
-  const dictionaryEntry = kind === 'dictionary' && simulink && !!entry && DICTIONARY_SECTIONS.includes(entry.section);
+  const dictionaryEntry = kind === 'dictionary' && simulink && !!entry && MATLAB_SECTIONS.includes(entry.section);
   switch (id) {
     case 'matlab-open':
     case 'matlab-update-diagram':
@@ -244,11 +255,15 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 /** `n` of `what`, in words: `1 warning`, `2 warnings`. */
 const count = (n: number, what: string): string => `${n} ${what}${n === 1 ? '' : 's'}`;
 
-/** Where an evaluation of `target`'s value runs: the entry's dictionary section, the dictionary, the model's workspace, or (a MAT-file's) the base workspace. */
+/**
+ * Where an evaluation of `target`'s value runs: the entry's dictionary section (one the package
+ * takes), else the dictionary; the model's workspace; or (a MAT-file's) the base workspace.
+ */
 function contextOf(target: MatlabTarget): { model?: string; dictionary?: string; section?: string } | undefined {
   if (target.kind === 'model') return { model: target.file };
-  if (target.kind === 'dictionary') return target.entry ? { dictionary: target.file, section: target.entry.section } : { dictionary: target.file };
-  return undefined;
+  if (target.kind !== 'dictionary') return undefined;
+  const section = target.entry?.section;
+  return section && MATLAB_SECTIONS.includes(section) ? { dictionary: target.file, section } : { dictionary: target.file };
 }
 
 /** Carry out `id` on `target`; never rejects (a failure is said). */
@@ -348,16 +363,20 @@ export class MatlabResults {
 /** The most of a display Properties shows: a matrix's display runs to MATLAB's own cut, 20000 characters. */
 const SHOWN = 2000;
 
-/** Properties' "MATLAB" group for an answer. */
+/**
+ * Properties' "MATLAB" group for an answer. Its text is MATLAB's display, lines of columns laid out
+ * in spaces (a matrix's), and an error's message may run to lines too: both are drawn as written
+ * (`multiline`).
+ */
 export function matlabGroup(answer: MatlabEvaluation): PropertyGroup {
-  if ('error' in answer) return { title: 'MATLAB', properties: [{ name: 'In MATLAB', value: `Error: ${answer.error.message}` }] };
+  if ('error' in answer) return { title: 'MATLAB', properties: [{ name: 'In MATLAB', value: `Error: ${answer.error.message}`, multiline: true }] };
   const { text, truncated, size } = answer.value;
   const long = text.length > SHOWN;
   const shown = `${long ? text.slice(0, SHOWN) : text}${long || truncated ? '…' : ''}`;
   return {
     title: 'MATLAB',
     properties: [
-      { name: 'In MATLAB', value: shown },
+      { name: 'In MATLAB', value: shown, multiline: true },
       { name: 'Class', value: answer.value.class },
       { name: 'Size', value: size.join('×') },
     ],

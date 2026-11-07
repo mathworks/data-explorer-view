@@ -68,6 +68,16 @@ model's buildPropertyGroups of a node. `source.inspect(rowIds, { pages: true, ed
 asks a document opened in the page for the same pages and editable rows; a source across a
 channel answers as it would without them.
 
+A read-only row marked `multiline` is a text of several lines as it was written: its line breaks
+and spaces kept, in the theme's monospace face (`--dex-font-mono`), on a framed box that scrolls
+past a height. The shell's MATLAB group shows MATLAB's display of a value this way, a matrix's
+columns lined up as MATLAB laid them out. buildPropertyGroups marks only editable rows `multiline`
+(their field of several lines), so its read-only rows read as they always did.
+
+```js
+inspector.groups = [{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: '    16     2\n     5    11', multiline: true }] }];
+```
+
 The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which opens the same
 [variable editor](variable-editor.md) as the table's.
 

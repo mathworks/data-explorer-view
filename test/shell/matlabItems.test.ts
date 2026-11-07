@@ -63,6 +63,10 @@ const DICT_ROWS = [
   row('section:other', null, 'Other Data'),
   row('section:arch', null, 'Architectural Data'),
   row('file://work/plant.sldd/arch/Iface', 'section:arch', 'Iface', ''),
+  row('file://work/plant.sldd/arch/Width', 'section:arch', 'Width', '4'),
+  row('section:config', null, 'Configurations'),
+  row('file://work/plant.sldd/config/Fast', 'section:config', 'Fast', ''),
+  row('file://work/plant.sldd/config/My Config', 'section:config', 'My Config', ''),
 ];
 const MODEL = { path: '/work/plant.slx', name: 'plant.slx', doc: { kind: 'model', uri: 'file://work/plant.slx' } };
 const MODEL_ROWS = [
@@ -122,8 +126,20 @@ describe('matlabTargetOf', () => {
     expect(target(MODEL, MODEL_ROWS, 'file://work/plant.slx/workspace/k')).toMatchObject({ entry: { name: 'k', section: 'Model Workspace' }, value: '5' });
   });
 
-  it("takes no value from a link to another file, which names it and is no value (a model's data source)", () => {
-    expect(target(MODEL, MODEL_ROWS, 'file://work/plant.slx/dataSources/plant.sldd@plant.sldd').value).toBeUndefined();
+  it("takes a link to another file as neither a value nor an entry: it names that file (a model's data source)", () => {
+    const link = target(MODEL, MODEL_ROWS, 'file://work/plant.slx/dataSources/plant.sldd@plant.sldd');
+    expect([link.value, link.entry]).toEqual([undefined, undefined]);
+  });
+
+  it('takes no entry by a name MATLAB has no variable of (a config set named with a space)', () => {
+    expect(target(DICT, DICT_ROWS, 'file://work/plant.sldd/config/My Config').entry).toBeUndefined();
+    expect(target(DICT, DICT_ROWS, 'file://work/plant.sldd/config/Fast').entry).toEqual({ name: 'Fast', section: 'Configurations' });
+  });
+
+  it('takes no entry under a section row the table does not hold', () => {
+    const rows = DICT_ROWS.filter((r) => r.ID !== 'section:design');
+    expect(target(DICT, rows, KP).entry).toBeUndefined();
+    expect(target(DICT, rows, KP).value).toBe('1.5');
   });
 
   it('takes the file itself with no row, and says whether the tab holds unsaved edits', () => {
@@ -337,6 +353,12 @@ describe('runMatlab', () => {
     expect([run.said, run.logged]).toEqual([[], []]);
   });
 
+  it('evaluates an entry of a section MATLAB takes no section of in the dictionary, not the section', async () => {
+    const matlab = fakeMatlab(CONNECTED);
+    await runMatlab('matlab-evaluate', target(DICT, DICT_ROWS, 'file://work/plant.sldd/arch/Width'), context(matlab).on);
+    expect(sent(matlab)).toEqual([{ name: 'evaluate', arg: { expression: '4', context: { dictionary: '/work/plant.sldd' } } }]);
+  });
+
   it("keeps an expression's own error as its answer", async () => {
     const matlab = fakeMatlab(CONNECTED);
     const run = context(matlab);
@@ -436,7 +458,7 @@ describe('matlabGroup', () => {
     expect(matlabGroup(VALUE)).toEqual({
       title: 'MATLAB',
       properties: [
-        { name: 'In MATLAB', value: '     2     4     6' },
+        { name: 'In MATLAB', value: '     2     4     6', multiline: true },
         { name: 'Class', value: 'double' },
         { name: 'Size', value: '1×3' },
       ],
@@ -446,7 +468,7 @@ describe('matlabGroup', () => {
   it("shows an expression's error as its answer", () => {
     expect(matlabGroup({ error: { message: "Unrecognized function or variable 'nope'." } })).toEqual({
       title: 'MATLAB',
-      properties: [{ name: 'In MATLAB', value: "Error: Unrecognized function or variable 'nope'." }],
+      properties: [{ name: 'In MATLAB', value: "Error: Unrecognized function or variable 'nope'.", multiline: true }],
     });
   });
 
