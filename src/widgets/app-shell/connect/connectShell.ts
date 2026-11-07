@@ -508,6 +508,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab)) close(tab);
   }
 
+  // Every tab but `tab` closes, once the user says to save their unsaved edits (and they are) or
+  // discard them, as a tab's close asks. A compare tab keeps the two files it compares.
+  async function closeOthers(tab: OpenTab): Promise<void> {
+    const others = tabs.items.filter((t) => t !== tab && !tab.compare?.involves(t));
+    await modules.idle();
+    inspector.commit();
+    await Promise.all(others.map((t) => t.handle?.commitEdit()));
+    if (!(await settle(others, confirmClose, saveOk))) return;
+    for (const other of others) if (isOpen(other)) close(other);
+  }
+
   // A tab's listeners, table and document let go, and the host told its file is closed. A compare
   // tab's connection let go: it holds no file of its own to tell the host of.
   function release(tab: OpenTab): void {
@@ -970,6 +981,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         later();
       },
       picked,
+      tabs: () => tabs.items,
+      closeOthers: (tab) => void closeOthers(tab),
+      compareWith,
     }),
   );
 

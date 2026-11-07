@@ -4,13 +4,14 @@
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
 // the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
 // area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
-// segments; the Explorer's rows and its files' menus. Each part names a tab by its id, and a
-// request about a tab that has closed since does nothing.
+// segments; the Explorer's rows and its files' menus; a tab's own menu. Each part names a tab by
+// its id, and a request about a tab that has closed since does nothing.
 
 import type { DexAppShell } from '../dex-app-shell.js';
-import { PICK_PREFIX } from './comparePick.js';
+import { comparable, PICK_PREFIX } from './comparePick.js';
 import type { OpenTab } from './documents.js';
 import { connectFileMenu } from './fileMenu.js';
+import { connectTabMenu } from './tabMenu.js';
 import type { ShellParts } from './parts.js';
 import type { ShellCommand } from './types.js';
 import { SHELL_VIEWS } from './views.js';
@@ -57,6 +58,12 @@ export interface ShellRequests {
   viewChanged(view: string | null, open: boolean): void;
   /** A palette row whose id begins PICK_PREFIX was run (Compare With…'s question): what it names, the prefix taken off. */
   picked(id: string): void;
+  /** Every open tab, pane by pane. */
+  tabs(): readonly OpenTab[];
+  /** Close every tab but `tab`, asking once about their unsaved edits. */
+  closeOthers(tab: OpenTab): void;
+  /** Ask which file to compare `tab`'s with, and open a compare tab of the two. */
+  compareWith(tab: OpenTab): void;
 }
 
 /** Answer `parts`' requests with `on`; returns what stops it. */
@@ -119,8 +126,21 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
     on.activate(tab);
     if (sectionId !== undefined) tab.handle?.select([sectionId]);
   });
-  // A file's menu in the Explorer: Save, Save As and Close for that file.
-  stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close }));
+  // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file.
+  stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close, comparable, compareWith: on.compareWith }));
+  // A tab's own menu, on the tab rows of every pane: Compare With… or a compare's steps, Close and Close Others.
+  stops.push(
+    connectTabMenu(parts.docs, parts.menu, {
+      tabOf: on.tabOf,
+      tabs: on.tabs,
+      close: on.close,
+      closeOthers: on.closeOthers,
+      comparable,
+      compareWith: on.compareWith,
+      changes: (tab) => (tab.compare ? { hasChanges: tab.compare.hasChanges } : null),
+      step: (tab, by) => tab.compare?.step(by),
+    }),
+  );
   return () => {
     for (const stop of stops.splice(0)) stop();
   };
