@@ -137,13 +137,20 @@ describe("paletteCommands' host commands", () => {
     paletteCommands(state, undefined, undefined, host).filter((c) => c.category === 'File');
 
   it('lists none without them, as before', () => {
-    expect(paletteCommands(NOTHING, undefined, undefined, { openUrl: false })).toEqual(paletteCommands(NOTHING));
+    expect(paletteCommands(NOTHING, undefined, undefined, { openUrl: false, copyLink: null })).toEqual(paletteCommands(NOTHING));
   });
 
   it('puts Open from URL… after Open Folder…, or after Open File… with no folder', () => {
-    const row = (state: ToolbarState) => file(state, { openUrl: true });
+    const row = (state: ToolbarState) => file(state, { openUrl: true, copyLink: null });
     expect(ids(row(NOTHING)).slice(0, 4)).toEqual(['new-file', 'open-file', 'open-folder', 'open-url']);
     expect(row(NOTHING).find((c) => c.id === 'open-url')).toEqual({ id: 'open-url', label: 'Open from URL…', category: 'File' });
     expect(ids(row({ ...NOTHING, canOpenFolder: false })).slice(0, 3)).toEqual(['new-file', 'open-file', 'open-url']);
+  });
+
+  it("puts Copy Link last in the File group, greyed while it links no file", () => {
+    const rows = file(NOTHING, { openUrl: true, copyLink: { enabled: false } });
+    expect(rows.at(-1)).toEqual({ id: 'copy-link', label: 'Copy Link', category: 'File', disabled: true });
+    expect(ids(rows).slice(-2)).toEqual(['close-tab', 'copy-link']);
+    expect(file(NOTHING, { openUrl: false, copyLink: { enabled: true } }).at(-1)).toEqual({ id: 'copy-link', label: 'Copy Link', category: 'File' });
   });
 });

@@ -73,10 +73,12 @@ const NO_FOLDER: FolderCommands = { shown: false, canUp: false, refresh: 'read' 
 export interface HostCommands {
   /** ShellHost.fetchUrl is there: Open from URL…. */
   openUrl: boolean;
+  /** ShellHost.linkFor is there (null: no Copy Link), and whether it links a file now. */
+  copyLink: { enabled: boolean } | null;
 }
 
 /** A host with none of them. */
-const NO_HOST: HostCommands = { openUrl: false };
+const NO_HOST: HostCommands = { openUrl: false, copyLink: null };
 
 /** The toolbar's actions on its start side are the file's, on its end side the edits. */
 const categoryOf = (align: string | undefined): string => (align === 'end' ? 'Edit' : 'File');
@@ -120,7 +122,8 @@ function ordered(commands: PaletteCommand[]): PaletteCommand[] {
  * default), its folder as `folder` says (none shown, by default), and what the host's optional
  * members give as `host` says (none, by default). The Folder view's rows are there where the shell
  * has the view (`folder.view`, else a host that shows folders, `state.canOpenFolder`). Open from
- * URL… is a File row after the ways to open a file the toolbar has.
+ * URL… is a File row after the ways to open a file the toolbar has, and Copy Link the File group's
+ * last, greyed while the host's link would link no file.
  */
 export function paletteCommands(
   state: ToolbarState,
@@ -146,6 +149,7 @@ export function paletteCommands(
     const after = Math.max(file.findIndex((c) => c.id === 'open-folder'), file.findIndex((c) => c.id === 'open-file'));
     file.splice(after + 1, 0, command('open-url', 'Open from URL…', 'File'));
   }
+  if (host.copyLink) file.push(command('copy-link', 'Copy Link', 'File', undefined, !host.copyLink.enabled));
   return [
     ...file,
     ...ordered(actions.filter((c) => c.category === 'Edit')),

@@ -77,9 +77,9 @@ import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { paletteCommands, type HostCommands, type PaneCommands } from './paletteItems.js';
-import { OPEN_URL_PROMPT } from './shareLinks.js';
+import { copiedNote, linkRequestOf, NO_LINK, OPEN_URL_PROMPT, type LinkTab } from './shareLinks.js';
 import { SHELL_VIEWS, viewOfCommand } from './views.js';
-import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle } from './types.js';
+import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle, ShellLink, ShellLinkFile } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -500,6 +500,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab)) close(tab);
   }
 
+  // Several tabs to close (a tab's menu's Close Others): their edits committed as a close commits
+  // one's, one question about all their unsaved edits, and each closed, if it is still open, once
+  // they are saved or let go.
+  async function requestCloseMany(group: readonly OpenTab[]): Promise<void> {
+    if (group.length === 0) return;
+    await modules.idle();
+    inspector.commit();
+    await Promise.all(group.map((t) => t.handle?.commitEdit()));
+    if (!(await settle(group, confirmClose, saveOk))) return;
+    for (const tab of group) if (tabs.items.includes(tab)) close(tab);
+  }
+
   // A tab's listeners, table and document let go, and the host told its file is closed.
   function release(tab: OpenTab): void {
     for (const stop of tab.stops.splice(0)) stop();
@@ -722,6 +734,26 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
   // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
   // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
+  // Copy Link, for a host that makes links (ShellHost.linkFor): its address for every open file,
+  // pane by pane, at `tab`'s selection (the active tab's, a tab's menu's own; none at Root), on the
+  // clipboard. Asked of the host at once, as it answers, also as the palette and a tab's menu open
+  // (linkAt), to grey the command while no open file has an address.
+  const openFiles = (): ShellLinkFile[] => tabs.panes.flatMap((pane) => pane.items).map(({ path, name }) => ({ path, name }));
+  const linkTabOf = (tab: OpenTab | undefined): LinkTab | undefined => tab && { path: tab.path, selection: tab.selection, rows: tab.table?.rows ?? [] };
+  const linkAt = (tab: OpenTab | undefined): ShellLink | undefined => host.linkFor?.(linkRequestOf(openFiles(), linkTabOf(tab)));
+  async function copyLink(tab: OpenTab | undefined): Promise<void> {
+    if (!host.linkFor) return;
+    try {
+      const link = linkAt(tab)!;
+      if (link.url === null) return say('info', NO_LINK);
+      await copyText(host, link.url);
+      const note = copiedNote(link);
+      say(note.level, note.text, note.level === 'info' ? 2000 : undefined);
+    } catch (err) {
+      failed(`Could not copy the link: ${message(err)}`);
+    }
+  }
+
   async function copyEntryLink(tab: OpenTab, rowId: string | null): Promise<void> {
     const at = rowId === null ? undefined : linkedEntryOf(tab.table?.rows ?? [], rowId);
     if (!at) return;
@@ -858,9 +890,20 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     folder: { up: () => folderNav.up(), refresh: () => folderNav.refresh() },
     // Open from URL…'s address, asked in the shell's dialog in turn with its questions.
     askUrl: () => questions.prompt(OPEN_URL_PROMPT),
+    copyLink: (tab) => void copyLink(tab),
   };
   // What the palette offers of the host's optional members, as they stand as it opens.
-  const hostCommands = (): HostCommands => ({ openUrl: !!host.fetchUrl });
+  const hostCommands = (): HostCommands => ({ openUrl: !!host.fetchUrl, copyLink: linkState(tabs.active) });
+  // Copy Link's state at `tab`: none for a host that makes no links, else whether its link links a file.
+  function linkState(tab: OpenTab | undefined): { enabled: boolean } | null {
+    if (!host.linkFor) return null;
+    try {
+      return { enabled: linkAt(tab)?.url != null };
+    } catch {
+      // A host whose link throws: Copy Link says so when it is chosen.
+      return { enabled: true };
+    }
+  }
 
   // --- The modules' views ------------------------------------------------------------------------
 
@@ -909,6 +952,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       tabOf: (id) => tabs.find((t) => t.id === id),
       activate,
       close: (tab) => void requestClose(tab),
+      tabs: () => tabs.panes.flatMap((pane) => pane.items),
+      closeOthers: (keep) => void requestCloseMany(tabs.items.filter((t) => t !== keep)),
+      link: linkState,
+      copyLink: (tab) => void copyLink(tab),
       save: (tab, as) => void save(tab, as),
       pin,
       move(tab, index, pane) {

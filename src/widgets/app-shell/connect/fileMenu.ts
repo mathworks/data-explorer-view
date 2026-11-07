@@ -14,8 +14,8 @@ import { chordOf, onMac } from './keys.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellCommand } from './types.js';
 
-/** The menu's label of the chord of `command`, read at each menu as the platform says it. */
-const shortcutOf = (command: ShellCommand): { shortcut?: string } => {
+/** The menu's label of the chord of `command`, read at each menu as the platform says it (a tab's menu's too). */
+export const shortcutOf = (command: ShellCommand): { shortcut?: string } => {
   const chord = chordOf(command);
   return chord ? { shortcut: chordLabel(parseChord(chord), onMac()) } : {};
 };

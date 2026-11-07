@@ -4,13 +4,33 @@
 // The shell's Open from URL… (ShellHost.fetchUrl): for a host that fetches files from web
 // addresses, a row of the palette and a button of the welcome ask for one in the shell's dialog,
 // and the file the host fetched opens in a tab; what the host says of an address it did not fetch
-// is said as it said it. A host with no fetchUrl (the VS Code extension, a page that does not
+// is said as it said it. And Copy Link (ShellHost.linkFor): the host is asked for the address that
+// opens the open files again at the active tab's selected entry, which the shell copies, saying
+// which files the link leaves out. A host with neither (the VS Code extension, a page that does not
 // fetch) offers none of it, and asks nothing.
 import { describe, expect, it, vi } from 'vitest';
 import type { PaletteCommand } from '../../src/widgets/app-shell/modules/dex-command-palette.js';
 import type { LogEntry } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
-import type { ShellHost } from '../../src/widgets/app-shell/connect/types.js';
-import { at, confirmButton, confirmDialog, docsArea, logPanel, palette, settled, startPage, tabNames, toastTexts, until, type Page } from './harness.js';
+import { NO_LINK } from '../../src/widgets/app-shell/connect/shareLinks.js';
+import type { ShellHost, ShellLink, ShellLinkRequest } from '../../src/widgets/app-shell/connect/types.js';
+import {
+  at,
+  confirmButton,
+  confirmDialog,
+  docsArea,
+  logPanel,
+  open,
+  palette,
+  sectionOf,
+  selectRow,
+  selectTab,
+  settled,
+  startPage,
+  tabNames,
+  toastTexts,
+  until,
+  type Page,
+} from './harness.js';
 
 const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
 
@@ -101,5 +121,86 @@ describe('Open from URL…', () => {
     expect(toastTexts()).toEqual([problem]);
     expect(log).toContain(`error ${problem}`);
     expect(tabNames()).toEqual([]);
+  });
+});
+
+describe('Copy Link', () => {
+  const LINK = 'https://dex.example/?files=samples/params.sldd|samples/ParamMat.mat#entry=Kp&section=Design%20Data';
+  /** A host's linkFor answering `answer`, recording what it is asked. */
+  function linkFor(answer: ShellLink = { url: LINK, left: [] }) {
+    const asked: ShellLinkRequest[] = [];
+    const fn = (request: ShellLinkRequest): ShellLink => (asked.push(request), answer);
+    return { fn, asked, last: () => asked.at(-1)! };
+  }
+  /** A page with both files open, params.sldd active, through a host with `link`. */
+  async function linkedPage(link = linkFor(), more: Partial<ShellHost> = {}): Promise<Page> {
+    const page = startPage(FILES, { host: { linkFor: link.fn, ...more } });
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    await selectTab('params.sldd');
+    return page;
+  }
+  const BOTH = [
+    { path: at('params.sldd'), name: 'params.sldd' },
+    { path: at('ParamMat.mat'), name: 'ParamMat.mat' },
+  ];
+
+  it('is offered nowhere by a host that makes no links', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    expect(paletteRows(page).map((c) => c.id)).not.toContain('copy-link');
+  });
+
+  it("copies the host's link to the open files at the selected entry, and says so", async () => {
+    const link = linkFor();
+    const page = await linkedPage(link);
+    await selectRow('params.sldd', 'Kp');
+    page.command('copy-link');
+    await until(() => page.main.copied.length === 1);
+    expect(link.last()).toEqual({ files: BOTH, at: { path: at('params.sldd'), entry: 'Kp', section: 'Design Data' } });
+    expect(page.main.copied).toEqual([LINK]);
+    await until(() => toastTexts().includes('Link copied'));
+  });
+
+  it("names no entry for a section's row, none at Root, and a MAT-file's variable by itself", async () => {
+    const link = linkFor();
+    const page = await linkedPage(link);
+    const section = await sectionOf('params.sldd', 'Design Data');
+    await selectRow('params.sldd', section.Name.label);
+    page.command('copy-link');
+    await until(() => page.main.copied.length === 1);
+    expect(link.last().at).toEqual({ path: at('params.sldd') });
+    page.command('show-graph');
+    await until(() => tabNames().length === 2 && !document.querySelector('.doc-panel:not([hidden])'));
+    page.command('copy-link');
+    await until(() => page.main.copied.length === 2);
+    expect(link.last()).toEqual({ files: BOTH });
+    await selectTab('ParamMat.mat');
+    await selectRow('ParamMat.mat', 'ParamMat');
+    page.command('copy-link');
+    await until(() => page.main.copied.length === 3);
+    expect(link.last().at).toEqual({ path: at('ParamMat.mat'), entry: 'ParamMat' });
+  });
+
+  it('is greyed in the palette, and says why and copies nothing, while no open file has an address', async () => {
+    const page = await linkedPage(linkFor({ url: null, left: ['params.sldd', 'ParamMat.mat'] }));
+    expect(paletteRows(page).find((c) => c.id === 'copy-link')).toMatchObject({ label: 'Copy Link', disabled: true });
+    page.command('copy-link');
+    await until(() => toastTexts().includes(NO_LINK));
+    expect(page.main.copied).toEqual([]);
+  });
+
+  it('names the files the link leaves out, having no address', async () => {
+    const page = await linkedPage(linkFor({ url: LINK, left: ['local.sldd'] }));
+    page.command('copy-link');
+    await until(() => toastTexts().includes('Link copied. Left out, having no web address: local.sldd'));
+    expect(page.main.copied).toEqual([LINK]);
+  });
+
+  it('says a clipboard that refused it as an error', async () => {
+    const page = await linkedPage(linkFor(), { copyText: async () => Promise.reject(new Error('denied')) });
+    const log = logged();
+    page.command('copy-link');
+    await until(() => toastTexts().includes('Could not copy the link: denied'));
+    expect(log).toContain('error Could not copy the link: denied');
   });
 });

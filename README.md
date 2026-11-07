@@ -611,6 +611,7 @@ shell runs.
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
 | `entryLink(target)` | a document row's menu: Copy Link to Entry puts its answer on the clipboard (`target.entry` is the entry's name, or a block's key for a block in a subsystem, as `app.openAt` takes it) | no such item |
 | `fetchUrl(url)` | Open from URL… (the palette, the welcome): the path the address's file opens by; a rejection is said in a toast | no Open from URL |
+| `linkFor(request)` | the palette and a tab's menu as they open (to enable Copy Link), and Copy Link: the address that opens the open files again at the selected entry; the shell copies it, and names the files left out | no Copy Link |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -717,6 +718,18 @@ for a page whose Content-Security-Policy lets it fetch from `https:`
 const host = browserHost({ onFolder, onChanged, openFromUrl: true });
 const app = connectShell(shell, { host }); // Open from URL… in the palette and on the welcome
 ```
+
+A host that makes links to its files gives the shell Copy Link with
+`linkFor(request)`: the palette's File group and a tab's menu (a right-click on
+a tab, or Shift+F10 on it: Close, Close Others, Copy Link) offer it. The
+request names every open file, pane by pane, and the entry the link is to
+select: the active tab's selection (the tab's own, from its menu), as
+`app.openAt` takes an entry, by its name and its section's label. The host
+answers at once, reading nothing, with the address (or null, when no open file
+has one) and the names of the files it leaves out; the shell copies the
+address and says "Link copied", naming those files. The browser host passes on
+the page's own (`browserHost({ linkFor })`), since only the page knows its
+address and how its files are named in it.
 
 A button of its own goes on an activity bar as a `<dex-shell-action>` the page
 adds to the shell after `connectShell`. The shell draws it after Settings and

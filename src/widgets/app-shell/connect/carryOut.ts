@@ -41,6 +41,8 @@ export interface CarryOutContext {
   folder: { up(): void; refresh(): void };
   /** Ask for a web address (Open from URL…): the address, or null. */
   askUrl(): Promise<string | null>;
+  /** Copy Link at `tab`'s selection (the active tab; none at Root). */
+  copyLink(tab: OpenTab | undefined): void;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -129,6 +131,9 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       break;
     case 'close-tab':
       if (tab) on.close(tab);
+      break;
+    case 'copy-link':
+      on.copyLink(tab);
       break;
     case 'undo':
     case 'redo':
