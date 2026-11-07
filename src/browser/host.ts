@@ -6,8 +6,9 @@
 // port, and looked at again when the page is shown or its window focused, since a browser says
 // nothing of a folder's changes. The Folder view moves within a picked folder, and only there: a
 // page reaches no folder the user did not pick, so the folder above the picked one is none, and a
-// folder of it shown is served with its files at the paths they had, for a tab open on one. There are no native prompts: with no confirmClose or
-// confirmReload, the shell asks about unsaved edits and changes on disk in its own dialog.
+// folder of it shown is served with its files at the paths they had, for a tab open on one. There
+// are no native prompts: with no confirmClose or confirmReload, the shell asks about unsaved edits
+// and changes on disk in its own dialog.
 //
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
@@ -144,6 +145,11 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const picked: { root: string; dir: BrowserDir }[] = [];
   // The picked folder `path` is, or is in: the one whose root is the path, or begins it and a `/`.
   const pickedOf = (path: string) => picked.find((p) => path === p.root || path.startsWith(`${p.root}/`));
+  // A folder of a picked one, as the host spells it (FolderEntry paths): no trailing `/`, no empty,
+  // `.` or `..` segment. Any other spelling is no folder of it: served there, its files would be at
+  // paths they never had (`/proj//a.sldd`), and a tab open on one would not find it.
+  const spelledIn = (path: string, root: string): boolean =>
+    path === root || !path.slice(root.length + 1).split('/').some((part) => part === '' || part === '.' || part === '..');
 
   // A look at the shown folder: the files it touched the page reads again. One at a time; one asked
   // while another runs follows it.
@@ -286,13 +292,12 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       // folder picked this session. A folder outside them all is none of the page's.
       folderParent(path: string) {
         const of = pickedOf(path);
-        return !of || path === of.root ? null : path.slice(0, path.lastIndexOf('/'));
+        return !of || path === of.root || !spelledIn(path, of.root) ? null : path.slice(0, path.lastIndexOf('/'));
       },
       async openFolderAt(path: string) {
         const of = pickedOf(path);
-        if (!of) return false;
+        if (!of || !spelledIn(path, of.root)) return false;
         const rel = path === of.root ? '' : path.slice(of.root.length + 1);
-        if (rel.split('/').some((part, i, parts) => (part === '' && parts.length > 1) || part === '.' || part === '..')) return false;
         await serve(path, await subDir(of.dir, rel)).looked;
         return true;
       },

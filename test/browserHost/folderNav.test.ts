@@ -97,6 +97,10 @@ describe.each([
     expect(host.folderParent!('/proj')).toBeNull();
     expect(host.folderParent!('/elsewhere')).toBeNull();
     expect(host.folderParent!('/')).toBeNull();
+    // Another spelling of a folder of it is none: its parent would be another spelling again.
+    for (const path of ['/proj/', '/proj/models/', '/proj//models', '/proj/./models', '/proj/../other']) {
+      expect(host.folderParent!(path), path).toBeNull();
+    }
   });
 
   it('makes a folder of it the workspace folder, its files at the paths they had, and back up again', async () => {
@@ -131,6 +135,11 @@ describe.each([
     await host.openFolder(dirOf());
     expect(await host.openFolderAt!('/elsewhere')).toBe(false);
     expect(await host.openFolderAt!('/proj-x')).toBe(false);
+    // Another spelling of the folder or of a folder of it: served at it, its files would be at
+    // paths they never had (`/proj//a.sldd`).
+    for (const path of ['/proj/', '/proj/models/', '/proj//models', '/proj/./models', '/proj/../proj']) {
+      expect(await host.openFolderAt!(path), path).toBe(false);
+    }
     await expect(host.openFolderAt!('/proj/nowhere')).rejects.toThrow('nowhere');
     expect(folders.map((f) => f.root)).toEqual(['/proj']);
   });

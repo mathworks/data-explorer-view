@@ -914,6 +914,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The left view the shell keeps as the user left it, read as the first folder comes: a view
   // chosen in an earlier session (an app reopens its last folder at launch) or since the shell
   // started then stays in front, and the Folder view comes forward only where none was chosen.
+  const leftViews = SHELL_VIEWS.filter((v) => v.side === 'left').map((v) => v.view);
   const keptLeftView = (): string | null => {
     let kept: string | null = null;
     try {
@@ -921,7 +922,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     } catch {
       // No storage to read: no choice kept.
     }
-    return keptView(kept, 'left', SHELL_VIEWS.filter((v) => v.side === 'left').map((v) => v.view));
+    return keptView(kept, 'left', leftViews);
   };
 
   // Every open table is painted again, its Usage filled from the folder shown, and every
@@ -935,7 +936,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       folderNav.shown(shown.root);
       if (folderView && !folderRevealed) {
         folderRevealed = true;
-        if (keptLeftView() === null) modules.show('folder');
+        // The side's first view kept (the Explorer, where every layout starts) is no choice of the
+        // user's own: a layout kept for another side's sake keeps it too.
+        const kept = keptLeftView();
+        if (kept === null || kept === leftViews[0]) modules.show('folder');
       }
       markRows();
       modules.scope(basenameOf(shown.root));

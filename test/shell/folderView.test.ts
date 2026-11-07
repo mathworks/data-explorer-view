@@ -271,6 +271,16 @@ describe('the Folder view', () => {
     expect(viewShown(page, 'left')).toBe('search');
   });
 
+  it('comes forward over the Explorer kept as the left view, the side\'s first, which is no choice of a view of the user\'s own', async () => {
+    localStorage.setItem('dex-shell:layout', JSON.stringify({ left: { view: 'explorer', open: true, size: 220 } }));
+    const work = workFolder();
+    const page = folderPage(work, { entries: true, show: false });
+    await settled();
+    expect(viewShown(page, 'left')).toBe('explorer');
+    page.serve(work);
+    await until(() => viewShown(page, 'left') === 'folder');
+  });
+
   it('stays behind a left view the user chose before the first folder came', async () => {
     const work = workFolder();
     const page = folderPage(work, { entries: true, show: false });
