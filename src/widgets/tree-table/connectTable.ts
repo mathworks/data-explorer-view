@@ -21,7 +21,7 @@ import { defineVariableEditor, type DexVariableEditor } from '../variable-editor
 import { defineErrorDialog, type DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRows } from '../../model/actions/rowUpdates.js';
 import { resolveOperands } from '../../model/actions/operands.js';
-import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import { isEntryRow } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget, type LinkTarget } from '../../model/ids/linkTarget.js';
 import {
   isEditable,
@@ -258,6 +258,14 @@ export interface TableHandleEventMap {
    */
   painted: TableView;
   /**
+   * The source's answer to open() was an error, which the table's error banner says (the detail
+   * is its message): no `painted` answers that open(), though a later `replaceAll` may still paint.
+   * For an app that waits on a paint (the app shell's openAt, to select the entry a link names) to
+   * stop waiting. Not for a source closed while it was asked, which has nothing to show and no
+   * banner to say it in.
+   */
+  failed: string;
+  /**
    * With `editing`: an editing menu item's gesture was handed to the source, from the menu, its
    * chord, `run()` or `undo()`/`redo()`, with the rows it carried and how many it acted on: for an
    * app to say "Copied to clipboard" or "2 entries deleted". Told a task later, and not at all where
@@ -429,6 +437,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     action: new Set(),
     copyFailed: new Set(),
     painted: new Set(),
+    failed: new Set(),
     ran: new Set(),
   };
   // Each listener on its own: one that throws is the app's to fix, said on the console as the
@@ -521,15 +530,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const applyPendingNameSelection = (): void => {
     if (!pendingSelectName) return;
     const rows = rowsNow();
-    // A top-level ENTRY: its parent is a section header or, in a table with no section rows (a
-    // MAT-file's), it has no parent and is no header itself.
-    const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
     const named = (r: TreeTableRow): boolean => r.Name?.label === pendingSelectName;
     // Entries first, because every by-name target means the top-level one: a nested row that
     // shares the name is not what a link means. Then any row, for a block named before SIDs;
     // then a block by its key, which no cell prints.
     const match =
-      rows.find((r) => named(r) && isEntry(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
+      rows.find((r) => named(r) && isEntryRow(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
     if (!match) return;
     table.selectedRowIds = [match.ID];
     emit('select', [match.ID]);
@@ -631,7 +637,10 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       },
       // A source closed while it was asked has nothing to show, and no banner to say it in.
       (err) => {
-        if (!disposed && !isSourceClosed(err)) failed(messageOf(err));
+        if (!disposed && !isSourceClosed(err)) {
+          failed(messageOf(err));
+          emit('failed', messageOf(err));
+        }
         release();
       },
     );

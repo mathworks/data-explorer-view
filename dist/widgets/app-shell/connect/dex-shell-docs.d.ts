@@ -27,7 +27,8 @@ export interface PanesResizedDetail {
  * The shell's documents: `<dex-doc-tabs slot="tabs">` above, the panels of the open files as its
  * children (each a `<section>`, filling the area, `hidden` but the one its pane shows), and the
  * welcome while `welcome` is set: what the shell opens, with Open File… and Open Folder… buttons,
- * which send `dex-toolbar-action` as the toolbar's Open and Folder do, and the drop hint. While
+ * which send `dex-toolbar-action` as the toolbar's Open and Folder do (and Open from URL…, for a
+ * host that fetches web addresses, which sends `open-url`), and the drop hint. While
  * `dropping` is set, the focused pane is outlined as where the files dragged over the page will
  * open.
  *
@@ -45,6 +46,8 @@ export declare class DexShellDocs extends LitElement {
     welcome: boolean;
     /** The welcome offers Open Folder…: the host can show a folder. Attribute `can-open-folder`. */
     canOpenFolder: boolean;
+    /** The welcome offers Open from URL…: the host fetches web addresses. Attribute `can-open-url`. */
+    canOpenUrl: boolean;
     /** Files are dragged over the page, to be opened: the focused pane is outlined as where they go. Attribute `dropping`. */
     dropping: boolean;
     /** A second pane is drawn beside the first, its row in the slot `tabs-2` and its panels in `pane-2`. Attribute `split`. */

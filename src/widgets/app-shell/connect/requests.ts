@@ -4,8 +4,8 @@
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
 // the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
 // area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
-// segments; the Explorer's rows and its files' menus; a tab's own menu. Each part names a tab by
-// its id, and a request about a tab that has closed since does nothing.
+// segments; the Explorer's rows and its files' menus; a tab's menu. Each part names a tab by its
+// id, and a request about a tab that has closed since does nothing.
 
 import type { DexAppShell } from '../dex-app-shell.js';
 import { comparable, PICK_PREFIX } from './comparePick.js';
@@ -20,7 +20,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
   'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
   'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'compare-with', 'next-change', 'previous-change', ...SHELL_VIEWS.map((v) => v.command),
+  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', 'copy-link', 'compare-with', 'next-change', 'previous-change', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
@@ -36,6 +36,14 @@ export interface ShellRequests {
   activate(tab: OpenTab): void;
   /** Close `tab`, asking first about unsaved edits. */
   close(tab: OpenTab): void;
+  /** The tabs a tab's menu's Close Others would close for `tab`: the others of its own pane. */
+  others(tab: OpenTab): readonly OpenTab[];
+  /** Close the others of `tab`'s pane, asking once about their unsaved edits, and make `tab` the active one. */
+  closeOthers(tab: OpenTab): void;
+  /** A tab's menu's Copy Link at `tab`: null for a host that makes no links, else whether it links a file. */
+  link(tab: OpenTab): { enabled: boolean } | null;
+  /** Copy Link at `tab`'s selection. */
+  copyLink(tab: OpenTab): void;
   save(tab: OpenTab, as: boolean): void;
   pin(tab: OpenTab): void;
   /** Move `tab` to `index` of the pane `pane`, its place once moved: along its row, or into the other pane's. */
@@ -58,10 +66,6 @@ export interface ShellRequests {
   viewChanged(view: string | null, open: boolean): void;
   /** A palette row whose id begins PICK_PREFIX was run (Compare With…'s question): what it names, the prefix taken off. */
   picked(id: string): void;
-  /** Every open tab, pane by pane. */
-  tabs(): readonly OpenTab[];
-  /** Close every tab but `tab`, asking once about their unsaved edits. */
-  closeOthers(tab: OpenTab): void;
   /** Ask which file to compare `tab`'s with, and open a compare tab of the two. */
   compareWith(tab: OpenTab): void;
 }
@@ -128,13 +132,15 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
   });
   // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file.
   stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close, comparable, compareWith: on.compareWith }));
-  // A tab's own menu, on the tab rows of every pane: Compare With… or a compare's steps, Close and Close Others.
+  // A tab's menu: Compare With… or a compare's steps, Close, Close Others and Copy Link for that tab.
   stops.push(
     connectTabMenu(parts.docs, parts.menu, {
       tabOf: on.tabOf,
-      tabs: on.tabs,
+      others: on.others,
       close: on.close,
       closeOthers: on.closeOthers,
+      link: on.link,
+      copyLink: on.copyLink,
       comparable,
       compareWith: on.compareWith,
       changes: (tab) => (tab.compare ? { hasChanges: tab.compare.hasChanges } : null),

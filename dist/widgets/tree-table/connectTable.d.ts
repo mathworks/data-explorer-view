@@ -210,6 +210,14 @@ export interface TableHandleEventMap {
      */
     painted: TableView;
     /**
+     * The source's answer to open() was an error, which the table's error banner says (the detail
+     * is its message): no `painted` answers that open(), though a later `replaceAll` may still paint.
+     * For an app that waits on a paint (the app shell's openAt, to select the entry a link names) to
+     * stop waiting. Not for a source closed while it was asked, which has nothing to show and no
+     * banner to say it in.
+     */
+    failed: string;
+    /**
      * With `editing`: an editing menu item's gesture was handed to the source, from the menu, its
      * chord, `run()` or `undo()`/`redo()`, with the rows it carried and how many it acted on: for an
      * app to say "Copied to clipboard" or "2 entries deleted". Told a task later, and not at all where

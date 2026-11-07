@@ -30,12 +30,15 @@ const LABELS = {
     'open-folder': 'Open Folder…',
     'save-as': 'Save As…',
     'close-tab': 'Close Tab',
+    'open-url': 'Open from URL…',
     'show-raw': 'Show Raw View',
 };
 /** No tab open: none of the panes' commands does anything. */
 const NO_PANES = { splitRight: false, moveToOther: false, panes: 0 };
 /** No folder shown. */
 const NO_FOLDER = { shown: false, canUp: false, refresh: 'read' };
+/** A host with none of them. */
+const NO_HOST = { openUrl: false, copyLink: null };
 /** The toolbar's actions on its start side are the file's, on its end side the edits. */
 const categoryOf = (align) => (align === 'end' ? 'Edit' : 'File');
 /**
@@ -72,11 +75,13 @@ function ordered(commands) {
 }
 /**
  * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
- * default), and its folder as `folder` says (none shown, by default). The Folder view's rows are
- * there where the shell has the view (`folder.view`, else a host that shows folders,
- * `state.canOpenFolder`).
+ * default), its folder as `folder` says (none shown, by default), and what the host's optional
+ * members give as `host` says (none, by default). The Folder view's rows are there where the shell
+ * has the view (`folder.view`, else a host that shows folders, `state.canOpenFolder`). Open from
+ * URL… is a File row after the ways to open a file the toolbar has, and Copy Link the File group's
+ * last, greyed while the host's link would link no file.
  */
-export function paletteCommands(state, panes = NO_PANES, folder = NO_FOLDER) {
+export function paletteCommands(state, panes = NO_PANES, folder = NO_FOLDER, host = NO_HOST) {
     const label = (chord) => (chord ? chordLabel(parseChord(chord), state.mac) : undefined);
     const command = (id, text, category, shortcut, disabled = false) => ({
         id,
@@ -88,8 +93,15 @@ export function paletteCommands(state, panes = NO_PANES, folder = NO_FOLDER) {
     // The Folder view's rows, where the shell has the view.
     const folderView = folder.view ?? state.canOpenFolder;
     const actions = toolbarItems(state).map((item) => command(item.id, item.label, categoryOf(item.align), item.shortcut, !!item.disabled));
+    const file = actions.filter((c) => c.category === 'File');
+    if (host.openUrl) {
+        const after = Math.max(file.findIndex((c) => c.id === 'open-folder'), file.findIndex((c) => c.id === 'open-file'));
+        file.splice(after + 1, 0, command('open-url', 'Open from URL…', 'File'));
+    }
+    if (host.copyLink)
+        file.push(command('copy-link', 'Copy Link', 'File', undefined, !host.copyLink.enabled));
     return [
-        ...actions.filter((c) => c.category === 'File'),
+        ...file,
         ...ordered(actions.filter((c) => c.category === 'Edit')),
         ...ordered([
             ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || folderView).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),

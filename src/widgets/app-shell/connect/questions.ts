@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The shell's in-page questions, for a host with no prompts of its own (a browser page): "Save
-// changes?" and "x changed on disk", asked in the one `<dex-confirm-dialog>`, one at a time.
+// changes?" and "x changed on disk", asked in the one `<dex-confirm-dialog>`, one at a time, and
+// the line of text Open from URL… asks for (the dialog's prompt), in the same turn.
 //
 // The dialog's show() answers a question still open with that question's cancel when it is asked
 // another. Asked as they came, a reload question would cancel a "Save changes?" under it, and a close
@@ -11,7 +12,7 @@
 // closes while it is up, which the answer before it may just have done (a "Don't Save" that closed
 // the tab a reload question was waiting about).
 
-import type { ConfirmOptions, DexConfirmDialog } from '../dex-confirm-dialog.js';
+import type { ConfirmOptions, DexConfirmDialog, PromptOptions } from '../dex-confirm-dialog.js';
 import { reloadQuestion } from './reload.js';
 import { closeAnswerOf, closeQuestion } from './saving.js';
 import type { CloseAnswer, ShellHost } from './types.js';
@@ -20,6 +21,8 @@ import type { CloseAnswer, ShellHost } from './types.js';
 export interface Questions {
   /** Ask `question` once the questions before it are answered, unless `still` says by then it need not be: its answer's id. */
   ask(question: ConfirmOptions, still?: () => boolean): Promise<string>;
+  /** Ask for a line of text in the dialog (its prompt), once the questions before it are answered: the text, or null. */
+  prompt(options: PromptOptions): Promise<string | null>;
   /** Something closed: the question up, if `still` now says it need not be asked, goes, answered with its cancel. */
   recheck(): void;
 }
@@ -39,6 +42,16 @@ export function inPageQuestions(dialog: DexConfirmDialog, beforeAsking: () => vo
         } finally {
           shownStill = null;
         }
+      });
+      queue = answer.catch(() => undefined);
+      return answer;
+    },
+    // In the same turn as the questions: the dialog answers whatever is up when it is asked another.
+    // Asked for by the user, so worth asking whatever closes meanwhile.
+    prompt(options) {
+      const answer = queue.then(() => {
+        beforeAsking();
+        return dialog.prompt(options);
       });
       queue = answer.catch(() => undefined);
       return answer;

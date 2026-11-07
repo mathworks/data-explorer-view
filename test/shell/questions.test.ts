@@ -11,6 +11,9 @@
 // And a question still out about a tab that has closed, or a shell that was taken down, is acted on
 // by nobody: its answer reads no file and touches no document.
 import { describe, expect, it } from 'vitest';
+import { inPageQuestions } from '../../src/widgets/app-shell/connect/questions.js';
+import { OPEN_URL_PROMPT } from '../../src/widgets/app-shell/connect/shareLinks.js';
+import type { DexConfirmDialog } from '../../src/widgets/app-shell/dex-confirm-dialog.js';
 import { at, changedOutside, confirmButton, confirmDialog, dirtyTabs, edit, open, settled, startPage, tabNames, tableOf, textOf, until, type Page } from './harness.js';
 
 const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
@@ -120,5 +123,40 @@ describe('a reload question still out', () => {
     answer(true);
     await settled();
     expect(page.main.reads.length).toBe(reads);
+  });
+});
+
+describe('a prompt among the questions', () => {
+  // A prompt (Open from URL…) is asked in the same dialog: asked over a question, it would answer
+  // the question with its cancel, and a question over it would answer the prompt null.
+  const QUESTION = { title: 'File Changed', message: 'params.sldd changed on disk.', buttons: [{ id: 'keep', label: 'Keep My Edits' }, { id: 'reload', label: 'Reload' }], cancelId: 'keep' };
+  const field = (dialog: DexConfirmDialog) => dialog.shadowRoot?.querySelector('input') ?? null;
+  const buttonOf = (dialog: DexConfirmDialog, label: string) => [...(dialog.shadowRoot?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.trim() === label)!;
+
+  it('waits for the question up to be answered, and a question asked while it is up waits for it', async () => {
+    const dialog = document.createElement('dex-confirm-dialog');
+    document.body.append(dialog);
+    let closed = 0;
+    const questions = inPageQuestions(dialog, () => void closed++);
+    const reload = questions.ask(QUESTION);
+    const url = questions.prompt(OPEN_URL_PROMPT);
+    await until(() => dialog.hasAttribute('open'));
+    await settled();
+    expect(field(dialog)).toBeNull();
+    buttonOf(dialog, 'Reload').click();
+    await expect(reload).resolves.toBe('reload');
+    await until(() => !!field(dialog));
+    expect(dialog.shadowRoot!.querySelector('.title')?.textContent).toBe('Open from URL');
+    // A question asked now waits for the prompt.
+    const next = questions.ask(QUESTION);
+    await settled();
+    expect(field(dialog)).not.toBeNull();
+    buttonOf(dialog, 'Cancel').click();
+    await expect(url).resolves.toBeNull();
+    await until(() => !!dialog.shadowRoot?.querySelector('[role="alertdialog"]'));
+    buttonOf(dialog, 'Keep My Edits').click();
+    await expect(next).resolves.toBe('keep');
+    // The popovers were closed before each of the three.
+    expect(closed).toBe(3);
   });
 });

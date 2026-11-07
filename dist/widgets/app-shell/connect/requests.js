@@ -4,14 +4,15 @@
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
 // the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
 // area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
-// segments; the Explorer's rows and its files' menus. Each part names a tab by its id, and a
-// request about a tab that has closed since does nothing.
+// segments; the Explorer's rows and its files' menus; a tab's menu. Each part names a tab by its
+// id, and a request about a tab that has closed since does nothing.
 import { connectFileMenu } from './fileMenu.js';
+import { connectTabMenu } from './tabMenu.js';
 import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
     'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
     'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-    'palette', 'show-graph', 'folder-up', 'folder-refresh', ...SHELL_VIEWS.map((v) => v.command),
+    'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', 'copy-link', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {
@@ -83,6 +84,15 @@ export function connectRequests(shell, parts, on) {
     });
     // A file's menu in the Explorer: Save, Save As and Close for that file.
     stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close }));
+    // A tab's menu: Close, Close Others and Copy Link for that tab.
+    stops.push(connectTabMenu(parts.docs, parts.menu, {
+        tabOf: on.tabOf,
+        others: on.others,
+        close: on.close,
+        closeOthers: on.closeOthers,
+        link: on.link,
+        copyLink: on.copyLink,
+    }));
     return () => {
         for (const stop of stops.splice(0))
             stop();

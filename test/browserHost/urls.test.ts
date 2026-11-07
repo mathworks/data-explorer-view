@@ -2,11 +2,11 @@
 //
 // The rules for a web address the browser host fetches a data file from, and the fetch itself
 // (src/browser/urls.ts). The address may come from a link anyone wrote (`?url=`), so what is fetched
-// is pinned: only `https:` (or the page's own origin), only a file this app opens, GitHub's and
-// GitLab's file pages turned into the raw files behind them, and the fetch made without the user's
-// cookies or the page's address, within a size and a time. A rule that slipped would fetch a web
-// page as a dictionary, send a private repo's cookies to it, or hang a tab on a server that never
-// answers; and each refusal says why in a sentence the user reads.
+// is pinned: only `https:` (or the page's own origin), only a file this app opens, GitHub's file
+// pages and a forge's `/-/blob/` links turned into the raw files behind them, and the fetch made
+// without the user's cookies or the page's address, within a size and a time. A rule that slipped
+// would fetch a web page as a dictionary, send a private repo's cookies to it, or hang a tab on a
+// server that never answers; and each refusal says why in a sentence the user reads.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchUrlBytes, URL_SIZE_LIMIT, URL_TIMEOUT_MS, urlTargetOf, type UrlFetchDeps, type UrlTarget } from '../../src/browser/urls.js';
 
@@ -88,11 +88,11 @@ describe('urlTargetOf', () => {
     expect(targetOf('https://github.com/acme/plant/raw/main/a.mat').url).toBe('https://raw.githubusercontent.com/acme/plant/main/a.mat');
   });
 
-  it("fetches a GitLab file page's raw file, on any host and under nested groups", () => {
-    expect(targetOf('https://gitlab.com/group/sub/plant/-/blob/v1.0/data/params.sldd').url).toBe(
-      'https://gitlab.com/group/sub/plant/-/raw/v1.0/data/params.sldd',
+  it("fetches a forge's /-/blob/ link's raw file, on any host and under nested groups", () => {
+    expect(targetOf('https://forge.example/group/sub/plant/-/blob/v1.0/data/params.sldd').url).toBe(
+      'https://forge.example/group/sub/plant/-/raw/v1.0/data/params.sldd',
     );
-    expect(targetOf('https://gitlab.example.org/team/plant/-/blob/main/a.sldd').url).toBe('https://gitlab.example.org/team/plant/-/raw/main/a.sldd');
+    expect(targetOf('https://code.forge.example/team/plant/-/blob/main/a.sldd').url).toBe('https://code.forge.example/team/plant/-/raw/main/a.sldd');
   });
 
   it('fetches any other address as given, its query kept and its fragment dropped', () => {

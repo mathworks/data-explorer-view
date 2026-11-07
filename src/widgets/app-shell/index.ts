@@ -81,7 +81,9 @@ export { installFileDrop } from './connect/drop.js';
 export type {
   CloseAnswer,
   ConnectShellOptions,
+  OpenAtTarget,
   ShellCommand,
+  ShellEntryTarget,
   ShellHandle,
   ShellHost,
   ShellLink,

@@ -15,12 +15,13 @@
 //   page reads the folder around it, which a single address does not give. A name is the address's
 //   last part decoded, so one with an escaped slash in it (`%2F`, `%5C`) is refused: the page's
 //   paths would take it for a folder.
-// - GitHub's and GitLab's file pages are pages, the file shown in a web page of the site's. Their
-//   raw files are what is meant: github.com's `/<owner>/<repo>/blob/<ref>/<path>` (and its `/raw/`,
-//   which redirects there) is fetched from raw.githubusercontent.com, which answers any page with
-//   `Access-Control-Allow-Origin: *`; a GitLab project's `/-/blob/` is its `/-/raw/`, on its own host,
-//   so a GitLab of a company's own is rewritten too. GitHub Enterprise is not: its `/blob/` cannot be
-//   told from any other site's path.
+// - A file page is a page, the file shown in a web page of the site's, and its raw file is what is
+//   meant. github.com's `/<owner>/<repo>/blob/<ref>/<path>` (and its `/raw/`, which redirects there)
+//   is fetched from raw.githubusercontent.com, which answers any page with
+//   `Access-Control-Allow-Origin: *`. A forge's `/-/blob/<ref>/<path>` link, on any host (a
+//   company's own among them), is fetched from `/-/raw/<ref>/<path>` on that host: the rewrite goes
+//   by the link's form, which no other site's path has. GitHub Enterprise is not rewritten: its
+//   `/blob/` cannot be told from any other site's path.
 // - No credentials: the fetch sends no cookies, so a link to a private file is refused by its server
 //   rather than read with the cookies of whoever opens the link, and no referrer, since the page's
 //   address can hold the other files' addresses.
@@ -45,7 +46,7 @@ export const URL_TIMEOUT_MS = 30_000;
 export interface UrlTarget {
   /** The address as given, trimmed: what a link writes back, and what a message names. */
   given: string;
-  /** What is fetched: `given` without its fragment, or for a GitHub or GitLab file page the raw file behind it. */
+  /** What is fetched: `given` without its fragment, or for a GitHub file page or a forge's `/-/blob/` link the raw file behind it. */
   url: string;
   /** The file's name: the last part of `url`'s path, decoded. */
   name: string;
@@ -55,16 +56,16 @@ export interface UrlTarget {
 
 // github.com's file page and raw link: owner, repo, then the ref and the path (a ref may hold a slash).
 const GITHUB_FILE = /^\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/;
-// A GitLab project's file page: the project's path (groups nest), then the ref and the path.
-const GITLAB_FILE = /^(\/.+?)\/-\/blob\/(.+)$/;
+// A forge's `/-/blob/` link: the project's path (its groups may nest), then the ref and the path.
+const DASH_BLOB = /^(\/.+?)\/-\/blob\/(.+)$/;
 
-/** What is fetched for `url`: the raw file behind a GitHub or GitLab file page, else `url` with no fragment. */
+/** What is fetched for `url`: the raw file behind a GitHub file page or a forge's `/-/blob/` link, else `url` with no fragment. */
 function rawOf(url: URL): string {
   const github = url.hostname === 'github.com' ? GITHUB_FILE.exec(url.pathname) : null;
   // The page's query and fragment are the page's (`?raw=true`, `#L3`), not the raw file's.
   if (github) return `https://raw.githubusercontent.com/${github[1]}/${github[2]}/${github[3]}`;
-  const gitlab = GITLAB_FILE.exec(url.pathname);
-  if (gitlab) return `${url.origin}${gitlab[1]}/-/raw/${gitlab[2]}`;
+  const dashBlob = DASH_BLOB.exec(url.pathname);
+  if (dashBlob) return `${url.origin}${dashBlob[1]}/-/raw/${dashBlob[2]}`;
   const fetched = new URL(url.href);
   fetched.hash = '';
   return fetched.href;
@@ -85,7 +86,7 @@ function nameOf(url: string): string {
  * `given` (what the user typed, or a `?url=` value) as the address to fetch, or why it is not
  * fetched: an address that is not `https:` (unless it is on `origin`, the page's own), one with a
  * user name or password in it, and one that names no file this app opens, are refused. GitHub's
- * and GitLab's file pages are rewritten to their raw files.
+ * file pages and a forge's `/-/blob/` links are rewritten to their raw files.
  */
 export function urlTargetOf(given: string, origin: string): UrlTarget | { problem: string } {
   given = given.trim();

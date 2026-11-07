@@ -35,7 +35,8 @@ const KEY_STEP = 0.05;
  * The shell's documents: `<dex-doc-tabs slot="tabs">` above, the panels of the open files as its
  * children (each a `<section>`, filling the area, `hidden` but the one its pane shows), and the
  * welcome while `welcome` is set: what the shell opens, with Open File… and Open Folder… buttons,
- * which send `dex-toolbar-action` as the toolbar's Open and Folder do, and the drop hint. While
+ * which send `dex-toolbar-action` as the toolbar's Open and Folder do (and Open from URL…, for a
+ * host that fetches web addresses, which sends `open-url`), and the drop hint. While
  * `dropping` is set, the focused pane is outlined as where the files dragged over the page will
  * open.
  *
@@ -229,6 +230,8 @@ export class DexShellDocs extends LitElement {
         this.welcome = true;
         /** The welcome offers Open Folder…: the host can show a folder. Attribute `can-open-folder`. */
         this.canOpenFolder = false;
+        /** The welcome offers Open from URL…: the host fetches web addresses. Attribute `can-open-url`. */
+        this.canOpenUrl = false;
         /** Files are dragged over the page, to be opened: the focused pane is outlined as where they go. Attribute `dropping`. */
         this.dropping = false;
         /** A second pane is drawn beside the first, its row in the slot `tabs-2` and its panels in `pane-2`. Attribute `split`. */
@@ -515,6 +518,7 @@ export class DexShellDocs extends LitElement {
                 <p class="actions">
                   <button type="button" @click=${() => this._ask('open-file')}>Open File…</button>
                   ${this.canOpenFolder ? html `<button type="button" @click=${() => this._ask('open-folder')}>Open Folder…</button>` : nothing}
+                  ${this.canOpenUrl ? html `<button type="button" @click=${() => this._ask('open-url')}>Open from URL…</button>` : nothing}
                 </p>
                 <p class="hint">or drop files onto this window</p>
               </div>
@@ -538,6 +542,9 @@ __decorate([
 __decorate([
     property({ type: Boolean, attribute: 'can-open-folder' })
 ], DexShellDocs.prototype, "canOpenFolder", void 0);
+__decorate([
+    property({ type: Boolean, attribute: 'can-open-url' })
+], DexShellDocs.prototype, "canOpenUrl", void 0);
 __decorate([
     property({ type: Boolean, reflect: true })
 ], DexShellDocs.prototype, "dropping", void 0);

@@ -36,6 +36,7 @@ const LABELS: Partial<Record<ShellCommand, string>> = {
   'open-folder': 'Open Folder…',
   'save-as': 'Save As…',
   'close-tab': 'Close Tab',
+  'open-url': 'Open from URL…',
   'show-raw': 'Show Raw View',
 };
 
@@ -69,6 +70,17 @@ export interface FolderCommands {
 
 /** No folder shown. */
 const NO_FOLDER: FolderCommands = { shown: false, canUp: false, refresh: 'read' };
+
+/** The commands a host's optional members give, as they stand when the palette opens. */
+export interface HostCommands {
+  /** ShellHost.fetchUrl is there: Open from URL…. */
+  openUrl: boolean;
+  /** ShellHost.linkFor is there (null: no Copy Link), and whether it links a file now. */
+  copyLink: { enabled: boolean } | null;
+}
+
+/** A host with none of them. */
+const NO_HOST: HostCommands = { openUrl: false, copyLink: null };
 
 /** What the compare commands would do now. */
 export interface CompareCommands {
@@ -120,14 +132,18 @@ function ordered(commands: PaletteCommand[]): PaletteCommand[] {
 
 /**
  * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
- * default), its folder as `folder` says (none shown, by default), and a compare as `compare` says
- * (nothing to compare, by default). The Folder view's rows are there where the shell has the view
- * (`folder.view`, else a host that shows folders, `state.canOpenFolder`).
+ * default), its folder as `folder` says (none shown, by default), what the host's optional members
+ * give as `host` says (none, by default), and a compare as `compare` says (nothing to compare, by
+ * default). The Folder view's rows are there where the shell has the view (`folder.view`, else a
+ * host that shows folders, `state.canOpenFolder`). Open from URL… is a File row after the ways to
+ * open a file the toolbar has, Compare With… after the toolbar's File rows, and Copy Link the File
+ * group's last, greyed while the host's link would link no file.
  */
 export function paletteCommands(
   state: ToolbarState,
   panes: PaneCommands = NO_PANES,
   folder: FolderCommands = NO_FOLDER,
+  host: HostCommands = NO_HOST,
   compare: CompareCommands = NO_COMPARE,
 ): PaletteCommand[] {
   const label = (chord: string | undefined) => (chord ? chordLabel(parseChord(chord), state.mac) : undefined);
@@ -143,9 +159,15 @@ export function paletteCommands(
   const actions = toolbarItems(state).map((item) =>
     command(item.id as ShellCommand, item.label, categoryOf(item.align), item.shortcut, !!item.disabled),
   );
+  const file = actions.filter((c) => c.category === 'File');
+  if (host.openUrl) {
+    const after = Math.max(file.findIndex((c) => c.id === 'open-folder'), file.findIndex((c) => c.id === 'open-file'));
+    file.splice(after + 1, 0, command('open-url', 'Open from URL…', 'File'));
+  }
+  file.push(command('compare-with', 'Compare With…', 'File', undefined, !compare.canCompare));
+  if (host.copyLink) file.push(command('copy-link', 'Copy Link', 'File', undefined, !host.copyLink.enabled));
   return [
-    ...actions.filter((c) => c.category === 'File'),
-    command('compare-with', 'Compare With…', 'File', undefined, !compare.canCompare),
+    ...file,
     ...ordered(actions.filter((c) => c.category === 'Edit')),
     ...ordered([
       ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || folderView).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
