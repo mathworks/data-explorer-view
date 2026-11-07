@@ -686,7 +686,8 @@ export function connectTable(table, source, options = {}) {
                 owed.add(listener);
                 const at = asking;
                 void pageOf(selection).then((page) => {
-                    if (disposed || at !== asking || !pageListeners.has(listener))
+                    // Served meanwhile (an ask's page sent, or owed and given): not again.
+                    if (disposed || at !== asking || !pageListeners.has(listener) || !owed.has(listener))
                         return;
                     owed.delete(listener);
                     listener(page.rowId === undefined ? { groups: [] } : page);
