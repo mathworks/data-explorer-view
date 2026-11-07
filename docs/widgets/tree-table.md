@@ -299,8 +299,9 @@ type `ReadonlyMap<string, DiffMark> | null` · default `null` · property only
 Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
 a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
 differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
-under it follow `expandedIds`). Default null: no marks, the table as it always was. Property
-only.
+under it follow `expandedIds`). The focused cell is ringed only while the table has the
+keyboard: a compare's other table selects the same line. Default null: no marks, the table as
+it always was. Property only.
 
 ### `fixedRows`
 

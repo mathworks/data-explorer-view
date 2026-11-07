@@ -87,6 +87,12 @@ export function compareRows(diff, options = {}) {
                 continue;
             parent = `section:${section.key}`;
             draw({ id: parent, parent: null, section: section.key, heading: section, differs, differsBelow }, section.a, section.b, section.status);
+            // Each side's heading counts its own file's entries, as that file's table does: not the
+            // lines under it, which leave out the entries with no difference and hold the other's gaps.
+            if (section.a)
+                out.left.rows[out.left.rows.length - 1]._entryCount = section.rows.filter((row) => row.a).length;
+            if (section.b)
+                out.right.rows[out.right.rows.length - 1]._entryCount = section.rows.filter((row) => row.b).length;
         }
         walk(section.rows, parent, section.key, undefined);
     }
