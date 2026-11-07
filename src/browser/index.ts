@@ -33,11 +33,12 @@
 //
 // The entry is the host and the types an app names to drive it: a folder to open (BrowserDir, a
 // handle or ListedFiles), a file to add (BrowserSource) and what `host.files` answers (BrowserFile),
-// and the window and navigator a test may give (FilePickers, UserActivation). How the host lists,
+// what fetching web addresses answers (FetchedUrls), and the window and navigator a test may give
+// (FilePickers, UserActivation). How the host lists,
 // reads, watches and paces itself stays inside, free to change in a minor release.
 
 export { browserHost } from './host.js';
-export type { BrowserFiles, BrowserHost, BrowserHostOptions } from './host.js';
+export type { BrowserFiles, BrowserHost, BrowserHostOptions, FetchedUrls } from './host.js';
 export type { BrowserFile, BrowserSource } from './files.js';
 export type { BrowserDir, ListedFile } from './walk.js';
 export type { FilePickers, FilePickerType, UserActivation } from './fsAccess.js';

@@ -148,3 +148,66 @@ file then and no folder without a file in it. A hidden entry (a name starting wi
 of the rows, as a file browser leaves it out. The recent folders are this session's picked and
 dropped ones, newest first; the page keeps none past a reload, so a folder is picked again then.
 There is no Reveal: a page cannot show a file in the file manager.
+
+## Files from the web
+
+`host.fetchUrls(urls)` fetches data files from web addresses, a link's `?url=` values say, and
+answers the paths to open them by, in the addresses' order, with `null` for each that did not
+open and a line saying why (`https://x/a.sldd could not be fetched: 404 Not Found`) for the page to
+tell. It never rejects.
+
+```js
+const host = browserHost({ onFolder, onChanged, openFromUrl: true });
+const { paths, problems } = await host.fetchUrls(new URLSearchParams(location.search).getAll('url'));
+for (const text of problems) app.notify({ level: 'warning', text });
+await app.openPaths(paths.filter((p) => p !== null));
+```
+
+An address may come from a link anyone wrote, so the host holds every one to the same rules:
+
+- Only `https:`, or an address on the page's own origin (the `origin` option, `location.origin` by
+  default), which is how a page serves its samples over `http://localhost`.
+- No user name or password in the address (`https://user:token@…`): the address is what a link to
+  the file writes back, so whatever it holds would go to everyone the link is shared with.
+- Only a file this app opens: `.sldd`, `.slx`, `.mdl` or `.mat`. A project (`.prj`, `matlab.toml`)
+  is refused, since its page reads the folder around it, which one address does not give. A name
+  with an escaped slash in it (`%2F`, `%5C`) is refused too.
+- A GitHub or GitLab file page is a web page around the file: the raw file behind it is fetched.
+  github.com's `/<owner>/<repo>/blob/<ref>/<path>` and `/<owner>/<repo>/raw/<ref>/<path>` are
+  fetched from `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`, and a GitLab
+  project's `/-/blob/` from its `/-/raw/` on the same host (gitlab.com, or a company's own); the
+  page's query and fragment are dropped. Any other address is fetched as given, its query kept and
+  its fragment dropped. GitHub Enterprise is not rewritten: its `/blob/` cannot be told from any
+  other site's path.
+- The fetch sends no cookies (`credentials: 'omit'`), so a private file is refused by its server
+  rather than read with the credentials of whoever opens the link, and no referrer, since the
+  page's address can hold the other files' addresses. It follows redirects.
+- A file is at most 64 MB: one whose server declares more is refused before a byte is read, and one
+  that streams past it is refused once it does. The fetch and the read together have 30 s.
+- A server that answers with a web page (`text/html`: a sign-in page, a file page not rewritten) is
+  refused; `text/plain`, which raw.githubusercontent.com answers, is read as the file.
+- A browser lets a page read another origin's file only when that server says it may (CORS). It
+  tells the page nothing more of a refusal than of a name that does not resolve, so either says
+  "that server doesn't let pages read its files (CORS)", or "the browser is offline" when the
+  browser says it is. raw.githubusercontent.com lets every page read its files.
+
+Each file joins the group of its address's folder (`addToGroup`, the folder of the address
+fetched), so a model and its dictionary from one repo folder sit beside each other and link,
+whichever was fetched first; files of two folders, or two hosts, are folders apart. Each address is
+fetched once, by the address fetched (a file page and its raw file are one): asked for again (twice
+in one call, by a later call, or while its first fetch still runs), it answers the path it has. One
+that failed is fetched afresh the next time it is asked for. `host.files.urlOf(path)` says the
+address the file at a path was fetched from, as it was first given, for a page's links to write
+back. Two addresses of one name in one folder (`a.sldd?v=1`, `a.sldd?v=2`) share a path, as two
+files of a name in a group do: the one fetched last is there, and is the one `urlOf` names; the
+other, asked for again, is fetched again and takes its place.
+
+A fetched file is bytes the page holds, with nothing to write them through: its Save is a download,
+as for a file the page has no handle to.
+
+With `openFromUrl: true` the host also has `fetchUrl(url)`, which gives the shell Open from URL: it
+resolves to the one file's path, or rejects with the line saying why. Leave it off unless the page's
+Content-Security-Policy lets it fetch from other origins (`connect-src 'self' https:`): under
+`connect-src 'self'`, every address on another origin is refused, and the browser says so to the
+page only as it says a CORS refusal. `fetchUrls` is there either way, for the addresses a page's own
+link names.
