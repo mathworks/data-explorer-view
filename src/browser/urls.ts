@@ -84,8 +84,8 @@ function nameOf(url: string): string {
 /**
  * `given` (what the user typed, or a `?url=` value) as the address to fetch, or why it is not
  * fetched: an address that is not `https:` (unless it is on `origin`, the page's own), one with a
- * user name or password in it, and one that names no file this app opens, are refused. GitHub's and GitLab's file pages are rewritten
- * to their raw files.
+ * user name or password in it, and one that names no file this app opens, are refused. GitHub's
+ * and GitLab's file pages are rewritten to their raw files.
  */
 export function urlTargetOf(given: string, origin: string): UrlTarget | { problem: string } {
   given = given.trim();
@@ -131,9 +131,17 @@ function drop(response: Response): void {
   response.body?.cancel().catch(() => undefined);
 }
 
-/** A promise that rejects as `signal` aborts, and never settles otherwise. */
-function abortOf(signal: AbortSignal): Promise<never> {
-  return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+/**
+ * A promise that rejects as `signal` aborts, and never settles otherwise; and `stop`, which takes
+ * its listener off the signal once the race it is in is over.
+ */
+function abortOf(signal: AbortSignal): { aborted: Promise<never>; stop: () => void } {
+  let onAbort = (): void => undefined;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+  });
+  signal.addEventListener('abort', onAbort, { once: true });
+  return { aborted, stop: () => signal.removeEventListener('abort', onAbort) };
 }
 
 /**
@@ -199,6 +207,7 @@ export async function fetchUrlBytes(target: UrlTarget, deps: UrlFetchDeps): Prom
   let answered = false;
   // Called as a plain function: a window's fetch called as a method of `deps` would throw.
   const { fetch } = deps;
+  const abort = abortOf(controller.signal);
   try {
     const asked = fetch(target.url, {
       credentials: 'omit',
@@ -210,7 +219,7 @@ export async function fetchUrlBytes(target: UrlTarget, deps: UrlFetchDeps): Prom
     // A fetch that does not heed its signal (a page's own, a test's) is given up all the same, and
     // an answer that comes after is let go.
     asked.then((late) => controller.signal.aborted && drop(late), () => undefined);
-    const response = await Promise.race([asked, abortOf(controller.signal)]);
+    const response = await Promise.race([asked, abort.aborted]);
     answered = true;
     if (!response.ok) {
       drop(response);
@@ -233,5 +242,6 @@ export async function fetchUrlBytes(target: UrlTarget, deps: UrlFetchDeps): Prom
     throw err instanceof Error ? err : new Error(String(err));
   } finally {
     clearTimeout(timer);
+    abort.stop();
   }
 }

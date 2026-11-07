@@ -140,6 +140,9 @@ describe('urlTargetOf', () => {
     ]) {
       expect(problemOf(given)).toBe(`${given} holds a user name or password, which a link must not.`);
     }
+    // On the page's own origin too: an origin has no credentials, so the address is the page's.
+    const own = 'http://u:p@localhost:4319/a.sldd';
+    expect(problemOf(own, 'http://localhost:4319')).toBe(`${own} holds a user name or password, which a link must not.`);
   });
 
   it('refuses a name with a slash in it, decoded from %2F or %5C', () => {
@@ -297,6 +300,28 @@ describe('fetchUrlBytes', () => {
     const { fetch } = fakeFetch(() => new Response(bytesOf('x')));
     await fetchUrlBytes(A, deps({ fetch }));
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('leaves no listener on its signal once the file is read', async () => {
+    // Each fetch races its answer against its signal: a listener left there would keep every
+    // fetch's race alive for as long as its signal is.
+    const added: unknown[] = [];
+    const removed: unknown[] = [];
+    const add = EventTarget.prototype.addEventListener;
+    const remove = EventTarget.prototype.removeEventListener;
+    vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(function (this: EventTarget, type, listener, options) {
+      if (this instanceof AbortSignal && type === 'abort') added.push(listener);
+      return add.call(this, type, listener, options);
+    });
+    vi.spyOn(EventTarget.prototype, 'removeEventListener').mockImplementation(function (this: EventTarget, type, listener, options) {
+      if (this instanceof AbortSignal && type === 'abort') removed.push(listener);
+      return remove.call(this, type, listener, options);
+    });
+    const { fetch } = fakeFetch(() => new Response(bytesOf('x')));
+    await fetchUrlBytes(A, deps({ fetch }));
+    vi.restoreAllMocks();
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.filter((listener) => !removed.includes(listener))).toEqual([]);
   });
 
   it("keeps any other error's own message", async () => {
