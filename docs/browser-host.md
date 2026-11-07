@@ -172,13 +172,14 @@ An address may come from a link anyone wrote, so the host holds every one to the
 - Only a file this app opens: `.sldd`, `.slx`, `.mdl` or `.mat`. A project (`.prj`, `matlab.toml`)
   is refused, since its page reads the folder around it, which one address does not give. A name
   with an escaped slash in it (`%2F`, `%5C`) is refused too.
-- A GitHub or GitLab file page is a web page around the file: the raw file behind it is fetched.
-  github.com's `/<owner>/<repo>/blob/<ref>/<path>` and `/<owner>/<repo>/raw/<ref>/<path>` are
-  fetched from `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`, and a GitLab
-  project's `/-/blob/` from its `/-/raw/` on the same host (GitLab's own site, or a company's); the
-  page's query and fragment are dropped. Any other address is fetched as given, its query kept and
-  its fragment dropped. GitHub Enterprise is not rewritten: its `/blob/` cannot be told from any
-  other site's path.
+- A file page is a web page around the file: the raw file behind it is fetched. github.com's
+  `/<owner>/<repo>/blob/<ref>/<path>` and `/<owner>/<repo>/raw/<ref>/<path>` are fetched from
+  `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`. A link of the form
+  `…/-/blob/<ref>/<path>`, on any host (a forge's file page,
+  `https://forge.example/team/plant/-/blob/main/plant.sldd`), is fetched from
+  `…/-/raw/<ref>/<path>` on the same host. The page's query and fragment are dropped. Any other
+  address is fetched as given, its query kept and its fragment dropped. GitHub Enterprise is not
+  rewritten: its `/blob/` cannot be told from any other site's path.
 - The fetch sends no cookies (`credentials: 'omit'`), so a private file is refused by its server
   rather than read with the credentials of whoever opens the link, and no referrer, since the
   page's address can hold the other files' addresses. It follows redirects.
