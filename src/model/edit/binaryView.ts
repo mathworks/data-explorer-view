@@ -78,7 +78,7 @@ import { sectionTarget, type SectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
-import { runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
+import { replacedEntries, replacedGone, runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -823,6 +823,26 @@ export class BinaryView implements EditableTableSource {
     if (this.closed) return;
     const registers = this.doc.options.registers;
     return runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // A copy that takes the place of entries of this document (a compare's Copy to Right): the entries
+  // go out of chunkXml and the model in the commit, before the paste, as a same-document move's do.
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void {
+    if (this.closed) return;
+    const registers = this.doc.options.registers;
+    const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+    const selectors = replacedEntries(replacing, this.findNode);
+    if (!selectors) {
+      // Ends the drag as a drop does, refused or not.
+      register.clear();
+      register.broadcast();
+      this.error(replacedGone(this.name));
+      return;
+    }
+    return runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps()).then(
       () => undefined,
       () => undefined,
     );
