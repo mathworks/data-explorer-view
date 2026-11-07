@@ -48,9 +48,9 @@ function rawOf(url) {
     // The page's query and fragment are the page's (`?raw=true`, `#L3`), not the raw file's.
     if (github)
         return `https://raw.githubusercontent.com/${github[1]}/${github[2]}/${github[3]}`;
-    const gitlab = GITLAB_FILE.exec(url.pathname);
-    if (gitlab)
-        return `${url.origin}${gitlab[1]}/-/raw/${gitlab[2]}`;
+    const project = GITLAB_FILE.exec(url.pathname);
+    if (project)
+        return `${url.origin}${project[1]}/-/raw/${project[2]}`;
     const fetched = new URL(url.href);
     fetched.hash = '';
     return fetched.href;
