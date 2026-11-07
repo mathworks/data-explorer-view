@@ -35,9 +35,9 @@ export interface ShellRequests {
   activate(tab: OpenTab): void;
   /** Close `tab`, asking first about unsaved edits. */
   close(tab: OpenTab): void;
-  /** Every open tab, pane by pane. */
-  tabs(): readonly OpenTab[];
-  /** Close every tab but `tab`, asking once about their unsaved edits. */
+  /** The tabs a tab's menu's Close Others would close for `tab`: the others of its own pane. */
+  others(tab: OpenTab): readonly OpenTab[];
+  /** Close the others of `tab`'s pane, asking once about their unsaved edits, and make `tab` the active one. */
   closeOthers(tab: OpenTab): void;
   /** A tab's menu's Copy Link at `tab`: null for a host that makes no links, else whether it links a file. */
   link(tab: OpenTab): { enabled: boolean } | null;
@@ -126,7 +126,7 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
   stops.push(
     connectTabMenu(parts.docs, parts.menu, {
       tabOf: on.tabOf,
-      tabs: on.tabs,
+      others: on.others,
       close: on.close,
       closeOthers: on.closeOthers,
       link: on.link,

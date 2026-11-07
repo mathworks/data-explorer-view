@@ -9,9 +9,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextMenuItem, ContextMenuShowOptions } from '../../src/widgets/context-menu/dex-context-menu.js';
 import type { ShellHost, ShellLink, ShellLinkRequest } from '../../src/widgets/app-shell/connect/types.js';
-import { at, choose, dirtyTabs, docTabs, edit, open, selectRow, selectTab, settled, startPage, tabIdOf, tabNames, until, type Page } from './harness.js';
+import type { DexDocTabs } from '../../src/widgets/app-shell/dex-doc-tabs.js';
+import { activeTab, at, choose, dirtyTabs, docTabs, edit, open, selectRow, selectTab, settled, startPage, tabNames, until, type Page } from './harness.js';
 
-const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
+const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat', 'shared_gain.slx': 'shared_gain.slx' };
+/** The id of `name`'s tab, in whichever pane's row it is. */
+const tabIdOf = (name: string) =>
+  [...document.querySelectorAll<DexDocTabs>('dex-doc-tabs')].flatMap((row) => row.tabs).find((t) => (t.subtitle ?? t.label) === name)!.id;
+/** The labels of `name`'s tabs, pane by pane. */
+const rows = () => [...document.querySelectorAll<DexDocTabs>('dex-doc-tabs')].map((row) => row.tabs.map((t) => t.subtitle ?? t.label));
+const activeName = () => activeTab()?.querySelector('.subtitle, .label')?.textContent;
 const LINK: ShellLink = { url: 'https://dex.example/?files=a', left: [] };
 
 const menuEl = () => document.querySelector('dex-context-menu')!;
@@ -61,12 +68,12 @@ describe("a tab's menu", () => {
     await until(() => tabNames().join() === 'ParamMat.mat');
   });
 
-  it('closes the other tabs, asking once about their unsaved edits', async () => {
+  it('closes the other tabs, asking once about their unsaved edits, and makes its own tab the active one', async () => {
     const page = await twoTabs();
     await selectTab('params.sldd');
     await edit('params.sldd', 'Kp', '5');
     await until(() => dirtyTabs().length === 1);
-    // Cancelled: every tab stays.
+    // Cancelled: every tab stays, the menu's tab active.
     page.main.closeAnswers.push('cancel');
     askMenu('ParamMat.mat');
     choose('close-others');
@@ -74,6 +81,7 @@ describe("a tab's menu", () => {
     expect(page.main.closeAsked).toEqual([['params.sldd']]);
     await settled();
     expect(tabNames()).toEqual(['params.sldd', 'ParamMat.mat']);
+    expect(activeName()).toBe('ParamMat.mat');
     // Discarded: only the menu's tab is left.
     page.main.closeAnswers.push('discard');
     askMenu('ParamMat.mat');
@@ -83,6 +91,23 @@ describe("a tab's menu", () => {
     // With one tab there is no other to close.
     expect(askMenu('ParamMat.mat')!.items.find((i) => i.id === 'close-others')).toMatchObject({ disabled: true });
     menuEl().close();
+  });
+
+  it("closes the other tabs of its own pane only, as an editor group's Close Others does", async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'ParamMat.mat', 'shared_gain.slx');
+    // shared_gain.slx into a pane of its own, on the right.
+    page.command('split-right');
+    await until(() => rows().length === 2);
+    expect(rows()).toEqual([['params.sldd', 'ParamMat.mat'], ['shared_gain.slx']]);
+    // Alone in its pane, it has no other to close.
+    expect(askMenu('shared_gain.slx')!.items.find((i) => i.id === 'close-others')).toMatchObject({ disabled: true });
+    menuEl().close();
+    askMenu('params.sldd');
+    choose('close-others');
+    await until(() => !tabNames().includes('ParamMat.mat'));
+    expect(rows()).toEqual([['params.sldd'], ['shared_gain.slx']]);
+    await until(() => activeName() === 'params.sldd');
   });
 
   it("copies a link at its own tab's selection, though another tab is active", async () => {

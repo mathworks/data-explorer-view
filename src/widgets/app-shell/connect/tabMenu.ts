@@ -2,8 +2,8 @@
 //
 // A tab's menu: what a right-click on a tab, or Shift+F10 or the ContextMenu key on it, shows
 // (the tab row's `dex-tab-menu`, heard on the documents' area, where every pane's row is): Close and
-// Close Others for that tab, whichever is active, and for a host that makes links, Copy Link at that
-// tab's selection. A menu a key asked for takes the keyboard. The menu is the tables' and the
+// Close Others for that tab, whichever is active (the others of its own pane, as an editor group's
+// Close Others closes), and for a host that makes links, Copy Link at that tab's selection. A menu a key asked for takes the keyboard. The menu is the tables' and the
 // Explorer's too: as the Explorer's file menu (fileMenu.ts), it is acted on by its next choice
 // only, and a dismissal, or the menu shown again by another, ends it, so a table's Copy is never
 // taken for a tab's Close.
@@ -16,10 +16,10 @@ import type { ShellTab } from './tabs.js';
 /** What a tab's menu does, on the tab it was shown for. */
 export interface TabMenuActions<T extends ShellTab> {
   tabOf(id: string): T | undefined;
-  /** Every open tab, pane by pane. */
-  tabs(): readonly T[];
+  /** The tabs Close Others would close for `tab`: the others of its own pane. */
+  others(tab: T): readonly T[];
   close(tab: T): void;
-  /** Close every tab but `tab`, asking once about their unsaved edits. */
+  /** Close the others of `tab`'s pane, asking once about their unsaved edits, and make `tab` the active one. */
   closeOthers(tab: T): void;
   /** Copy Link's item at `tab`, asked at each menu: null without the host's linkFor, else whether it links a file. */
   link(tab: T): { enabled: boolean } | null;
@@ -35,7 +35,7 @@ export function connectTabMenu<T extends ShellTab>(docs: HTMLElement, menu: DexC
     const link = actions.link(tab);
     const items: ContextMenuItem[] = [
       { id: 'close-tab', label: 'Close', icon: 'close', ...shortcutOf('close-tab') },
-      { id: 'close-others', label: 'Close Others', ...(actions.tabs().length < 2 ? { disabled: true } : {}) },
+      { id: 'close-others', label: 'Close Others', ...(actions.others(tab).length === 0 ? { disabled: true } : {}) },
       ...(link
         ? [
             { id: '', label: '', separator: true },

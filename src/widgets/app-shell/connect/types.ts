@@ -90,7 +90,8 @@ export interface ShellLinkRequest {
   /**
    * The file the link is to select in (the active tab's, or the tab whose menu was opened), and its
    * selection's entry: the top-level entry the first selected row is in, by name, and the label of
-   * its section (none in a MAT-file). Absent at Root; `entry` absent with no entry selected.
+   * its section (none in a MAT-file), or a block in a subsystem by its key (linkedEntryOf). Absent
+   * at Root; `entry` absent with no entry selected.
    */
   at?: { path: string; entry?: string; section?: string };
 }
