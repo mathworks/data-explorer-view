@@ -97,6 +97,9 @@ export type {
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+// A document's sections and the entries right under each heading, read off its table.
+export { readEntries } from './source/entries.js';
+export type { EntrySection } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
@@ -133,6 +136,10 @@ export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usa
 export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
 
+// Checking a folder: what is wrong in its references and entries, over the same graph and usage index a folder session reads.
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
+export type { CheckFinding, CheckFindingKind, CheckFolderOptions, FolderCheck, ReferenceRelation } from './check/folderCheck.js';
+
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, an open document's, read off its table's rows, and
 // what a search over them shows.
@@ -147,6 +154,18 @@ export type { NamesOfRowsOptions } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';
+
+// Compare: two documents' rows matched by section and name path, how each stands and what differs,
+// by the text the table shows each cell in (numbers by value); every row of a side read through its
+// source, held-back rows fetched; and two open documents, or two files' bytes with no page (the
+// command line's `diff`), compared.
+export { cellTextOf, sameCellText } from './compare/cellText.js';
+export { DIFF_SKIPPED_COLUMNS, diffSides, diffSummary } from './compare/diff.js';
+export type { DiffCounts, DiffOptions, DiffStatus, DocumentDiff, PropertyDiff, RowDiff, SectionDiff } from './compare/diff.js';
+export { readDiffSide } from './compare/readSide.js';
+export type { DiffSide, ReadSideOptions } from './compare/readSide.js';
+export { diffDocuments, diffFiles } from './compare/diffDocuments.js';
+export type { DiffFile } from './compare/diffDocuments.js';
 
 // The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
 // edges built from files already read, where they are drawn, and the id a file's row reveals.
