@@ -162,9 +162,12 @@ Each falls back to the light default when the page sets none (see `data-explorer
 
 | Token | Light default | |
 |---|---|---|
+| `--dex-bg-secondary` | `#f8f8f8` |  |
 | `--dex-border-color` | `#d0d0d0` |  |
 | `--dex-border-color-light` | `#e0e0e0` |  |
 | `--dex-color-accent` | `#0078d4` |  |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-secondary` | `#555` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |

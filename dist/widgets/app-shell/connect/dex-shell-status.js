@@ -10,6 +10,11 @@
 // The warning ink is under WCAG AA's 4.5:1 on the light status bar itself (4.05:1), so "Modified"
 // sits on a chip of the page's surface, where every theme's warning ink reads at 4.6:1 or better;
 // the chip is outlined in the same ink, so it reads as a mark and not as a hole in the bar.
+//
+// Before the pill, for a host that reaches a MATLAB, a button names the MATLAB connected ("MATLAB
+// R2027a"); a press asks the host to show how to connect. It is drawn at Root too, with no file
+// open. Its ink is the secondary text's: the status area's muted ink reads at 4.3:1 on the dark bar,
+// under the 4.5 a control's label needs.
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -19,11 +24,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 import { LitElement, html, css, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from '../../shared/define.js';
+import { buttonFocusRingStyles } from '../../shared/focus.styles.js';
 import { hiddenStyles } from '../../shared/hidden.styles.js';
 /**
  * The active file's status: its `format` as a pill, `kind` the pill's tooltip, and a Modified mark
- * while `modified`. No format draws nothing, for no file open (Root) or one of no kind the shell
- * names.
+ * while `modified`. No format draws no pill, for no file open (Root) or one of no kind the shell
+ * names. Before it, the MATLAB the window reaches (`matlab`) as a button, which sends
+ * `dex-shell-matlab-connect` when pressed. Nothing at all with neither.
  *
  * @tagname dex-shell-status
  */
@@ -36,8 +43,12 @@ export class DexShellStatus extends LitElement {
         this.kind = '';
         /** The file holds unsaved edits: Modified is drawn after the pill. Default false. Attribute `modified`. */
         this.modified = false;
+        /** Which MATLAB the window reaches, as a button before the pill (`MATLAB R2027a`). Default empty: none. Attribute `matlab`. */
+        this.matlab = '';
+        /** The MATLAB button's tooltip. Attribute `matlab-title`. */
+        this.matlabTitle = '';
     }
-    static { this.styles = [hiddenStyles, css `
+    static { this.styles = [hiddenStyles, buttonFocusRingStyles, css `
     :host {
       display: flex;
       align-items: center;
@@ -70,6 +81,22 @@ export class DexShellStatus extends LitElement {
       font-weight: 600;
     }
 
+    /* A button that reads as the status around it: the bar's font and size, no fill until the
+       pointer is on it, no icon. */
+    .matlab {
+      padding: 0 5px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--dex-color-text-secondary, #555);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .matlab:hover {
+      background: var(--dex-bg-hover, #e8e8e8);
+    }
+
     /* What a screen reader hears of the pill, and no one sees. */
     .sr-only {
       position: absolute;
@@ -86,14 +113,26 @@ export class DexShellStatus extends LitElement {
       .modified {
         border-color: CanvasText;
       }
+
+      /* A button's border, so it reads as one where no fill is drawn. */
+      .matlab {
+        border: 1px solid ButtonText;
+      }
     }
   `]; }
+    _connect() {
+        this.dispatchEvent(new CustomEvent('dex-shell-matlab-connect', { detail: null, bubbles: true, composed: true }));
+    }
     render() {
+        // The host's Connect to MATLAB is a dialog: the button says it opens one.
+        const matlab = this.matlab
+            ? html `<button class="matlab" type="button" title=${this.matlabTitle || nothing} aria-haspopup="dialog" @click=${this._connect}>${this.matlab}</button>`
+            : nothing;
         if (!this.format)
-            return nothing;
+            return matlab;
         // Seen, the format; heard, the kind (or the format, for a status that names none).
         const heard = this.kind || this.format;
-        return html `<span class="format" title=${this.kind || nothing}
+        return html `${matlab}<span class="format" title=${this.kind || nothing}
         ><span aria-hidden="true">${this.format}</span><span class="sr-only">${heard}</span></span
       >${this.modified ? html `<span class="modified">Modified</span>` : nothing}`;
     }
@@ -107,6 +146,12 @@ __decorate([
 __decorate([
     property({ type: Boolean })
 ], DexShellStatus.prototype, "modified", void 0);
+__decorate([
+    property({ type: String })
+], DexShellStatus.prototype, "matlab", void 0);
+__decorate([
+    property({ type: String, attribute: 'matlab-title' })
+], DexShellStatus.prototype, "matlabTitle", void 0);
 /** Registers the element as `<dex-shell-status>`, or under `tag`. */
 export function defineShellStatus(tag = 'dex-shell-status') {
     defineElement(tag, DexShellStatus);

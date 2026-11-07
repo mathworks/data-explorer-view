@@ -5,9 +5,11 @@
 // that does the same to the active tab (keys.ts, as the toolbar's tooltips name them). The menu is
 // the tables' too: it is acted on by its next choice only, and a dismissal, or the menu shown again
 // by a table (which says the Explorer's closed first), ends it, so a table's Copy is never taken for
-// a file's Close.
+// a file's Close. A connected MATLAB's commands for the file come after the file's own, a
+// separator between, for a host with a MATLAB.
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
 import { chordOf, onMac } from './keys.js';
+import { isMatlabAction } from './matlab.js';
 /** The menu's label of the chord of `command`, read at each menu as the platform says it. */
 const shortcutOf = (command) => {
     const chord = chordOf(command);
@@ -27,6 +29,7 @@ export function connectFileMenu(explorer, menu, actions) {
             { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable, ...shortcutOf('save-as') },
             { id: '', label: '', separator: true },
             { id: 'close-tab', label: 'Close', icon: 'close', ...shortcutOf('close-tab') },
+            ...(actions.matlabItems?.(tab) ?? []),
         ]);
         // After show(): a menu it replaced said it closed, which ends the menu before this one.
         menuFor = tab;
@@ -41,6 +44,8 @@ export function connectFileMenu(explorer, menu, actions) {
             actions.save(tab, id === 'save-as');
         else if (id === 'close-tab')
             actions.close(tab);
+        else if (isMatlabAction(id))
+            actions.runMatlab?.(tab, id);
     };
     const onClosed = () => {
         menuFor = null;

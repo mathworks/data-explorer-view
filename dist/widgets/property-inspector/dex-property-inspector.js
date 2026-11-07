@@ -15,8 +15,9 @@ import { defineMatrixOpen } from '../shared/dex-matrix-open.js';
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
  * field (a text, a choice from its `options`, or a text of several lines; a change sends
  * `dex-property-changed`), a link (on its name, or on its value; a click sends
- * `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
- * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
+ * `dex-property-navigate`), a matrix value with the glyph that opens it in the variable
+ * editor (`dex-matrix-open`, from `<dex-matrix-open>`), or a read-only text of several lines
+ * (`multiline`), drawn as written in a monospace face. It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
  * @tagname dex-property-inspector
@@ -150,6 +151,44 @@ export class DexPropertyInspector extends LitElement {
       font-size: 11px;
       color: var(--dex-color-text-secondary, #555);
     }
+
+    /* A read-only text of several lines (MATLAB's display of a value, a matrix's rows of columns):
+       each line its own and its spaces kept, in the monospace face such a display is laid out in,
+       on a tinted, framed box that scrolls past a height rather than push the rows under it down. */
+    .prop-text {
+      display: block;
+      margin: 0;
+      padding: 2px 4px;
+      white-space: pre;
+      font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace);
+      font-size: 12px;
+      line-height: 1.4;
+      background: var(--dex-bg-secondary, #f8f8f8);
+      border: 1px solid var(--dex-border-color-light, #e0e0e0);
+      border-radius: 2px;
+      max-height: 240px;
+      overflow: auto;
+    }
+
+    /* A tab stop of its own (tabindex), as a box that scrolls is in some browsers only, so the
+       keyboard reaches the lines past its height in every one: ringed as the theme rings a focus. */
+    .prop-text:focus-visible {
+      outline: none;
+      box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
+    }
+
+    /* Forced colours paint the tint over with the page's: the frame keeps it a box. They draw no
+       shadow either, so its focus ring is an outline in the system's highlight. */
+    @media (forced-colors: active) {
+      .prop-text {
+        border-color: CanvasText;
+      }
+
+      .prop-text:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 1px;
+      }
+    }
   `]; }
     /**
      * Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
@@ -266,6 +305,12 @@ export class DexPropertyInspector extends LitElement {
             return html `<span>${prop.value}</span
         ><dex-matrix-open .matrix=${prop.matrix}></dex-matrix-open>`;
         }
+        // A text of lines, read-only: its lines and spaces as written, which a span of normal
+        // white-space would run into one. A tab stop named by its row, so the keyboard can scroll it; a
+        // region, which a name is allowed on (a span of no role may not have one), and which a screen
+        // reader announces as a labelled area that scrolls.
+        if (prop.multiline)
+            return html `<span class="prop-text" role="region" tabindex="0" aria-label=${prop.name}>${prop.value}</span>`;
         return html `<span>${prop.value}</span>`;
     }
     render() {

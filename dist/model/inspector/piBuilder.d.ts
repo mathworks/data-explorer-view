@@ -15,7 +15,11 @@ export interface PropertyRow {
     key?: string;
     /** On an editable row whose editor is a choice: the choices, which the field offers in a list. */
     options?: string[];
-    /** On an editable row whose text may hold lines (a Description): a field of several lines. */
+    /**
+     * A text that may hold lines: on an editable row (a Description), a field of several lines; on a
+     * read-only one (MATLAB's display of a value), drawn as written, its lines and spaces kept.
+     * buildPropertyGroups sets it on editable rows only.
+     */
     multiline?: boolean;
     /** `link` anchors the NAME, and a click sends `dex-property-navigate` with `linkTarget` (else the name). */
     type?: 'text' | 'link';

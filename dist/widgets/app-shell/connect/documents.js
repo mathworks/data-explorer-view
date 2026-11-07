@@ -136,8 +136,9 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         },
         // A name a link holds means the file the folder's tree shows for it.
         resolveLink: (link, fromUri) => wiring.folder()?.resolveLink(link, fromUri),
-        // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).
-        menuItems: () => [{ ...SHOW_IN_GRAPH }],
+        // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file). A connected
+        // MATLAB's commands for the row come after, asked at each menu.
+        menuItems: (context) => [{ ...SHOW_IN_GRAPH }, ...(wiring.matlabItems?.(tab, context) ?? [])],
     });
     tab.handle = handle;
     return handle;

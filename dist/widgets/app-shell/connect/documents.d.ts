@@ -1,8 +1,8 @@
 import type { Doc } from '../../../model/source/workspace.js';
-import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
 import type { DexProjectPage, ProjectOpenDetail } from '../../project-page/dex-project-page.js';
-import { type TableHandle } from '../../tree-table/connectTable.js';
+import { type TableHandle, type TableMenuContext } from '../../tree-table/connectTable.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { DexVariableEditor } from '../../variable-editor/dex-variable-editor.js';
 import type { DocTab } from '../dex-doc-tabs.js';
@@ -76,6 +76,8 @@ export interface DocumentWiring {
     folder(): FolderView | undefined;
     /** How a table made now is ruled: the table style setting's. */
     tableStyle(): DexTreeTable['tableStyle'];
+    /** The MATLAB items a row's menu ends with (connectShell's, from matlab.ts); none without a MATLAB. */
+    matlabItems?(tab: OpenTab, context: TableMenuContext): ContextMenuItem[];
 }
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export declare function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiring: DocumentWiring): TableHandle;
