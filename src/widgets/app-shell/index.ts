@@ -19,7 +19,7 @@ export { DexShellAction, DexShellView, defineShellAction, defineShellView } from
 export { DexToolbar, defineToolbar } from './dex-toolbar.js';
 export type { ToolbarActionDetail, ToolbarEventMap, ToolbarItem } from './dex-toolbar.js';
 export { DexDocTabs, defineDocTabs } from './dex-doc-tabs.js';
-export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
+export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMenuDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
 export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
