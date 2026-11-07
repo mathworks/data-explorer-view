@@ -97,6 +97,9 @@ export type {
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+// A document's sections and the entries right under each heading, read off its table.
+export { readEntries } from './source/entries.js';
+export type { EntrySection } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
@@ -132,6 +135,10 @@ export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usa
 // over one listing and one cache, kept up to date by one change.
 export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
+
+// Checking a folder: what is wrong in its references and entries, over the same graph and usage index a folder session reads.
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
+export type { CheckFinding, CheckFindingKind, CheckFolderOptions, FolderCheck, ReferenceRelation } from './check/folderCheck.js';
 
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, an open document's, read off its table's rows, and
