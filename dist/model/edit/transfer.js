@@ -2,9 +2,11 @@
 //
 // Copied from data-explorer-vscode src/host/transfer.ts at c73da3c. The extension keeps its own
 // copy until its editors move onto view's sources; keep the two alike (view's CI reports a vscode
-// commit to that file). One difference: TransferRefused is core's (v1.53.0), not a class of its
+// commit to that file). Two differences: TransferRefused is core's (v1.53.0), not a class of its
 // own, since core's paste rules (refuseDisallowedPaste) throw it, and the policy below tells a
-// refusal by it.
+// refusal by it; and a copy may name entries of the target it replaces (TransferRequest.replacing,
+// a compare's Copy to Right), which the extension has no gesture for. And fileNameOf is pathUtil's,
+// where a table's own messages find it too.
 //
 // What a paste or a drop MEANS, said once for every editable table.
 //
@@ -37,7 +39,7 @@
 // this module neither knows nor imports any of it. That is also why it is vscode-free: every
 // branch above is unit-tested with a fake adapter (test/transfer.test.ts).
 import { TransferRefused, entrySelectorOf } from 'data-explorer-core';
-import { uriBasename } from '../ids/pathUtil.js';
+import { fileNameOf } from '../ids/pathUtil.js';
 /**
  * A refusal that changed nothing: a message, and no repair. Core's class, re-exported: core's
  * paste rules throw it, and an adapter does too.
@@ -89,8 +91,13 @@ async function transfer(req, register, adapter, deps) {
         adapter.report(isPaste ? 'Nothing to paste — the clipboard is empty.' : 'Nothing to drop.');
         return { kind: 'empty' };
     }
+    const replacing = req.replacing ?? [];
     let target;
     try {
+        // A move has a place of its own to leave: what it would replace and what it leaves behind are
+        // two edits of two documents, which one undo step cannot hold.
+        if (replacing.length > 0 && contents.move)
+            throw new TransferRefused('Only a copy replaces entries.');
         target = adapter.resolveTarget(req.rowId);
         if (!target) {
             adapter.report('Could not resolve the target section.');
@@ -116,14 +123,17 @@ async function transfer(req, register, adapter, deps) {
     const selectors = contents.items
         .map((it) => (it.origin ? { ...entrySelectorOf(it.payload), origin: it.origin } : entrySelectorOf(it.payload)))
         .filter((s) => s.name.length > 0);
-    const removeFirst = contents.move && sameDoc ? selectors : [];
+    const moveFirst = contents.move && sameDoc ? selectors : [];
+    // What a copy replaces goes out in the same edit as what a move takes out: both make room for
+    // the pasted entries under their own names.
+    const removeFirst = [...moveFirst, ...replacing];
     const label = isPaste ? 'Paste' : contents.move ? 'Move' : 'Copy';
     try {
         const shared = contents.move ? contents.items.find((it) => it.sharedName) : undefined;
         if (shared) {
             throw new TransferRefused(sharedNameRefusal(isPaste ? 'cut' : 'move', String(shared.payload.name ?? ''), contents.sourceDocUri));
         }
-        if (removeFirst.length > 0 && adapter.takesRemoveFirst === false) {
+        if (moveFirst.length > 0 && adapter.takesRemoveFirst === false) {
             throw new TransferRefused(`Cannot move entries within ${fileNameOf(adapter.docUri)}.`);
         }
         const payloads = contents.items.map((it) => it.payload);
@@ -203,14 +213,4 @@ export function sourceKeptMessage(isPaste, sourceDocUri, count, reason, gone = f
     if (gone)
         return `${verb} here; ${what}${where} ${count === 1 ? 'is' : 'are'} no longer there to remove: ${why}.`;
     return `${verb} here, but ${what}${where} could not be removed: ${why}. Remove ${count === 1 ? 'it' : 'them'} there by hand.`;
-}
-/** The file name a uri string ends in, decoded, for a message. */
-export function fileNameOf(uriString) {
-    const raw = uriBasename(uriString);
-    try {
-        return decodeURIComponent(raw) || raw;
-    }
-    catch {
-        return raw;
-    }
 }

@@ -510,7 +510,7 @@ describe("a row's menu", () => {
     await expand('models');
     rightClick('shared_gain.slx');
     await until(() => menus.length === 1);
-    expect(menuLabels()).toEqual(['Open', 'Open to the Side', '—', 'Reveal in Finder', 'Copy Path']);
+    expect(menuLabels()).toEqual(['Open', 'Open to the Side', 'Compare With…', '—', 'Reveal in Finder', 'Copy Path']);
     expect(lastMenu().options?.focusFirst).toBeFalsy();
     // The keyboard's: the focused row's menu, which takes the keyboard.
     const row = rowNamed('notes.md')!;
@@ -541,7 +541,7 @@ describe("a row's menu", () => {
     expect(previewTabs()).toEqual([]);
     rightClick('shared_gain.slx');
     await until(() => menus.length === 2);
-    expect(menuLabels()).toEqual(['Open', 'Open to the Side', 'Close', '—', 'Reveal in Finder', 'Copy Path']);
+    expect(menuLabels()).toEqual(['Open', 'Open to the Side', 'Compare With…', 'Close', '—', 'Reveal in Finder', 'Copy Path']);
     rightClick('shadow_ws.slx');
     await until(() => menus.length === 3);
     choose('Open to the Side');

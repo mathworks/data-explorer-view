@@ -97,6 +97,7 @@ export declare class BinaryView implements EditableTableSource {
     private transferDeps;
     paste(rowId: string): void;
     drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void;
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void;
     /** Where the document's undo stack stands, as the engine was given it (its `history`). */
     get history(): EditHistory | undefined;
     undo(): void;

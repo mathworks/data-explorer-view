@@ -145,6 +145,16 @@
   --dex-graph-ws-item-bg: rgba(107, 155, 139, 0.08);
   --dex-graph-ws-item-border: rgba(107, 155, 139, 0.25);
   --dex-graph-ghost-fg: #666;
+  /* A compare's marks (dex-tree-table's `diffMarks`): each kind's bar at a row's left edge (3:1
+     against the rows), its wash, a differing cell's deeper wash, and a gap row's hatching. */
+  --dex-diff-added: #2e7d32;
+  --dex-diff-removed: #c62828;
+  --dex-diff-changed: #b45309;
+  --dex-diff-added-bg: rgba(46, 125, 50, 0.1);
+  --dex-diff-removed-bg: rgba(198, 40, 40, 0.09);
+  --dex-diff-changed-bg: rgba(180, 83, 9, 0.08);
+  --dex-diff-cell-bg: rgba(180, 83, 9, 0.2);
+  --dex-diff-gap-stripe: rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] {
@@ -245,6 +255,15 @@
   --dex-graph-ws-item-border: rgba(111, 179, 160, 0.35);
   /* The muted ink is 3.9:1 on these boxes; a ghost's name is text, and needs 4.5. */
   --dex-graph-ghost-fg: #a0a0a0;
+  /* A compare's marks (dex-tree-table's `diffMarks`). */
+  --dex-diff-added: #81c784;
+  --dex-diff-removed: #e57373;
+  --dex-diff-changed: #e2c08d;
+  --dex-diff-added-bg: rgba(129, 199, 132, 0.14);
+  --dex-diff-removed-bg: rgba(229, 115, 115, 0.14);
+  --dex-diff-changed-bg: rgba(226, 192, 141, 0.1);
+  --dex-diff-cell-bg: rgba(226, 192, 141, 0.24);
+  --dex-diff-gap-stripe: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="high-contrast"] {
@@ -339,4 +358,13 @@
   --dex-graph-ws-item-bg: #fff;
   --dex-graph-ws-item-border: #00695c;
   --dex-graph-ghost-fg: #333;
+  /* A compare's marks (dex-tree-table's `diffMarks`): opaque washes, as every surface here is. */
+  --dex-diff-added: #1b5e20;
+  --dex-diff-removed: #b71c1c;
+  --dex-diff-changed: #7a4800;
+  --dex-diff-added-bg: #e8f5e9;
+  --dex-diff-removed-bg: #ffebee;
+  --dex-diff-changed-bg: #fff3e0;
+  --dex-diff-cell-bg: #ffe0b2;
+  --dex-diff-gap-stripe: #767676;
 }

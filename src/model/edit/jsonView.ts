@@ -100,6 +100,7 @@ import type { JsonDocState, JsonDocument, JsonTableOptions } from './jsonEngine.
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
 import { baselineOwed, diskBaselineUsable, sameDiskStamp, type DiskStamp } from './slddBaseline.js';
+import { replacingOrRefuse } from './replacing.js';
 import { runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
 import { wideLanding } from './wideRepaint.js';
 
@@ -1199,6 +1200,21 @@ export class JsonView implements EditableTableSource {
     const registers = this.doc.options.registers;
     const register = registers.dragRegister(mode, () => registers.broadcastDragState());
     return this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps())).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // A copy that takes the place of entries of this document (a compare's Copy to Right): read on
+  // arrival as a drop is, the register and the entries it replaces both, and queued as a drop is.
+  // The entries go out in the commit's text, before the paste, as a same-document move's do.
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void {
+    if (this.disposed) return;
+    const registers = this.doc.options.registers;
+    const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+    const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+    if (!selectors) return;
+    return this.queueStructural(() => runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps())).then(
       () => undefined,
       () => undefined,
     );

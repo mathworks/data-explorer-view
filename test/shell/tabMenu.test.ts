@@ -46,7 +46,8 @@ describe("a tab's menu", () => {
     await twoTabs({ linkFor: () => LINK });
     const shown = askMenu('params.sldd', { x: 12, y: 34 })!;
     expect([shown.x, shown.y]).toEqual([12, 34]);
-    expect(read(shown.items)).toEqual(['Close', 'Close Others', '—', 'Copy Link']);
+    // A file's tab begins with Compare With… (compareMenus.test.ts).
+    expect(read(shown.items)).toEqual(['Compare With…', '—', 'Close', 'Close Others', '—', 'Copy Link']);
     expect(shown.items.find((i) => i.id === 'close-tab')!.shortcut).toBeTruthy();
     // Asked by a key, the menu takes the keyboard.
     expect(askMenu('params.sldd', { keyboard: true })!.options).toEqual({ focusFirst: true });
@@ -56,7 +57,7 @@ describe("a tab's menu", () => {
 
   it('shows no Copy Link for a host that makes no links', async () => {
     await twoTabs();
-    expect(read(askMenu('params.sldd')!.items)).toEqual(['Close', 'Close Others']);
+    expect(read(askMenu('params.sldd')!.items)).toEqual(['Compare With…', '—', 'Close', 'Close Others']);
     menuEl().close();
   });
 

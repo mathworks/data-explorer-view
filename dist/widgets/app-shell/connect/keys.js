@@ -57,6 +57,10 @@ export const SHELL_CHORDS = [
     // Home. Not the prototype's Mod+Shift+G, a browser's Find Previous on macOS (and the Finder's Go to
     // Folder); a browser's own Shift+Cmd/Ctrl+H (its home page, Firefox's history) is a page's to spend.
     { chord: 'Mod+Shift+H', command: 'show-graph', withNativeMenu: true },
+    // A compare tab's next and previous difference. F7 is caret browsing in Chrome and Firefox, so it
+    // is offered, and spent, only while a compare tab is active: the browser keeps it everywhere else.
+    { chord: 'F7', command: 'next-change', withNativeMenu: true, repeats: true },
+    { chord: 'Shift+F7', command: 'previous-change', withNativeMenu: true, repeats: true },
     { chord: 'Mod+,', command: 'settings', withNativeMenu: true },
     { chord: 'Mod+Shift+P', command: 'palette', withNativeMenu: true },
     // Firefox keeps Ctrl+Shift+P for a private window, so the palette answers F1 too, as VS Code's does.

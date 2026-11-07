@@ -60,6 +60,7 @@ export interface TreeTableRow {
     } | string;
     _systemPath?: string;
     _blockPath?: string;
+    _entryCount?: number;
     /**
      * Every other cell the row has, by column key: a dictionary entry's `Min`, `Max`, `Unit`, …,
      * a block row's parameter links. Each column's cell has a shape of its own, which the table

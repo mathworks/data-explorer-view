@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A file's menu in the Explorer: a right-click on an open file's row shows the shared context menu
-// with Save, Save As and Close for that file, whichever tab is active, each labelled with the chord
+// with Save, Save As, Compare With… and Close for that file, whichever tab is active, each labelled with the chord
 // that does the same to the active tab (keys.ts, as the toolbar's tooltips name them). The menu is
 // the tables' too: it is acted on by its next choice only, and a dismissal, or the menu shown again
 // by a table (which says the Explorer's closed first), ends it, so a table's Copy is never taken for
@@ -25,6 +25,7 @@ export function connectFileMenu(explorer, menu, actions) {
         menu.show(e.detail.x, e.detail.y, [
             { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty), ...shortcutOf('save') },
             { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable, ...shortcutOf('save-as') },
+            { id: 'compare-with', label: 'Compare With…', icon: 'compareUI', disabled: !actions.comparable(tab) },
             { id: '', label: '', separator: true },
             { id: 'close-tab', label: 'Close', icon: 'close', ...shortcutOf('close-tab') },
         ]);
@@ -41,6 +42,8 @@ export function connectFileMenu(explorer, menu, actions) {
             actions.save(tab, id === 'save-as');
         else if (id === 'close-tab')
             actions.close(tab);
+        else if (id === 'compare-with')
+            actions.compareWith(tab);
     };
     const onClosed = () => {
         menuFor = null;

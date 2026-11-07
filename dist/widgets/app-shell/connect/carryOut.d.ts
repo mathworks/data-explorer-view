@@ -36,6 +36,8 @@ export interface CarryOutContext {
     askUrl(): Promise<string | null>;
     /** Copy Link at `tab`'s selection (the active tab; none at Root). */
     copyLink(tab: OpenTab | undefined): void;
+    /** Ask which file to compare `tab`'s with, and open a compare tab of the two (connectShell's compareWith). */
+    compareWith(tab: OpenTab): void;
 }
 /**
  * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel

@@ -26,6 +26,7 @@ const TAGS = [
   'dex-about-panel',
   'dex-toast-host',
   'dex-confirm-dialog',
+  'dex-compare-view',
   // The modules' views.
   'dex-raw-viewer',
   'dex-search-panel',

@@ -40,7 +40,7 @@ export { insertEntryRows, spliceEntryRows } from './actions/rowUpdates.js';
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
 export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
-export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
+export { basename, fileNameOf, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 // The hierarchy: the graph of which file references which, and the health marks on it; a
@@ -82,6 +82,14 @@ export { namesOfFile } from './search/nameScan.js';
 export { namesOfRows } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
+// Compare: two documents' rows matched by section and name path, how each stands and what differs,
+// by the text the table shows each cell in (numbers by value); every row of a side read through its
+// source, held-back rows fetched; and two open documents, or two files' bytes with no page (the
+// command line's `diff`), compared.
+export { cellTextOf, sameCellText } from './compare/cellText.js';
+export { DIFF_SKIPPED_COLUMNS, diffSides, diffSummary } from './compare/diff.js';
+export { readDiffSide } from './compare/readSide.js';
+export { diffDocuments, diffFiles } from './compare/diffDocuments.js';
 // The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
 // edges built from files already read, where they are drawn, and the id a file's row reveals.
 export { buildRelationshipGraph } from './graph/relationshipGraph.js';
@@ -99,7 +107,7 @@ export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
 // transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
 // (above), under a name of its own.
-export { TransferRefused, fileNameOf, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
+export { TransferRefused, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
 export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
 export { answerEditTextRequest } from './edit/editText.js';
 // A folder across a message channel, for a hierarchy where its files are not: the page's end

@@ -18,6 +18,8 @@ export { DexToastHost, defineToastHost } from './dex-toast-host.js';
 export type { Toast } from './dex-toast-host.js';
 export { DexConfirmDialog, defineConfirmDialog } from './dex-confirm-dialog.js';
 export type { ConfirmButton, ConfirmOptions, PromptOptions } from './dex-confirm-dialog.js';
+export { DexCompareView, defineCompareView } from './dex-compare-view.js';
+export type { CompareFilterChangedDetail, CompareMenuDetail, CompareSelectedDetail, CompareSide, CompareStepDetail, CompareViewEventMap, } from './dex-compare-view.js';
 export { DexRawViewer, defineRawViewer } from './modules/dex-raw-viewer.js';
 export type { RawCopyDetail, RawViewerEventMap } from './modules/dex-raw-viewer.js';
 export { DexSearchPanel, defineSearchPanel } from './modules/dex-search-panel.js';
@@ -31,7 +33,7 @@ export type { CommandRunDetail, CommandWindowEventMap } from './modules/dex-comm
 export { DexLogPanel, defineLogPanel } from './modules/dex-log-panel.js';
 export type { LogEntry, LogFilter, LogFilterChangedDetail, LogLevel, LogPanelEventMap } from './modules/dex-log-panel.js';
 export { DexCommandPalette, defineCommandPalette } from './modules/dex-command-palette.js';
-export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from './modules/dex-command-palette.js';
+export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail, PaletteShowOptions } from './modules/dex-command-palette.js';
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';

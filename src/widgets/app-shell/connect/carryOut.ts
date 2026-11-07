@@ -43,6 +43,8 @@ export interface CarryOutContext {
   askUrl(): Promise<string | null>;
   /** Copy Link at `tab`'s selection (the active tab; none at Root). */
   copyLink(tab: OpenTab | undefined): void;
+  /** Ask which file to compare `tab`'s with, and open a compare tab of the two (connectShell's compareWith). */
+  compareWith(tab: OpenTab): void;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -167,6 +169,13 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       break;
     case 'folder-refresh':
       on.folder.refresh();
+      break;
+    case 'compare-with':
+      if (tab) on.compareWith(tab);
+      break;
+    case 'next-change':
+    case 'previous-change':
+      tab?.compare?.step(id === 'next-change' ? 1 : -1);
       break;
     case 'show-graph':
       // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).

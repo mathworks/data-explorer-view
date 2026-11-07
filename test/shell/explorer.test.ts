@@ -136,7 +136,7 @@ describe('the Explorer', () => {
     await until(() => JSON.stringify(inspector.groups) === shown && inspectorNote().hidden);
   });
 
-  it("a file's menu saves it, saves it elsewhere, or closes it, whichever tab is active", async () => {
+  it("a file's menu saves it, saves it elsewhere, compares it, or closes it, whichever tab is active", async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'ParamMat.mat');
     await edit('params.sldd', 'Kp', '5');
@@ -148,7 +148,7 @@ describe('the Explorer', () => {
     const ask = (label: string) =>
       explorer().dispatchEvent(new CustomEvent('dex-explorer-menu', { detail: { fileId: tabIdOf(label), x: 10, y: 20 }, bubbles: true, composed: true }));
     ask('params.sldd');
-    expect(shown).toEqual(['Save', 'Save As…', 'Close']);
+    expect(shown).toEqual(['Save', 'Save As…', 'Compare With…', 'Close']);
     choose('save');
     await until(() => dirtyTabs().length === 0);
     expect(savedTo(page.main, 'params.sldd')).toBeTruthy();
@@ -174,12 +174,14 @@ describe('the Explorer', () => {
     menu.show = (x, y, items) => ((shown = items.filter((i) => !i.separator).map((i) => [i.id, i.shortcut])), show(x, y, items));
     explorer().dispatchEvent(new CustomEvent('dex-explorer-menu', { detail: { fileId: tabIdOf('params.sldd'), x: 10, y: 20 }, bubbles: true, composed: true }));
     const label = (command: 'save' | 'save-as' | 'close-tab') => chordLabel(parseChord(chordOf(command)!), onMac());
+    // Compare With… has no chord: it asks which file first.
     expect(shown).toEqual([
       ['save', label('save')],
       ['save-as', label('save-as')],
+      ['compare-with', undefined],
       ['close-tab', label('close-tab')],
     ]);
-    expect(shown.map(([, chord]) => chord)).toEqual(onMac() ? ['⌘S', '⇧⌘S', '⌘W'] : ['Ctrl+S', 'Ctrl+Shift+S', 'Ctrl+W']);
+    expect(shown.map(([, chord]) => chord)).toEqual(onMac() ? ['⌘S', '⇧⌘S', undefined, '⌘W'] : ['Ctrl+S', 'Ctrl+Shift+S', undefined, 'Ctrl+W']);
     menu.close();
   });
 });

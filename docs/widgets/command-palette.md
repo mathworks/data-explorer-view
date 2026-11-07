@@ -52,12 +52,14 @@ Whether it is open: from show() until a command runs, Escape, a click outside it
 
 ## Methods
 
-### `show(commands: PaletteCommand[]): void`
+### `show(commands: PaletteCommand[], options?: PaletteShowOptions): void`
 
 Opens the palette over the page with `commands` (a list that is not an array is none), an
 empty query and the focus in its input, on the first command that can run. Open already, it
 takes the new commands and starts the query afresh, and the focus will still go back where it
-was before the first show(). Not on the page, it does not open.
+was before the first show(). Not on the page, it does not open. `options` says what its input
+reads before anything is typed and whether a row run from it joins the recent ones (a pick of a
+file does not: the shell's commands are what a later list puts first).
 
 ### `close(): void`
 

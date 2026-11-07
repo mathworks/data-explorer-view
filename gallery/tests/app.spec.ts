@@ -10,7 +10,7 @@
 // button folds the left side away; Settings' Dark draws the app dark, and still after a reload;
 // and the command palette opens on F1 and runs Show Log.
 import type { Page } from '@playwright/test';
-import { APP, expect, test } from './gallery';
+import { APP, expect, keepScreenshot, test } from './gallery';
 
 const exactly = (text: string) => new RegExp(`^\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
 /** The tab row's tab for `name`. */
@@ -47,7 +47,7 @@ test('lays the app out: the toolbar, the location bar, the Folder view, the Expl
   await expect(page.locator('dex-explorer')).toBeVisible();
   // The inspector says what to do while nothing is selected.
   await expect(page.locator('.dex-inspector-empty')).toHaveText('Select an entry to view its properties.');
-  await expect(page.locator('dex-doc-tabs [role="tab"]')).toHaveCount(4);
+  await expect(page.locator('dex-doc-tabs [role="tab"]')).toHaveCount(5);
   await expect(page).toHaveTitle('numeric_json.sldd — Data Explorer');
   // A dictionary's rows, not a model kept for viewing only's banner, are what the page shows first.
   await expect(tableRow(page, 'Array')).toBeVisible();
@@ -69,7 +69,7 @@ test('lists the folder picked as a file browser does, no higher than it, and mov
   await expect(top.locator('.label')).toHaveText(['data', 'models', 'workspace', 'README.md']);
   await expect(folderRow(page, 'README.md')).toHaveAttribute('aria-disabled', 'true');
   await expect(folderRow(page, 'README.md')).toHaveClass(/dimmed/);
-  await page.locator('dex-shell-view[view="folder"]').screenshot({ path: test.info().outputPath('folder-view.png') });
+  await keepScreenshot(page, 'folder-view.png', page.locator('dex-shell-view[view="folder"]'));
   // A folder of it, from its row's menu.
   await folderRow(page, 'models').click({ button: 'right' });
   await page.locator('dex-context-menu').getByRole('menuitem', { name: 'Use as Folder' }).click();

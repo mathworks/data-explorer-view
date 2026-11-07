@@ -275,6 +275,14 @@ async function save() {
   that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
   document, settling once the document is done with it, with whether it was
   refused and why.
+- `handle.dropReplacing(rowId, replacing)` is that drop as a copy that takes
+  the place of entries the document already has (`replacing`, rows of the
+  target table), as a compare's Copy to Right does: they go out in the same
+  edit as the paste, so the copies keep their names (no `Kp1`), and one Undo
+  puts the old entries back. Until core can paste in place, the copy goes last
+  in its section, not where the entry it replaces was. It is judged and settled as `handle.drop` is; a
+  source without `dropReplacing` (one across a channel) refuses it, saying the
+  file does not replace entries.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own
@@ -779,6 +787,28 @@ const app = connectShell(shell, {
 });
 ```
 
+### Compare two files
+
+Compare With… (the command palette, `compare-with`, a tab's menu and the
+Explorer's file menu) asks which file to compare that file with: another open
+file, or one the host's picker gives (Browse…). The two are compared entry by
+entry, matched by section and name, in a tab of their own (`a.sldd ↔ b.sldd`):
+a header saying what differs ("1 changed, 1 added, 1 removed"), over the two
+files' tables side by side, line by line, a blank line where one file lacks an
+entry. An added, removed or changed
+entry is marked, and so is each cell that differs; "Show only differences" (on
+at first) leaves out the lines that are alike. A row opened, scrolled to or
+selected in one table is in the other, and the Properties view shows the
+selected line's differences, before → after. F7 and Shift+F7, the palette's
+Next and Previous Change and the header's arrows go from difference to
+difference, an entry only one file has being one. A line's menu copies its
+entry to the other file (Copy to Right, Copy to Left), replacing the entry of
+its name there, or adding it where that file lacks it: one edit of the file
+copied into for each section copied, undone there by one Undo. A file that may
+not be edited takes no copy. Show in <file> goes to the line's row in that
+file's tab. The compare is drawn again as either file is edited or saved. Both
+files stay open in their own tabs, and closing either closes the compare.
+
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus
@@ -800,6 +830,7 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Shift+F10, the ContextMenu key | the menu of the table's selected row |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
 | Cmd/Ctrl+Shift+H | Root's relationship graph (Show Graph) |
+| F7, Shift+F7 | the next difference of the compare tab, the one before (while one is active) |
 | Cmd/Ctrl+, | Settings |
 | Cmd/Ctrl+Shift+P, F1 | the command palette |
 | Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+K | the Explorer, the Folder view (a host that shows folders) |
@@ -809,14 +840,15 @@ and leaves Undo and Redo to a table, which undoes its own document.
 
 A view's chord shows it, or closes its side when it is the one shown. With
 `nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Root's
-graph, Settings, the command palette, the panes' and the views' chords, and the
-menu the rest. In a browser tab, a few chords are the browser's whatever the
+graph, Settings, the command palette, the panes', a compare's and the views'
+chords, and the menu the rest. In a browser tab, a few chords are the browser's whatever the
 page does: a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox
 both do), and Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own
 tabs; there the toolbar, the tab row and the command palette do the same.
 Cmd/Ctrl+1 and Cmd/Ctrl+2 are the shell's only while the documents are in two
 panes: with one, they are left to the browser, which switches its own tabs by
-them. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+them. F7 and Shift+F7 are the shell's only while a compare tab is active: F7 is
+caret browsing in Chromium and Firefox everywhere else. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
 there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in

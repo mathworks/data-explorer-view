@@ -13,6 +13,16 @@ export interface TabMenuActions<T extends ShellTab> {
         enabled: boolean;
     } | null;
     copyLink(tab: T): void;
+    /** Whether `tab` is a file a compare reads: its Compare With… is enabled. */
+    comparable(tab: T): boolean;
+    /** Ask which file to compare `tab`'s with (Compare With…). */
+    compareWith(tab: T): void;
+    /** For a compare tab, whether it has a difference to go to; null for a file's tab, which has no such items. */
+    changes(tab: T): {
+        hasChanges: boolean;
+    } | null;
+    /** Go to the next (1) or previous (-1) difference of the compare tab `tab`. */
+    step(tab: T, by: 1 | -1): void;
 }
 /** Answer the tab rows' `dex-tab-menu` (heard on `docs`, where every pane's row is) with `menu`; returns what stops it. */
 export declare function connectTabMenu<T extends ShellTab>(docs: HTMLElement, menu: DexContextMenu, actions: TabMenuActions<T>): () => void;

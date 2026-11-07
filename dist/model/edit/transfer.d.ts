@@ -66,7 +66,8 @@ export interface TransferCommit<T extends TransferTarget> {
     /**
      * The entries to take out of THIS document first, in the same edit, so the pasted ones keep
      * their names (a source still standing in the namespace would push its copy to `Name1`).
-     * Non-empty only for a same-document move.
+     * Non-empty for a same-document move, and for a copy that replaces entries
+     * (TransferRequest.replacing): those selectors, after the move's.
      */
     removeFirst: EntrySelector[];
     /** What the edit is called, for an undo stack that names its steps. */
@@ -86,7 +87,8 @@ export interface TransferAdapter<T extends TransferTarget = TransferTarget> {
      * False for a document that cannot remove-and-paste in one edit because it never has to: a
      * MAT-file is one section, so a same-file move is always the same-section no-op. Should the
      * policy ever need it anyway, the transfer is refused rather than made as something else.
-     * Default true.
+     * Default true. Asked of a move's removals only: the entries a copy replaces
+     * (TransferRequest.replacing) reach `commit` either way, for it to take out or refuse.
      */
     readonly takesRemoveFirst?: boolean;
     /**
@@ -145,6 +147,14 @@ export interface TransferRequest {
      * aim at). Passed to the adapter as it is: `''` is a target to resolve, not a missing one.
      */
     rowId: string;
+    /**
+     * Entries of THIS document the transferred ones take the place of (a compare's Copy to Right of a
+     * changed entry), by their selectors in this document: taken out in the same edit before the
+     * paste, so the copies keep their names and the whole is one undo step. Until core can paste in
+     * place, each copy goes last in its section, not where the entry it replaces was. A copy only: a
+     * register holding a move is refused with it. Absent or empty: none.
+     */
+    replacing?: readonly EntrySelector[];
 }
 /**
  * A refusal that changed nothing: a message, and no repair. Core's class, re-exported: core's
@@ -206,5 +216,3 @@ export declare function sharedNameRefusal(verb: 'cut' | 'move', name: string, so
  * longer there to remove: <reason>." — asking nothing, since what holds its name now is not it.
  */
 export declare function sourceKeptMessage(isPaste: boolean, sourceDocUri: string | undefined, count: number, reason: string | undefined, gone?: boolean): string;
-/** The file name a uri string ends in, decoded, for a message. */
-export declare function fileNameOf(uriString: string): string;

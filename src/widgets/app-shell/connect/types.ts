@@ -28,7 +28,10 @@ import type { Theme } from '../../../model/shell/settings.js';
  * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
  * `open-url` asks for a web address and opens the file there (ShellHost.fetchUrl), and `copy-link`
  * puts the link that opens the open files again on the clipboard (ShellHost.linkFor); a host
- * without the member never offers its command.
+ * without the member never offers its command. `compare-with` asks which file to compare the active
+ * tab's file with, an open one or one the host's picker gives, and opens a compare tab;
+ * `next-change` and `previous-change` go to the next or previous difference of the active compare
+ * tab.
  */
 export type ShellCommand =
   | 'new-file'
@@ -70,7 +73,10 @@ export type ShellCommand =
   | 'show-raw'
   | 'show-terminal'
   | 'show-log'
-  | 'show-graph';
+  | 'show-graph'
+  | 'compare-with'
+  | 'next-change'
+  | 'previous-change';
 
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';

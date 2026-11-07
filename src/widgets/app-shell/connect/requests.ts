@@ -8,6 +8,7 @@
 // id, and a request about a tab that has closed since does nothing.
 
 import type { DexAppShell } from '../dex-app-shell.js';
+import { comparable, PICK_PREFIX } from './comparePick.js';
 import type { OpenTab } from './documents.js';
 import { connectFileMenu } from './fileMenu.js';
 import { connectTabMenu } from './tabMenu.js';
@@ -19,7 +20,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
   'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
   'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', 'copy-link', ...SHELL_VIEWS.map((v) => v.command),
+  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', 'copy-link', 'compare-with', 'next-change', 'previous-change', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
@@ -63,6 +64,10 @@ export interface ShellRequests {
   toggle(id: 'settings' | 'about', anchor: Rect): void;
   /** The user brought the view `view` forward, or opened or closed its side. */
   viewChanged(view: string | null, open: boolean): void;
+  /** A palette row whose id begins PICK_PREFIX was run (Compare With…'s question): what it names, the prefix taken off. */
+  picked(id: string): void;
+  /** Ask which file to compare `tab`'s with, and open a compare tab of the two. */
+  compareWith(tab: OpenTab): void;
 }
 
 /** Answer `parts`' requests with `on`; returns what stops it. */
@@ -80,7 +85,12 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
   listen(parts.toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
   listen(parts.docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
   listen(parts.folderPart, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
-  listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
+  // A row of the palette is a command, or an answer to the question it was shown with (a pick).
+  listen(parts.palette, 'dex-palette-run', (e) => {
+    const { id } = e.detail;
+    if (id.startsWith(PICK_PREFIX)) on.picked(id.slice(PICK_PREFIX.length));
+    else asked(id);
+  });
   listen(shell, 'dex-shell-view-changed', (e) => on.viewChanged(e.detail.view, e.detail.open));
   listen(shell, 'dex-shell-action', (e) => {
     const { actionId, anchor } = e.detail;
@@ -120,9 +130,9 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
     on.activate(tab);
     if (sectionId !== undefined) tab.handle?.select([sectionId]);
   });
-  // A file's menu in the Explorer: Save, Save As and Close for that file.
-  stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close }));
-  // A tab's menu: Close, Close Others and Copy Link for that tab.
+  // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file.
+  stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close, comparable, compareWith: on.compareWith }));
+  // A tab's menu: Compare With… or a compare's steps, Close, Close Others and Copy Link for that tab.
   stops.push(
     connectTabMenu(parts.docs, parts.menu, {
       tabOf: on.tabOf,
@@ -131,6 +141,10 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
       closeOthers: on.closeOthers,
       link: on.link,
       copyLink: on.copyLink,
+      comparable,
+      compareWith: on.compareWith,
+      changes: (tab) => (tab.compare ? { hasChanges: tab.compare.hasChanges } : null),
+      step: (tab, by) => tab.compare?.step(by),
     }),
   );
   return () => {

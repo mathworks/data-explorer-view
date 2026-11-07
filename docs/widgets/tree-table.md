@@ -122,6 +122,25 @@ connectInspector(inspector, handle);
 doc.onDirty(() => handle.refreshInspector());
 ```
 
+### Comparing
+
+Two tables given the same row ids, in the same order and tree, stay line by line beside each
+other: a compare's two files, with a blank row on a side where its file lacks the line. `diffMarks`
+marks each line on a side (added, removed, changed with the columns that differ, or a gap): a bar
+at the row's left edge, a wash, a glyph before the name with the word for a screen reader, and in
+forced colours an outline round each differing cell. A gap row has no twisty and no
+`aria-expanded`, and Space opens nothing on it: the gaps under it show and hide as the holder opens
+and closes the other side's row, through `expandedIds`. A section's row counts its file's entries:
+its `_entryCount` where it has one (a compare's heading, whose lines leave some entries out and hold
+the other file's gaps), and on a gap heading no count. The two tables select the same line, and
+only the one with the keyboard rings its focused cell. `fixedRows` keeps the rows as given, as a
+sort or a search on one side alone would break the lines: a header press sorts nothing, and there
+is no search box and no column filter. To keep the two together, each table says what it did of
+itself: `dex-expansion-changed` (not for `expandedIds`, `expand()` or `collapse()`, which a holder
+copying one table's expansion onto the other uses, so nothing echoes) and `dex-table-scrolled`,
+with `bodyScroll` and `scrollBodyTo(top, left)` to read and set the other's. `gridLabel` names each
+grid for a screen reader. [`<dex-compare-view>`](compare-view.md) holds two tables this way.
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.
@@ -273,6 +292,37 @@ not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay t
 cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
 they always were. Attribute `keyboard-menu`.
 
+### `diffMarks`
+
+type `ReadonlyMap<string, DiffMark> | null` · default `null` · property only
+
+Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
+a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
+differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+under it follow `expandedIds`). The focused cell is ringed only while the table has the
+keyboard: a compare's other table selects the same line. Default null: no marks, the table as
+it always was. Property only.
+
+### `fixedRows`
+
+type `boolean` · default `false` · attribute `fixed-rows`, reflected
+
+The rows as given, in their order, all of them: a header press sorts nothing and draws no sort
+mark, and there is no search box and no column filter (the Columns button stays). For two tables
+kept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.
+
+### `gridLabel`
+
+type `string` · default `'Data entries'` · attribute `grid-label`
+
+What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`.
+
+### `bodyScroll`
+
+type `{ top: number; left: number }` · read-only
+
+Where the rows are scrolled to now, in pixels (the grid's own scroll position).
+
 ### `storageKey`
 
 type `string | null` · default `'dex'` · attribute `storage-key`
@@ -329,6 +379,16 @@ say" is not "yes". With none, the default, any row takes a drop and the space un
 takes none. Property only.
 
 ## Methods
+
+### `scrollBodyTo(top: number, left?: number): void`
+
+Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows.
+
+### `focusGrid(): void`
+
+Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,
+and the menu keys open a row's menu. An empty table's body takes it where there are no rows.
+Nothing while the table is loading. Called before the table is drawn, once it is.
 
 ### `expand(ids: Iterable<string>): void`
 
@@ -404,6 +464,34 @@ export interface AddTileDetail {
   className: string;
   section: string;
   label: string;
+}
+```
+
+### `dex-expansion-changed`
+
+The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection
+whose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`.
+
+`detail` is a `ExpansionChangedDetail`:
+
+```ts
+/** What `dex-expansion-changed` carries: every row shown open now. */
+export interface ExpansionChangedDetail {
+  expandedIds: string[];
+}
+```
+
+### `dex-table-scrolled`
+
+The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`).
+
+`detail` is a `TableScrolledDetail`:
+
+```ts
+/** What `dex-table-scrolled` carries: where the rows are scrolled to, in pixels. */
+export interface TableScrolledDetail {
+  top: number;
+  left: number;
 }
 ```
 
@@ -602,7 +690,16 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-muted` | `#666` |  |
 | `--dex-color-text-secondary` | `#555` |  |
+| `--dex-diff-added` | `#2e7d32` | A compare's marks (dex-tree-table's `diffMarks`): each kind's bar at a row's left edge (3:1 against the rows), its wash, a differing cell's deeper wash, and a gap row's hatching. |
+| `--dex-diff-added-bg` | `rgba(46, 125, 50, 0.1)` |  |
+| `--dex-diff-cell-bg` | `rgba(180, 83, 9, 0.2)` |  |
+| `--dex-diff-changed` | `#b45309` |  |
+| `--dex-diff-changed-bg` | `rgba(180, 83, 9, 0.08)` |  |
+| `--dex-diff-gap-stripe` | `rgba(0, 0, 0, 0.1)` |  |
+| `--dex-diff-removed` | `#c62828` |  |
+| `--dex-diff-removed-bg` | `rgba(198, 40, 40, 0.09)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |
 | `--dex-frozen-shade` | `8px 0 6px -3px rgba(0, 0, 0, 0.28)` | The shade the table's columns slide under once the frozen Name column holds content back: one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the blur so the shade stays a band to the right of the column. |
 | `--dex-row-height` | `28px` |  |
 | `--dex-selection-fg` | `#333` | The ink on a selected row, whose surface is --dex-color-accent-bg. |

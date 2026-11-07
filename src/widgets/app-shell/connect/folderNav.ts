@@ -83,6 +83,12 @@ export interface FolderNavContext {
   open(path: string, side: boolean): void;
   /** Close the tab of the file `uri`, asking first about unsaved edits. */
   close(uri: string): void;
+  /** The rows taken into the tree's selection (its `selectedItems`), in the tree's order. */
+  selected(): readonly HierarchyItem[];
+  /** Open the file at `path` in a tab kept, and ask which file to compare it with (Compare With…). */
+  compareWith(path: string): void;
+  /** Open the files at `first` and `second` in tabs kept, and compare the first with the second. */
+  compare(first: string, second: string): void;
   /** Say something briefly (a toast and the Log). */
   said(text: string): void;
   /** Something could not be done: say so. */
@@ -253,8 +259,9 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
     );
   }
 
-  // A row's menu: a data file opens, beside the others or not, and closes; a folder becomes the
-  // workspace folder; and any row of a file or a folder reveals it and copies its path. A row of
+  // A row's menu: a data file opens, beside the others or not, is compared with another (and with
+  // the one other data file taken into the selection with it, first), and closes; a folder becomes
+  // the workspace folder; and any row of a file or a folder reveals it and copies its path. A row of
   // neither (External Data, an unresolved reference, a notice) has none.
   function rowMenu({ item, x, y, keyboard }: HierarchyMenuDetail): void {
     const path = rowPath(item);
@@ -263,10 +270,19 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
     const head: Entry[] = [];
     if (isDataRow(item)) {
       const uri = item.id!;
+      // Two data files' rows selected, this one among them: the two compared, in the tree's order.
+      const pair = context.selected();
+      if (pair.length === 2 && pair.every(isComparedRow) && pair.some((p) => p.key === item.key)) {
+        const [first, second] = pair.map((p) => rowPath(p));
+        if (first !== undefined && second !== undefined) {
+          head.push({ item: { id: 'folder-row-compare-selected', label: 'Compare Selected', icon: 'compareUI' }, act: () => context.compare(first, second) });
+        }
+      }
       head.push(
         { item: { id: 'folder-row-open', label: 'Open' }, act: () => context.open(path, false) },
         { item: { id: 'folder-row-side', label: 'Open to the Side' }, act: () => context.open(path, true) },
       );
+      if (isComparedRow(item)) head.push({ item: { id: 'folder-row-compare', label: 'Compare With…', icon: 'compareUI' }, act: () => context.compareWith(path) });
       if (context.isOpen(uri)) head.push({ item: { id: 'folder-row-close', label: 'Close', icon: 'close' }, act: () => context.close(uri) });
     } else if (isFolderRow(item) && host.openFolderAt && path !== context.folder()?.root) {
       // The root's row is the workspace folder already.
@@ -330,6 +346,11 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
 /** A row of a file the app opens: a data file's, its own or a reference's. */
 function isDataRow(item: HierarchyItem): boolean {
   return !item.dimmed && item.id !== undefined && (item.kind === 'model' || item.kind === 'sldd' || item.kind === 'mat' || item.kind === 'project');
+}
+
+/** A data file's row a compare reads: a file the app opens, but a project, which opens on a page and has no table. */
+function isComparedRow(item: HierarchyItem): boolean {
+  return isDataRow(item) && item.kind !== 'project';
 }
 
 /** A folder's row of a FolderTree's (a project's folder among them): a folder that can be made the workspace folder. */

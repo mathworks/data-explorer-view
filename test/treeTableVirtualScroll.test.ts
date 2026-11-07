@@ -400,6 +400,29 @@ describe('the panel is remeasured as it resizes', () => {
       table.remove();
     });
 
+    it("takes its first height from the observer's first callback, not from inside its first update", async () => {
+      // A table given its rows before its first render (each of a compare's two) draws its grid
+      // in that render. Measuring it there set state inside the update: a second render at once,
+      // and Lit's change-in-update warning in every app's dev console. The observer's first
+      // callback comes before the first paint, so the first frame's window is the panel's.
+      const table = new DexTreeTable();
+      table.columns = ['Name', 'Value', 'DataType', 'Status'];
+      const rows: TreeTableRow[] = [];
+      for (let i = 0; i < 300; i++) rows.push(makeRow('r' + i));
+      table.rows = rows;
+      document.body.appendChild(table);
+      // true: the update finished with no other one asked for.
+      expect(await table.updateComplete).toBe(true);
+      expect((table as any)._container).toBeTruthy();
+      expect(fire).not.toBeNull();
+      setHeight(table, 520);
+      fire!();
+      expect(await table.updateComplete).toBe(true);
+      expect((table as any)._viewportHeight).toBe(520);
+      expect(renderedIds(table).length).toBeGreaterThan(520 / ROW_H);
+      table.remove();
+    });
+
     it('ignores a zero height, so a collapsed panel does not shrink the window', async () => {
       // A hidden or collapsing panel measures 0. Adopting that would leave the
       // window empty, and it would stay empty after the panel came back if no

@@ -59,6 +59,10 @@ export interface TreeTableRow {
   // the second; nothing here computes either, so both spellings stay core's.
   _systemPath?: string;
   _blockPath?: string;
+  // A section row's count of its file's entries, where the rows under it are not all of them:
+  // a compare's heading, whose lines leave out the entries with no difference and hold the
+  // other file's gaps. Absent, the table counts the rows under the section.
+  _entryCount?: number;
   /**
    * Every other cell the row has, by column key: a dictionary entry's `Min`, `Max`, `Unit`, …,
    * a block row's parameter links. Each column's cell has a shape of its own, which the table

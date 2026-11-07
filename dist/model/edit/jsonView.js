@@ -33,6 +33,7 @@ import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange } from './refusal.js';
 import { NOT_FOUND_REASON, reach } from './registers.js';
 import { baselineOwed, diskBaselineUsable, sameDiskStamp } from './slddBaseline.js';
+import { replacingOrRefuse } from './replacing.js';
 import { runTransfer } from './transfer.js';
 import { wideLanding } from './wideRepaint.js';
 /**
@@ -1130,6 +1131,19 @@ export class JsonView {
         const registers = this.doc.options.registers;
         const register = registers.dragRegister(mode, () => registers.broadcastDragState());
         return this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps())).then(() => undefined, () => undefined);
+    }
+    // A copy that takes the place of entries of this document (a compare's Copy to Right): read on
+    // arrival as a drop is, the register and the entries it replaces both, and queued as a drop is.
+    // The entries go out in the commit's text, before the paste, as a same-document move's do.
+    dropReplacing(rowId, replacing) {
+        if (this.disposed)
+            return;
+        const registers = this.doc.options.registers;
+        const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+        const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+        if (!selectors)
+            return;
+        return this.queueStructural(() => runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps())).then(() => undefined, () => undefined);
     }
     addEntry(msg) {
         if (this.disposed)

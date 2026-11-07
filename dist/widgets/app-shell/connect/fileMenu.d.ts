@@ -12,6 +12,10 @@ export interface FileMenuActions<T extends ShellTab> {
     tabOf(fileId: string): T | undefined;
     save(tab: T, as: boolean): void;
     close(tab: T): void;
+    /** Whether `tab` is a file a compare reads: Compare With… is enabled. */
+    comparable(tab: T): boolean;
+    /** Ask which file to compare `tab`'s with (Compare With…). */
+    compareWith(tab: T): void;
 }
 /** Answer `explorer`'s file menus with `menu`; returns what stops it. */
 export declare function connectFileMenu<T extends ShellTab>(explorer: DexExplorer, menu: DexContextMenu, actions: FileMenuActions<T>): () => void;

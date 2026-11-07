@@ -144,6 +144,15 @@ export interface EditingWire {
      */
     drop(rowId: string, mode: DragMode): Promise<DropResult>;
     /**
+     * With `editing`: `drop(rowId, 'copy')` with the entries of `replacing` (rows of this table's
+     * document) taken out first in the same edit (the source's `dropReplacing`): one edit of this
+     * document, undone by one Undo. Until core can paste in place, the copy goes last in its section.
+     * Judged and settled as `drop` is (dropDecision first, then the
+     * source's promise and a task). A source without `dropReplacing` refuses it:
+     * `{ dropped: false, count, reason: '<file> does not replace entries.' }`. No `ran` is told.
+     */
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<DropResult>;
+    /**
      * The source said an error (the banner's, `reason`): no gesture handed to it this task is told as
      * done.
      */

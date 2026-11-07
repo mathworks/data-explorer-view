@@ -135,7 +135,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual(['next-tab', 'back']);
   });
 
-  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette, Root's graph and the panes'", () => {
+  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette, Root's graph, the panes' and a compare's", () => {
     onPlatform('Win32');
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
@@ -163,6 +163,8 @@ describe('the shell answers its chords', () => {
       'forward',
       'up',
       'show-graph',
+      'next-change',
+      'previous-change',
       'settings',
       'palette',
       'palette',

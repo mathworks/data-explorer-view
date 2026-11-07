@@ -23,6 +23,7 @@ import { documentDrop } from '../../model/actions/documentDrop.js';
 import { dropDecision, type DragMode, type DropDecision, type DropTarget } from '../../model/actions/dropDecision.js';
 import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
 import type { SectionRule } from '../../model/actions/sectionRules.js';
+import { fileNameOf } from '../../model/ids/pathUtil.js';
 import { buildSectionRowId, sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
 import type { CellEdit, EditableTableSource, TableChange, TableView } from '../../model/source/tableSource.js';
 import type { DragDescriptor } from '../../model/source/wire.js';
@@ -181,6 +182,15 @@ export interface EditingWire {
    * that returns none), with whether the source refused it.
    */
   drop(rowId: string, mode: DragMode): Promise<DropResult>;
+  /**
+   * With `editing`: `drop(rowId, 'copy')` with the entries of `replacing` (rows of this table's
+   * document) taken out first in the same edit (the source's `dropReplacing`): one edit of this
+   * document, undone by one Undo. Until core can paste in place, the copy goes last in its section.
+   * Judged and settled as `drop` is (dropDecision first, then the
+   * source's promise and a task). A source without `dropReplacing` refuses it:
+   * `{ dropped: false, count, reason: '<file> does not replace entries.' }`. No `ran` is told.
+   */
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<DropResult>;
   /**
    * The source said an error (the banner's, `reason`): no gesture handed to it this task is told as
    * done.
@@ -451,7 +461,17 @@ export function wireEditing(host: EditingHost): EditingWire {
   // in the page has refused it; then a task more, for what the source said as it ended to reach the
   // table. Refused if the source refused anything meanwhile, as `ran` is not told: a refusal does not
   // say which gesture it was about.
-  const dropFromOutside = (rowId: string, mode: DragMode): Promise<DropResult> => {
+  //
+  // A replacing drop (a compare's Copy to Right) is judged and settled the same way, as a copy, and
+  // handed to the source's `dropReplacing`; a source without one is no target for it.
+  const dropFromOutside = (rowId: string, mode: DragMode): Promise<DropResult> =>
+    dropJudged(rowId, mode, (s) => s.drop(rowId, mode));
+  const dropReplacing = (rowId: string, replacing: readonly string[]): Promise<DropResult> =>
+    dropJudged(rowId, 'copy', (s) => {
+      if (typeof s.dropReplacing !== 'function') throw new Error(`${fileNameOf(host.docUri())} does not replace entries.`);
+      return s.dropReplacing(rowId, replacing);
+    });
+  const dropJudged = (rowId: string, mode: DragMode, give: (s: EditableTableSource) => void | Promise<void>): Promise<DropResult> => {
     const count = editable && dragDescriptor ? dragDescriptor.items.length : 0;
     const decision = dropDecisionFor(rowId, mode);
     if (!source || !decision?.canDrop || (rowId === '' && !wholeFileRule())) {
@@ -462,7 +482,7 @@ export function wireEditing(host: EditingHost): EditingWire {
     dropping.add(w);
     let answer: void | Promise<void>;
     try {
-      answer = source.drop(rowId, mode);
+      answer = give(source);
     } catch (err) {
       dropping.delete(w);
       return Promise.resolve({ dropped: false, count, reason: err instanceof Error ? err.message : String(err) });
@@ -775,6 +795,7 @@ export function wireEditing(host: EditingHost): EditingWire {
     history,
     dropDecision: dropDecisionFor,
     drop: dropFromOutside,
+    dropReplacing,
     failed: refused,
   };
 }

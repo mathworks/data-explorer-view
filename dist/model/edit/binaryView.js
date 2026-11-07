@@ -28,6 +28,7 @@ import { sectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange } from './refusal.js';
 import { NOT_FOUND_REASON, reach } from './registers.js';
+import { replacingOrRefuse } from './replacing.js';
 import { runTransfer } from './transfer.js';
 /**
  * Run a patch or op-list builder, or give up. Every op list is a best effort: serializing an entry,
@@ -764,6 +765,18 @@ export class BinaryView {
             return;
         const registers = this.doc.options.registers;
         return runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()).then(() => undefined, () => undefined);
+    }
+    // A copy that takes the place of entries of this document (a compare's Copy to Right): the entries
+    // go out of chunkXml and the model in the commit, before the paste, as a same-document move's do.
+    dropReplacing(rowId, replacing) {
+        if (this.closed)
+            return;
+        const registers = this.doc.options.registers;
+        const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+        const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+        if (!selectors)
+            return;
+        return runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps()).then(() => undefined, () => undefined);
     }
     // --- Undo, redo, and the whole text of a Value ---------------------------------------------------
     /** Where the document's undo stack stands, as the engine was given it (its `history`). */

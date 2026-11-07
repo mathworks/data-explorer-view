@@ -55,6 +55,8 @@ import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf } from './toolbarItems.js';
 import { carryOut, showRootFrom } from './carryOut.js';
+import { connectCompare } from './compare.js';
+import { comparable, compareChoices } from './comparePick.js';
 import { paletteCommands } from './paletteItems.js';
 import { copiedNote, linkRequestOf, NO_LINK, OPEN_URL_PROMPT } from './shareLinks.js';
 import { SHELL_VIEWS, viewOfCommand } from './views.js';
@@ -102,6 +104,10 @@ export function connectShell(shell, options) {
     const stops = [];
     // The open tabs, in one pane or two (tabs.ts): the active tab is the one the focused pane shows.
     const tabs = new TabList();
+    // The tabs of files: every tab but a compare's, which shows two of them and is a file of neither.
+    const fileTabs = () => tabs.items.filter((t) => !t.compare);
+    // A file's tab by its uri (another spelling of the path is the same file); never a compare tab.
+    const tabOfFile = (uri) => tabs.find((t) => !t.compare && sourceUri(t.path) === uri);
     // Each pane's row of tabs, the first's the shell's own, a second's made as a second pane comes;
     // and the divider between two panes where the user left it, kept with the layout.
     const paneRows = new PaneRows(docs, strip);
@@ -115,7 +121,7 @@ export function connectShell(shell, options) {
     // open (a tab opened, closed, saved or reloaded; refresh() tells it) repaints, once the burst is
     // over, each table whose column was answered over other tabs than are open now.
     const openUsage = createOpenFilesUsage({
-        files: () => tabs.items.flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
+        files: () => fileTabs().flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
         refill(uris) {
             if (disposed || folderNow())
                 return;
@@ -181,7 +187,8 @@ export function connectShell(shell, options) {
         system,
         appName,
         about: options.about ?? [],
-        tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
+        // A compare tab's two tables are ruled as the files' are.
+        tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : t.compare ? t.compare.tables : [])),
         layoutGraph: (layout) => graph.setLayout(layout),
     });
     stops.push(() => popovers.dispose());
@@ -210,7 +217,10 @@ export function connectShell(shell, options) {
             if (!tab)
                 return false;
             activate(tab);
-            if (place.rowId === null)
+            // A compare tab's place is its lines' selection.
+            if (tab.compare)
+                tab.compare.select(place.rowId === null ? [] : [place.rowId]);
+            else if (place.rowId === null)
                 clearSelection(tab);
             else
                 tab.handle?.select([place.rowId]);
@@ -220,18 +230,19 @@ export function connectShell(shell, options) {
     const visit = () => nav.visit();
     // The location bar's segments as last drawn: what a press on one names.
     let located = [];
-    // The inspector and the folder's tree follow the active tab.
+    // The inspector and the folder's tree follow the active tab: the folder, a file's tab only.
     const follow = () => {
         followInspector();
-        if (tabs.active)
+        if (tabs.active && !tabs.active.compare)
             folderNow()?.reveal(sourceUri(tabs.active.path));
     };
     // The inspector's feed: the active tab's table; at Root, a page of the file selected in the graph
     // (the same feed while it is the same page), or none.
     let rootPage = null;
     function followInspector() {
+        // A compare tab's page is its selected line's differences.
         if (tabs.active)
-            return inspector.follow(tabs.active.handle ?? null);
+            return inspector.follow(tabs.active.handle ?? tabs.active.compare?.feed ?? null);
         const file = tabs.items.length > 0 ? graph.selectedFile() : null;
         if (file !== rootPage?.file)
             rootPage = file ? { file, feed: pageFeed(file) } : null;
@@ -271,7 +282,7 @@ export function connectShell(shell, options) {
             if (disposed)
                 return;
             const active = tabs.active;
-            const marks = new Map(tabs.items.map((t) => [
+            const marks = new Map(fileTabs().map((t) => [
                 sourceUri(t.path),
                 { open: true, ...(t === active ? { active: true } : {}), ...(t.dirty ? { unsaved: true } : {}), ...(t.preview ? { preview: true } : {}) },
             ]));
@@ -296,6 +307,8 @@ export function connectShell(shell, options) {
     const toolbarState = () => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac(), !!host.newFile);
     // What a file's tooltips say of its path: the host's words for it, if its paths are of its making.
     const titleOf = (path) => host.pathTitle?.(path) ?? path;
+    // A tab's tooltip: its file's path, or a compare tab's two.
+    const titleOfTab = (t) => (t.compare ? `${titleOf(t.compare.left.path)} ↔ ${titleOf(t.compare.right.path)}` : titleOf(t.path));
     function refresh() {
         const active = tabs.active;
         // First: at Root, the location bar draws the file the inspector shows.
@@ -305,15 +318,16 @@ export function connectShell(shell, options) {
         // else follows a selection; hidden at Root, where the graph fills the center, and with no file open.
         if (!active && paneRows.holdsFocus())
             rootTakesTheKeyboard();
-        paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOf(t.path)));
-        explorer.files = explorerFiles(tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })));
+        paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOfTab(t)));
+        // The Explorer lists files: a compare is a tab of two of them, and none itself.
+        explorer.files = explorerFiles(fileTabs().map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })));
         // The rows the active table holds now: its paint, the entries repainted since, the children
         // it was answered; none for a project page or a file still being read.
         const rows = active?.table?.rows ?? [];
         const rowId = here().rowId;
         const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
         explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-        const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
+        const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOfTab(active) } : null;
         const at = locationOf(place, active?.selection ?? null, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
         nav.located(at);
         located = at.segments;
@@ -483,8 +497,9 @@ export function connectShell(shell, options) {
         if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab))
             close(tab);
     }
-    // The tabs a tab's menu's Close Others closes: the others of `keep`'s own pane.
-    const othersOf = (keep) => (tabs.panes[tabs.paneOf(keep)]?.items ?? []).filter((t) => t !== keep);
+    // The tabs a tab's menu's Close Others closes: the others of `keep`'s own pane; a compare tab's
+    // two files are its own, and stay.
+    const othersOf = (keep) => (tabs.panes[tabs.paneOf(keep)]?.items ?? []).filter((t) => t !== keep && !keep.compare?.involves(t));
     // Several tabs to close (a tab's menu's Close Others): their edits committed as a close commits
     // one's, one question about all their unsaved edits, and each closed, if it is still open, once
     // they are saved or let go.
@@ -500,15 +515,22 @@ export function connectShell(shell, options) {
             if (tabs.items.includes(tab))
                 close(tab);
     }
-    // A tab's listeners, table and document let go, and the host told its file is closed.
+    // A tab's listeners, table and document let go, and the host told its file is closed. A compare
+    // tab's connection let go: it holds no file of its own to tell the host of.
     function release(tab) {
         for (const stop of tab.stops.splice(0))
             stop();
+        if (tab.compare)
+            return tab.compare.dispose();
         tab.handle?.dispose();
         tab.doc?.dispose();
         host.closeFile?.(tab.path);
     }
     function close(tab) {
+        // A file's compares go with it: each draws it, and would draw nothing.
+        if (!tab.compare)
+            for (const other of tabs.items.filter((t) => t.compare?.involves(tab)))
+                close(other);
         release(tab);
         tab.panel.remove();
         const before = tabs.active;
@@ -530,7 +552,7 @@ export function connectShell(shell, options) {
         // A file by its uri, as the workspace knows it: on Windows the folder's tree and a link spell
         // the path File > Open gave (`C:\work\x.sldd`) as `c:\work\x.sldd` and `C:\work/x.sldd`.
         const uri = sourceUri(path);
-        const existing = tabs.find((t) => sourceUri(t.path) === uri);
+        const existing = tabOfFile(uri);
         if (existing) {
             if (!how.preview)
                 pin(existing);
@@ -582,7 +604,7 @@ export function connectShell(shell, options) {
             // read, past the close it heard, so it is told again, unless a tab opened since holds the file
             // (by its uri: another spelling of the path is the same file).
             if (!tabs.items.includes(tab)) {
-                if (!tabs.find((t) => sourceUri(t.path) === uri))
+                if (!tabOfFile(uri))
                     host.closeFile?.(path);
                 return;
             }
@@ -730,16 +752,16 @@ export function connectShell(shell, options) {
             tab.stops.push(stop);
         });
     }
-    // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
-    // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
-    // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
-    // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
     // Copy Link, for a host that makes links (ShellHost.linkFor): its address for every open file,
     // pane by pane, at `tab`'s selection (the active tab's, a tab's menu's own; none at Root), on the
     // clipboard. Asked of the host at once, as it answers, also as the palette and a tab's menu open
-    // (linkAt), to grey the command while no open file has an address.
-    const openFiles = () => tabs.panes.flatMap((pane) => pane.items).map(({ path, name }) => ({ path, name }));
-    const linkTabOf = (tab) => tab && { path: tab.path, selection: tab.selection, rows: tab.table?.rows ?? [] };
+    // (linkAt), to grey the command while no open file has an address. A compare tab is no file: its
+    // two files are among the open ones, and its link is at none of them, as Root's is.
+    const openFiles = () => tabs.panes
+        .flatMap((pane) => pane.items)
+        .filter((t) => !t.compare)
+        .map(({ path, name }) => ({ path, name }));
+    const linkTabOf = (tab) => tab && !tab.compare ? { path: tab.path, selection: tab.selection, rows: tab.table?.rows ?? [] } : undefined;
     const linkAt = (tab) => host.linkFor?.(linkRequestOf(openFiles(), linkTabOf(tab)));
     async function copyLink(tab) {
         if (!host.linkFor)
@@ -756,6 +778,10 @@ export function connectShell(shell, options) {
             failed(`Could not copy the link: ${message(err)}`);
         }
     }
+    // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
+    // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
+    // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
+    // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
     async function copyEntryLink(tab, rowId) {
         const at = rowId === null ? undefined : linkedEntryOf(tab.table?.rows ?? [], rowId);
         if (!at)
@@ -787,7 +813,7 @@ export function connectShell(shell, options) {
         if (disposed)
             return;
         const name = basenameOf(path);
-        const holder = tabs.find((t) => sourceUri(t.path) === sourceUri(path));
+        const holder = tabOfFile(sourceUri(path));
         if (holder)
             return keepOpenFile(holder, name);
         if (!isSlddFile(path)) {
@@ -837,6 +863,105 @@ export function connectShell(shell, options) {
         // In order, so the last one named ends up active.
         return paths.reduce((prev, p) => prev.then(() => (disposed ? undefined : open(p))), Promise.resolve()).then(() => undefined);
     }
+    // --- Comparing ---------------------------------------------------------------------------------
+    // Why a tab is not one a compare reads, as the end of "Could not compare a with b: a …".
+    const notComparable = (tab) => tab.compare
+        ? 'is a comparison'
+        : isProjectFile(tab.path)
+            ? 'is a project, which has no table'
+            : !tab.doc || (tab.table && !tab.table.loading && !tab.handle?.view)
+                ? 'could not be read'
+                : 'is not shown yet';
+    /**
+     * Compare `left` with `right` in a tab of their own, once both are read: their compare tab if
+     * there is one of the two in that order, else a new one, both files' tabs kept (no longer
+     * previews), as the compare draws them.
+     */
+    async function compare(left, right) {
+        await Promise.all([left.ready, right.ready]);
+        if (disposed || !isOpen(left) || !isOpen(right))
+            return;
+        const cannot = [left, right].find((t) => !comparable(t));
+        if (cannot)
+            return failed(`Could not compare ${left.name} with ${right.name}: ${cannot.name} ${notComparable(cannot)}`);
+        const existing = tabs.find((t) => t.compare?.left === left && t.compare.right === right);
+        if (existing)
+            return activate(existing);
+        pin(left);
+        pin(right);
+        const panel = document.createElement('section');
+        panel.className = 'doc-panel';
+        panel.setAttribute('role', 'tabpanel');
+        panel.dataset.compare = '';
+        docs.append(panel);
+        const tab = { id: `tab-${++nextId}`, path: '', name: `${left.name} ↔ ${right.name}`, panel, selection: [], stops: [], ready: Promise.resolve() };
+        tabs.add(tab);
+        tab.compare = connectCompare(tab, left, right, {
+            tableStyle: () => popovers.tableStyle(),
+            storageKey: `${key}:compare`,
+            titleOf,
+            selected(lineIds) {
+                tab.selection = lineIds;
+                if (tab === tabs.active)
+                    visit();
+                later();
+            },
+            say,
+            menu,
+            showIn(file, rowId) {
+                if (!isOpen(file))
+                    return;
+                activate(file);
+                file.handle?.select([rowId]);
+            },
+        });
+        shown();
+        await tab.compare.refresh();
+        log('info', `Comparing ${left.name} with ${right.name}`);
+    }
+    // Compare With…'s question, asked in the palette for the file `from`, answered by `picked`.
+    let comparing = null;
+    function compareWith(from) {
+        if (disposed || parts.modalOpen())
+            return;
+        // The shell's own menus offer no Compare With… on a compare tab or a project's, a host's native
+        // menu has the item everywhere: said at once, rather than after a file is picked.
+        if (from.compare)
+            return say('info', "A comparison can't be compared with another file.");
+        if (isProjectFile(from.path))
+            return say('info', `${from.name} is a project, which has no table: only data files are compared.`);
+        popovers.closeAll();
+        comparing = from;
+        parts.palette.show(compareChoices(from, tabs.items, titleOf), { placeholder: `Compare ${from.name} with…`, remember: false });
+    }
+    // A row of Compare With…'s question: another open file's tab, or Browse…, which asks the host's
+    // picker for one, opened (kept) and compared once it is shown. A picker that could not be shown
+    // says why, as Open File's does; one the user cancelled says nothing.
+    function picked(id) {
+        const from = comparing;
+        comparing = null;
+        if (!from || !isOpen(from))
+            return;
+        if (id !== 'browse') {
+            const other = tabs.find((t) => t.id === id);
+            if (other)
+                void compare(from, other);
+            return;
+        }
+        void host.pickFiles().then(async (paths) => {
+            const path = paths[0];
+            if (path === undefined || disposed)
+                return;
+            // Compared once it is shown (paintedRows): a tab's `ready` settles a moment before its rows.
+            const other = await open(path);
+            await paintedRows(other);
+            if (isOpen(from) && isOpen(other))
+                await compare(from, other);
+        }, (err) => {
+            if (!(err instanceof Error && err.name === 'AbortError'))
+                failed(`Could not open a file: ${message(err)}`);
+        });
+    }
     // --- Files changed on disk ---------------------------------------------------------------------
     // A reload unasked, or one that failed, said in the Log once it is done (an answer is said as given).
     const reloads = new ReloadGate({
@@ -864,7 +989,11 @@ export function connectShell(shell, options) {
             if (parts.modalOpen())
                 return;
             popovers.closeAll();
-            return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, hostCommands()));
+            const active = tabs.active;
+            return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, hostCommands(), {
+                canCompare: !!active && comparable(active),
+                hasChanges: !!active?.compare?.hasChanges,
+            }));
         }
         const view = viewOfCommand(id);
         if (view) {
@@ -900,6 +1029,7 @@ export function connectShell(shell, options) {
         // Open from URL…'s address, asked in the shell's dialog in turn with its questions.
         askUrl: () => questions.prompt(OPEN_URL_PROMPT),
         copyLink: (tab) => void copyLink(tab),
+        compareWith,
     };
     // What the palette offers of the host's optional members, as they stand as it opens.
     const hostCommands = () => ({ openUrl: !!host.fetchUrl, copyLink: linkState(tabs.active) });
@@ -938,7 +1068,7 @@ export function connectShell(shell, options) {
     stops.push(() => modules.dispose());
     // Root's relationship graph (graphPane.ts), over the tabs' bytes and the folder's files.
     const graph = connectGraphPane(parts.graph, {
-        tabs: () => tabs.items,
+        tabs: fileTabs,
         folder: folderNow,
         shown: () => !disposed && !tabs.active && tabs.items.length > 0,
         open: openOn,
@@ -997,15 +1127,20 @@ export function connectShell(shell, options) {
                 modules.shown(view);
             later();
         },
+        picked,
+        compareWith,
     }));
     // New's chord only for a host that makes files, asked at each press as the host's members are.
     // Mod+1 and Mod+2 only while the documents are in two panes: with one, they are the browser's,
-    // which switches its own tabs by them.
+    // which switches its own tabs by them. F7 and Shift+F7 only while a compare tab is active: they are
+    // the browser's caret browsing everywhere else.
     const offers = (id) => {
         if (id === 'new-file')
             return !!host.newFile;
         if (id === 'focus-pane-1' || id === 'focus-pane-2')
             return tabs.panes.length > 1;
+        if (id === 'next-change' || id === 'previous-change')
+            return !!tabs.active?.compare;
         return true;
     };
     stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers }));
@@ -1028,7 +1163,7 @@ export function connectShell(shell, options) {
     // --- The folder --------------------------------------------------------------------------------
     // The Folder view's bar and menus (folderNav.ts): a move asks the host, which shows the folder
     // it moved to as it shows any; a row's file opens, beside the others or not, and closes.
-    const tabOfUri = (uri) => tabs.find((t) => sourceUri(t.path) === uri);
+    const tabOfUri = tabOfFile;
     const folderNav = connectFolderNav({
         host,
         part: folderPart,
@@ -1046,6 +1181,24 @@ export function connectShell(shell, options) {
             const tab = tabOfUri(uri);
             if (tab)
                 void requestClose(tab);
+        },
+        selected: () => tree.selectedItems,
+        // A row's file opened for good (not a preview), once it is shown, then asked about or compared.
+        compareWith(path) {
+            void open(path).then(async (tab) => {
+                // A file that could not be shown is asked about by no one: its banner says why.
+                if ((await paintedRows(tab)) && isOpen(tab))
+                    compareWith(tab);
+            });
+        },
+        compare(first, second) {
+            void (async () => {
+                const a = await open(first);
+                const b = await open(second);
+                await Promise.all([paintedRows(a), paintedRows(b)]);
+                if (isOpen(a) && isOpen(b))
+                    await compare(a, b);
+            })();
         },
         said: (text) => say('info', text, 2000),
         failed,
@@ -1117,7 +1270,7 @@ export function connectShell(shell, options) {
         fileChanged(path) {
             // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
             const uri = sourceUri(path);
-            const tab = disposed ? undefined : tabs.find((t) => sourceUri(t.path) === uri);
+            const tab = disposed ? undefined : tabOfFile(uri);
             // A clean document takes the disk's file without asking; one with edits is asked first.
             if (tab?.doc)
                 void reloads.changedOnDisk(tab, tab.doc.dirty);

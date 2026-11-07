@@ -189,6 +189,7 @@ export declare class JsonView implements EditableTableSource {
     addChild(rowId: string): void;
     paste(rowId: string): void;
     drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void;
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void;
     addEntry(msg: NewEntry): void;
     /**
      * Create ONE new default entry from the Add gallery: a paste with no source, always narrow. Through
