@@ -48,6 +48,8 @@ export type { CellEdit, ChildRows, ClipboardStatus, EditableTableSource, EditHis
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+export { readEntries } from './source/entries.js';
+export type { EntrySection } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 export { formatHex, tokenizeJson, tokenizeXml } from './raw/rawView.js';
 export type { RawToken, RawTokenKind, RawView } from './raw/rawView.js';
@@ -66,6 +68,8 @@ export { createUsageRepostHub } from './usage/usageRepostHub.js';
 export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usage/usageRepostHub.js';
 export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
+export type { CheckFinding, CheckFindingKind, CheckFolderOptions, FolderCheck, ReferenceRelation } from './check/folderCheck.js';
 export { NameIndex } from './search/nameIndex.js';
 export type { NameIndexOptions } from './search/nameIndex.js';
 export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
