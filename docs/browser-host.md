@@ -175,7 +175,7 @@ An address may come from a link anyone wrote, so the host holds every one to the
 - A GitHub or GitLab file page is a web page around the file: the raw file behind it is fetched.
   github.com's `/<owner>/<repo>/blob/<ref>/<path>` and `/<owner>/<repo>/raw/<ref>/<path>` are
   fetched from `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`, and a GitLab
-  project's `/-/blob/` from its `/-/raw/` on the same host (gitlab.com, or a company's own); the
+  project's `/-/blob/` from its `/-/raw/` on the same host (GitLab's own site, or a company's); the
   page's query and fragment are dropped. Any other address is fetched as given, its query kept and
   its fragment dropped. GitHub Enterprise is not rewritten: its `/blob/` cannot be told from any
   other site's path.

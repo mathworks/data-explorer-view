@@ -89,10 +89,10 @@ describe('urlTargetOf', () => {
   });
 
   it("fetches a GitLab file page's raw file, on any host and under nested groups", () => {
-    expect(targetOf('https://gitlab.com/group/sub/plant/-/blob/v1.0/data/params.sldd').url).toBe(
-      'https://gitlab.com/group/sub/plant/-/raw/v1.0/data/params.sldd',
+    expect(targetOf('https://code.example.com/group/sub/plant/-/blob/v1.0/data/params.sldd').url).toBe(
+      'https://code.example.com/group/sub/plant/-/raw/v1.0/data/params.sldd',
     );
-    expect(targetOf('https://gitlab.example.org/team/plant/-/blob/main/a.sldd').url).toBe('https://gitlab.example.org/team/plant/-/raw/main/a.sldd');
+    expect(targetOf('https://git.example.org/team/plant/-/blob/main/a.sldd').url).toBe('https://git.example.org/team/plant/-/raw/main/a.sldd');
   });
 
   it('fetches any other address as given, its query kept and its fragment dropped', () => {
