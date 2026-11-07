@@ -87,7 +87,7 @@ export function connectRequests(shell, parts, on) {
     // A tab's menu: Close, Close Others and Copy Link for that tab.
     stops.push(connectTabMenu(parts.docs, parts.menu, {
         tabOf: on.tabOf,
-        tabs: on.tabs,
+        others: on.others,
         close: on.close,
         closeOthers: on.closeOthers,
         link: on.link,

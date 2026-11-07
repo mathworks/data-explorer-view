@@ -3,10 +3,10 @@ import type { ShellTab } from './tabs.js';
 /** What a tab's menu does, on the tab it was shown for. */
 export interface TabMenuActions<T extends ShellTab> {
     tabOf(id: string): T | undefined;
-    /** Every open tab, pane by pane. */
-    tabs(): readonly T[];
+    /** The tabs Close Others would close for `tab`: the others of its own pane. */
+    others(tab: T): readonly T[];
     close(tab: T): void;
-    /** Close every tab but `tab`, asking once about their unsaved edits. */
+    /** Close the others of `tab`'s pane, asking once about their unsaved edits, and make `tab` the active one. */
     closeOthers(tab: T): void;
     /** Copy Link's item at `tab`, asked at each menu: null without the host's linkFor, else whether it links a file. */
     link(tab: T): {

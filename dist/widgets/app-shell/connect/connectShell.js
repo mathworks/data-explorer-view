@@ -483,6 +483,8 @@ export function connectShell(shell, options) {
         if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab))
             close(tab);
     }
+    // The tabs a tab's menu's Close Others closes: the others of `keep`'s own pane.
+    const othersOf = (keep) => (tabs.panes[tabs.paneOf(keep)]?.items ?? []).filter((t) => t !== keep);
     // Several tabs to close (a tab's menu's Close Others): their edits committed as a close commits
     // one's, one question about all their unsaved edits, and each closed, if it is still open, once
     // they are saved or let go.
@@ -956,8 +958,13 @@ export function connectShell(shell, options) {
         tabOf: (id) => tabs.find((t) => t.id === id),
         activate,
         close: (tab) => void requestClose(tab),
-        tabs: () => tabs.panes.flatMap((pane) => pane.items),
-        closeOthers: (keep) => void requestCloseMany(tabs.items.filter((t) => t !== keep)),
+        // Close Others closes the others of the tab's own pane, as an editor group's does, the tab
+        // made the active one first: what is left to look at is the tab the menu was asked of.
+        others: othersOf,
+        closeOthers(keep) {
+            activate(keep);
+            void requestCloseMany(othersOf(keep));
+        },
         link: linkState,
         copyLink: (tab) => void copyLink(tab),
         save: (tab, as) => void save(tab, as),

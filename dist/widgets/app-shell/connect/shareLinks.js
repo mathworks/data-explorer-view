@@ -14,7 +14,7 @@ import { linkedEntryOf } from './rows.js';
 /** What Open from URL… asks. */
 export const OPEN_URL_PROMPT = {
     title: 'Open from URL',
-    message: "The web address of a data dictionary, model or MAT-file. A GitHub file page, or a forge's …/-/blob/… link, works too.",
+    message: 'The web address of a data dictionary, model or MAT-file. A file page on GitHub, or one whose address has /-/blob/ in it, works too.',
     label: 'URL',
     placeholder: 'https://',
     type: 'url',
