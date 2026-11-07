@@ -107,9 +107,10 @@ export declare class DexHierarchy extends LitElement {
      */
     expandTopLevel: boolean;
     /**
-     * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:
-     * `selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain
-     * click or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.
+     * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,
+     * and so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row
+     * and `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as
+     * before. Default false: one row at a time. Attribute `multi-select`.
      */
     multiSelect: boolean;
     /** With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only. */
@@ -148,7 +149,9 @@ export declare class DexHierarchy extends LitElement {
     private _setOpen;
     private _focus;
     private _choose;
+    private _mod;
     private _onClick;
+    private _toggle;
     private _selectionChanged;
     private _announce;
     private _menu;

@@ -80,9 +80,10 @@ export class DexHierarchy extends LitElement {
          */
         this.expandTopLevel = false;
         /**
-         * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:
-         * `selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain
-         * click or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.
+         * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,
+         * and so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row
+         * and `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as
+         * before. Default false: one row at a time. Attribute `multi-select`.
          */
         this.multiSelect = false;
         /** With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only. */
@@ -468,13 +469,19 @@ export class DexHierarchy extends LitElement {
         this._announce(item);
         this._setOpen(item, !this._open.has(item.key));
     }
-    // A row's click: with `multiSelect` and the platform's Mod key held (Command on macOS, Control
-    // elsewhere, read at each press), the row taken into the selection or out of it, opening nothing;
-    // else the row chosen, as ever.
+    // Whether the platform's Mod key is held: Command on macOS, Control elsewhere, read at each press.
+    _mod(e) {
+        return isMacPlatform(navigator.platform || navigator.userAgent || '') ? e.metaKey : e.ctrlKey;
+    }
+    // A row's click: with `multiSelect` and Mod held, the row taken into the selection or out of it,
+    // opening nothing; else the row chosen, as ever.
     _onClick(e, item) {
-        const mod = isMacPlatform(navigator.platform || navigator.userAgent || '') ? e.metaKey : e.ctrlKey;
-        if (!this.multiSelect || !mod)
+        if (!this.multiSelect || !this._mod(e))
             return this._choose(item);
+        this._toggle(item);
+    }
+    // The row taken into the selection, or out of it (Mod+click, Mod+Space), opening nothing.
+    _toggle(item) {
         this._scrollKey = null;
         this._focusKey = item.key;
         const had = this.selectedKeys.includes(item.key);
@@ -543,6 +550,13 @@ export class DexHierarchy extends LitElement {
             const box = this._rowElement(line.item.key)?.getBoundingClientRect();
             this._keyMenu = true;
             this._menu({ item: line.item, x: box?.left ?? 0, y: box?.bottom ?? 0, keyboard: true });
+            return;
+        }
+        // Mod+Space on the focused row: taken into the selection, or out of it, as the tree pattern's
+        // Control+Space does, so a tree said to select several can be made to from the keyboard.
+        if (this.multiSelect && e.key === ' ' && this._mod(e) && !e.altKey && !e.shiftKey) {
+            e.preventDefault();
+            this._toggle(line.item);
             return;
         }
         const go = (to) => {

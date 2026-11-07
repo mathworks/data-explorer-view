@@ -5568,7 +5568,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:\n`selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain\nclick or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
               "attribute": "multi-select"
             },
             {
@@ -5672,7 +5672,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:\n`selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain\nclick or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
               "fieldName": "multiSelect"
             }
           ],
