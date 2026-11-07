@@ -610,6 +610,7 @@ shell runs.
 | `revealIn` | read for a project page's links and the Folder view's Reveal: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
 | `entryLink(target)` | a document row's menu: Copy Link to Entry puts its answer on the clipboard (`target.entry` is the entry's name, or a block's key for a block in a subsystem, as `app.openAt` takes it) | no such item |
+| `fetchUrl(url)` | Open from URL… (the palette, the welcome): the path the address's file opens by; a rejection is said in a toast | no Open from URL |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -699,6 +700,22 @@ default) goes by itself; a `'warning'` or an `'error'` stays until it is closed.
 
 ```js
 app.notify({ level: 'warning', text: 'samples/plant.slx could not be fetched: 404 Not Found' });
+```
+
+#### Open from URL and Copy Link
+
+A host that fetches files from web addresses gives the shell Open from URL… with
+`fetchUrl(url)`. The palette's File group (after Open Folder…) and the welcome
+offer it; it asks for the address in the shell's dialog, and the file opens at
+the path `fetchUrl` answers. A rejection is the user's to read: its message is
+said in a toast and the Log as the host words it ("… could not be fetched: 404
+Not Found"). The browser host has it with `browserHost({ openFromUrl: true })`,
+for a page whose Content-Security-Policy lets it fetch from `https:`
+([docs/browser-host.md](docs/browser-host.md) says which addresses it takes).
+
+```js
+const host = browserHost({ onFolder, onChanged, openFromUrl: true });
+const app = connectShell(shell, { host }); // Open from URL… in the palette and on the welcome
 ```
 
 A button of its own goes on an activity bar as a `<dex-shell-action>` the page

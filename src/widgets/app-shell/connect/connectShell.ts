@@ -76,7 +76,8 @@ import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
-import { paletteCommands, type PaneCommands } from './paletteItems.js';
+import { paletteCommands, type HostCommands, type PaneCommands } from './paletteItems.js';
+import { OPEN_URL_PROMPT } from './shareLinks.js';
 import { SHELL_VIEWS, viewOfCommand } from './views.js';
 import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle } from './types.js';
 
@@ -269,6 +270,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     docs.welcome = tabs.items.length === 0;
     parts.graphPanel.hidden = !!active || tabs.items.length === 0;
     docs.canOpenFolder = !!host.pickFolder;
+    docs.canOpenUrl = !!host.fetchUrl;
     markRows();
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
@@ -823,7 +825,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }));
+      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, hostCommands()));
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -854,7 +856,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     later,
     failed,
     folder: { up: () => folderNav.up(), refresh: () => folderNav.refresh() },
+    // Open from URL…'s address, asked in the shell's dialog in turn with its questions.
+    askUrl: () => questions.prompt(OPEN_URL_PROMPT),
   };
+  // What the palette offers of the host's optional members, as they stand as it opens.
+  const hostCommands = (): HostCommands => ({ openUrl: !!host.fetchUrl });
 
   // --- The modules' views ------------------------------------------------------------------------
 

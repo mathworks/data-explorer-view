@@ -39,6 +39,8 @@ export interface CarryOutContext {
   failed(message: string): void;
   /** The Folder view's moves: the folder above made the workspace folder, and the folder read again (folderNav.ts). */
   folder: { up(): void; refresh(): void };
+  /** Ask for a web address (Open from URL…): the address, or null. */
+  askUrl(): Promise<string | null>;
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -104,6 +106,19 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
       break;
     case 'open-folder':
       void on.host.pickFolder?.().catch(pickFailed('open a folder'));
+      break;
+    case 'open-url':
+      // Asked only of a host that fetches, and its fetch read again once the address is typed, as
+      // every member is read when it is needed. What it says of an address it did not fetch is the
+      // user's to read as it is.
+      if (!on.host.fetchUrl) break;
+      void on.askUrl().then((url) => {
+        if (url === null || !on.host.fetchUrl) return;
+        return on.host.fetchUrl(url).then(
+          (path) => on.openPaths([path]),
+          (err: unknown) => on.failed(message(err)),
+        );
+      });
       break;
     case 'save':
     case 'save-as':

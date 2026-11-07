@@ -18,7 +18,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
   'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
   'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-  'palette', 'show-graph', 'folder-up', 'folder-refresh', ...SHELL_VIEWS.map((v) => v.command),
+  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */

@@ -130,3 +130,20 @@ describe('paletteCommands', () => {
     expect(SHELL_VIEWS.map((v) => v.command)).toEqual(SHELL_VIEWS.map((v) => `show-${v.view}`));
   });
 });
+
+describe("paletteCommands' host commands", () => {
+  const ids = (commands: { id: string }[]) => commands.map((c) => c.id);
+  const file = (state: ToolbarState, host?: Parameters<typeof paletteCommands>[3]) =>
+    paletteCommands(state, undefined, undefined, host).filter((c) => c.category === 'File');
+
+  it('lists none without them, as before', () => {
+    expect(paletteCommands(NOTHING, undefined, undefined, { openUrl: false })).toEqual(paletteCommands(NOTHING));
+  });
+
+  it('puts Open from URL… after Open Folder…, or after Open File… with no folder', () => {
+    const row = (state: ToolbarState) => file(state, { openUrl: true });
+    expect(ids(row(NOTHING)).slice(0, 4)).toEqual(['new-file', 'open-file', 'open-folder', 'open-url']);
+    expect(row(NOTHING).find((c) => c.id === 'open-url')).toEqual({ id: 'open-url', label: 'Open from URL…', category: 'File' });
+    expect(ids(row({ ...NOTHING, canOpenFolder: false })).slice(0, 3)).toEqual(['new-file', 'open-file', 'open-url']);
+  });
+});
