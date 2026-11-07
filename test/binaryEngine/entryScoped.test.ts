@@ -477,7 +477,7 @@ describe('the add the table paints and the re-parse the next repaint does agree'
 
 });
 
-describe('an add into a section that is empty, and into a chunk that takes no insert', () => {
+describe('an add into a section that is empty, and into a chunk with no dictionary object', () => {
   it('fills a section that is empty, which has no row to aim at', async () => {
     // params.sldd has an empty Architectural Data, and Constant is the arch-only class: so the row
     // goes under the bare section header, with no beforeRowId.
@@ -496,35 +496,88 @@ describe('an add into a section that is empty, and into a chunk that takes no in
     assert.deepStrictEqual(reread, names);
   });
 
-  it('refuses an add exactly where it refuses a paste, when the chunk takes no insert', async () => {
-    // arch_binary.sldd is a chunk with no trailing dictionary object, which core's insertion point
-    // aims in front of: nothing can be inserted into it, by an add or by a paste.
+  it('holds an add and a paste to the same outcome, in a chunk with no dictionary object', async () => {
+    // arch_binary.sldd's chunk has no trailing dictionary object (DD.Dictionary or
+    // DD.DICTIONARYREFERENCE). Core's insertion point used to aim only in front of one, so it
+    // refused this chunk any new entry; since core #272 the entry goes before `</DataSource>`.
+    // Whichever core this runs against, an add and a paste must agree: both refused with the same
+    // error and nothing written, or both landed, each as one edit that puts one entry in the section
+    // and keeps every other byte of the chunk.
     const o = await open('test/fixtures/arch_binary.sldd');
     const entry = ((o.model().children as any[]).flatMap((s: any) => s.children as any[]) as any[])[0];
     const section = entry.parent;
-    // A class the section DOES allow, so the only thing left to fail is the insert.
+    // A class the section DOES allow, so what is left to decide the outcome is the insert.
     const className = (section.getAllowedTypes() as string[])[0];
     assert.strictEqual(section.allowsType(className), true);
     const chunk = o.engine.chunkXml;
 
-    let at = o.view.posts.length;
-    add(o, section.name, className);
-    assert.deepStrictEqual(
-      o.view.posts.slice(at).filter((m) => m.type === 'error').map((m) => m.message),
-      ['Failed to apply edit: Could not locate the insertion point.'],
-    );
+    const added = await gesture(o, () => add(o, section.name, className));
     send(o, { type: 'copy', rowIds: [entry.id] });
-    at = o.view.posts.length;
-    o.view.send({ type: 'paste', rowId: `section:${section.name}` });
-    for (let i = 0; i < 50 && !o.view.posts.slice(at).some((m) => m.type === 'error'); i++) await new Promise((r) => setTimeout(r, 0));
-    assert.deepStrictEqual(
-      o.view.posts.slice(at).filter((m) => m.type === 'error').map((m) => m.message),
-      ['Failed to apply edit: Could not locate the insertion point.'],
-    );
-    assert.strictEqual(o.events.length, 0, 'nothing was written');
-    assert.strictEqual(o.engine.chunkXml, chunk);
+    const pasted = await gesture(o, () => o.view.send({ type: 'paste', rowId: `section:${section.name}` }));
+
+    if (added.errors.length > 0) {
+      assert.match(added.errors.join('\n'), /Could not locate the insertion point\./);
+      assert.deepStrictEqual(pasted.errors, added.errors, 'the paste is refused as the add is');
+      assert.strictEqual(o.events.length, 0, 'nothing was written');
+      assert.strictEqual(o.engine.chunkXml, chunk);
+      return;
+    }
+    assert.strictEqual(added.edits, 1, 'the add either posts an error or lands as one edit');
+    for (const [what, g] of [['the add', added], ['the paste', pasted]] as const) {
+      assert.deepStrictEqual(g.errors, [], `${what} posted no error, as the add did not`);
+      assert.strictEqual(g.edits, 1, `${what} is one edit`);
+      assertOneEntryInserted(g, section.name, what);
+    }
   });
 });
+
+/** What one gesture did to a document: the errors it posted, the edits it made, and the chunk and tree around it. */
+interface Gesture {
+  errors: string[];
+  edits: number;
+  before: string;
+  after: string;
+  namesBefore: Record<string, string[]>;
+  namesAfter: Record<string, string[]>;
+}
+
+/** Every section's entry names, by section, in the tree the session holds now. */
+const namesBySection = (o: Opened): Record<string, string[]> =>
+  Object.fromEntries(((o.model()?.children ?? []) as any[]).map((s) => [s.name, (s.children as any[]).map((e: any) => e.name)]));
+
+/** `act` sent, and what it did once it has made an edit or posted an error (a paste settles a tick later). */
+async function gesture(o: Opened, act: () => void): Promise<Gesture> {
+  const before = o.engine.chunkXml;
+  const namesBefore = namesBySection(o);
+  const at = o.view.posts.length;
+  const edits = o.events.length;
+  act();
+  const errors = () => o.view.posts.slice(at).filter((m) => m.type === 'error').map((m) => m.message as string);
+  for (let i = 0; i < 50 && o.events.length === edits && errors().length === 0; i++) await new Promise((r) => setTimeout(r, 0));
+  return { errors: errors(), edits: o.events.length - edits, before, after: o.engine.chunkXml, namesBefore, namesAfter: namesBySection(o) };
+}
+
+/**
+ * That `g` put exactly one new entry in `section`, and nothing else: the tree is the one before with
+ * that entry last in the section, and the chunk is the one before with that entry's `<Object>`, and
+ * only whitespace around it, inserted at one place.
+ */
+function assertOneEntryInserted(g: Gesture, section: string, what: string): void {
+  const name = g.namesAfter[section].find((n) => !g.namesBefore[section].includes(n));
+  assert.ok(name, `${what} put a new entry in ${section}`);
+  assert.deepStrictEqual(g.namesAfter, { ...g.namesBefore, [section]: [...g.namesBefore[section], name] }, `${what} changed nothing else in the tree`);
+  const nameAt = g.after.indexOf(`<P Name="Name" Class="char">${name}</P>`);
+  assert.ok(nameAt >= 0, `${what} wrote ${name} into the chunk`);
+  const start = g.after.lastIndexOf('<Object Class="DD.ENTRY">', nameAt);
+  const end = g.after.indexOf('</Object>', nameAt) + '</Object>'.length;
+  // Where the insert begins: the bytes both chunks share, up to the new entry's <Object> at most.
+  const length = g.after.length - g.before.length;
+  let p = 0;
+  while (p < start && g.after[p] === g.before[p]) p++;
+  assert.strictEqual(g.after.slice(p + length), g.before.slice(p), `${what} kept every byte after the new entry`);
+  assert.ok(p + length >= end, `${what} inserted the whole entry at one place`);
+  assert.strictEqual(g.after.slice(p, p + length).trim(), g.after.slice(start, end), `${what} inserted the new entry and nothing else`);
+}
 
 describe('the row the add selects still resolves, so the next edit on it works', () => {
   it('finds the new entry by the id the rows carry, with no re-parse in between', async () => {
