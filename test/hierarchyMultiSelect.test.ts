@@ -33,6 +33,14 @@ async function settle(el: DexHierarchy): Promise<void> {
   }
 }
 
+/** A Space press on the row labelled `label`, focused first, with `keys` held. */
+function space(el: DexHierarchy, label: string, keys: KeyboardEventInit): KeyboardEvent {
+  const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, composed: true, cancelable: true, ...keys });
+  rowOf(el, label).focus();
+  rowOf(el, label).dispatchEvent(e);
+  return e;
+}
+
 async function tree(multi: boolean): Promise<DexHierarchy> {
   Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
   const el = document.createElement('dex-hierarchy');
@@ -140,35 +148,50 @@ describe('a tree of several selected rows', () => {
     const el = await tree(true);
     const changes = heard<HierarchySelectionChangedDetail>(el, 'dex-hierarchy-selection-changed');
     const chosen = heard<unknown>(el, 'dex-hierarchy-selected');
-    const space = (label: string, keys: KeyboardEventInit): KeyboardEvent => {
-      const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, composed: true, cancelable: true, ...keys });
-      rowOf(el, label).focus();
-      rowOf(el, label).dispatchEvent(e);
-      return e;
-    };
-    expect(space('a.sldd', { ctrlKey: true }).defaultPrevented).toBe(true);
-    space('c.sldd', { ctrlKey: true });
+    expect(space(el, 'a.sldd', { ctrlKey: true }).defaultPrevented).toBe(true);
+    space(el, 'c.sldd', { ctrlKey: true });
     await settle(el);
     expect(selected(el)).toEqual(['a.sldd', 'c.sldd']);
     expect(changes.at(-1)!.keys).toEqual(['/w/a', '/w/c']);
-    space('a.sldd', { ctrlKey: true });
+    space(el, 'a.sldd', { ctrlKey: true });
     await settle(el);
     expect(selected(el)).toEqual(['c.sldd']);
     expect(chosen).toEqual([]);
-    // Space alone, and on macOS Ctrl+Space, is no toggle.
-    expect(space('b.sldd', {}).defaultPrevented).toBe(false);
+    // On macOS Ctrl+Space is no toggle: Cmd is the Mod key there.
     Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
-    expect(space('b.sldd', { ctrlKey: true }).defaultPrevented).toBe(false);
-    space('b.sldd', { metaKey: true });
+    expect(space(el, 'b.sldd', { ctrlKey: true }).defaultPrevented).toBe(false);
+    space(el, 'b.sldd', { metaKey: true });
     await settle(el);
     expect(selected(el)).toEqual(['b.sldd', 'c.sldd']);
   });
 
+  it('takes the focused row into the selection, or out of it, by Space alone, as a multi-select tree does', async () => {
+    // macOS keeps Cmd+Space for Spotlight and Ctrl+Space for the input source, so there Space alone
+    // is the keyboard's toggle; it is on every platform, as in the tree pattern.
+    for (const platform of ['MacIntel', 'Win32']) {
+      const el = await tree(true);
+      Object.defineProperty(navigator, 'platform', { value: platform, configurable: true });
+      const chosen = heard<unknown>(el, 'dex-hierarchy-selected');
+      expect(space(el, 'a.sldd', {}).defaultPrevented).toBe(true);
+      space(el, 'c.sldd', {});
+      await settle(el);
+      expect(selected(el)).toEqual(['a.sldd', 'c.sldd']);
+      space(el, 'a.sldd', {});
+      await settle(el);
+      expect(selected(el)).toEqual(['c.sldd']);
+      expect(chosen).toEqual([]);
+      // Shift+Space and Alt+Space are no toggle.
+      expect(space(el, 'b.sldd', { shiftKey: true }).defaultPrevented).toBe(false);
+      expect(space(el, 'b.sldd', { altKey: true }).defaultPrevented).toBe(false);
+      await settle(el);
+      expect(selected(el)).toEqual(['c.sldd']);
+      el.remove();
+    }
+  });
+
   it("leaves Space alone in a tree that selects one row", async () => {
     const el = await tree(false);
-    const e = new KeyboardEvent('keydown', { key: ' ', ctrlKey: true, bubbles: true, composed: true, cancelable: true });
-    rowOf(el, 'a.sldd').dispatchEvent(e);
-    expect(e.defaultPrevented).toBe(false);
+    for (const keys of [{}, { ctrlKey: true }]) expect(space(el, 'a.sldd', keys).defaultPrevented).toBe(false);
   });
 
   it('keeps the row the app reveals as the one selected', async () => {

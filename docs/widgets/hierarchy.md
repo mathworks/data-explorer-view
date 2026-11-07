@@ -178,8 +178,9 @@ handle.on('menu', ({ item, x, y, keyboard }) => contextMenu.show(x, y, menuFor(i
 ### Several rows at once
 
 With `multiSelect` (attribute `multi-select`), Cmd+click on macOS, or Ctrl+click elsewhere, takes a
-row into the selection, or out of it, without opening it, and so does Cmd+Space or Ctrl+Space on the
-focused row: `selectedKeys` holds every selected row
+row into the selection, or out of it, without opening it, and so does Space, or Cmd+Space or
+Ctrl+Space, on the focused row (Space alone on a Mac, which keeps Cmd+Space for Spotlight and
+Ctrl+Space for the input source): `selectedKeys` holds every selected row
 (`selectedKey` the last taken in), `selectedItems` their items in the tree's order, and
 `dex-hierarchy-selection-changed` says so. A plain click and Enter still select one row and send
 `dex-hierarchy-selected`, as without it. The tree is a multi-selectable one to a screen reader
