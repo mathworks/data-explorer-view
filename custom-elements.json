@@ -8209,7 +8209,7 @@
                 "text": "ReadonlyMap<string, DiffMark> | null"
               },
               "default": "null",
-              "description": "Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,\na glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the\ndiffering cells washed deeper, and a gap row hatched. Default null: no marks, the table as it\nalways was. Property only."
+              "description": "Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,\na glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the\ndiffering cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps\nunder it follow `expandedIds`). Default null: no marks, the table as it always was. Property\nonly."
             },
             {
               "kind": "field",

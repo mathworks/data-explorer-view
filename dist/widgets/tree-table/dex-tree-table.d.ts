@@ -233,8 +233,9 @@ export declare class DexTreeTable extends LitElement {
     /**
      * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
      * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
-     * differing cells washed deeper, and a gap row hatched. Default null: no marks, the table as it
-     * always was. Property only.
+     * differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+     * under it follow `expandedIds`). Default null: no marks, the table as it always was. Property
+     * only.
      */
     diffMarks: ReadonlyMap<string, DiffMark> | null;
     /**
@@ -452,7 +453,6 @@ export declare class DexTreeTable extends LitElement {
     private _sortSiblings;
     private _getCellText;
     private _getCellSortText;
-    firstUpdated(): void;
     private _resizeObserver;
     updated(changedProps: Map<string, unknown>): void;
     private _lastStartIdx;
@@ -477,6 +477,10 @@ export declare class DexTreeTable extends LitElement {
      *
      * The second way is a deferred row, whose children exist in the file and not in the
      * table (host: lazyRows.ts).
+     *
+     * A compare's gap row (diffMarks) opens nothing: its file has no such row, so it has no
+     * twisty, no aria-expanded and no Space. The gaps under it show and hide with the other
+     * side's row, which its holder opens and closes through expandedIds.
      */
     private _canExpand;
     private _toggleExpand;

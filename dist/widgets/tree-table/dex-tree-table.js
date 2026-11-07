@@ -379,8 +379,9 @@ export class DexTreeTable extends LitElement {
         /**
          * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
          * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
-         * differing cells washed deeper, and a gap row hatched. Default null: no marks, the table as it
-         * always was. Property only.
+         * differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+         * under it follow `expandedIds`). Default null: no marks, the table as it always was. Property
+         * only.
          */
         this.diffMarks = null;
         /**
@@ -536,6 +537,11 @@ export class DexTreeTable extends LitElement {
         // stay at its default and the virtual window would size wrong — too few rows to
         // fill a tall panel, so a row scrolled to the bottom falls outside the rendered
         // slice. The observer (re)measures once rows render and on every panel resize.
+        // It takes the first height too: a table given its rows before its first render
+        // has its grid then, and a measure in firstUpdated set state inside the update
+        // (a second render at once, and Lit's change-in-update warning). The observer's
+        // first callback comes before the first paint, so no frame shows the default's
+        // window.
         this._resizeObserver = null;
         this._lastStartIdx = -1;
         // While a drag of this table's rows is over the rest of the page (dragOut), the box at the pointer
@@ -2852,11 +2858,6 @@ export class DexTreeTable extends LitElement {
     _getCellSortText(row, col) {
         return this._getCellText(row, col).toLowerCase();
     }
-    firstUpdated() {
-        if (this._container) {
-            this._viewportHeight = this._container.clientHeight;
-        }
-    }
     updated(changedProps) {
         super.updated(changedProps);
         // The rows shown open changed, by the table itself: said once the change is drawn. Not the
@@ -3112,8 +3113,14 @@ export class DexTreeTable extends LitElement {
      *
      * The second way is a deferred row, whose children exist in the file and not in the
      * table (host: lazyRows.ts).
+     *
+     * A compare's gap row (diffMarks) opens nothing: its file has no such row, so it has no
+     * twisty, no aria-expanded and no Space. The gaps under it show and hide with the other
+     * side's row, which its holder opens and closes through expandedIds.
      */
     _canExpand(rowId) {
+        if (this.diffMarks?.get(rowId)?.kind === 'gap')
+            return false;
         return this._childCounts.has(rowId) || this._lazyIds.has(rowId);
     }
     _toggleExpand(rowId) {
