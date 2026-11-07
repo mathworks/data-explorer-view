@@ -324,8 +324,10 @@ export class DexPropertyInspector extends LitElement {
         ><dex-matrix-open .matrix=${prop.matrix}></dex-matrix-open>`;
     }
     // A text of lines, read-only: its lines and spaces as written, which a span of normal
-    // white-space would run into one. A tab stop named by its row, so the keyboard can scroll it.
-    if (prop.multiline) return html`<span class="prop-text" tabindex="0" aria-label=${prop.name}>${prop.value}</span>`;
+    // white-space would run into one. A tab stop named by its row, so the keyboard can scroll it; a
+    // region, which a name is allowed on (a span of no role may not have one), and which a screen
+    // reader announces as a labelled area that scrolls.
+    if (prop.multiline) return html`<span class="prop-text" role="region" tabindex="0" aria-label=${prop.name}>${prop.value}</span>`;
     return html`<span>${prop.value}</span>`;
   }
 

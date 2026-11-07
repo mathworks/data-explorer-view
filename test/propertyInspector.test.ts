@@ -650,10 +650,12 @@ describe('a read-only text of several lines', () => {
   // A box that scrolls is a tab stop of its own in some browsers only (Chromium's), so a keyboard
   // user elsewhere could not reach the lines past its height: it is one in every browser, named by
   // its row, ringed as the theme rings a focus.
-  it('is a tab stop of its own, named by its row, so the keyboard can scroll it in any browser', async () => {
+  it('is a tab stop of its own, a region named by its row, so the keyboard can scroll it in any browser', async () => {
     const el = await makeInspector([{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: DISPLAY, multiline: true }] }]);
     const text = el.shadowRoot!.querySelector<HTMLElement>('.prop-text')!;
     expect(text.getAttribute('tabindex')).toBe('0');
+    // A region, which may be named (a span of no role may not), read as a labelled scrolling area.
+    expect(text.getAttribute('role')).toBe('region');
     expect(text.getAttribute('aria-label')).toBe('In MATLAB');
     text.focus();
     expect(el.shadowRoot!.activeElement).toBe(text);
