@@ -124,6 +124,8 @@ export interface PageOptions extends Omit<ConnectShellOptions, 'host'> {
   without?: (keyof ShellHost)[];
   /** The shell's own storage-key, set before connectShell. */
   shellStorageKey?: string;
+  /** Host members of a test's own, put over the in-memory host's (a MATLAB, say). */
+  host?: Partial<ShellHost>;
 }
 
 const pages: Page[] = [];
@@ -185,10 +187,11 @@ export function startPage(files: Record<string, string> = {}, options: PageOptio
     reveal: async (p) => void main.revealed.push(p),
   };
   for (const name of options.without ?? []) delete (host as Partial<ShellHost>)[name];
+  Object.assign(host, options.host);
   const shell = document.createElement('dex-app-shell');
   if (options.shellStorageKey) shell.storageKey = options.shellStorageKey;
   document.body.append(shell);
-  const { without: _without, shellStorageKey: _key, ...shellOptions } = options;
+  const { without: _without, shellStorageKey: _key, host: _host, ...shellOptions } = options;
   const handle = connectShell(shell, { ...shellOptions, host });
   const page: Page = {
     shell,

@@ -10,7 +10,7 @@
 // Terminal, the panes' last), then Other. Each carries the chord that does the same, in the
 // platform's words, and its id is the ShellCommand the shell carries out.
 import { describe, expect, it } from 'vitest';
-import { paletteCommands, type PaneCommands } from '../../src/widgets/app-shell/connect/paletteItems.js';
+import { paletteCommands, withMatlabCommands, type PaneCommands } from '../../src/widgets/app-shell/connect/paletteItems.js';
 import { SHELL_VIEWS } from '../../src/widgets/app-shell/connect/views.js';
 import type { ToolbarState } from '../../src/widgets/app-shell/connect/toolbarItems.js';
 
@@ -96,5 +96,22 @@ describe('paletteCommands', () => {
 
   it("has one command for each of the shell's views", () => {
     expect(SHELL_VIEWS.map((v) => v.command)).toEqual(SHELL_VIEWS.map((v) => `show-${v.view}`));
+  });
+});
+
+describe('withMatlabCommands', () => {
+  const MATLAB = [
+    { id: 'matlab-connect', label: 'Connect to MATLAB…', category: 'MATLAB' },
+    { id: 'matlab-open', label: 'Open in Simulink', category: 'MATLAB' },
+  ];
+
+  it("puts a host's MATLAB group before Settings and About, after everything else", () => {
+    const all = withMatlabCommands(paletteCommands(NOTHING), MATLAB).map((c) => c.id);
+    expect(all.slice(-4)).toEqual(['matlab-connect', 'matlab-open', 'settings', 'about']);
+    expect(all.slice(0, -4)).toEqual(paletteCommands(NOTHING).map((c) => c.id).slice(0, -2));
+  });
+
+  it('leaves the list as it was with no MATLAB group', () => {
+    expect(withMatlabCommands(paletteCommands(NOTHING), [])).toEqual(paletteCommands(NOTHING));
   });
 });

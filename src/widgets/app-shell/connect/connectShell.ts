@@ -70,9 +70,11 @@ import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
-import { paletteCommands, type PaneCommands } from './paletteItems.js';
+import { matlabLabel } from './matlab.js';
+import { paletteCommands, withMatlabCommands, type PaneCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
-import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
+import type { ConnectShellOptions, MatlabStatus, ShellCommand, ShellHandle } from './types.js';
+import type { PaletteCommand } from '../modules/dex-command-palette.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -714,12 +716,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The tab active when the command was given, whatever is active by the time it is carried out.
     const tab = tabs.active;
     if (id === 'settings' || id === 'about') return popovers.toggle(id);
+    if (id === 'matlab-connect') return void host.matlab?.showConnect();
     // The palette, as its own modal: the popovers make way first, one Escape closing one layer;
     // none over another modal, whose keys are its own, until one stack keeps their order (F2).
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState(), paneCommands()));
+      return parts.palette.show(withMatlabCommands(paletteCommands(toolbarState(), paneCommands()), matlabCommands()));
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -879,6 +882,23 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     namesChanged: () => modules.namesChanged(),
     failed: (text) => log('error', `This folder could not be read: ${text}`),
   });
+
+  // --- MATLAB ------------------------------------------------------------------------------------
+
+  // A MATLAB the host reaches (ShellHost.matlab, matlab.ts): the status bar names the one connected,
+  // and its button, like the palette's Connect to MATLAB… and the `matlab-connect` command, shows
+  // the host's way to connect. Heard once, from now on, and drawn as it is now.
+  const paintMatlab = (now: MatlabStatus | undefined = host.matlab?.status()): void => {
+    if (disposed) return;
+    const { label, title } = matlabLabel(now);
+    status.matlab = label;
+    status.matlabTitle = title;
+  };
+  stops.push(host.matlab?.on((now) => paintMatlab(now)) ?? (() => {}));
+  paintMatlab();
+  status.addEventListener('dex-shell-matlab-connect', () => host.matlab?.showConnect());
+  // The palette's MATLAB group, for a host with a MATLAB: Connect to MATLAB…, connected or not.
+  const matlabCommands = (): PaletteCommand[] => (host.matlab ? [{ id: 'matlab-connect', label: 'Connect to MATLAB…', category: 'MATLAB' }] : []);
 
   // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
   paint();

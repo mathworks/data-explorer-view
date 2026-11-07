@@ -594,6 +594,7 @@ shell runs.
 | `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
 | `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
+| `matlab` | a MATLAB the host reaches (`ShellMatlab`): the status bar's MATLAB, and its row menus' and palette's commands while connected (see "MATLAB") | no MATLAB anywhere |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's

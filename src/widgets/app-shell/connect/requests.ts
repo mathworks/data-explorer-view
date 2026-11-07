@@ -10,6 +10,7 @@
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { OpenTab } from './documents.js';
 import { connectFileMenu } from './fileMenu.js';
+import { isMatlabCommand } from './matlab.js';
 import type { ShellParts } from './parts.js';
 import type { ShellCommand } from './types.js';
 import { SHELL_VIEWS } from './views.js';
@@ -23,7 +24,8 @@ const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id: string): id is ShellCommand {
-  return COMMANDS.has(id);
+  // A MATLAB's commands are matlab.ts's, which knows them.
+  return COMMANDS.has(id) || isMatlabCommand(id);
 }
 
 /** What connectShell does for its parts' requests. */
