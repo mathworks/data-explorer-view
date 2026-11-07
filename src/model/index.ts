@@ -148,6 +148,18 @@ export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';
 
+// Compare: two documents' rows matched by section and name path, how each stands and what differs,
+// by the text the table shows each cell in (numbers by value); every row of a side read through its
+// source, held-back rows fetched; and two open documents, or two files' bytes with no page (the
+// command line's `diff`), compared.
+export { cellTextOf, sameCellText } from './compare/cellText.js';
+export { DIFF_SKIPPED_COLUMNS, diffSides, diffSummary } from './compare/diff.js';
+export type { DiffCounts, DiffOptions, DiffStatus, DocumentDiff, PropertyDiff, RowDiff, SectionDiff } from './compare/diff.js';
+export { readDiffSide } from './compare/readSide.js';
+export type { DiffSide, ReadSideOptions } from './compare/readSide.js';
+export { diffDocuments, diffFiles } from './compare/diffDocuments.js';
+export type { DiffFile } from './compare/diffDocuments.js';
+
 // The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
 // edges built from files already read, where they are drawn, and the id a file's row reveals.
 export { buildRelationshipGraph } from './graph/relationshipGraph.js';
