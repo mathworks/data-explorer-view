@@ -65,8 +65,9 @@ function widgetEntries(pkg) {
   return Object.entries(pkg.exports ?? {}).filter(([key, t]) => !key.includes('*') && typeof t === 'object' && t?.default?.includes('/widgets/'));
 }
 
-// TypeScript's own lib files, parsed once a process: every program reads the same ones, and they are
-// most of what a program parses (check-api reads two packages, its tests a package a case).
+// TypeScript's own lib files, parsed once a process for each target: every program reads the same
+// ones, and they are most of what a program parses (check-api reads two packages, its tests a
+// package a case).
 const libFiles = new Map();
 
 /** One TypeScript program over every entry's .d.ts in `dir`. */
@@ -78,8 +79,9 @@ function program(dir, pkg) {
   const read = host.getSourceFile.bind(host);
   host.getSourceFile = (file, ...rest) => {
     if (dirname(file) !== libDir) return read(file, ...rest);
-    if (!libFiles.has(file)) libFiles.set(file, read(file, ...rest));
-    return libFiles.get(file);
+    const key = `${options.target} ${file}`;
+    if (!libFiles.has(key)) libFiles.set(key, read(file, ...rest));
+    return libFiles.get(key);
   };
   return ts.createProgram(roots, options, host);
 }

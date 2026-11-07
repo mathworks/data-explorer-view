@@ -90,16 +90,16 @@ describe('an id that is not an alias', () => {
 });
 
 describe('with no bundler at all', () => {
-  // typeBus drawn in one plain Node process, from the package's own icons/ folder and then from
-  // where setIconBase says. Starting Node and loading happy-dom and the built module takes a second
-  // or more, several on a loaded machine: done once, given the time, and killed at 30 s, so a
-  // process that hangs fails the hook rather than holding the worker.
-  let own = '';
-  let based = '';
+  // typeBus drawn in one plain Node process: from the package's own icons/ folder, then from where
+  // setIconBase says, called after defineIcon and, in a second instance of the module, before it.
+  // Starting Node and loading happy-dom and the built module takes a second or more, several on a
+  // loaded machine: done once, given the time, and killed at 30 s, so a process that hangs fails
+  // the hook rather than holding the worker.
+  let drawn: { own: string; after: string[]; before: string[] };
   beforeAll(() => {
     const script = join(ROOT, 'test', 'tools', 'renderIconInPlainNode.mjs');
     const out = execFileSync(process.execPath, ['--conditions=browser', script, BUILT, 'typeBus', './icons/'], { encoding: 'utf8', timeout: 30_000 });
-    [own, based] = JSON.parse(out) as [string, string];
+    drawn = JSON.parse(out) as typeof drawn;
   }, 45_000);
 
   it('the built module reads nothing from import.meta.env', () => {
@@ -107,13 +107,15 @@ describe('with no bundler at all', () => {
   });
 
   it("renders in plain Node, from the package's own icons/ folder, where the file is", () => {
+    const { own } = drawn;
     expect(own.startsWith('file://')).toBe(true);
     expect(existsSync(fileURLToPath(own)), own).toBe(true);
     expect(realpathSync(fileURLToPath(own))).toBe(realpathSync(join(ROOT, 'icons', 'typeBus.svg')));
   });
 
-  it('and from wherever setIconBase says', () => {
-    expect(based).toBe('./icons/typeBus.svg');
+  it('and from wherever setIconBase says, called before defineIcon or after it', () => {
+    expect(drawn.after).toEqual(['./icons/typeBus.svg']);
+    expect(drawn.before).toEqual(['./icons/typeBus.svg']);
   });
 });
 
