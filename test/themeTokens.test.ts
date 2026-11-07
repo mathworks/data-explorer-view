@@ -213,9 +213,14 @@ describe('the muted ink is text, readable on every surface it is drawn on', () =
     return `#${a.map((v, i) => Math.round((v * percent + b[i]! * (100 - percent)) / 100).toString(16).padStart(2, '0')).join('')}`;
   };
 
+  // The selected row's mix, whose share is the one vscode-theme.css writes (treeTableCellStates).
+  const selectedMix = /tr\.data-row\.selected\s*\{[^}]*--dex-color-text-muted:\s*color-mix\(\s*in srgb,\s*var\(--dex-row-ink(?:,[^)]*)?\)\s*(\d+)%/.exec(table);
+
   it("is a mix of the row's ink on a hovered table row, at 4.5:1 or more on the hover surface in every set", () => {
     expect(hoverMix, 'tr.data-row:hover redeclares no --dex-color-text-muted').not.toBeNull();
     const percent = Number(hoverMix![1]);
+    // One share of the row's ink, hovered or selected, so the muted ink is one rule.
+    expect(percent).toBe(Number(selectedMix?.[1]));
     for (const [set, tokens] of Object.entries(THEME_SETS)) {
       const hover = tokens.get('--dex-bg-hover')!;
       const ink = over(tokens.get('--dex-color-text')!, percent, hover);
