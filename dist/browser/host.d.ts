@@ -1,4 +1,4 @@
-import type { ShellHost } from '../widgets/app-shell/connect/types.js';
+import type { ShellHost, ShellLink, ShellLinkRequest } from '../widgets/app-shell/connect/types.js';
 import { type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
 import { type BrowserDir } from './walk.js';
@@ -35,6 +35,8 @@ export interface BrowserFiles {
     get(path: string): BrowserFile | undefined;
     /** Whether the host made `path`. */
     has(path: string): boolean;
+    /** The web address the file at `path` was fetched from (fetchUrls), as it was first given; undefined for any other file. */
+    urlOf(path: string): string | undefined;
 }
 /** What browserHost runs over. Each is the page's own unless given (a test gives fakes). */
 export interface BrowserHostOptions {
@@ -42,9 +44,10 @@ export interface BrowserHostOptions {
     window?: FilePickers & Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
     /** Where file inputs and download links are made, and whose `visibilitychange` and title the host uses. Default `document`. */
     document?: Document;
-    /** Whether a click or a key press led to a dialog, and the clipboard. Default `navigator`. */
+    /** Whether a click or a key press led to a dialog, the clipboard, and whether the browser is online. Default `navigator`. */
     navigator?: UserActivation & {
         clipboard?: Pick<Clipboard, 'writeText'>;
+        onLine?: boolean;
     };
     /**
      * Show the folder served on `port` as `root`: the shell's `showFolder`. Absent: the host shows no
@@ -54,6 +57,24 @@ export interface BrowserHostOptions {
     onFolder?(root: string, port: MessagePort): void;
     /** An open file changed on disk: the shell's `fileChanged`. Absent: open files are not watched. */
     onChanged?(path: string): void;
+    /** The page's fetch, for web addresses. Default the page's own (called as `fetch(url, init)`). */
+    fetch?: (url: string, init: RequestInit) => Promise<Response>;
+    /** The page's origin, whose `http:` addresses are fetched too. Default `location.origin`. */
+    origin?: string;
+    /**
+     * Give the shell Open from URL… (the host's `fetchUrl`), for a page whose Content-Security-Policy
+     * lets it fetch from `https:` (`connect-src https:`). Default false.
+     */
+    openFromUrl?: boolean;
+    /** The page's links to its files (Copy Link), answered as the host's `linkFor`. Absent: no Copy Link. */
+    linkFor?(request: ShellLinkRequest): ShellLink;
+}
+/** What fetchUrls answers. */
+export interface FetchedUrls {
+    /** The path to open each address's file by, in the addresses' order; null for one not fetched. */
+    paths: (string | null)[];
+    /** Why each null is, one line each, in the same order ("https://x/a.sldd could not be fetched: 404 Not Found"). */
+    problems: string[];
 }
 /** The browser's ShellHost, and what a page drives it by beside connectShell. */
 export interface BrowserHost extends ShellHost {
@@ -71,6 +92,13 @@ export interface BrowserHost extends ShellHost {
      * then), as `installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)))` does.
      */
     openDropped(data: DataTransfer): Promise<string[]>;
+    /**
+     * Fetch the files at these web addresses (urlTargetOf's rules) and add each to the group of its
+     * address's folder, so a model and its dictionary from one repo folder link. Each address (by the
+     * URL fetched) is fetched once: asked again, it answers the path it has; one that failed is
+     * fetched afresh. The files are bytes the page holds, so a Save downloads. Never rejects.
+     */
+    fetchUrls(urls: readonly string[]): Promise<FetchedUrls>;
     /** Whether a file has unsaved edits, as the shell last said: for `beforeunload` to ask. */
     readonly edited: boolean;
     /** Stop watching, looking and serving, and take the host's listeners away. */

@@ -28,6 +28,17 @@ export function isSectionRowId(id: string): boolean {
   return id.startsWith(SECTION_ROW_PREFIX);
 }
 
+/**
+ * Whether `row` is a top-level entry, as a name or a link selects one (selectByName, the Terminal's
+ * names, ShellHandle.openAt): its parent is a section row or, in a table with no section rows (a
+ * MAT-file's), it has no parent and is no section row itself. A row nested under an entry (a
+ * field, a block in a subsystem) is none. One rule for all of them: a name the table selects and
+ * the shell links to the same row.
+ */
+export function isEntryRow(row: { readonly ID: string; readonly parent: string | null }): boolean {
+  return typeof row.parent === 'string' ? isSectionRowId(row.parent) : !isSectionRowId(row.ID);
+}
+
 /** Extract the section name from a section row id, or null if it isn't one. */
 export function sectionNameFromRowId(id: string): string | null {
   if (!isSectionRowId(id)) return null;

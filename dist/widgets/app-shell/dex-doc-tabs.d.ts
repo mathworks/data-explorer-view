@@ -40,6 +40,14 @@ export interface TabMoveDetail {
     id: string;
     index: number;
 }
+/** What `dex-tab-menu` carries: the tab whose menu is asked for, and where to show it (viewport coordinates). */
+export interface TabMenuDetail {
+    id: string;
+    x: number;
+    y: number;
+    /** Asked by a key (Shift+F10, the ContextMenu key): the menu takes the keyboard (the context menu's `focusFirst`). */
+    keyboard?: true;
+}
 /**
  * The type a tab's drag carries its id under. One of the app's own, so a drag of anything else (a
  * file from the desktop, text from another page) never reads as a tab. Exported for the part of an
@@ -55,6 +63,12 @@ export declare const TAB_DRAG_TYPE = "application/x-dex-tab";
  * dropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)
  * take each other's tabs: one dropped on a tab of the other lands before or after it, by the half
  * of the tab the pointer is over, and the row it lands in sends `dex-tab-move`.
+ *
+ * A tab's menu is the app's too: a right-click on a tab (its × included), or Shift+F10 or the
+ * ContextMenu key on the focused one, sends `dex-tab-menu` with where to show it, at the pointer or
+ * under the tab, and the row draws no menu of its own. The browser's menu is kept off the tabs, and
+ * the one a browser fires after a menu key asks nothing more; the row's empty end and the … button
+ * keep the browser's.
  *
  * A tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the
  * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
@@ -92,6 +106,8 @@ export declare class DexDocTabs extends LitElement {
     private _focusTo;
     private _scrollPending;
     private _resize;
+    private _menuKeyed;
+    private _menuKeyedTimer;
     connectedCallback(): void;
     disconnectedCallback(): void;
     protected firstUpdated(): void;
@@ -110,6 +126,7 @@ export declare class DexDocTabs extends LitElement {
     private _close;
     private _pin;
     private _move;
+    private _askMenu;
     private _keepFocus;
     private _wentToGroup;
     private _layout;
@@ -118,6 +135,8 @@ export declare class DexDocTabs extends LitElement {
     private _markClipped;
     private _observe;
     private _onTabKeydown;
+    private _onMenuKey;
+    private _onContextMenu;
     private _onFocusOut;
     private _onClose;
     private _onMouseDown;
@@ -173,6 +192,8 @@ export interface DocTabsEventMap {
      * `tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert.
      */
     'dex-tab-move': CustomEvent<TabMoveDetail>;
+    /** A right-click on a tab, or Shift+F10 or the ContextMenu key on the focused one: show its menu. The browser's own menu is prevented. */
+    'dex-tab-menu': CustomEvent<TabMenuDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

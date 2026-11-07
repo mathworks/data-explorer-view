@@ -538,6 +538,7 @@ const app = connectShell(shell, {
 
 // What the host hears, it hands to the shell:
 app.openPaths(paths);       // files to open, each in a tab of its own (a command line, a drop)
+app.openAt(path, { entry: 'Kp', section: 'Design Data' }); // a link's file, at its entry
 app.showFolder(root, port); // a folder picked, served across `port` by serveFolder
 app.fileChanged(path);      // a watcher saw an open file change
 onWindowClose(async () => {
@@ -554,6 +555,16 @@ outlined, and a tab says "Opening plant.sldd…" while its file is read.
 and `app.dispose()` takes the app down. The settings, the layout the user left
 (the divider between two panes with it) and each file's column choices are kept
 in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+
+`app.openAt(path, at)` is for a link from outside the page, such as a desktop
+app's link in a mail or a ticket, or a page's `#entry=`. It opens the file as
+`openPaths` does, in a tab it keeps, or goes to the file's tab. Once the table
+has its rows, it selects the entry named by its Name (`Kp`) or a block's key.
+With a `section`, only a top-level entry under the section row of that label
+counts. A file that holds no such entry stays open, and a warning that stays
+until it is closed says "No entry named Kp" ("… in Model Elements" with a
+section). It never rejects: what fails is said in the window, as any open's
+failure is.
 
 The documents split in two panes side by side, as VS Code's editor groups do. A
 tab dragged onto the left or right fifth of the documents makes a pane there
@@ -598,6 +609,9 @@ shell runs.
 | `reveal(path)` | a project page's link to what the shell does not open (a folder, a script), and the Folder view's Reveal | the link does nothing, and there is no Reveal |
 | `revealIn` | read for a project page's links and the Folder view's Reveal: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
+| `entryLink(target)` | a document row's menu: Copy Link to Entry puts its answer on the clipboard (`target.entry` is the entry's name, or a block's key for a block in a subsystem, as `app.openAt` takes it) | no such item |
+| `fetchUrl(url)` | Open from URL… (the palette, the welcome): the path the address's file opens by; a rejection is said in a toast | no Open from URL |
+| `linkFor(request)` | the palette and a tab's menu as they open (to enable Copy Link), and Copy Link: the address that opens the open files again at the selected entry; the shell copies it, and names the files left out | no Copy Link |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -688,6 +702,34 @@ default) goes by itself; a `'warning'` or an `'error'` stays until it is closed.
 ```js
 app.notify({ level: 'warning', text: 'samples/plant.slx could not be fetched: 404 Not Found' });
 ```
+
+#### Open from URL and Copy Link
+
+A host that fetches files from web addresses gives the shell Open from URL… with
+`fetchUrl(url)`. The palette's File group (after Open Folder…) and the welcome
+offer it; it asks for the address in the shell's dialog, and the file opens at
+the path `fetchUrl` answers. A rejection is the user's to read: its message is
+said in a toast and the Log as the host words it ("… could not be fetched: 404
+Not Found"). The browser host has it with `browserHost({ openFromUrl: true })`,
+for a page whose Content-Security-Policy lets it fetch from `https:`
+([docs/browser-host.md](docs/browser-host.md) says which addresses it takes).
+
+```js
+const host = browserHost({ onFolder, onChanged, openFromUrl: true });
+const app = connectShell(shell, { host }); // Open from URL… in the palette and on the welcome
+```
+
+A host that makes links to its files gives the shell Copy Link with
+`linkFor(request)`: the palette's File group and a tab's menu (a right-click on
+a tab, or Shift+F10 on it: Close, Close Others, Copy Link) offer it. The
+request names every open file, pane by pane, and the entry the link is to
+select: the active tab's selection (the tab's own, from its menu), as
+`app.openAt` takes an entry, by its name and its section's label. The host
+answers at once, reading nothing, with the address (or null, when no open file
+has one) and the names of the files it leaves out; the shell copies the
+address and says "Link copied", naming those files. The browser host passes on
+the page's own (`browserHost({ linkFor })`), since only the page knows its
+address and how its files are named in it.
 
 A button of its own goes on an activity bar as a `<dex-shell-action>` the page
 adds to the shell after `connectShell`. The shell draws it after Settings and

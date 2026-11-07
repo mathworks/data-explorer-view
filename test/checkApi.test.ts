@@ -49,7 +49,7 @@ describe('what counts as the API', () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
     const items = [...apiOf(manifest).keys()];
     expect(items.filter((k) => !k.includes(' ')).length).toBe(32);
-    expect(items.filter((k) => k.includes(' event ')).length).toBe(53);
+    expect(items.filter((k) => k.includes(' event ')).length).toBe(54);
     expect(items).toContain('<dex-tree-table> attribute readonly');
     expect(items).toContain('<dex-tree-table> method expand()');
   });

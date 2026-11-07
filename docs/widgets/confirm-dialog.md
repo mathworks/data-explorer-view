@@ -26,7 +26,28 @@ const answer = await confirm.show({
 });
 ```
 
-A second show() while one is open answers the first with its `cancelId` and asks the second in
+prompt() asks for a line of text in the same dialog, for a host that has no prompt of its own
+either (Open from URL): a title, a message, a labelled field and two buttons, the primary one
+disabled while the field is blank. It resolves to the text typed, trimmed, when the primary button
+is pressed or Enter is pressed in the field, and to null on Cancel, Escape, a click outside it,
+close(), or the element leaving the page. It opens focused on the field, its value selected, and
+keeps Tab among the field and the buttons. `type: 'url'` gives a phone its address keyboard; the
+field never spell-checks or autofills.
+
+```js
+const url = await confirm.prompt({
+  title: 'Open from URL',
+  message: 'The web address of a data file (.sldd, .slx, .mdl, .mat).',
+  label: 'URL',
+  placeholder: 'https://github.com/…/plant.sldd',
+  type: 'url',
+  okLabel: 'Open',
+});
+if (url !== null) open(url);
+```
+
+One question is open at a time, of either kind. A second show() or prompt() while one is open
+answers the first with its cancel (show()'s `cancelId`, prompt()'s null) and asks the second in
 its place. The dialog paints at z-index 10000, as [`<dex-error-dialog>`](error-dialog.md) does,
 so where both are open the one later in the document is on top: append it last in the body,
 outside any element that makes a stacking context of its own.
@@ -55,9 +76,17 @@ first that is not a danger one, and returns, when the dialog closes, to the elem
 it when the first of these questions was asked. On an element that is not on the page it
 resolves to `cancelId` at once.
 
+### `prompt(options: PromptOptions): Promise<string | null>`
+
+Opens the dialog with a text field and resolves to the text typed, trimmed, when the primary
+button is pressed or Enter is pressed in the field (never blank); null on Cancel, Escape, a
+click on the backdrop, close(), a show() or prompt() asked in its place, or the element leaving
+the page. As show(), it answers a question still open with that question's cancel, opens
+focused (on the field), keeps Tab inside, and gives the focus back when it closes.
+
 ### `close(): void`
 
-Closes the dialog, answering show() with its `cancelId`; does nothing while closed.
+Closes the dialog, answering show() with its `cancelId` and prompt() with null; does nothing while closed.
 
 ## Events
 

@@ -13,7 +13,9 @@
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
 // watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; a drop opens
-// through openDropped; and New's files are made in newFile.ts.
+// through openDropped; and New's files are made in newFile.ts. A page may open files from web
+// addresses (fetchUrls, and Open from URL with `openFromUrl`), fetched under urls.ts's rules, and
+// pass on its links to its files (`linkFor`, Copy Link).
 import { isSupportedPath } from 'data-explorer-core';
 import { dropSources } from './drop.js';
 import { folderLooks, serveWebFolder } from './folder.js';
@@ -21,6 +23,7 @@ import { titleOfPath, WebFiles } from './files.js';
 import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
+import { fetchUrlBytes, urlTargetOf } from './urls.js';
 import { subDir } from './walk.js';
 import { watchOpenFiles } from './watch.js';
 /**
@@ -29,6 +32,8 @@ import { watchOpenFiles } from './watch.js';
  * waits for the rest of the time rather than being dropped, so no change goes untold.
  */
 export const LOOK_EVERY_MS = 3000;
+/** `err` as an Error, its message what a problem line says. */
+const asError = (err) => (err instanceof Error ? err : new Error(String(err)));
 /**
  * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
  * inputs, New through its save picker or as a file the page keeps, reads and saves through WebFiles
@@ -157,24 +162,116 @@ export function browserHost(options = {}) {
             watcher?.ownWrite(path, stamp);
         }
     }
+    // Files of the app's own, or fetched from web addresses, into a group. A file replaced under a tab
+    // is a change on disk to it, told once: the watcher knows it by the new file's stamp, so its next
+    // look does not tell it again.
+    async function addToGroup(group, added) {
+        const { paths, replaced } = await files.addToGroup(group, added);
+        for (const path of replaced) {
+            if (!watcher?.has(path))
+                continue;
+            watcher.watch(path, await files.stamp(path));
+            onChanged?.(path);
+        }
+        return paths;
+    }
+    // The page's own fetch is looked up at each fetch, so one a page or a test puts in later is the one called.
+    const fetchDeps = {
+        fetch: options.fetch ?? ((url, init) => fetch(url, init)),
+        online: () => nav.onLine !== false,
+    };
+    // Each web address's file by the URL fetched: its path once it is added, so an address asked for
+    // again (in another spelling, or while its first fetch runs) is fetched once. One that failed is
+    // let go, to be fetched afresh when it is asked for again.
+    const fromUrl = new Map();
+    // By each fetched file's path, the URL whose file is there and that address as it was first
+    // given: what a link to it writes back. Two addresses of one name in one folder (`a.sldd?v=1`,
+    // `?v=2`) share a path, as two files of a name in a group do, and take turns at it.
+    const urlAt = new Map();
+    const givenAt = new Map();
+    // Fetch `fresh` (addresses not asked for before) together, then add the files fetched a group at a
+    // time, each group's in one call and the groups in the order they first come, so the folders are
+    // numbered as the addresses run: each address's path by its URL, or why it has none.
+    async function addFetched(fresh) {
+        const fetched = await Promise.allSettled(fresh.map((target) => fetchUrlBytes(target, fetchDeps)));
+        const answers = new Map();
+        const groups = new Map();
+        fresh.forEach((target, i) => {
+            const result = fetched[i];
+            if (result.status === 'rejected')
+                return void answers.set(target.url, asError(result.reason));
+            let group = groups.get(target.group);
+            if (!group)
+                groups.set(target.group, (group = []));
+            group.push({ target, bytes: result.value });
+        });
+        for (const [group, got] of groups) {
+            const paths = await addToGroup(group, got.map(({ target, bytes }) => ({ name: target.name, source: { kind: 'bytes', bytes } })));
+            got.forEach(({ target }, i) => {
+                const path = paths[i];
+                answers.set(target.url, path);
+                // Another address's file was there: that address, asked for again, is fetched again.
+                const before = urlAt.get(path);
+                if (before !== undefined && before !== target.url)
+                    fromUrl.delete(before);
+                urlAt.set(path, target.url);
+                givenAt.set(path, target.given);
+            });
+        }
+        return answers;
+    }
+    async function fetchUrls(urls) {
+        const origin = options.origin ?? location.origin;
+        const targets = urls.map((given) => urlTargetOf(given, origin));
+        const fresh = new Map();
+        for (const target of targets) {
+            if (!('problem' in target) && !fromUrl.has(target.url) && !fresh.has(target.url))
+                fresh.set(target.url, target);
+        }
+        if (fresh.size) {
+            const added = addFetched([...fresh.values()]);
+            for (const url of fresh.keys()) {
+                const path = added.then((answers) => {
+                    const answer = answers.get(url);
+                    if (answer instanceof Error)
+                        throw answer;
+                    return answer;
+                });
+                fromUrl.set(url, path);
+                path.catch(() => {
+                    if (fromUrl.get(url) === path)
+                        fromUrl.delete(url);
+                });
+            }
+        }
+        // Each address's answer as this call found it, taken before a failure lets it go.
+        const asked = targets.map((target) => ('problem' in target ? target : { target, path: fromUrl.get(target.url) }));
+        const paths = [];
+        const problems = [];
+        for (const one of asked) {
+            if ('problem' in one) {
+                paths.push(null);
+                problems.push(one.problem);
+                continue;
+            }
+            try {
+                paths.push(await one.path);
+            }
+            catch (err) {
+                paths.push(null);
+                problems.push(`${one.target.given} could not be fetched: ${asError(err).message}`);
+            }
+        }
+        return { paths, problems };
+    }
     return {
         // The registry's few members an app needs, and none of the rest.
         files: {
             addPicked: (name, source) => files.addPicked(name, source),
-            async addToGroup(group, added) {
-                const { paths, replaced } = await files.addToGroup(group, added);
-                // A file replaced under a tab is a change on disk to it, told once: the watcher knows it by
-                // the new file's stamp, so its next look does not tell it again.
-                for (const path of replaced) {
-                    if (!watcher?.has(path))
-                        continue;
-                    watcher.watch(path, await files.stamp(path));
-                    onChanged?.(path);
-                }
-                return paths;
-            },
+            addToGroup,
             get: (path) => files.get(path),
             has: (path) => files.has(path),
+            urlOf: (path) => givenAt.get(path),
         },
         async newFile(suggestedName) {
             // The open files are not looked at while the picker is up: the one it names is made or emptied
@@ -201,6 +298,15 @@ export function browserHost(options = {}) {
             return path;
         },
         pickFiles: () => pickFiles(files, deps),
+        fetchUrls,
+        ...(options.openFromUrl && {
+            async fetchUrl(url) {
+                const { paths, problems } = await fetchUrls([url]);
+                if (paths[0] === null)
+                    throw new Error(problems[0]);
+                return paths[0];
+            },
+        }),
         ...(onFolder && {
             async pickFolder() {
                 const dir = await pickDirectory(deps);
@@ -276,6 +382,8 @@ export function browserHost(options = {}) {
                 throw new Error('This browser gives the page no clipboard.');
             await nav.clipboard.writeText(text);
         },
+        // The page's own links: it knows its address and how its files are named in one.
+        ...(options.linkFor && { linkFor: options.linkFor }),
         dispose() {
             if (onFolder) {
                 doc.removeEventListener('visibilitychange', lookAgain);

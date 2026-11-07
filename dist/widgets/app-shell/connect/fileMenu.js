@@ -8,8 +8,8 @@
 // a file's Close.
 import { chordLabel, parseChord } from '../../../model/shell/chords.js';
 import { chordOf, onMac } from './keys.js';
-/** The menu's label of the chord of `command`, read at each menu as the platform says it. */
-const shortcutOf = (command) => {
+/** The menu's label of the chord of `command`, read at each menu as the platform says it (a tab's menu's too). */
+export const shortcutOf = (command) => {
     const chord = chordOf(command);
     return chord ? { shortcut: chordLabel(parseChord(chord), onMac()) } : {};
 };

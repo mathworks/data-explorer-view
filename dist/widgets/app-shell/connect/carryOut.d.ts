@@ -32,6 +32,10 @@ export interface CarryOutContext {
         up(): void;
         refresh(): void;
     };
+    /** Ask for a web address (Open from URL…): the address, or null. */
+    askUrl(): Promise<string | null>;
+    /** Copy Link at `tab`'s selection (the active tab; none at Root). */
+    copyLink(tab: OpenTab | undefined): void;
 }
 /**
  * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel

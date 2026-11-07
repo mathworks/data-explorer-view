@@ -16,6 +16,13 @@ tab, as it is drawn and as it is resized; it hides the × of a tab scrolled part
 start, so no × is left there alone, and draws no tab wider than itself.
 The arrow keys move along the tabs, and Home and End go to either end.
 
+A tab's menu is the app's to show: the row only asks for it. A right-click on a tab (or its ×)
+sends `dex-tab-menu` with the tab's id and the pointer's place, and Shift+F10 or the ContextMenu
+key on the focused tab sends it with the place under the tab and `keyboard: true`, for a menu that
+takes the keyboard (`<dex-context-menu>`'s `focusFirst`). The browser's own menu is kept off the
+tabs, and the one a browser fires after a menu key sends nothing more, so the app opens one menu.
+The row's empty end and the … button keep the browser's menu.
+
 ```js
 import { defineDocTabs } from 'data-explorer-view/app-shell';
 
@@ -29,6 +36,9 @@ strip.tabs = [
 strip.active = 'a';
 strip.addEventListener('dex-tab-select', (e) => (strip.active = e.detail.id));
 strip.addEventListener('dex-tab-close', (e) => closeTab(e.detail.id)); // ask first, when it is dirty
+strip.addEventListener('dex-tab-menu', ({ detail: { id, x, y, keyboard } }) => {
+  menu.show(x, y, tabMenuItems(id), { focusFirst: !!keyboard }); // a <dex-context-menu>
+});
 strip.addEventListener('dex-tab-move', (e) => {
   const tab = strip.tabs.find((t) => t.id === e.detail.id);
   const rest = strip.tabs.filter((t) => t !== tab);
@@ -143,6 +153,23 @@ Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove
 export interface TabMoveDetail {
   id: string;
   index: number;
+}
+```
+
+### `dex-tab-menu`
+
+A right-click on a tab, or Shift+F10 or the ContextMenu key on the focused one: show its menu. The browser's own menu is prevented.
+
+`detail` is a `TabMenuDetail`:
+
+```ts
+/** What `dex-tab-menu` carries: the tab whose menu is asked for, and where to show it (viewport coordinates). */
+export interface TabMenuDetail {
+  id: string;
+  x: number;
+  y: number;
+  /** Asked by a key (Shift+F10, the ContextMenu key): the menu takes the keyboard (the context menu's `focusFirst`). */
+  keyboard?: true;
 }
 ```
 
