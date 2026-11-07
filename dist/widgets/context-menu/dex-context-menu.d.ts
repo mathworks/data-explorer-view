@@ -87,6 +87,7 @@ export declare class DexContextMenu extends LitElement {
      * close()) gives it back where it was.
      */
     close(): void;
+    private _detach;
     private _sendClosed;
     private _clampPosition;
     private _getActionItems;
