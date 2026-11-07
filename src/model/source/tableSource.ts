@@ -358,6 +358,16 @@ export interface EditableTableSource extends TableSource {
    * nothing.
    */
   drop(rowId: string, mode: 'copy' | 'move'): void | Promise<void>;
+  /**
+   * The drag register's entries let go over `rowId` as a copy, as `drop(rowId, 'copy')`, with the
+   * entries of `replacing` (rows of this document, each standing for its entry) taken out first in
+   * the same edit, so the copies keep their names: one undo step. Until core can paste in place, the
+   * copy goes last in its section. A compare's Copy to Right of a changed entry. Refused, changing nothing, where a row of `replacing` is no
+   * longer in the document, or names a variable another of the file shares its name with (a
+   * MAT-file's). A source whose copy finishes later returns a promise, as `drop` does. Optional: a
+   * source without it takes no replacing copy, and a compare offers none into it.
+   */
+  dropReplacing?(rowId: string, replacing: readonly string[]): void | Promise<void>;
   /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
   requestEditText(rowId: string): void;
   /**

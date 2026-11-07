@@ -275,6 +275,14 @@ async function save() {
   that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
   document, settling once the document is done with it, with whether it was
   refused and why.
+- `handle.dropReplacing(rowId, replacing)` is that drop as a copy that takes
+  the place of entries the document already has (`replacing`, rows of the
+  target table), as a compare's Copy to Right does: they go out in the same
+  edit as the paste, so the copies keep their names (no `Kp1`), and one Undo
+  puts the old entries back. Until core can paste in place, the copy goes last
+  in its section, not where the entry it replaces was. It is judged and settled as `handle.drop` is; a
+  source without `dropReplacing` (one across a channel) refuses it, saying the
+  file does not replace entries.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own

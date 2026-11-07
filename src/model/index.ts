@@ -60,7 +60,7 @@ export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromR
 export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export type { LinkTarget } from './ids/linkTarget.js';
-export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
+export { basename, fileNameOf, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export type { GalleryCategory, GalleryTile, SectionKey } from './ids/addCatalog.js';
 export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
@@ -263,7 +263,6 @@ export type {
 // (above), under a name of its own.
 export {
   TransferRefused,
-  fileNameOf,
   isNoopMove as isNoopTransfer,
   runTransfer,
   sharedNameRefusal,
