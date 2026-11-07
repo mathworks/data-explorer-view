@@ -23,6 +23,7 @@ import {
   keepLayout,
   keepLayoutOver,
   keepSplitOver,
+  keptView,
   resizeSide,
   showView,
   toggleView,
@@ -84,6 +85,24 @@ describe('initialLayout', () => {
     // Even when the last session kept it open with a view: there is nothing to show.
     const kept = JSON.stringify({ right: { view: 'properties', open: true, size: 200 } });
     expect(initialLayout({ left: ['explorer'], right: [], bottom: [] }, kept).right).toEqual({ view: null, open: false, size: 200 });
+  });
+});
+
+describe('keptView', () => {
+  it('reads the view a side was left on, from what was kept, as initialLayout reads it back', () => {
+    const kept = keepLayout(showView(FIRST, 'left', 'search'));
+    expect(keptView(kept, 'left', VIEWS.left)).toBe('search');
+    expect(keptView(JSON.parse(kept), 'left', VIEWS.left)).toBe('search');
+    expect(keptView(kept, 'bottom', VIEWS.bottom)).toBe('log');
+  });
+
+  it('is null where nothing was kept for the side, or what was is no view the side has now', () => {
+    for (const kept of [null, undefined, '', 'not json', '[]', '{}', '{"left":7}', '{"left":{"view":3}}']) {
+      expect(keptView(kept, 'left', VIEWS.left), String(kept)).toBeNull();
+    }
+    // A view the side no longer has: initialLayout falls back to the side's first; this says none was chosen.
+    expect(keptView('{"left":{"view":"gallery"}}', 'left', VIEWS.left)).toBeNull();
+    expect(initialLayout(VIEWS, '{"left":{"view":"gallery"}}').left.view).toBe('explorer');
   });
 });
 

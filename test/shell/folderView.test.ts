@@ -271,6 +271,18 @@ describe('the Folder view', () => {
     expect(viewShown(page, 'left')).toBe('search');
   });
 
+  it('stays behind a left view the user chose before the first folder came', async () => {
+    const work = workFolder();
+    const page = folderPage(work, { entries: true, show: false });
+    await settled();
+    page.command('show-search');
+    await until(() => viewShown(page, 'left') === 'search');
+    page.serve(work);
+    await until(() => segmentLabels().at(-1) === 'work');
+    await settled();
+    expect(viewShown(page, 'left')).toBe('search');
+  });
+
   it('feeds Used By from a folder shown by a host with no Folder view', async () => {
     const work = workFolder();
     const page = folderPage(work, { entries: true, without: ['pickFolder'] });

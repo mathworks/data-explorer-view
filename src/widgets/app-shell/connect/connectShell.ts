@@ -28,6 +28,7 @@ import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import type { DragDescriptor } from '../../../model/source/wire.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
+import { keptView } from '../../../model/shell/shellLayout.js';
 import { basenameOf, isProjectFile, isSlddFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
@@ -73,26 +74,10 @@ import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { paletteCommands, type PaneCommands } from './paletteItems.js';
-import { viewOfCommand } from './views.js';
+import { SHELL_VIEWS, viewOfCommand } from './views.js';
 import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-/**
- * The view the layout kept under `key` shows on `side`, as the user left it, or null where none is
- * kept (no layout, none for the side, storage that cannot be read): `<dex-app-shell>`'s own record
- * (shellLayout.ts), read as it reads it back.
- */
-function keptViewOf(store: { getItem(key: string): string | null } | null, key: string, side: 'left' | 'right' | 'bottom'): string | null {
-  try {
-    const kept = key ? store?.getItem(key) : null;
-    const record: unknown = kept ? JSON.parse(kept) : null;
-    const view = (record as Record<string, { view?: unknown } | undefined> | null)?.[side]?.view;
-    return typeof view === 'string' ? view : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Whether two files' bytes are the same. */
 const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -144,10 +129,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const paneRows = new PaneRows(docs, strip);
   const store = pageStorage();
   docs.ratio = keptSplit(store, shell.storageKey);
-  // The left view the layout read back says the user chose, if it says one: the Folder view then
-  // stays behind it when the first folder comes (an app reopens its last folder at launch, and the
-  // view the user left wins), and comes forward with it only where there is no choice kept.
-  const keptLeft = keptViewOf(store, shell.storageKey, 'left');
   let nextId = 0;
   // The Log, which every part of the shell writes to.
   const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
@@ -930,6 +911,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The Folder view comes forward with the first folder shown, and is left as the user leaves it
   // after: another folder made the workspace folder is no reason to take the side from what it shows.
   let folderRevealed = false;
+  // The left view the shell keeps as the user left it, read as the first folder comes: a view
+  // chosen in an earlier session (an app reopens its last folder at launch) or since the shell
+  // started then stays in front, and the Folder view comes forward only where none was chosen.
+  const keptLeftView = (): string | null => {
+    let kept: string | null = null;
+    try {
+      kept = shell.storageKey ? (store?.getItem(shell.storageKey) ?? null) : null;
+    } catch {
+      // No storage to read: no choice kept.
+    }
+    return keptView(kept, 'left', SHELL_VIEWS.filter((v) => v.side === 'left').map((v) => v.view));
+  };
 
   // Every open table is painted again, its Usage filled from the folder shown, and every
   // project's page from its store, again when the folder says its marker changed (a matlab.toml
@@ -942,7 +935,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       folderNav.shown(shown.root);
       if (folderView && !folderRevealed) {
         folderRevealed = true;
-        if (keptLeft === null) modules.show('folder');
+        if (keptLeftView() === null) modules.show('folder');
       }
       markRows();
       modules.scope(basenameOf(shown.root));
