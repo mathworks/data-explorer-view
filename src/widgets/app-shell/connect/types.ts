@@ -19,7 +19,9 @@ import type { Theme } from '../../../model/shell/settings.js';
  * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
  * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
  * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
- * goes to the Explorer's Root, where the relationship graph is. The documents split in two panes
+ * goes to the Explorer's Root, where the relationship graph is. `folder-up` makes the folder above
+ * the workspace folder (ShellHost.folderParent, openFolderAt), and `folder-refresh` reads it again
+ * (or picks it again, for a host whose folder is a snapshot). The documents split in two panes
  * side by side: `split-right` moves the active tab into a pane on the right (a new one, or the
  * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
  * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
@@ -54,6 +56,9 @@ export type ShellCommand =
   | 'about'
   | 'palette'
   | 'show-explorer'
+  | 'show-folder'
+  | 'folder-up'
+  | 'folder-refresh'
   | 'show-gallery'
   | 'show-search'
   | 'show-properties'
@@ -90,9 +95,20 @@ export interface ShellHost {
   pickFiles(): Promise<string[]>;
   /**
    * Show the host's Open Folder dialog. A folder chosen comes back through `ShellHandle.showFolder`
-   * with its port. Absent: the host shows no folders, and the shell offers no Folder button.
+   * with its port. Absent: the host shows no folders, and the shell offers no Folder button and no
+   * Folder view.
    */
   pickFolder?(): Promise<void>;
+  // The Folder view's moves (a host that shows folders): the folder above, another folder made the
+  // workspace folder, the ones opened before, and what Read Again does.
+  /** The folder above `path`, or null where this host can't go up (a browser above the picked folder; `/`). Absent: ↑ is never offered. */
+  folderParent?(path: string): string | null;
+  /** Make `path` the workspace folder: the host serves it and calls ShellHandle.showFolder, as for Open Folder. Resolves false when it can't (the folder stays). */
+  openFolderAt?(path: string): Promise<boolean>;
+  /** Folders opened before, newest first (paths). Absent: no Recent Folders. */
+  recentFolders?(): Promise<readonly string[]>;
+  /** What ⟳ does: read the folder again (default), or ask the user to pick it again (a browser's snapshot of a folder). */
+  folderRefresh?: 'read' | 'pick';
   /** The bytes of a data file the user opened. A rejection is shown in the file's table. */
   readFile(path: string): Promise<Uint8Array>;
   /**
@@ -192,7 +208,10 @@ export interface ShellNotice {
 export interface ShellHandle {
   /** Open these files, in order, each in a tab of its own (kept, not a preview): the last named ends up active. */
   openPaths(paths: readonly string[]): Promise<void>;
-  /** Show `root`, read across `port` (serveFolder's other end), in the Explorer, in place of a folder shown before. */
+  /**
+   * Show `root`, read across `port` (serveFolder's other end), as the workspace folder: in the Folder
+   * view, and for Used By, the graph and Search, in place of a folder shown before.
+   */
   showFolder(root: string, port: MessagePort): void;
   /** An open file changed on disk: a clean tab takes the change, a tab with unsaved edits asks first. */
   fileChanged(path: string): void;

@@ -118,10 +118,12 @@ describe('every dispatched event is declared, in its own module, with its detail
   it("lets connectShell's internal parts send a part's event only as the part declares it", () => {
     const declared = new Map(MODULES.flatMap(([, m]) => [...m.declared]));
     const sent = MODULES.flatMap(([file, m]) => resent(file, m).flatMap((name) => m.dispatched.get(name)!.map((t) => [file, name, t] as const)));
-    // The welcome's buttons, which share one dispatch, and a table's selection cleared as a click
-    // on no row clears it: a check that found none would pass for nothing.
+    // The welcome's buttons, which share one dispatch, the Folder view's Open Folder… with no
+    // folder shown, and a table's selection cleared as a click on no row clears it: a check that
+    // found none would pass for nothing.
     expect(sent.map(([file, name]) => `${file} ${name}`).sort()).toEqual([
       'src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action',
+      'src/widgets/app-shell/connect/dex-shell-folder.ts dex-toolbar-action',
       'src/widgets/app-shell/connect/documents.ts dex-row-selected',
     ]);
     for (const [, name, t] of sent) expect(declared.get(name), name).toBe(`CustomEvent<${t}>`);

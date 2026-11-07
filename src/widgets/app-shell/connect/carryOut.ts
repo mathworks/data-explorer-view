@@ -37,6 +37,8 @@ export interface CarryOutContext {
   later(): void;
   /** Something could not be done: say so. */
   failed(message: string): void;
+  /** The Folder view's moves: the folder above made the workspace folder, and the folder read again (folderNav.ts). */
+  folder: { up(): void; refresh(): void };
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -139,6 +141,12 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
     case 'up':
       on.nav[id]();
       on.later();
+      break;
+    case 'folder-up':
+      on.folder.up();
+      break;
+    case 'folder-refresh':
+      on.folder.refresh();
       break;
     case 'show-graph':
       // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).

@@ -50,6 +50,7 @@ import { connectExplorerDrop } from './explorerDrop.js';
 import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import type { LocationSegment } from '../dex-location-bar.js';
 import type { FolderView } from './folder.js';
+import { connectFolderNav } from './folderNav.js';
 import { connectGraphPane, type SelectedFile } from './graphPane.js';
 import { followDropMark } from './drop.js';
 import { installKeys, onMac } from './keys.js';
@@ -110,8 +111,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const key = options.storageKey ?? 'dex-shell';
   // The layout is the shell's to keep; set before the views go in, which is when it reads it back.
   if (!shell.storageKey) shell.storageKey = `${key}:layout`;
-  const parts = buildShell(shell, { appName });
-  const { toolbar, location, explorer, folderPart, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
+  // A Folder view for a host that shows folders, as it is when the shell is connected.
+  const folderView = !!host.pickFolder;
+  const parts = buildShell(shell, { appName, folders: folderView });
+  const { toolbar, location, explorer, folderPart, folderBar, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
 
   let disposed = false;
   const stops: (() => void)[] = [];
@@ -179,7 +182,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const uri = await Promise.resolve(folderNow()?.resolveLink(link, sourceUri(from.path))).catch(() => undefined);
     if (isOpen(from)) await navigate(from, link, uri ?? undefined);
   }
-  // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
+  // The workspace folder (shownFolder.ts, below), in the Folder view: its hierarchy; a chosen file opens as a tab.
   const folderNow = (): FolderView | undefined => folders.current;
   // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
   const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
@@ -259,6 +262,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     docs.welcome = tabs.items.length === 0;
     parts.graphPanel.hidden = !!active || tabs.items.length === 0;
     docs.canOpenFolder = !!host.pickFolder;
+    folderPart.canOpenFolder = !!host.pickFolder;
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
     else document.title = title;
@@ -719,7 +723,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState(), paneCommands()));
+      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), folderNav.commands()));
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -749,6 +753,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     goToPane,
     later,
     failed,
+    folder: { up: () => folderNav.up(), refresh: () => folderNav.refresh() },
   };
 
   // --- The modules' views ------------------------------------------------------------------------
@@ -856,13 +861,46 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // --- The folder --------------------------------------------------------------------------------
 
+  // The Folder view's bar and menus (folderNav.ts): a move asks the host, which shows the folder
+  // it moved to as it shows any; a row's file opens, beside the others or not, and closes.
+  const tabOfUri = (uri: string): OpenTab | undefined => tabs.find((t) => sourceUri(t.path) === uri);
+  const folderNav = connectFolderNav({
+    host,
+    part: folderPart,
+    bar: folderBar,
+    menu,
+    folder: () => folderNow(),
+    isOpen: (uri) => !!tabOfUri(uri),
+    open(path, side) {
+      void open(path).then((tab) => {
+        if (side && isOpen(tab)) rearrange(() => tabs.split(tab, 'right'));
+      });
+    },
+    close(uri) {
+      const tab = tabOfUri(uri);
+      if (tab) void requestClose(tab);
+    },
+    said: (text) => say('info', text, 2000),
+    failed,
+  });
+  stops.push(() => folderNav.dispose());
+  // The Folder view comes forward with the first folder shown, and is left as the user leaves it
+  // after: another folder made the workspace folder is no reason to take the side from what it shows.
+  let folderRevealed = false;
+
   // Every open table is painted again, its Usage filled from the folder shown, and every
   // project's page from its store, again when the folder says its marker changed (a matlab.toml
   // saved). The graph draws the folder's files.
   const folders = connectShownFolder(folderPart, tree, {
     open: openOn,
+    menu: (detail) => folderNav.rowMenu(detail),
     shown(shown) {
       log('info', `Showing the folder ${shown.root}`);
+      folderNav.shown(shown.root);
+      if (folderView && !folderRevealed) {
+        folderRevealed = true;
+        modules.show('folder');
+      }
       modules.scope(basenameOf(shown.root));
       // The folder's usage from now on. A Close Folder, should one come, hands it back to the open
       // tabs: ws.setUsage(openUsage), then openUsage.changed().

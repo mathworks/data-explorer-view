@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The folder in the Explorer, as the shell shows one and then another in its place: the folder's
-// part (its title, its note) and its tree filled from the folder read across its port (folder.ts's
+// The workspace folder, as the shell shows one and then another in its place: the Folder view's
+// part (its root, its note) and its tree filled from the folder read across its port (folder.ts's
 // showFolder), and what listens to the folder, let go of with it. connectShell says what a chosen
 // file and a change mean (a tab opened, the documents' Usage and project pages painted again, the
 // Search view asked again); this keeps the folder's own half.
@@ -10,7 +10,7 @@
 // and the title were elements of index.html, and the folder had a search box of its own, which the
 // Search view stands for here.
 
-import type { DexHierarchy } from '../../hierarchy/dex-hierarchy.js';
+import type { DexHierarchy, HierarchyMenuDetail } from '../../hierarchy/dex-hierarchy.js';
 import type { DexShellFolder } from './dex-shell-folder.js';
 import { showFolder, type FolderView } from './folder.js';
 
@@ -26,9 +26,11 @@ export interface ShownFolderActions {
   namesChanged?(folder: FolderView): void;
   /** The folder shown could not be read: why, as its note says it. */
   failed?(message: string): void;
+  /** A row's menu was asked for (a right click, Shift+F10 on the row). */
+  menu?(detail: HierarchyMenuDetail): void;
 }
 
-/** The folder shown in the Explorer, if any, and how to show another. */
+/** The folder shown in the Folder view, if any, and how to show another. */
 export interface ShownFolder {
   /** The folder shown now, or none before the first. */
   readonly current: FolderView | undefined;
@@ -56,9 +58,9 @@ export function connectShownFolder(part: DexShellFolder, tree: DexHierarchy, act
     },
     show(root, port) {
       drop();
-      part.hidden = false;
       part.root = root;
       part.note = '';
+      part.status = '';
       let note = 'No data files in this folder.';
       const shown = showFolder(tree, root, port, {
         empty: (isEmpty) => (part.note = isEmpty ? note : ''),
@@ -68,6 +70,7 @@ export function connectShownFolder(part: DexShellFolder, tree: DexHierarchy, act
           part.note = note;
           actions.failed?.(text);
         },
+        menu: (detail) => actions.menu?.(detail),
       });
       folder = shown;
       // The folder's names are read again each time it takes a change: its tree is built again

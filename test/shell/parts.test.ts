@@ -4,8 +4,9 @@
 // connectShell's internal parts on their own: the documents' area (the tab row's slot, the panels
 // stacked under it, the welcome, whose buttons ask what the toolbar's Open and Folder ask; split,
 // a second pane beside the first, the divider between them, and where a tab dragged over it would
-// land), the folder (its title, its search box and results made with it, the tree it is given, its
-// note) and the quiet note a side shows. connectShell fills them; the tests beside this one see
+// land), the Folder view's part (with no folder, that none is open and Open Folder…; with one, the
+// bar and the tree it is given, the line that says what it reads, its note) and the quiet note a
+// side shows. connectShell fills them; the tests beside this one see
 // them filled.
 import { afterEach, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { DexShellDocs, SECOND_PANE, defineShellDocs, type ShellDocsEventMap } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
@@ -323,27 +324,45 @@ describe('<dex-shell-docs> split in two', () => {
 });
 
 describe('<dex-shell-folder>', () => {
-  it("titles itself with the folder's name, its path the tooltip, a trailing separator or not", async () => {
+  it('says no folder is open, and offers Open Folder… only where the host can show one, asking for it as the welcome does', async () => {
     const folder = await mount(new DexShellFolder());
-    const title = () => folder.shadowRoot!.querySelector<HTMLElement>('.title')!;
-    folder.root = '/work/plant/';
+    const welcome = () => folder.shadowRoot!.querySelector<HTMLElement>('.welcome');
+    expect(welcome()!.textContent).toContain('No folder is open.');
+    expect(welcome()!.textContent).toContain('or drop a folder onto this window');
+    expect(welcome()!.querySelector('button')).toBeNull();
+    folder.canOpenFolder = true;
     await folder.updateComplete;
-    expect([title().textContent, title().title]).toEqual(['plant', '/work/plant/']);
-    folder.root = 'C:\\work\\Data';
-    await folder.updateComplete;
-    expect(title().textContent).toBe('Data');
+    const asked: string[] = [];
+    document.addEventListener('dex-toolbar-action', (e) => asked.push(e.detail.actionId), { once: true });
+    const button = welcome()!.querySelector<HTMLButtonElement>('button')!;
+    expect(button.textContent).toBe('Open Folder…');
+    button.click();
+    expect(asked).toEqual(['open-folder']);
+    // What it is given is not drawn meanwhile.
+    expect(folder.shadowRoot!.querySelector('slot')).toBeNull();
   });
 
-  it('draws its title, then the tree it is given, and no search box of its own: the Search view searches its names', async () => {
+  it('draws what it is given (the bar, the tree), then a status line and its note; no title and no search box of its own', async () => {
     const folder = new DexShellFolder();
     folder.append(document.createElement('div'));
+    folder.root = '/work/plant';
     await mount(folder);
     const parts = [...folder.shadowRoot!.children].map((el) => el.localName + (el.className ? `.${el.className}` : ''));
-    expect(parts).toEqual(['header.title', 'slot']);
+    expect(parts).toEqual(['slot', 'div.status']);
+    expect(folder.shadowRoot!.querySelector('.welcome')).toBeNull();
   });
 
-  it('shows its note under the tree, and none while it has none', async () => {
-    const folder = await mount(new DexShellFolder());
+  it('says what it reads in a live region that is always there, and its note under the tree, none while it has none', async () => {
+    const folder = new DexShellFolder();
+    folder.root = '/work/plant';
+    await mount(folder);
+    const status = folder.shadowRoot!.querySelector<HTMLElement>('.status')!;
+    expect([status.getAttribute('role'), status.textContent]).toEqual(['status', '']);
+    folder.status = 'Reading models…';
+    await folder.updateComplete;
+    // The same element, its words put in it: a live region says what changes in it.
+    expect(folder.shadowRoot!.querySelector('.status')).toBe(status);
+    expect(status.textContent).toBe('Reading models…');
     const note = () => folder.shadowRoot!.querySelector('.note');
     expect(note()).toBeNull();
     folder.note = 'No data files in this folder.';
