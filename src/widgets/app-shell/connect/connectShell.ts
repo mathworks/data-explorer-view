@@ -51,6 +51,7 @@ import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
 import type { LocationSegment } from '../dex-location-bar.js';
 import type { FolderView } from './folder.js';
 import { connectFolderNav } from './folderNav.js';
+import type { RowMark } from '../../hierarchy/dex-hierarchy.js';
 import { connectGraphPane, type SelectedFile } from './graphPane.js';
 import { followDropMark } from './drop.js';
 import { installKeys, onMac } from './keys.js';
@@ -263,6 +264,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     parts.graphPanel.hidden = !!active || tabs.items.length === 0;
     docs.canOpenFolder = !!host.pickFolder;
     folderPart.canOpenFolder = !!host.pickFolder;
+    markRows();
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
     else document.title = title;
@@ -270,6 +272,26 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     host.setEdited?.(tabs.items.some((t) => t.dirty));
     Object.assign(status, statusOf(active));
     later();
+  }
+
+  // The folder's rows of the open files, marked as their tabs stand (open, active, unsaved, a
+  // preview), after any change to the tabs (each one paints): once a frame, however many changed in it.
+  let marking = false;
+  function markRows(): void {
+    if (marking || disposed) return;
+    marking = true;
+    requestAnimationFrame(() => {
+      marking = false;
+      if (disposed) return;
+      const active = tabs.active;
+      const marks = new Map<string, RowMark>(
+        tabs.items.map((t) => [
+          sourceUri(t.path),
+          { open: true, ...(t === active ? { active: true } : {}), ...(t.dirty ? { unsaved: true } : {}), ...(t.preview ? { preview: true } : {}) },
+        ]),
+      );
+      folderNow()?.setMarks(marks);
+    });
   }
 
   // What follows the active table's selection and source (the toolbar's buttons, the Explorer, the
@@ -901,6 +923,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         folderRevealed = true;
         modules.show('folder');
       }
+      markRows();
       modules.scope(basenameOf(shown.root));
       // The folder's usage from now on. A Close Folder, should one come, hands it back to the open
       // tabs: ws.setUsage(openUsage), then openUsage.changed().

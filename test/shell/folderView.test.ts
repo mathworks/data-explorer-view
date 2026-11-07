@@ -13,6 +13,7 @@
 //   read; a host that cannot open the folder leaves the folder shown as it was, and says why. A
 //   host that cannot go up has no ↑; one that can only ask for a folder again picks it again.
 // - Each row's menu (a right click, Shift+F10) offers what its kind of row can do.
+// - The rows of a file open in a tab are marked as its tab stands, and the active tab's revealed.
 // - Used By and the graph follow a re-root, as they follow a folder shown.
 // - A host that lists no entries shows the tree the shell showed before: the hierarchy's.
 //
@@ -115,6 +116,18 @@ const segmentLabels = () => bar().segments.map((s) => s.label);
 const statusLine = () => folderPart().shadowRoot?.querySelector('[role="status"]')?.textContent?.trim() ?? '';
 const send = (type: string, detail: unknown = null) => bar().dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
 const viewShown = (page: Page, side: 'left' | 'right' | 'bottom') => (page.shell.layout[side].open ? page.shell.layout[side].view : null);
+
+/** A committed edit of row `row`'s Value in the table of the file at `file`, as the table sends one. */
+async function editAt(file: string, row: string, value: string): Promise<void> {
+  type Row = { ID: string; Name?: { label: string }; Value?: { text?: string } | string };
+  const table = () => document.querySelector<HTMLElement & { rows: Row[] }>(`.doc-panel[data-path="${CSS.escape(file)}"] dex-tree-table`);
+  await until(() => !!table()?.rows.find((r) => r.Name?.label === row));
+  const r = table()!.rows.find((x) => x.Name?.label === row)!;
+  const old = typeof r.Value === 'object' ? String(r.Value?.text ?? '') : String(r.Value ?? '');
+  table()!.dispatchEvent(
+    new CustomEvent('dex-edit-completed', { detail: { rowId: r.ID, columnId: 'Value', oldValue: old, newValue: value }, bubbles: true, composed: true }),
+  );
+}
 
 /** Open the folder row `label` (its twisty), and wait for its rows. */
 async function expand(label: string): Promise<void> {
@@ -492,6 +505,48 @@ describe("a row's menu", () => {
     choose('Copy Path');
     await until(() => page.main.copied.length === 1);
     expect(page.main.copied).toEqual([path.join(work, 'data', 'params.sldd')]);
+  });
+});
+
+describe('the marks', () => {
+  it("mark a file's rows as its tab stands: open, the active one, unsaved, a preview; and the active tab's row is revealed", async () => {
+    const work = workFolder();
+    const page = folderPage(work);
+    await expand('data');
+    const params = () => rowNamed('params.sldd')!;
+    params().click();
+    await until(() => tabNames().includes('params.sldd'));
+    await until(() => ['open', 'active', 'preview'].every((c) => params().classList.contains(c)));
+    expect(params().getAttribute('aria-current')).toBe('true');
+    // An edit: unsaved, and kept, no longer a preview.
+    await editAt(path.join(work, 'data', 'params.sldd'), 'Kp', '5');
+    await until(() => params().querySelectorAll('.badge').length === 1 && !params().classList.contains('preview'));
+    page.command('save');
+    await until(() => params().querySelectorAll('.badge').length === 0);
+    // Another file active: this one open, not active; and that one's row marked active.
+    await expand('models');
+    rowNamed('shared_gain.slx')!.click();
+    await until(() => tabNames().includes('shared_gain.slx'));
+    await until(() => !params().classList.contains('active') && rowNamed('shared_gain.slx')!.classList.contains('active'));
+    expect(params().classList.contains('open')).toBe(true);
+    // Closed: no mark.
+    page.command('close-tab');
+    await until(() => !tabNames().includes('shared_gain.slx'));
+    await until(() => !rowNamed('shared_gain.slx')!.classList.contains('open'));
+    // The Explorer's Root: no tab active, no row marked active.
+    page.command('show-graph');
+    await until(() => !rows().some((r) => r.classList.contains('active')));
+    expect(params().classList.contains('open')).toBe(true);
+  });
+
+  it("reveal the active tab's row when a tab is activated, in a folder not yet opened", async () => {
+    const work = workFolder();
+    const page = folderPage(work);
+    await until(() => drawn().length > 1);
+    void page.handle.openPaths([path.join(work, 'data', 'params.sldd')]);
+    await until(() => tabNames().includes('params.sldd'));
+    await until(() => !!rowNamed('params.sldd') && rowNamed('params.sldd')!.getAttribute('aria-selected') === 'true');
+    expect(rowNamed('data')!.getAttribute('aria-expanded')).toBe('true');
   });
 });
 

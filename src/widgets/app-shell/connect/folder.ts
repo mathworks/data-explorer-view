@@ -19,7 +19,7 @@ import type { LinkTarget } from '../../../model/ids/linkTarget.js';
 import type { ProjectStore } from '../../../model/hierarchy/graphSources.js';
 import type { RawSource } from '../../../model/usage/usageCells.js';
 import { connectHierarchy } from '../../hierarchy/connectHierarchy.js';
-import type { DexHierarchy, HierarchyMenuDetail } from '../../hierarchy/dex-hierarchy.js';
+import type { DexHierarchy, HierarchyMenuDetail, RowMark } from '../../hierarchy/dex-hierarchy.js';
 
 /** A folder shown in a tree, read across its port: what the shell asks of it. */
 export interface FolderView {
@@ -33,6 +33,8 @@ export interface FolderView {
   resolveLink(link: LinkTarget, fromUri: string): Promise<string | null | undefined>;
   /** Select the row of the file `uri`, opening the rows above it. */
   reveal(uri: string): void;
+  /** Mark each file's rows as its tab stands, by its uri (the tree's `marks`). */
+  setMarks(marks: ReadonlyMap<string, RowMark>): void;
   /**
    * Read the folder again (⟳): its listing, so the index takes what changed, and every open row's
    * entries, which no listing of data files says changed (a note written into it).
@@ -97,6 +99,7 @@ export function showFolder(
     lists: (uri) => session.has(uri),
     resolveLink: async (link, fromUri) => session.hierarchy.resolveLink(link, fromUri),
     reveal: (uri) => void handle.reveal(uri),
+    setMarks: (marks) => handle.setMarks(marks),
     async readAgain() {
       await session.changed();
       // Drawn again from the graph there is: the tree asks each open folder for its entries anew.
