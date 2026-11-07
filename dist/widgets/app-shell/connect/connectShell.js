@@ -26,6 +26,7 @@ import { isEditable } from '../../../model/source/tableSource.js';
 import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
 import { createWorkspace } from '../../../model/source/workspace.js';
 import { createOpenFilesUsage } from '../../../model/usage/openFilesUsage.js';
+import { keptView } from '../../../model/shell/shellLayout.js';
 import { basenameOf, isProjectFile, isSlddFile, projectFallbackName } from 'data-explorer-core';
 import { connectInspector } from '../../property-inspector/connectInspector.js';
 import { focusIsInTextField } from '../../shared/textField.js';
@@ -33,6 +34,7 @@ import { clearSelection, connectDocument, docTabOf, newTable, openingNote, repai
 import { ranNote } from './editingNotes.js';
 import { connectExplorerDrop } from './explorerDrop.js';
 import { explorerFiles, FILE_ICONS } from './explorerFiles.js';
+import { connectFolderNav } from './folderNav.js';
 import { connectGraphPane } from './graphPane.js';
 import { followDropMark } from './drop.js';
 import { installKeys, onMac } from './keys.js';
@@ -54,7 +56,7 @@ import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf } from './toolbarItems.js';
 import { carryOut, showRootFrom } from './carryOut.js';
 import { paletteCommands } from './paletteItems.js';
-import { viewOfCommand } from './views.js';
+import { SHELL_VIEWS, viewOfCommand } from './views.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
 /** Whether two files' bytes are the same. */
 const sameBytes = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -89,8 +91,12 @@ export function connectShell(shell, options) {
     // The layout is the shell's to keep; set before the views go in, which is when it reads it back.
     if (!shell.storageKey)
         shell.storageKey = `${key}:layout`;
-    const parts = buildShell(shell, { appName });
-    const { toolbar, location, explorer, folderPart, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
+    // A Folder view for a host that shows folders, as it is when the shell is connected.
+    const folderView = !!host.pickFolder;
+    const parts = buildShell(shell, { appName, folders: folderView });
+    // Its Open Folder… with no folder shown, as the view itself, as the shell was connected.
+    parts.folderPart.canOpenFolder = folderView;
+    const { toolbar, location, explorer, folderPart, folderBar, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
     let disposed = false;
     const stops = [];
     // The open tabs, in one pane or two (tabs.ts): the active tab is the one the focused pane shows.
@@ -161,7 +167,7 @@ export function connectShell(shell, options) {
         if (isOpen(from))
             await navigate(from, link, uri ?? undefined);
     }
-    // The folder in the Explorer (shownFolder.ts, below): its hierarchy; a chosen file opens as a tab.
+    // The workspace folder (shownFolder.ts, below), in the Folder view: its hierarchy; a chosen file opens as a tab.
     const folderNow = () => folders.current;
     // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
     const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
@@ -240,6 +246,7 @@ export function connectShell(shell, options) {
         docs.welcome = tabs.items.length === 0;
         parts.graphPanel.hidden = !!active || tabs.items.length === 0;
         docs.canOpenFolder = !!host.pickFolder;
+        markRows();
         const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
         if (host.setTitle)
             host.setTitle(title);
@@ -249,6 +256,25 @@ export function connectShell(shell, options) {
         host.setEdited?.(tabs.items.some((t) => t.dirty));
         Object.assign(status, statusOf(active));
         later();
+    }
+    // The folder's rows of the open files, marked as their tabs stand (open, active, unsaved, a
+    // preview), after any change to the tabs (each one paints): once a frame, however many changed in it.
+    let marking = false;
+    function markRows() {
+        if (marking || disposed)
+            return;
+        marking = true;
+        requestAnimationFrame(() => {
+            marking = false;
+            if (disposed)
+                return;
+            const active = tabs.active;
+            const marks = new Map(tabs.items.map((t) => [
+                sourceUri(t.path),
+                { open: true, ...(t === active ? { active: true } : {}), ...(t.dirty ? { unsaved: true } : {}), ...(t.preview ? { preview: true } : {}) },
+            ]));
+            folderNow()?.setMarks(marks);
+        });
     }
     // What follows the active table's selection and source (the toolbar's buttons, the Explorer, the
     // location bar) is drawn a microtask after whatever changed: TableHandle.can has no event of its
@@ -713,7 +739,7 @@ export function connectShell(shell, options) {
             if (parts.modalOpen())
                 return;
             popovers.closeAll();
-            return parts.palette.show(paletteCommands(toolbarState(), paneCommands()));
+            return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }));
         }
         const view = viewOfCommand(id);
         if (view) {
@@ -745,6 +771,7 @@ export function connectShell(shell, options) {
         goToPane,
         later,
         failed,
+        folder: { up: () => folderNav.up(), refresh: () => folderNav.refresh() },
     };
     // --- The modules' views ------------------------------------------------------------------------
     // Raw, Search, the Gallery and the Terminal (modules.ts), over the active tab and the folder.
@@ -848,13 +875,66 @@ export function connectShell(shell, options) {
         },
     }));
     // --- The folder --------------------------------------------------------------------------------
+    // The Folder view's bar and menus (folderNav.ts): a move asks the host, which shows the folder
+    // it moved to as it shows any; a row's file opens, beside the others or not, and closes.
+    const tabOfUri = (uri) => tabs.find((t) => sourceUri(t.path) === uri);
+    const folderNav = connectFolderNav({
+        host,
+        part: folderPart,
+        bar: folderBar,
+        menu,
+        folder: () => folderNow(),
+        isOpen: (uri) => !!tabOfUri(uri),
+        open(path, side) {
+            void open(path).then((tab) => {
+                if (side && isOpen(tab))
+                    rearrange(() => tabs.split(tab, 'right'));
+            });
+        },
+        close(uri) {
+            const tab = tabOfUri(uri);
+            if (tab)
+                void requestClose(tab);
+        },
+        said: (text) => say('info', text, 2000),
+        failed,
+    });
+    stops.push(() => folderNav.dispose());
+    // The Folder view comes forward with the first folder shown, and is left as the user leaves it
+    // after: another folder made the workspace folder is no reason to take the side from what it shows.
+    let folderRevealed = false;
+    // The left view the shell keeps as the user left it, read as the first folder comes: a view
+    // chosen in an earlier session (an app reopens its last folder at launch) or since the shell
+    // started then stays in front, and the Folder view comes forward only where none was chosen.
+    const leftViews = SHELL_VIEWS.filter((v) => v.side === 'left').map((v) => v.view);
+    const keptLeftView = () => {
+        let kept = null;
+        try {
+            kept = shell.storageKey ? (store?.getItem(shell.storageKey) ?? null) : null;
+        }
+        catch {
+            // No storage to read: no choice kept.
+        }
+        return keptView(kept, 'left', leftViews);
+    };
     // Every open table is painted again, its Usage filled from the folder shown, and every
     // project's page from its store, again when the folder says its marker changed (a matlab.toml
     // saved). The graph draws the folder's files.
     const folders = connectShownFolder(folderPart, tree, {
         open: openOn,
+        menu: (detail) => folderNav.rowMenu(detail),
         shown(shown) {
             log('info', `Showing the folder ${shown.root}`);
+            folderNav.shown(shown.root);
+            if (folderView && !folderRevealed) {
+                folderRevealed = true;
+                // The side's first view kept (the Explorer, where every layout starts) is no choice of the
+                // user's own: a layout kept for another side's sake keeps it too.
+                const kept = keptLeftView();
+                if (kept === null || kept === leftViews[0])
+                    modules.show('folder');
+            }
+            markRows();
             modules.scope(basenameOf(shown.root));
             // The folder's usage from now on. A Close Folder, should one come, hands it back to the open
             // tabs: ws.setUsage(openUsage), then openUsage.changed().
@@ -870,6 +950,8 @@ export function connectShell(shell, options) {
         // The Search view's results on show are the folder's as it is now.
         namesChanged: () => modules.namesChanged(),
         failed: (text) => log('error', `This folder could not be read: ${text}`),
+        // Its tree says so in a row of its own; the Log keeps the line.
+        indexFailed: (text) => log('error', `The folder's data files could not be read: ${text}`),
     });
     // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
     paint();

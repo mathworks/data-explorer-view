@@ -81,6 +81,61 @@ async function walk(root, limit) {
     return { files, truncated, sources };
 }
 /**
+ * The folder at `rel` in `dir` (its `/`-separated path there; '' for `dir` itself) as a BrowserDir
+ * of its own: for a handle, the handle walked down to it; for a listed folder, the files the
+ * browser listed under it, each by its path from it. Rejects, naming it, for a folder `dir` holds
+ * none of (a listed folder holds a folder only where it holds a file under it).
+ */
+export async function subDir(dir, rel) {
+    if (rel === '')
+        return dir;
+    const none = () => new Error(`${dirName(dir)} holds no folder ${rel}.`);
+    const parts = rel.split('/');
+    if (dir.kind === 'handle') {
+        let at = dir.handle;
+        try {
+            for (const part of parts)
+                at = await at.getDirectoryHandle(part);
+        }
+        catch {
+            throw none();
+        }
+        return { kind: 'handle', handle: at };
+    }
+    const prefix = `${rel}/`;
+    const files = dir.files.filter((f) => f.rel.startsWith(prefix)).map((f) => ({ rel: f.rel.slice(prefix.length), file: f.file }));
+    if (files.length === 0)
+        throw none();
+    return { kind: 'list', root: parts.at(-1), files, ...(dir.truncated ? { truncated: true } : {}) };
+}
+/**
+ * One level of `dir`: its folders and files, every one of them (not only the supported files a
+ * listing takes, nor only the directories it enters), but for a hidden one (a name starting with
+ * `.`), in no order: the page sorts them. A listed folder's are the folder as it was picked: the
+ * folders that hold a file, and the files. A handle's directory that cannot be read rejects.
+ */
+export async function listLevel(dir) {
+    if (dir.kind === 'handle') {
+        const out = [];
+        for await (const handle of entriesOf(dir.handle)) {
+            if (!handle.name.startsWith('.'))
+                out.push({ name: handle.name, folder: handle.kind === 'directory' });
+        }
+        return out;
+    }
+    const level = new Map();
+    for (const { rel } of dir.files) {
+        const [name, ...below] = rel.split('/');
+        if (!name || name.startsWith('.'))
+            continue;
+        if (below.length > 0)
+            level.set(name, true);
+        else if (!level.has(name))
+            level.set(name, false);
+    }
+    return [...level].map(([name, folder]) => ({ name, folder }));
+}
+/**
  * A listed folder's files. The browser has entered every directory already, so a file under one
  * the walk would not enter is dropped; and the walk's order is code-unit order of the whole paths,
  * so they are sorted as they are. A list the browser's reading cut short (`cut`) is a listing cut

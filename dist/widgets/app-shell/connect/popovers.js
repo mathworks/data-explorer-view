@@ -30,7 +30,7 @@ export function pageStorage() {
  * `graphLayout()` first).
  */
 export function connectPopovers(shell, parts, options) {
-    const { settingsPanel, aboutPanel, toolbar, location } = parts;
+    const { settingsPanel, aboutPanel, toolbar, location, folderBar } = parts;
     const { store, key, system } = options;
     let settings = readSettings(store, key);
     const apply = () => {
@@ -42,6 +42,7 @@ export function connectPopovers(shell, parts, options) {
         const mono = settings.iconStyle === 'minimal';
         toolbar.mono = mono;
         location.mono = mono;
+        folderBar.mono = mono;
         shell.mono = mono;
         for (const table of options.tables())
             table.tableStyle = tableStyleOf(settings);

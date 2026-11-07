@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // What the command palette lists: every toolbar action, enabled exactly as its button is now, then
-// a command to show each of the shell's views and Root's relationship graph, then the panes'
-// (Split Right, Move to Other Pane, and each pane's focus, enabled as each would act now), then
-// Settings and About. Each row's id is the ShellCommand it runs, and its shortcut the chord that
+// a command to show each of the shell's views and Root's relationship graph, the Folder view's
+// own two (Up One Level and Read Again, for a host that shows folders, enabled as each would act
+// now), then the panes' (Split Right, Move to Other Pane, and each pane's focus, enabled as each
+// would act now), then Settings and About. Each row's id is the ShellCommand it runs, and its shortcut the chord that
 // does the same, in the platform's words (chordLabel). Pure: connectShell hands it the toolbar's
 // state, and what the panes' commands would do, as the palette opens.
 //
@@ -33,6 +34,8 @@ const LABELS = {
 };
 /** No tab open: none of the panes' commands does anything. */
 const NO_PANES = { splitRight: false, moveToOther: false, panes: 0 };
+/** No folder shown. */
+const NO_FOLDER = { shown: false, canUp: false, refresh: 'read' };
 /** The toolbar's actions on its start side are the file's, on its end side the edits. */
 const categoryOf = (align) => (align === 'end' ? 'Edit' : 'File');
 /**
@@ -48,6 +51,9 @@ const ORDER = [
     'delete',
     'add-child',
     'show-explorer',
+    'show-folder',
+    'folder-up',
+    'folder-refresh',
     'show-gallery',
     'show-search',
     'show-graph',
@@ -64,8 +70,13 @@ function ordered(commands) {
     };
     return [...commands].sort((a, b) => rank(a) - rank(b));
 }
-/** The palette's commands for the shell as `state` says it is, and its panes as `panes` says (none, by default). */
-export function paletteCommands(state, panes = NO_PANES) {
+/**
+ * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
+ * default), and its folder as `folder` says (none shown, by default). The Folder view's rows are
+ * there where the shell has the view (`folder.view`, else a host that shows folders,
+ * `state.canOpenFolder`).
+ */
+export function paletteCommands(state, panes = NO_PANES, folder = NO_FOLDER) {
     const label = (chord) => (chord ? chordLabel(parseChord(chord), state.mac) : undefined);
     const command = (id, text, category, shortcut, disabled = false) => ({
         id,
@@ -74,12 +85,20 @@ export function paletteCommands(state, panes = NO_PANES) {
         ...(shortcut ? { shortcut } : {}),
         ...(disabled ? { disabled } : {}),
     });
+    // The Folder view's rows, where the shell has the view.
+    const folderView = folder.view ?? state.canOpenFolder;
     const actions = toolbarItems(state).map((item) => command(item.id, item.label, categoryOf(item.align), item.shortcut, !!item.disabled));
     return [
         ...actions.filter((c) => c.category === 'File'),
         ...ordered(actions.filter((c) => c.category === 'Edit')),
         ...ordered([
-            ...SHELL_VIEWS.map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
+            ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || folderView).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
+            ...(folderView
+                ? [
+                    command('folder-up', 'Folder: Up One Level', 'View', undefined, !folder.canUp),
+                    command('folder-refresh', folder.refresh === 'pick' ? 'Folder: Pick Again' : 'Folder: Read Again', 'View', undefined, !folder.shown),
+                ]
+                : []),
             command('show-graph', 'Show Graph', 'View', label(chordOf('show-graph'))),
             command('split-right', 'Split Right', 'View', label(chordOf('split-right')), !panes.splitRight),
             command('move-to-other-pane', 'Move to Other Pane', 'View', undefined, !panes.moveToOther),

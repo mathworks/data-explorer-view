@@ -3,9 +3,9 @@
 // Every element connectShell draws, defined in one call, for a page that connects a shell: the
 // widgets a document, the folder and a project are shown in (the table, the inspector, the variable
 // editor, the context menu, the error dialog, the folder's tree, a project's page); the shell's
-// parts (the toolbar, the location bar, the Explorer, the tab row, the two popovers, the toasts,
-// the confirm dialog); the modules' views (Raw, Search, the Gallery, the Terminal, the Log, the
-// command palette, the relationship graph); the four internal elements connectShell builds the
+// parts (the toolbar, the location bar, the Explorer, the folder bar, the tab row, the two popovers,
+// the toasts, the confirm dialog); the modules' views (Raw, Search, the Gallery, the Terminal, the
+// Log, the command palette, the relationship graph); the four internal elements connectShell builds the
 // center, the folder, the empty inspector and the status from; and last the shell itself, with its views and
 // actions (defineAppShell, which stays the layout's own and defines only those).
 //
@@ -27,6 +27,7 @@ import { defineAppShell } from './dex-app-shell.js';
 import { defineConfirmDialog } from './dex-confirm-dialog.js';
 import { defineDocTabs } from './dex-doc-tabs.js';
 import { defineExplorer } from './dex-explorer.js';
+import { defineFolderBar } from './dex-folder-bar.js';
 import { defineLocationBar } from './dex-location-bar.js';
 import { defineSettingsPanel } from './dex-settings-panel.js';
 import { defineToastHost } from './dex-toast-host.js';
@@ -55,6 +56,7 @@ export function defineShellWidgets() {
     defineToolbar();
     defineLocationBar();
     defineExplorer();
+    defineFolderBar();
     defineDocTabs();
     defineSettingsPanel();
     defineAboutPanel();

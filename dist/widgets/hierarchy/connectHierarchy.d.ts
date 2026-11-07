@@ -1,5 +1,11 @@
 import type { FolderHierarchy } from '../../model/hierarchy/folderHierarchy.js';
-import type { DexHierarchy } from './dex-hierarchy.js';
+import type { DexHierarchy, HierarchyMenuDetail, RowMark } from './dex-hierarchy.js';
+/**
+ * Where a connected tree's rows come from: FolderHierarchy's three, or another tree's over the
+ * same folder (FolderTree's). Each row's key is its parent's key, a `/`, and one encoded part of
+ * its own, which is how a row the user chose is found again.
+ */
+export type HierarchyRows = Pick<FolderHierarchy, 'roots' | 'children' | 'pathTo'>;
 /** How connectHierarchy wires a hierarchy. */
 export interface ConnectHierarchyOptions {
     /**
@@ -15,6 +21,13 @@ export interface ConnectHierarchyOptions {
      * own `expandTopLevel` says).
      */
     expandTopLevel?: boolean;
+    /**
+     * The rows to draw, in place of the hierarchy's own: a FolderTree over the same hierarchy, for
+     * the Folder view. Every ask goes to it, the top level, a row's rows, the path to a file for
+     * `reveal()`, and the walk down to the row the user chose; the hierarchy's refreshes and
+     * rebuilds still draw again. Default: the hierarchy's rows.
+     */
+    tree?: HierarchyRows;
 }
 /** How `reveal()` shows a file. */
 export interface RevealOptions {
@@ -31,6 +44,8 @@ export interface HierarchyHandleEventMap {
     open: string;
     /** The folder could not be read: why. The tree shows no rows (the `empty` state) until it can. */
     error: string;
+    /** A row's menu is asked for (the tree's `dex-hierarchy-menu`): the app draws it, for the row, where it says. */
+    menu: HierarchyMenuDetail;
 }
 /** A hierarchy wired to a folder: what connectHierarchy returns. */
 export interface HierarchyHandle {
@@ -51,11 +66,16 @@ export interface HierarchyHandle {
      * reveal() overtook this one, or after dispose(). Sends nothing unless `options.choose` says to.
      */
     reveal(uri: string, options?: RevealOptions): Promise<boolean>;
+    /**
+     * Mark each file's rows as its tab stands (the tree's `marks`): open, the active tab, unsaved, a
+     * preview, by the file's uri. Called again as the tabs change; an empty map marks nothing.
+     */
+    setMarks(marks: ReadonlyMap<string, RowMark>): void;
     /** Stop following the folder: the tree keeps what it shows, and still opens rows. */
     dispose(): void;
 }
 /**
- * Wire `element` to `hierarchy`: draw its rows now, and again on each of its refreshes and
- * rebuilds, and answer each row the user opens.
+ * Wire `element` to `hierarchy`: draw its rows (or `options.tree`'s) now, and again on each of its
+ * refreshes and rebuilds, and answer each row the user opens.
  */
 export declare function connectHierarchy(element: DexHierarchy, hierarchy: FolderHierarchy, options?: ConnectHierarchyOptions): HierarchyHandle;

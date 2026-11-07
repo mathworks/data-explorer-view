@@ -1,12 +1,14 @@
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
 /**
- * Wire `element` to `hierarchy`: draw its rows now, and again on each of its refreshes and
- * rebuilds, and answer each row the user opens.
+ * Wire `element` to `hierarchy`: draw its rows (or `options.tree`'s) now, and again on each of its
+ * refreshes and rebuilds, and answer each row the user opens.
  */
 export function connectHierarchy(element, hierarchy, options = {}) {
+    const rows = options.tree ?? hierarchy;
     const listeners = {
         open: new Set(),
         error: new Set(),
+        menu: new Set(),
     };
     const emit = (type, detail) => {
         for (const listener of [...listeners[type]])
@@ -30,7 +32,7 @@ export function connectHierarchy(element, hierarchy, options = {}) {
     const draw = async () => {
         const ask = ++asked;
         try {
-            const roots = await hierarchy.roots();
+            const roots = await rows.roots();
             if (disposed || ask !== asked)
                 return;
             element.items = roots;
@@ -53,6 +55,10 @@ export function connectHierarchy(element, hierarchy, options = {}) {
         if (typeof uri === 'string' && uri !== '')
             emit('open', uri);
     };
+    const onMenu = (e) => {
+        if (e.detail?.item)
+            emit('menu', e.detail);
+    };
     // The rows from the top level down to the row `key`, if the folder has it now. A key is its
     // parent's key, a `/`, and an encoded part of its own (FolderHierarchy), so its ancestors are
     // its prefixes.
@@ -60,7 +66,7 @@ export function connectHierarchy(element, hierarchy, options = {}) {
         const parts = key.split('/').slice(1);
         const path = [];
         try {
-            let items = await hierarchy.roots();
+            let items = await rows.roots();
             for (let i = 0; i < parts.length; i++) {
                 const want = `/${parts.slice(0, i + 1).join('/')}`;
                 const item = items.find((it) => it.key === want);
@@ -68,7 +74,7 @@ export function connectHierarchy(element, hierarchy, options = {}) {
                     return undefined;
                 path.push(item);
                 if (i < parts.length - 1)
-                    items = await hierarchy.children(item);
+                    items = await rows.children(item);
             }
             return path;
         }
@@ -76,10 +82,11 @@ export function connectHierarchy(element, hierarchy, options = {}) {
             return undefined;
         }
     };
-    element.loadChildren = (item) => hierarchy.children(item);
+    element.loadChildren = (item) => rows.children(item);
     if (options.expandTopLevel)
         element.expandTopLevel = true;
     element.addEventListener('dex-hierarchy-selected', onSelect);
+    element.addEventListener('dex-hierarchy-menu', onMenu);
     const stop = hierarchy.subscribe(() => void draw());
     void draw();
     return {
@@ -96,12 +103,15 @@ export function connectHierarchy(element, hierarchy, options = {}) {
             const ask = ++revealing;
             // The row selected now, when it is the file's already (the user chose it there): it stays.
             const kept = selected && selected.uri === uri && element.selectedKey === selected.key ? await rowsTo(selected.key) : undefined;
-            const path = kept?.[kept.length - 1]?.id === uri ? kept : await hierarchy.pathTo(uri).catch(() => undefined);
+            const path = kept?.[kept.length - 1]?.id === uri ? kept : await rows.pathTo(uri).catch(() => undefined);
             if (disposed || ask !== revealing || !path || path.length === 0)
                 return false;
             selected = { key: path[path.length - 1].key, uri };
             element.revealRow(path, revealOptions.choose ? { choose: true } : {});
             return true;
+        },
+        setMarks(marks) {
+            element.marks = marks;
         },
         dispose() {
             if (disposed)
@@ -109,8 +119,10 @@ export function connectHierarchy(element, hierarchy, options = {}) {
             disposed = true;
             stop();
             element.removeEventListener('dex-hierarchy-selected', onSelect);
+            element.removeEventListener('dex-hierarchy-menu', onMenu);
             listeners.open.clear();
             listeners.error.clear();
+            listeners.menu.clear();
         },
     };
 }

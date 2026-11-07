@@ -1,7 +1,7 @@
 import type { ShellHost } from '../widgets/app-shell/connect/types.js';
 import { type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
-import type { BrowserDir } from './walk.js';
+import { type BrowserDir } from './walk.js';
 /**
  * The least time between two looks at a shown folder, in milliseconds. A window shown again is
  * often focused too, and each look reads every listed file's size and date; a look asked sooner
