@@ -7,6 +7,7 @@ import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { DexVariableEditor } from '../../variable-editor/dex-variable-editor.js';
 import type { DocTab } from '../dex-doc-tabs.js';
 import type { FolderView } from './folder.js';
+import type { CompareConnection } from './compare.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 /** A tab as the shell keeps it: a ShellTab, its table's selection, and its listeners. */
@@ -23,6 +24,8 @@ export interface OpenTab extends ShellTab {
     ready: Promise<void>;
     /** The bytes its file holds as the shell last read or wrote them: what the relationship graph draws. */
     bytes?: Uint8Array;
+    /** A compare tab's connection (compare.ts); absent for a file's tab. A compare tab's `path` is '' and it has no doc, table or handle. */
+    compare?: CompareConnection;
 }
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
 export declare const SHOW_IN_GRAPH: {
@@ -55,9 +58,9 @@ export interface FileStatus {
  * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
  * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
  * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
- * shell names.
+ * shell names. A compare tab is a Comparison, of no format, holding no edits of its own.
  */
-export declare function statusOf(tab: Pick<OpenTab, 'path' | 'dirty'> | undefined): FileStatus;
+export declare function statusOf(tab: Pick<OpenTab, 'path' | 'dirty' | 'compare'> | undefined): FileStatus;
 /**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
  * than clearing, so the selection goes as a click on no row takes it, the table's own event saying

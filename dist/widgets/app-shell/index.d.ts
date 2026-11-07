@@ -33,8 +33,8 @@ export type { CommandRunDetail, CommandWindowEventMap } from './modules/dex-comm
 export { DexLogPanel, defineLogPanel } from './modules/dex-log-panel.js';
 export type { LogEntry, LogFilter, LogFilterChangedDetail, LogLevel, LogPanelEventMap } from './modules/dex-log-panel.js';
 export { DexCommandPalette, defineCommandPalette } from './modules/dex-command-palette.js';
-export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from './modules/dex-command-palette.js';
+export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail, PaletteShowOptions } from './modules/dex-command-palette.js';
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost, ShellLink, ShellLinkFile, ShellLinkRequest, ShellNotice, } from './connect/types.js';
+export type { CloseAnswer, ConnectShellOptions, OpenAtTarget, ShellCommand, ShellEntryTarget, ShellHandle, ShellHost, ShellLink, ShellLinkFile, ShellLinkRequest, ShellNotice, } from './connect/types.js';

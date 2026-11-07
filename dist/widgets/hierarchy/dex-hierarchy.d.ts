@@ -13,6 +13,11 @@ export interface HierarchySelectedDetail {
     /** The row. */
     item: HierarchyItem;
 }
+/** What `dex-hierarchy-selection-changed` carries: every selected row, in the tree's order. */
+export interface HierarchySelectionChangedDetail {
+    keys: string[];
+    items: HierarchyItem[];
+}
 /**
  * How a row's file stands in the tabs, by its uri (HierarchyItem.id): the tabs' own vocabulary,
  * so a row reads as the tab of its file does. Every row of the file is marked, wherever it is.
@@ -101,6 +106,16 @@ export declare class DexHierarchy extends LitElement {
      * Off, the default, a folder opens closed. Attribute `expand-top-level`.
      */
     expandTopLevel: boolean;
+    /**
+     * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:
+     * `selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain
+     * click or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.
+     */
+    multiSelect: boolean;
+    /** With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only. */
+    selectedKeys: string[];
+    /** The items of `selectedKeys` among the rows loaded, in the tree's order. */
+    get selectedItems(): HierarchyItem[];
     private _children;
     private _previous;
     private _asked;
@@ -133,6 +148,8 @@ export declare class DexHierarchy extends LitElement {
     private _setOpen;
     private _focus;
     private _choose;
+    private _onClick;
+    private _selectionChanged;
     private _announce;
     private _menu;
     private _onContextMenu;
@@ -164,6 +181,8 @@ export interface HierarchyEventMap {
      * draws no menu: the app does, for the row's `item`.
      */
     'dex-hierarchy-menu': CustomEvent<HierarchyMenuDetail>;
+    /** With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter). */
+    'dex-hierarchy-selection-changed': CustomEvent<HierarchySelectionChangedDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

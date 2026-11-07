@@ -43,6 +43,10 @@ export interface ShellRequests {
     toggle(id: 'settings' | 'about', anchor: Rect): void;
     /** The user brought the view `view` forward, or opened or closed its side. */
     viewChanged(view: string | null, open: boolean): void;
+    /** A palette row whose id begins PICK_PREFIX was run (Compare With…'s question): what it names, the prefix taken off. */
+    picked(id: string): void;
+    /** Ask which file to compare `tab`'s with, and open a compare tab of the two. */
+    compareWith(tab: OpenTab): void;
 }
 /** Answer `parts`' requests with `on`; returns what stops it. */
 export declare function connectRequests(shell: DexAppShell, parts: ShellParts, on: ShellRequests): () => void;

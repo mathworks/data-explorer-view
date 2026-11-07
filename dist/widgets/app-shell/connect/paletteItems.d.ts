@@ -32,12 +32,20 @@ export interface HostCommands {
         enabled: boolean;
     } | null;
 }
+/** What the compare commands would do now. */
+export interface CompareCommands {
+    /** The active tab is a file a compare reads: Compare With… is enabled. */
+    canCompare: boolean;
+    /** The active tab is a compare with a change in it: Next and Previous Change are enabled. */
+    hasChanges: boolean;
+}
 /**
  * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
- * default), its folder as `folder` says (none shown, by default), and what the host's optional
- * members give as `host` says (none, by default). The Folder view's rows are there where the shell
- * has the view (`folder.view`, else a host that shows folders, `state.canOpenFolder`). Open from
- * URL… is a File row after the ways to open a file the toolbar has, and Copy Link the File group's
- * last, greyed while the host's link would link no file.
+ * default), its folder as `folder` says (none shown, by default), what the host's optional members
+ * give as `host` says (none, by default), and a compare as `compare` says (nothing to compare, by
+ * default). The Folder view's rows are there where the shell has the view (`folder.view`, else a
+ * host that shows folders, `state.canOpenFolder`). Open from URL… is a File row after the ways to
+ * open a file the toolbar has, Compare With… after the toolbar's File rows, and Copy Link the File
+ * group's last, greyed while the host's link would link no file.
  */
-export declare function paletteCommands(state: ToolbarState, panes?: PaneCommands, folder?: FolderCommands, host?: HostCommands): PaletteCommand[];
+export declare function paletteCommands(state: ToolbarState, panes?: PaneCommands, folder?: FolderCommands, host?: HostCommands, compare?: CompareCommands): PaletteCommand[];

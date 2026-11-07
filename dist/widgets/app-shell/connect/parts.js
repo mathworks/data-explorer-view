@@ -48,6 +48,8 @@ export function buildShell(shell, options) {
     const folderBar = document.createElement('dex-folder-bar');
     const tree = document.createElement('dex-hierarchy');
     tree.label = 'Folder';
+    // Several rows at once, by Cmd/Ctrl+click: two files' rows are compared by their menu's Compare Selected.
+    tree.multiSelect = true;
     folderPart.append(folderBar, tree);
     // The modules' views: each a widget of its own, which connectShell fills.
     const gallery = document.createElement('dex-gallery-panel');

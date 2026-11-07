@@ -38,6 +38,9 @@ export function copyText(host, text) {
  * read for a section it showed.
  */
 export function docTabOf(tab, title = tab.path) {
+    // A comparison: the pair's names, the compare's icon; nothing of it is unsaved or a preview.
+    if (tab.compare)
+        return { id: tab.id, label: tab.name, icon: 'compareUI', title, dirty: false, preview: false };
     const rows = tab.table?.rows ?? [];
     const rowId = tab.selection[0];
     const section = rowId === undefined ? undefined : sectionOf(rows, rowId);
@@ -53,9 +56,11 @@ export function docTabOf(tab, title = tab.path) {
  * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
  * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
  * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
- * shell names.
+ * shell names. A compare tab is a Comparison, of no format, holding no edits of its own.
  */
 export function statusOf(tab) {
+    if (tab?.compare)
+        return { format: '', kind: 'Comparison', modified: false };
     const group = tab ? fileGroupOf(tab.path) : 'other';
     if (!tab || group === 'other')
         return { format: '', kind: '', modified: false };

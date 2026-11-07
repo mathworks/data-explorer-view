@@ -258,6 +258,26 @@ by adding its key to `expandedKeys`, as a table opens its sections; after that t
 as the user leaves it, through new `items` too. Another folder's rows are new rows, and open.
 Off, the default, a folder opens closed. Attribute `expand-top-level`.
 
+### `multiSelect`
+
+type `boolean` · default `false` · attribute `multi-select`
+
+Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:
+`selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain
+click or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.
+
+### `selectedKeys`
+
+type `string[]` · default `[]` · property only
+
+With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only.
+
+### `selectedItems`
+
+type `HierarchyItem[]` · read-only
+
+The items of `selectedKeys` among the rows loaded, in the tree's order.
+
 ## Methods
 
 ### `revealRow(path: readonly HierarchyItem[], options?: { choose?: boolean }): void`
@@ -276,6 +296,75 @@ a file's row.
 Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
 `HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
 typed with no cast, on the element, the document or the window.
+
+### `dex-hierarchy-selection-changed`
+
+With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter).
+
+`detail` is a `HierarchySelectionChangedDetail`:
+
+```ts
+/** What `dex-hierarchy-selection-changed` carries: every selected row, in the tree's order. */
+export interface HierarchySelectionChangedDetail {
+  keys: string[];
+  items: HierarchyItem[];
+}
+
+/** One row of a folder's hierarchy, as a tree draws it. */
+export interface HierarchyItem {
+  /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
+  label: string;
+  /**
+   * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
+   * reference no file answers, or `notice` for the row that says something of the folder rather
+   * than being in it (that only its first files are shown). `other` only on a FolderTree's row of
+   * a file the app does not open (`dimmed`): FolderHierarchy never makes one.
+   */
+  kind: NodeKind | 'notice' | 'other';
+  /** What a group is (`kind` is `group`). */
+  groupKind?: GroupKind;
+  /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
+  id?: string;
+  /**
+   * A file row's mark: `cycle` when it closes a circular reference, else `modified` when it has
+   * unsaved changes, else null. Not on a row that is no file.
+   */
+  health?: HealthState | null;
+  /** `collapsed` when the row has rows under it (`children()` answers them), `none` when it has none. */
+  collapsible: 'none' | 'collapsed';
+  /** What follows the label: why the row is unlike the others (`unresolved reference`, `↻ circular reference`). */
+  description?: string;
+  /** More than the label says, for a tooltip. */
+  tooltip?: string;
+  /** Its icon's id in the package's icons/. None on an unresolved reference, which draws a warning. */
+  icon?: string;
+  /**
+   * The row among its siblings, after its parent's key: the same row has the same key after a
+   * rebuild, so a tree keeps what was open.
+   */
+  key: string;
+  // The three below are a FolderTree's (folderTree.ts), for the Folder view: absent on every row
+  // FolderHierarchy makes, so the VS Code extension's trees, drawn from these rows, never see them.
+  /** A file the app does not open (FolderTree's other files): drawn dimmed, opens nothing. */
+  dimmed?: boolean;
+  /**
+   * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
+   * Copy Path). Only on a FolderTree's rows: an entry's path, and a reference's file's spelled as
+   * the root is. FolderHierarchy's rows have none: `rowPath(item)` reads a file's from its uri.
+   */
+  path?: string;
+  /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
+  relation?: string;
+}
+
+export type NodeKind = SourceType | 'missing' | 'group';
+
+export type SourceType = 'model' | 'sldd' | 'mat' | 'project';
+
+export type GroupKind = 'external-data' | 'project' | 'folder';
+
+export type HealthState = 'cycle' | 'modified';
+```
 
 ### `dex-hierarchy-selected`
 

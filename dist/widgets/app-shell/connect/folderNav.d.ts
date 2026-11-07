@@ -1,5 +1,5 @@
 import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
-import type { HierarchyMenuDetail } from '../../hierarchy/dex-hierarchy.js';
+import type { HierarchyItem, HierarchyMenuDetail } from '../../hierarchy/dex-hierarchy.js';
 import type { DexFolderBar, FolderSegment } from '../dex-folder-bar.js';
 import type { DexShellFolder } from './dex-shell-folder.js';
 import type { FolderView } from './folder.js';
@@ -33,6 +33,12 @@ export interface FolderNavContext {
     open(path: string, side: boolean): void;
     /** Close the tab of the file `uri`, asking first about unsaved edits. */
     close(uri: string): void;
+    /** The rows taken into the tree's selection (its `selectedItems`), in the tree's order. */
+    selected(): readonly HierarchyItem[];
+    /** Open the file at `path` in a tab kept, and ask which file to compare it with (Compare With…). */
+    compareWith(path: string): void;
+    /** Open the files at `first` and `second` in tabs kept, and compare the first with the second. */
+    compare(first: string, second: string): void;
     /** Say something briefly (a toast and the Log). */
     said(text: string): void;
     /** Something could not be done: say so. */

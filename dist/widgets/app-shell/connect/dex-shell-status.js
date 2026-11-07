@@ -23,14 +23,14 @@ import { hiddenStyles } from '../../shared/hidden.styles.js';
 /**
  * The active file's status: its `format` as a pill, `kind` the pill's tooltip, and a Modified mark
  * while `modified`. No format draws nothing, for no file open (Root) or one of no kind the shell
- * names.
+ * names; but a tab that is no file (a comparison) has its kind drawn alone, in words.
  *
  * @tagname dex-shell-status
  */
 export class DexShellStatus extends LitElement {
     constructor() {
         super(...arguments);
-        /** The file's format, as the pill says it (`SLDD`). Default empty: nothing is drawn. Attribute `format`. */
+        /** The file's format, as the pill says it (`SLDD`). Default empty: no pill, and only a `kind` there is, in words. Attribute `format`. */
         this.format = '';
         /** The kind of file in words, the pill's tooltip and what a screen reader hears of it (`Data dictionary`). Default empty: the format. Attribute `kind`. */
         this.kind = '';
@@ -89,8 +89,9 @@ export class DexShellStatus extends LitElement {
     }
   `]; }
     render() {
+        // No format, a tab that is no file (a comparison): its kind alone, in words, if it has one.
         if (!this.format)
-            return nothing;
+            return this.kind ? html `<span class="kind">${this.kind}</span>` : nothing;
         // Seen, the format; heard, the kind (or the format, for a status that names none).
         const heard = this.kind || this.format;
         return html `<span class="format" title=${this.kind || nothing}

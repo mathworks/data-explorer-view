@@ -3294,6 +3294,14 @@
         },
         {
           "kind": "js",
+          "name": "PaletteShowOptions",
+          "declaration": {
+            "name": "PaletteShowOptions",
+            "module": "./modules/dex-command-palette.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "defineShellWidgets",
           "declaration": {
             "name": "defineShellWidgets",
@@ -3334,9 +3342,25 @@
         },
         {
           "kind": "js",
+          "name": "OpenAtTarget",
+          "declaration": {
+            "name": "OpenAtTarget",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "ShellCommand",
           "declaration": {
             "name": "ShellCommand",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellEntryTarget",
+          "declaration": {
+            "name": "ShellEntryTarget",
             "module": "./connect/types.js"
           }
         },
@@ -3422,9 +3446,16 @@
                   "type": {
                     "text": "PaletteCommand[]"
                   }
+                },
+                {
+                  "name": "options",
+                  "default": "{}",
+                  "type": {
+                    "text": "PaletteShowOptions"
+                  }
                 }
               ],
-              "description": "Opens the palette over the page with `commands` (a list that is not an array is none), an\nempty query and the focus in its input, on the first command that can run. Open already, it\ntakes the new commands and starts the query afresh, and the focus will still go back where it\nwas before the first show(). Not on the page, it does not open."
+              "description": "Opens the palette over the page with `commands` (a list that is not an array is none), an\nempty query and the focus in its input, on the first command that can run. Open already, it\ntakes the new commands and starts the query afresh, and the focus will still go back where it\nwas before the first show(). Not on the page, it does not open. `options` says what its input\nreads before anything is typed and whether a row run from it joins the recent ones (a pick of a\nfile does not: the shell's commands are what a later list puts first)."
             },
             {
               "kind": "method",
@@ -5531,6 +5562,34 @@
               "attribute": "expand-top-level"
             },
             {
+              "kind": "field",
+              "name": "multiSelect",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:\n`selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain\nclick or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.",
+              "attribute": "multi-select"
+            },
+            {
+              "kind": "field",
+              "name": "selectedKeys",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "selectedItems",
+              "type": {
+                "text": "HierarchyItem[]"
+              },
+              "description": "The items of `selectedKeys` among the rows loaded, in the tree's order.",
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "revealRow",
               "return": {
@@ -5557,6 +5616,13 @@
             }
           ],
           "events": [
+            {
+              "name": "dex-hierarchy-selection-changed",
+              "type": {
+                "text": "CustomEvent<HierarchySelectionChangedDetail>"
+              },
+              "description": "With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter)."
+            },
             {
               "name": "dex-hierarchy-selected",
               "type": {
@@ -5599,6 +5665,15 @@
               "default": "false",
               "description": "Open each top-level row (a folder's own row, each project's) the first time the tree shows it,\nby adding its key to `expandedKeys`, as a table opens its sections; after that the row stays\nas the user leaves it, through new `items` too. Another folder's rows are new rows, and open.\nOff, the default, a folder opens closed. Attribute `expand-top-level`.",
               "fieldName": "expandTopLevel"
+            },
+            {
+              "name": "multi-select",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:\n`selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain\nclick or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.",
+              "fieldName": "multiSelect"
             }
           ],
           "superclass": {
@@ -5810,6 +5885,14 @@
           "name": "HierarchySelectedDetail",
           "declaration": {
             "name": "HierarchySelectedDetail",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "HierarchySelectionChangedDetail",
+          "declaration": {
+            "name": "HierarchySelectionChangedDetail",
             "module": "./dex-hierarchy.js"
           }
         },
