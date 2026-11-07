@@ -13,6 +13,7 @@
 // made here in memory from the fixtures' bytes.
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
+import { strToU8, zipSync } from 'fflate';
 import { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder, type CheckFinding } from '../src/model/check/folderCheck.js';
 import { sourceUri } from '../src/model/source/sourceUri.js';
 import { diskFolder, fixture, jsonDictionary, memoryFolder, named } from './check/folders.js';
@@ -22,6 +23,24 @@ const diskRoot = (rel: string): string => `${sourceUri(resolve(import.meta.dirna
 
 /** An unused entry of `file`, in `section`. */
 const U = (file: string, entry: string, section = 'design'): CheckFinding => ({ kind: 'unused', file, section, entry });
+
+/**
+ * A `.slx` holding just what a check needs, built as relationshipGraph.test.ts builds one, through
+ * the same parser as a real one: its blocks, its linked dictionary, its workspace as the MAT part
+ * inside the package, or its workspace kept in a MAT-file beside it (`WSDataSource: 'MAT-File'`).
+ */
+function slx(opts: { blocks?: string; dictionary?: string; workspaceMat?: Uint8Array; workspaceFile?: string }): Uint8Array {
+  const diagram: Record<string, unknown> = { ModelUUID: 'u1' };
+  if (opts.dictionary) diagram.DataDictionary = opts.dictionary;
+  if (opts.workspaceFile) diagram.ModelWorkspace = { WSDataSource: 'MAT-File', WSSourceFileName: opts.workspaceFile };
+  const parts: Record<string, Uint8Array> = {
+    'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: diagram })),
+    'simulink/systems/system_root.xml': strToU8(`<?xml version="1.0" encoding="utf-8"?><System>${opts.blocks ?? ''}</System>`),
+    'metadata/coreProperties.xml': strToU8('<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>'),
+  };
+  if (opts.workspaceMat) parts['simulink/modelworkspace.mat'] = opts.workspaceMat;
+  return zipSync(parts);
+}
 
 const WORKSPACE = 'test-integration/fixtures/workspace';
 const checkWorkspace = async () => named(await checkFolder(diskFolder(WORKSPACE)), diskRoot(WORKSPACE));
@@ -149,6 +168,55 @@ describe('checkFolder', () => {
       U('slxcases.slx', 'label', 'workspace'),
       U('slxcases.slx', 'names', 'workspace'),
     ]);
+  });
+
+  it("calls no workspace variable shadowed by the MAT-file the workspace is kept in", async () => {
+    // nd_numeric.mat's Mat, Nd, Nd4 and Vec are the workspace's own names (the MAT part inside the
+    // package) and wsvars.mat's, the MAT-file the workspace is kept in. That file IS the workspace,
+    // and core lists it among the model's MAT-files too: taken out of the workspace alone, it would
+    // answer each name, as a definition the workspace hides from itself.
+    const nd = fixture('nd_numeric.mat');
+    const check = named(await checkFolder(memoryFolder({ 'm.slx': slx({ workspaceMat: nd, workspaceFile: 'wsvars.mat' }), 'wsvars.mat': nd })), W);
+    expect(check.unreadable).toEqual([]);
+    expect(check.findings.filter((f) => f.kind === 'shadowed')).toEqual([]);
+  });
+
+  it("finds a dictionary's entry hidden by the MAT-file a model's workspace is kept in", async () => {
+    // The workspace has no names of its own: wsvars.mat's (nd_numeric.mat's) are its variables, and
+    // its Vec resolves ahead of the dictionary's, which the block's Vec therefore never reads.
+    const blocks = '<Block BlockType="Gain" Name="FromWs" SID="1"><P Name="Gain">Vec</P></Block>';
+    const folder = memoryFolder({
+      'm.slx': slx({ blocks, dictionary: 'p.sldd', workspaceFile: 'wsvars.mat' }),
+      'p.sldd': jsonDictionary({ Vec: 1 }),
+      'wsvars.mat': fixture('nd_numeric.mat'),
+    });
+    expect(named(await checkFolder(folder), W).findings).toEqual([
+      U('p.sldd', 'Vec'),
+      U('wsvars.mat', 'Mat', ''),
+      U('wsvars.mat', 'Nd', ''),
+      U('wsvars.mat', 'Nd4', ''),
+      { kind: 'shadowed', model: 'm.slx', variable: 'Vec', hidden: 'p.sldd' },
+    ]);
+  });
+
+  it('counts a dictionary that holds a name twice once among the files that define it', async () => {
+    // jsonDictionary takes one value per name, so the dictionary that holds X twice is written out.
+    const twice = JSON.stringify({
+      __MW_TEXT_COREPROPERTIES__: { release: 'R2026b' },
+      __MW_TEXT_PARTS__: {
+        '__MW_TEXT_PART__/data/chunk0': {
+          __MW_TEXT_content: {
+            entries: [1, 2].map((value) => ({ name: 'X', metadata: { uuid: `u-X${value}`, isderived: '0' }, value })),
+            'Dictionary References': ['b.sldd'],
+            AllowAccessBWS: '0',
+          },
+        },
+      },
+    });
+    const check = named(await checkFolder(memoryFolder({ 'a.sldd': twice, 'b.sldd': jsonDictionary({ X: 3 }) })), W);
+    expect(check.findings).toEqual([{ kind: 'duplicate', entry: 'X', files: ['a.sldd', 'b.sldd'] }]);
+    // Alone, the dictionary that holds X twice is no scope of two dictionaries.
+    expect((await checkFolder(memoryFolder({ 'a.sldd': twice.replace('b.sldd', 'gone.sldd') }))).findings.filter((f) => f.kind === 'duplicate')).toEqual([]);
   });
 
   it('gives the same answer twice, and lists its kinds and skipped classes as documented', async () => {

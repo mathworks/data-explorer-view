@@ -533,17 +533,20 @@ Each of `findings` is one of five kinds, listed in this order
   nothing defines is not one: a base-workspace variable, a function and a
   constant read the same from a file.
 - `cycle`: files that reference each other round in a circle, the shortest
-  circle through the first of them, which `files` ends with again.
+  circle through the first of them by uri (code-unit order, JavaScript's `<`),
+  which `files` ends with again.
 - `unused`: a dictionary's Design Data entry, a MAT-file's variable or a model's
   workspace variable (`section` 'design', '' or 'workspace') whose Usage cell
   would be empty. Data types and signals are never unused
   (`UNUSED_SKIPPED_CLASSES`): a model names them where the usage index does not
   look.
 - `shadowed`: a model workspace variable whose name the model's dictionaries or
-  MAT-files define too (`hidden`), by core's resolution order.
+  MAT-files define too (`hidden`), by core's resolution order. A workspace kept
+  in a MAT-file has that file's variables.
 - `duplicate`: a Design Data name two or more dictionaries define, within one
-  dictionary and those it references or the dictionaries one model links. Two
-  unrelated dictionaries sharing a name are not one.
+  dictionary and those it references or the dictionaries one model links, the
+  dictionaries in code-unit order. Two unrelated dictionaries sharing a name are
+  not one.
 
 `notChecked` lists the data files no model of the folder links, directly or
 through a dictionary: none of their entries is called unused. `unreadable` lists

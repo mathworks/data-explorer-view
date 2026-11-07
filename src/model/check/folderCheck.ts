@@ -27,6 +27,9 @@
 //   shadowed              A model workspace variable whose name the model's data defines too: the
 //                         definition core's own resolution order (resolveName) reaches when the
 //                         workspace is taken away, which the workspace hides from the model's blocks.
+//                         The workspace is its own names, the MAT-file it is kept in and its masks,
+//                         as core resolves it: a variable of a workspace kept in a MAT-file hides
+//                         what a dictionary defines, and that MAT-file hides nothing of its own.
 //   duplicate             A Design Data name two or more dictionaries define where Simulink reads
 //                         them together: one dictionary and those it references, directly or not,
 //                         or the dictionaries one model links. Two unrelated dictionaries of one
@@ -76,7 +79,7 @@ export type CheckFinding =
     }
   | {
       kind: 'cycle';
-      /** Files that reference each other round in a circle, its first again at the end: the shortest circle through the first of them by uri. */
+      /** Files that reference each other round in a circle, its first again at the end: the shortest circle through the first of them by uri (code-unit order, JavaScript's `<`). */
       files: readonly string[];
     }
   | {
@@ -97,7 +100,7 @@ export type CheckFinding =
   | {
       kind: 'duplicate';
       entry: string;
-      /** The dictionaries of one scope (a dictionary and those it references, or the dictionaries a model links) that each define it, by uri in code-point order. */
+      /** The dictionaries of one scope (a dictionary and those it references, or the dictionaries a model links) that each define it, by uri in code-unit order (JavaScript's `<`). */
       files: readonly string[];
     };
 
@@ -162,8 +165,8 @@ const KEPT_SECTION: Record<DocKind, string | undefined> = { dictionary: 'design'
 
 const SKIPPED = new Set(UNUSED_SKIPPED_CLASSES);
 
-/** Code-point order, the listing's: what every list of uris and names here is sorted by. */
-const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+/** Code-unit order, JavaScript's `<`, as core's listFolder sorts: what every list of uris and names here is sorted by. */
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
@@ -194,8 +197,13 @@ export async function checkFolder(options: CheckFolderOptions): Promise<FolderCh
     if (s.type === 'mat') return [{ ...at, kind: 'mat', chain: [] }];
     return [];
   });
-  const models = new Set(chains.filter((c) => c.kind === 'model').map((c) => c.uriString));
-  const reached = (uri: string): boolean => usageScope(uri, chains).some((u) => models.has(u));
+  // A data file is in some model's scope exactly when that model is in the file's (usageScope
+  // keeps the files of each model's chain), so the models' scopes, asked once each, are every
+  // file reached: one call per model rather than one per data file, each of which walks every
+  // model's chain again.
+  const models = chains.filter((c) => c.kind === 'model').map((c) => c.uriString);
+  const reachedSet = new Set(models.flatMap((m) => usageScope(m, chains)));
+  const reached = (uri: string): boolean => reachedSet.has(uri);
 
   const notChecked: string[] = [];
   const unused: CheckFinding[] = [];
@@ -299,11 +307,11 @@ function cycles(sources: readonly GraphSource[], graph: RelGraph): CheckFinding[
   }
   const out: { kind: 'cycle'; files: string[] }[] = [];
   for (const component of stronglyConnected(sources.map((s) => s.uriString), edges)) {
-    const first = [...component].sort(byCodePoint)[0];
+    const first = [...component].sort(byCodeUnit)[0];
     if (component.length < 2 && !edges.get(first)!.includes(first)) continue;
     out.push({ kind: 'cycle', files: shortestCircle(first, new Set(component), edges) });
   }
-  return out.sort((a, b) => byCodePoint(a.files[0], b.files[0]));
+  return out.sort((a, b) => byCodeUnit(a.files[0], b.files[0]));
 }
 
 /**
@@ -384,9 +392,10 @@ function shortestCircle(first: string, members: ReadonlySet<string>, edges: Read
 
 /**
  * The workspace variables that hide a definition of the model's data: each name of a model's
- * workspace resolved, by core's own order, over the model with its workspace taken out (its names,
- * the MAT-file it is kept in, and its masks), so that a hit is the definition the blocks would read
- * were the workspace not there.
+ * workspace (its own names, then those of the MAT-file it is kept in that it does not name itself)
+ * resolved, by core's own order, over the model with its workspace taken out (its names, the
+ * MAT-file it is kept in, and its masks), so that a hit is the definition the blocks would read were
+ * the workspace not there.
  */
 function shadowed(models: readonly ModelSummary[], summaries: FileSummaries): CheckFinding[] {
   const out: CheckFinding[] = [];
@@ -395,7 +404,10 @@ function shadowed(models: readonly ModelSummary[], summaries: FileSummaries): Ch
     // The workspace's MAT-file is out of the MAT-files too, where a model also lists it: it is the
     // workspace, and what it defines is what the workspace defines.
     const bare: ModelSummary = { ...rest, workspaceNames: new Set(), masks: [], matRefs: rest.matRefs.filter((ref) => ref !== workspaceMatRef) };
-    for (const name of model.workspaceNames) {
+    // The MAT-file's names as core resolves them: by its basename, the last of that name in folder order.
+    const kept = workspaceMatRef ? (summaries.matByName.get(workspaceMatRef)?.names ?? []) : [];
+    const names = [...model.workspaceNames, ...[...kept].filter((name) => !model.workspaceNames.has(name))];
+    for (const name of names) {
       const hit = resolveName(bare, name, summaries.slddByName, summaries.matByName);
       if (hit) out.push({ kind: 'shadowed', model: model.srcId, variable: name, hidden: hit.srcId });
     }
@@ -450,10 +462,10 @@ function duplicates(sources: readonly GraphSource[], graph: RelGraph, kept: Read
     }
     for (const [entry, files] of definers) {
       if (files.length < 2) continue;
-      const sorted = [...files].sort(byCodePoint);
+      const sorted = [...files].sort(byCodeUnit);
       const key = `${entry}\n${sorted.join('\n')}`;
       if (!found.has(key)) found.set(key, { kind: 'duplicate', entry, files: sorted });
     }
   }
-  return [...found.values()].sort((a, b) => byCodePoint(a.entry, b.entry) || byCodePoint(a.files.join('\n'), b.files.join('\n')));
+  return [...found.values()].sort((a, b) => byCodeUnit(a.entry, b.entry) || byCodeUnit(a.files.join('\n'), b.files.join('\n')));
 }

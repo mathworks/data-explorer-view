@@ -15,7 +15,7 @@ import { folderFileList, listedFiles } from '../../src/model/hierarchy/folderLis
 
 const REPO = resolve(import.meta.dirname, '../..');
 
-/** A folder held in memory: each file's bytes by name, at `file:///w/<name>` (path `/w/<name>`), listed in code-point order; projects' stores null. */
+/** A folder held in memory: each file's bytes by name, at `file:///w/<name>` (path `/w/<name>`), listed in code-unit order (JavaScript's `<`); projects' stores null. */
 export function memoryFolder(files: Record<string, Uint8Array | string>, options: { truncated?: boolean } = {}): CheckFolderOptions {
   const bytes = new Map(Object.entries(files).map(([name, b]) => [`/w/${name}`, typeof b === 'string' ? new TextEncoder().encode(b) : b]));
   const listing: SourceFile[] = [...bytes.keys()].sort().map((path) => ({ uriString: `file://${path}`, path }));
@@ -56,7 +56,7 @@ export function fixture(name: string, shell = false): Uint8Array {
   return new Uint8Array(readFileSync(resolve(REPO, shell ? 'test/shell/fixtures' : 'test/fixtures', name)));
 }
 
-/** A folder of this repo read from disk: its supported files, recursively, in code-point order, by core's node readers (`nodeSourceReader`, `readProjectStoreFromDisk`). */
+/** A folder of this repo read from disk: its supported files, recursively, in code-unit order (JavaScript's `<`), by core's node readers (`nodeSourceReader`, `readProjectStoreFromDisk`). */
 export function diskFolder(rel: string): CheckFolderOptions {
   const root = resolve(REPO, rel);
   return {
