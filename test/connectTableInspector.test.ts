@@ -150,6 +150,31 @@ describe('inspectorPages', () => {
     expect(pages.length).toBe(before);
   });
 
+  it('sends a listener that comes while another row is being asked for that row\'s page once', async () => {
+    const { handle, table, rowNamed } = await mount('params.sldd', { inspectorPages: true });
+    // Uo asked for, and not answered yet, as the listener comes.
+    const uo = rowNamed('Uo').ID;
+    table.selectedRowIds = [uo];
+    table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: [uo] }, bubbles: true, composed: true }));
+    const seen: InspectorView[] = [];
+    const stop = handle.onPage((page) => seen.push(page));
+    await settle(table);
+    stop();
+    expect(seen.map((p) => p.rowId)).toEqual([uo]);
+  });
+
+  it('sends one function let go of and taken again, with no ask between, its page once', async () => {
+    const { handle, select, rowNamed } = await mount('params.sldd', { inspectorPages: true });
+    await select('Kp');
+    const seen: InspectorView[] = [];
+    const listener = (page: InspectorView) => void seen.push(page);
+    handle.onPage(listener)();
+    const stop = handle.onPage(listener);
+    await settle();
+    stop();
+    expect(seen.map((p) => p.rowId)).toEqual([rowNamed('Kp').ID]);
+  });
+
   it('sends the page again on refreshInspector() where it changed: the file now holds an edit', async () => {
     const { handle, doc, pages, rowNamed, table } = await mount('params.sldd', { inspectorPages: true, editing: true }, true);
     expect(row(pages.at(-1), 'Modified')?.value).toBe('No');

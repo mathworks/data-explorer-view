@@ -1042,7 +1042,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         const at = asking;
         void pageOf(selection).then(
           (page) => {
-            if (disposed || at !== asking || !pageListeners.has(listener)) return;
+            // Served meanwhile (an ask's page sent, or owed and given): not again.
+            if (disposed || at !== asking || !pageListeners.has(listener) || !owed.has(listener)) return;
             owed.delete(listener);
             listener(page.rowId === undefined ? { groups: [] } : page);
           },
