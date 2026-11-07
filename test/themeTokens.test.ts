@@ -167,6 +167,38 @@ describe("each set says which scheme it is, for the browser's own controls", () 
   });
 });
 
+// WCAG's contrast ratio of two colours written #rgb or #rrggbb.
+function contrast(a: string, b: string): number {
+  const luminance = (colour: string): number => {
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour)![1]!;
+    const parts = (hex.length === 3 ? [...hex].map((h) => h + h) : hex.match(/../g)!).map((h) => parseInt(h, 16));
+    const [r, g, bl] = parts.map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+describe('the muted ink is text, readable on every surface it is drawn on', () => {
+  // Every read-only table cell, the status bar's own words, a file of another folder in the tree:
+  // text, 4.5:1, on the panes (bg-primary), the table's read-only cells and the panels
+  // (bg-secondary) and the bars at the window's edges (bg-activity-bar, the status bar's too).
+  // The dark set's #888 was 4.32:1 on #252525, under it throughout the app in dark.
+  const SURFACES = ['--dex-bg-primary', '--dex-bg-secondary', '--dex-bg-activity-bar'];
+
+  for (const [set, tokens] of Object.entries(THEME_SETS)) {
+    it(`at 4.5:1 or more in the ${set} set`, () => {
+      const ink = tokens.get('--dex-color-text-muted')!;
+      for (const surface of SURFACES) {
+        expect(contrast(ink, tokens.get(surface)!), `${set}: ${ink} on ${surface} ${tokens.get(surface)}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+});
+
 describe('the theme is exported', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 

@@ -151,7 +151,9 @@
   color-scheme: dark;
   --dex-color-text: #e0e0e0;
   --dex-color-text-secondary: #b0b0b0;
-  --dex-color-text-muted: #888;
+  /* Text: every read-only cell, the status bar's own words. 4.5:1 on the panes, the panels and the
+     bars, the lightest of them #252526 (4.55); #888 was 4.32 there. The same grey, a step lighter. */
+  --dex-color-text-muted: #8c8c8c;
   --dex-color-text-disabled: #666;
   --dex-color-accent: #4ba3e3;
   --dex-color-accent-hover: #6db8ed;
@@ -243,7 +245,7 @@
   --dex-graph-item-border: rgba(255, 255, 255, 0.14);
   --dex-graph-ws-item-bg: rgba(111, 179, 160, 0.12);
   --dex-graph-ws-item-border: rgba(111, 179, 160, 0.35);
-  /* The muted ink is 3.9:1 on these boxes; a ghost's name is text, and needs 4.5. */
+  /* The muted ink is 4.2:1 on these boxes; a ghost's name is text, and needs 4.5. */
   --dex-graph-ghost-fg: #a0a0a0;
 }
 
