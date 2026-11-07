@@ -199,6 +199,20 @@ describe('checkFolder', () => {
     ]);
   });
 
+  it('reports a name both the workspace and its MAT-file define once', async () => {
+    // nd_numeric.mat's names are the workspace's own (the MAT part inside the package) and its
+    // MAT-file's: Vec is one variable of one workspace, which hides p.sldd's Vec once.
+    const nd = fixture('nd_numeric.mat');
+    const folder = memoryFolder({
+      'm.slx': slx({ dictionary: 'p.sldd', workspaceMat: nd, workspaceFile: 'wsvars.mat' }),
+      'p.sldd': jsonDictionary({ Vec: 1 }),
+      'wsvars.mat': nd,
+    });
+    expect(named(await checkFolder(folder), W).findings.filter((f) => f.kind === 'shadowed')).toEqual([
+      { kind: 'shadowed', model: 'm.slx', variable: 'Vec', hidden: 'p.sldd' },
+    ]);
+  });
+
   it('counts a dictionary that holds a name twice once among the files that define it', async () => {
     // jsonDictionary takes one value per name, so the dictionary that holds X twice is written out.
     const twice = JSON.stringify({

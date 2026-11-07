@@ -405,8 +405,9 @@ function shadowed(models: readonly ModelSummary[], summaries: FileSummaries): Ch
     // workspace, and what it defines is what the workspace defines.
     const bare: ModelSummary = { ...rest, workspaceNames: new Set(), masks: [], matRefs: rest.matRefs.filter((ref) => ref !== workspaceMatRef) };
     // The MAT-file's names as core resolves them: by its basename, the last of that name in folder order.
-    const kept = workspaceMatRef ? (summaries.matByName.get(workspaceMatRef)?.names ?? []) : [];
-    const names = [...model.workspaceNames, ...[...kept].filter((name) => !model.workspaceNames.has(name))];
+    const matNames = workspaceMatRef ? (summaries.matByName.get(workspaceMatRef)?.names ?? []) : [];
+    // A name the workspace and its MAT-file both define is one variable of the workspace: once.
+    const names = [...model.workspaceNames, ...[...matNames].filter((name) => !model.workspaceNames.has(name))];
     for (const name of names) {
       const hit = resolveName(bare, name, summaries.slddByName, summaries.matByName);
       if (hit) out.push({ kind: 'shadowed', model: model.srcId, variable: name, hidden: hit.srcId });
