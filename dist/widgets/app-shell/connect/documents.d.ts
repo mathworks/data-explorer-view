@@ -29,6 +29,11 @@ export declare const SHOW_IN_GRAPH: {
     readonly id: "showInGraph";
     readonly label: "Show in Graph";
 };
+/** A document row's link, for a host that makes links (ShellHost.entryLink): before Show in Graph. */
+export declare const COPY_ENTRY_LINK: {
+    readonly id: "copyEntryLink";
+    readonly label: "Copy Link to Entry";
+};
 /** Put `text` on the host's clipboard, or the page's for a host without one, asked at each copy. */
 export declare function copyText(host: ShellHost, text: string): Promise<void>;
 /**

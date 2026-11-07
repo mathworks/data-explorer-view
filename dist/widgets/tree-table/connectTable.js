@@ -21,7 +21,7 @@ import { defineVariableEditor } from '../variable-editor/dex-variable-editor.js'
 import { defineErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRows } from '../../model/actions/rowUpdates.js';
 import { resolveOperands } from '../../model/actions/operands.js';
-import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import { isEntryRow } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget } from '../../model/ids/linkTarget.js';
 import { isEditable, isSourceClosed, } from '../../model/source/tableSource.js';
 import { usedByGroup } from '../../model/inspector/inspectorPages.js';
@@ -60,6 +60,7 @@ export function connectTable(table, source, options = {}) {
         action: new Set(),
         copyFailed: new Set(),
         painted: new Set(),
+        failed: new Set(),
         ran: new Set(),
     };
     // Each listener on its own: one that throws is the app's to fix, said on the console as the
@@ -148,14 +149,11 @@ export function connectTable(table, source, options = {}) {
         if (!pendingSelectName)
             return;
         const rows = rowsNow();
-        // A top-level ENTRY: its parent is a section header or, in a table with no section rows (a
-        // MAT-file's), it has no parent and is no header itself.
-        const isEntry = (r) => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
         const named = (r) => r.Name?.label === pendingSelectName;
         // Entries first, because every by-name target means the top-level one: a nested row that
         // shares the name is not what a link means. Then any row, for a block named before SIDs;
         // then a block by its key, which no cell prints.
-        const match = rows.find((r) => named(r) && isEntry(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
+        const match = rows.find((r) => named(r) && isEntryRow(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
         if (!match)
             return;
         table.selectedRowIds = [match.ID];
@@ -259,8 +257,10 @@ export function connectTable(table, source, options = {}) {
         }, 
         // A source closed while it was asked has nothing to show, and no banner to say it in.
         (err) => {
-            if (!disposed && !isSourceClosed(err))
+            if (!disposed && !isSourceClosed(err)) {
                 failed(messageOf(err));
+                emit('failed', messageOf(err));
+            }
             release();
         });
     };
