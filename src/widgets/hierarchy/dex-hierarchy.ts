@@ -3,6 +3,7 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
+import { isMacPlatform } from '../shared/dragMode.js';
 import { defineIcon } from '../shared/dex-icon.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { styleProps } from '../shared/styleProps.js';
@@ -22,6 +23,12 @@ export interface HierarchySelectedDetail {
   key: string;
   /** The row. */
   item: HierarchyItem;
+}
+
+/** What `dex-hierarchy-selection-changed` carries: every selected row, in the tree's order. */
+export interface HierarchySelectionChangedDetail {
+  keys: string[];
+  items: HierarchyItem[];
 }
 
 /**
@@ -350,6 +357,29 @@ export class DexHierarchy extends LitElement {
    * Off, the default, a folder opens closed. Attribute `expand-top-level`.
    */
   @property({ type: Boolean, attribute: 'expand-top-level' }) expandTopLevel = false;
+  /**
+   * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it:
+   * `selectedKeys` holds every selected row and `dex-hierarchy-selection-changed` says so. A plain
+   * click or Enter selects that row alone, as before. Default false: one row at a time. Attribute `multi-select`.
+   */
+  @property({ type: Boolean, attribute: 'multi-select' }) multiSelect = false;
+  /** With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only. */
+  @property({ attribute: false }) selectedKeys: string[] = [];
+
+  /** The items of `selectedKeys` among the rows loaded, in the tree's order. */
+  get selectedItems(): HierarchyItem[] {
+    const wanted = new Set(this.selectedKeys);
+    const out: HierarchyItem[] = [];
+    const walk = (items: readonly HierarchyItem[]): void => {
+      for (const item of items) {
+        if (wanted.has(item.key)) out.push(item);
+        const children = this._children.get(item.key) ?? this._previous.get(item.key);
+        if (children) walk(children);
+      }
+    };
+    walk(Array.isArray(this.items) ? this.items : []);
+    return out;
+  }
 
   // The rows under each open row, by its key, for the items there are now; and those for the
   // items there were, drawn while the new ones are read, so an open row does not blink shut.
@@ -405,6 +435,11 @@ export class DexHierarchy extends LitElement {
       }
     }
     if (changed.has('expandedKeys') || opened) this._open = new Set(this.expandedKeys);
+    // A row the app selects (revealRow, or `selectedKey` set) is the selection, alone, as a click on
+    // it would make it: so the row drawn as selected is the one it says.
+    if (this.multiSelect && changed.has('selectedKey') && this.selectedKey !== null && !this.selectedKeys.includes(this.selectedKey)) {
+      this.selectedKeys = [this.selectedKey];
+    }
     if (changed.has('items') || changed.has('loadChildren')) {
       this._generation++;
       // Only an open row's: a closed one is asked again when it is opened, and draws nothing meanwhile.
@@ -474,13 +509,40 @@ export class DexHierarchy extends LitElement {
     this._scrollKey = null;
   }
 
-  // A click or Enter: the row is selected, says so, and opens or closes.
+  // A click or Enter: the row is selected, alone, says so, and opens or closes.
   private _choose(item: HierarchyItem): void {
     this._scrollKey = null;
     this.selectedKey = item.key;
     this._focusKey = item.key;
+    if (this.multiSelect) {
+      this.selectedKeys = [item.key];
+      this._selectionChanged();
+    }
     this._announce(item);
     this._setOpen(item, !this._open.has(item.key));
+  }
+
+  // A row's click: with `multiSelect` and the platform's Mod key held (Command on macOS, Control
+  // elsewhere, read at each press), the row taken into the selection or out of it, opening nothing;
+  // else the row chosen, as ever.
+  private _onClick(e: MouseEvent, item: HierarchyItem): void {
+    const mod = isMacPlatform(navigator.platform || navigator.userAgent || '') ? e.metaKey : e.ctrlKey;
+    if (!this.multiSelect || !mod) return this._choose(item);
+    this._scrollKey = null;
+    this._focusKey = item.key;
+    const had = this.selectedKeys.includes(item.key);
+    this.selectedKeys = had ? this.selectedKeys.filter((key) => key !== item.key) : [...this.selectedKeys, item.key];
+    this.selectedKey = had ? (this.selectedKeys[this.selectedKeys.length - 1] ?? null) : item.key;
+    this._selectionChanged();
+  }
+
+  private _selectionChanged(): void {
+    const items = this.selectedItems;
+    // In the tree's order; a selected row not loaded now (under a row read again) after them.
+    const keys = [...items.map((i) => i.key), ...this.selectedKeys.filter((key) => !items.some((i) => i.key === key))];
+    this.dispatchEvent(
+      new CustomEvent<HierarchySelectionChangedDetail>('dex-hierarchy-selection-changed', { detail: { keys, items }, bubbles: true, composed: true }),
+    );
   }
 
   private _announce(item: HierarchyItem): void {
@@ -624,13 +686,13 @@ export class DexHierarchy extends LitElement {
         aria-setsize=${line.setSize}
         aria-posinset=${line.posInSet}
         aria-expanded=${twisty ? String(open) : nothing}
-        aria-selected=${String(item.key === this.selectedKey)}
+        aria-selected=${String(this.multiSelect ? this.selectedKeys.includes(item.key) : item.key === this.selectedKey)}
         aria-current=${mark?.active ? 'true' : nothing}
         aria-disabled=${item.dimmed ? 'true' : nothing}
         aria-busy=${loading ? 'true' : nothing}
         tabindex=${tabbable ? '0' : '-1'}
         title=${item.tooltip ?? nothing}
-        @click=${() => this._choose(item)}
+        @click=${(e: MouseEvent) => this._onClick(e, item)}
         @contextmenu=${(e: MouseEvent) => this._onContextMenu(e, item)}
         @focus=${() => (this._focusKey = item.key)}
       >
@@ -660,6 +722,7 @@ export class DexHierarchy extends LitElement {
       <div
         role="tree"
         aria-label=${this.label}
+        aria-multiselectable=${this.multiSelect ? 'true' : nothing}
         aria-keyshortcuts=${this.rowMenu ? MENU_KEYS : nothing}
         @keydown=${this._onKeydown}
         @keyup=${this._onKeyup}
@@ -695,6 +758,8 @@ export interface HierarchyEventMap {
    * draws no menu: the app does, for the row's `item`.
    */
   'dex-hierarchy-menu': CustomEvent<HierarchyMenuDetail>;
+  /** With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter). */
+  'dex-hierarchy-selection-changed': CustomEvent<HierarchySelectionChangedDetail>;
 }
 
 declare global {

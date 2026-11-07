@@ -1044,6 +1044,22 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       const tab = tabOfUri(uri);
       if (tab) void requestClose(tab);
     },
+    selected: () => tree.selectedItems,
+    // A row's file opened for good (not a preview), once it is shown, then asked about or compared.
+    compareWith(path) {
+      void open(path).then(async (tab) => {
+        await painted(tab);
+        if (isOpen(tab)) compareWith(tab);
+      });
+    },
+    compare(first, second) {
+      void (async () => {
+        const a = await open(first);
+        const b = await open(second);
+        await Promise.all([painted(a), painted(b)]);
+        if (isOpen(a) && isOpen(b)) await compare(a, b);
+      })();
+    },
     said: (text) => say('info', text, 2000),
     failed,
   });

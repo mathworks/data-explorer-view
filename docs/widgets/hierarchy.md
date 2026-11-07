@@ -175,6 +175,22 @@ element.rowMenu = true;
 handle.on('menu', ({ item, x, y, keyboard }) => contextMenu.show(x, y, menuFor(item), { focusFirst: keyboard === true }));
 ```
 
+### Several rows at once
+
+With `multiSelect` (attribute `multi-select`), Cmd+click on macOS, or Ctrl+click elsewhere, takes a
+row into the selection, or out of it, without opening it: `selectedKeys` holds every selected row
+(`selectedKey` the last taken in), `selectedItems` their items in the tree's order, and
+`dex-hierarchy-selection-changed` says so. A plain click and Enter still select one row and send
+`dex-hierarchy-selected`, as without it. The tree is a multi-selectable one to a screen reader
+(`aria-multiselectable`), each row's `aria-selected` following `selectedKeys`. A row the app selects
+(`revealRow`, `selectedKey`) is the selection alone. Act on the rows from their row menu, which the
+keyboard reaches too (the shell's Folder view: Compare Selected for two files).
+
+```js
+element.multiSelect = true;
+element.addEventListener('dex-hierarchy-selection-changed', (e) => (compareButton.disabled = e.detail.items.length !== 2));
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance
