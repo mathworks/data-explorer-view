@@ -41,7 +41,7 @@ export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';
 export { DexToastHost, defineToastHost } from './dex-toast-host.js';
 export type { Toast } from './dex-toast-host.js';
 export { DexConfirmDialog, defineConfirmDialog } from './dex-confirm-dialog.js';
-export type { ConfirmButton, ConfirmOptions } from './dex-confirm-dialog.js';
+export type { ConfirmButton, ConfirmOptions, PromptOptions } from './dex-confirm-dialog.js';
 
 // The modules' views: Raw, Search, the Gallery, the relationship graph, the Terminal (a command
 // window), the Log, and the command palette.
