@@ -33,7 +33,9 @@ import { sortEntries } from './folderEntries.js';
 import { fileIconOf } from './folderHierarchy.js';
 // The icon of a row of another file: a plain document.
 const OTHER_ICON = 'documentList';
-const FOLDER_ICON = 'simulink_folder';
+// A folder's row: a plain folder, as a file browser draws one. The hierarchy's own group of a
+// folder's data files keeps the Simulink folder (`simulink_folder`), as the extension's tree has it.
+const FOLDER_ICON = 'folder';
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
 // One encoded part of a key, after its parent's key: never a raw `/`, so a key splits into its rows.
 const part = (local) => `/${encodeURIComponent(local)}`;
@@ -274,7 +276,7 @@ export class FolderTree {
             return own;
         });
     }
-    // A folder's row, as the hierarchy draws a folder; a project's folder (the hierarchy groups a
+    // A folder's row, a plain folder; a project's folder (the hierarchy groups a
     // project by its marker's folder) is the project's row under the folder's own name, so the row
     // reads as the path bar does, with the project's name after it where that is another.
     folderRow(entry, key, top) {

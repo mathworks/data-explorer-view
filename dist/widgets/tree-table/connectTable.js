@@ -530,7 +530,12 @@ export function connectTable(table, source, options = {}) {
     // sent, so an edit elsewhere in the document does not close a grid open on this row.
     let shown = null;
     let asking = 0;
+    // Listeners that came since the last page sent, owed the page there is: the one an ask answers,
+    // though it is the page the others were sent already (an inspector that follows this table again,
+    // its first page overtaken by a select of the row it was on, as Back from Root makes).
+    const owed = new Set();
     const send = (page) => {
+        owed.clear();
         for (const listener of [...pageListeners])
             listener(page);
     };
@@ -579,8 +584,16 @@ export function connectTable(table, source, options = {}) {
                 return send({ groups: [] });
             }
             const groups = JSON.stringify(page.groups);
-            if (shown && shown.groups === groups && !(await cellsChanged(page.rowId)))
+            if (shown && shown.groups === groups && !(await cellsChanged(page.rowId))) {
+                // Not sent again, but to a listener owed it.
+                if (ask !== asking)
+                    return;
+                for (const listener of [...owed])
+                    if (pageListeners.has(listener))
+                        listener(page);
+                owed.clear();
                 return;
+            }
             if (ask !== asking)
                 return;
             shown = { groups, cells: null };
@@ -666,17 +679,23 @@ export function connectTable(table, source, options = {}) {
         onPage(listener) {
             pageListeners.add(listener);
             // What is selected now, told to this listener alone: the page the others were last sent is
-            // not sent again, and an inspector that follows this table once more has nothing shown.
+            // not sent again, and an inspector that follows this table once more has nothing shown. An ask
+            // made meanwhile answers it instead (owed), even with the page the others have.
             const selection = toInspect();
             if (selection) {
+                owed.add(listener);
                 const at = asking;
                 void pageOf(selection).then((page) => {
                     if (disposed || at !== asking || !pageListeners.has(listener))
                         return;
+                    owed.delete(listener);
                     listener(page.rowId === undefined ? { groups: [] } : page);
                 }, () => { });
             }
-            return () => void pageListeners.delete(listener);
+            return () => {
+                pageListeners.delete(listener);
+                owed.delete(listener);
+            };
         },
         async matrix(nodeId) {
             const page = await source.matrix(nodeId);
