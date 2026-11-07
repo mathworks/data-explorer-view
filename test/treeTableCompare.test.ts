@@ -204,6 +204,8 @@ describe('focusGrid', () => {
 
   it('gives it once the table is drawn, when asked before', async () => {
     const table = new DexTreeTable();
+    // Before it is connected it has no render root, and asking throws nothing.
+    expect(() => table.focusGrid()).not.toThrow();
     table.columns = COLUMNS;
     table.storageKey = null;
     table.rows = LINES();

@@ -310,6 +310,8 @@ describe('the two tables, kept together', () => {
   });
 
   it("gives the keyboard to the left table's grid", async () => {
+    // Before it is connected it has no tables, and asking throws nothing.
+    expect(() => (document.createElement('dex-compare-view') as DexCompareView).focus()).not.toThrow();
     const view = await mount();
     view.focus();
     const [left] = tables(view);

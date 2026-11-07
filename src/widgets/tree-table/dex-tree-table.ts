@@ -991,8 +991,8 @@ export class DexTreeTable extends LitElement {
       /* Read-only ink on a wash. The muted ink is dim against the rows' own surface, and a wash
          takes some of that contrast away (in the dark set the plain surface leaves it 4.32:1 and a
          wash below 3.6:1), so a marked row redeclares it, as a selected row does for its surface:
-         the row's text ink at 80%, which stays dim beside the editable text and reads at 6:1 and
-         more on every wash. A differing cell is the one the user came to read: it draws in the full
+         the row's text ink at 80%, which stays dim beside the editable text and reads at 5.8:1
+         and more on every wash. A differing cell is the one the user came to read: it draws in the full
          text ink, its muted parts (a read-only value, an object's summary) included. Not on a
          selected row, whose own ink and its 78% take over (tr.data-row.selected below). */
       tr.data-row.diff-added:not(.selected),
@@ -1928,7 +1928,8 @@ export class DexTreeTable extends LitElement {
    * Nothing while the table is loading. Called before the table is drawn, once it is.
    */
   focusGrid(): void {
-    const grid = (): HTMLElement | null => this.renderRoot.querySelector<HTMLElement>('.table-container, .empty-state');
+    // No render root before the table is first connected: then it waits for its first update.
+    const grid = (): HTMLElement | null => this.renderRoot?.querySelector<HTMLElement>('.table-container, .empty-state') ?? null;
     const now = grid();
     if (now) now.focus();
     else void this.updateComplete.then(() => grid()?.focus());

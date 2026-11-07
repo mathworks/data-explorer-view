@@ -102,9 +102,10 @@ const stop = (e: Event): void => e.stopPropagation();
  * and a selection in one is the other's, said in `dex-compare-selected`. The tables keep their rows
  * as given (a sort or a search on one side alone would break the lines) and take no edit; a row's
  * menu is asked for in `dex-compare-menu`, with the side it was asked on, for the app to offer Copy
- * to Left or Right. Only vertical scroll follows: each table keeps its own column widths and choices,
- * so the same sideways scroll would put different columns under each other. Previous and Next Change send `dex-compare-step` for the app to say which line
- * that is (`select`). The tables' own events stay inside the view.
+ * to Left or Right. Only vertical scroll follows: each table keeps its own column widths and
+ * choices, so the same sideways scroll would put different columns under each other. Previous and
+ * Next Change send `dex-compare-step` for the app to say which line that is (`select`). The tables'
+ * own events stay inside the view.
  *
  * It fills the box it is given, a column: the header, then the two sides, each a caption (the
  * file's name, ● while it is unsaved, "Read-only" where no copy can go into it) over its table.
@@ -342,7 +343,8 @@ export class DexCompareView extends LitElement {
   }
 
   private _table(which: 'left' | 'right'): DexTreeTable | null {
-    return this.renderRoot.querySelector<DexTreeTable>(`dex-tree-table[data-side="${which}"]`);
+    // Before the view is first connected it has no render root, and no table.
+    return this.renderRoot?.querySelector<DexTreeTable>(`dex-tree-table[data-side="${which}"]`) ?? null;
   }
 
   private _other(which: 'left' | 'right'): DexTreeTable | null {
