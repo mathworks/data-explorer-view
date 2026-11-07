@@ -296,7 +296,7 @@ describe('browserHost', () => {
 
   it('gives an app the files it may add to and ask about, and nothing of the rest', async () => {
     const { host } = hostOf();
-    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'addToGroup', 'get', 'has']);
+    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'addToGroup', 'get', 'has', 'urlOf']);
     const path = await host.files.addPicked('a.sldd', { kind: 'bytes', bytes: bytesOf('fetched') });
     expect(host.files.has(path)).toBe(true);
     expect(host.files.get(path)?.name).toBe('a.sldd');
