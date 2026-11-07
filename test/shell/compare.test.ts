@@ -46,6 +46,7 @@ import {
   tabNamed,
   tabNames,
   edit,
+  toastTexts,
   until,
   type Page,
 } from './harness.js';
@@ -90,14 +91,23 @@ describe('a compare tab', () => {
   it('shows every line, or only the differences, as the header says', async () => {
     const page = await twoFiles();
     await compareWith(page, at('b/params.sldd'));
+    // Each side's Design Data counts its own file's three entries, whichever lines are shown: a's
+    // Kp, Uo and Ki, b's Kp, Ki and Param, never the other's gap.
+    const headings = () => tables().map((t) => t.shadowRoot!.querySelector('tr[data-row-id="section:design"] td.col-Name .label')?.textContent?.trim());
+    await until(() => headings().every((h) => !!h));
+    expect(headings()).toEqual(['Design Data (3)', 'Design Data (3)']);
     const box = view().shadowRoot!.querySelector('input[type="checkbox"]') as HTMLInputElement;
     box.click();
     await until(() => tables()[0]!.rows.some((r) => r.Name.label === 'Ki'));
     const sections = tables()[0]!.rows.filter((r) => r.ID.startsWith('section:')).map((r) => r.Name.label);
     expect(sections).toEqual(expect.arrayContaining(['Architectural Data', 'Configurations', 'Other Data']));
+    await until(() => headings().every((h) => !!h));
+    expect(headings()).toEqual(['Design Data (3)', 'Design Data (3)']);
     box.click();
     await until(() => !tables()[0]!.rows.some((r) => r.Name.label === 'Ki'));
     expect(tables()[0]!.rows.some((r) => r.Name.label === 'Configurations')).toBe(false);
+    await until(() => headings().every((h) => !!h));
+    expect(headings()).toEqual(['Design Data (3)', 'Design Data (3)']);
   });
 
   it('goes to the next and previous difference with F7 and Shift+F7, only on a compare tab', async () => {
@@ -222,6 +232,18 @@ describe('a compare tab', () => {
     await until(() => palette().open);
     expect(paletteRows().find((r) => r.label === 'Compare With…')!.disabled).toBe(true);
     palette().close();
+  });
+
+  it('says at once that a comparison is not compared, when a host\'s menu runs Compare With… on its tab', async () => {
+    // The palette, the tab menu and the file menu offer no Compare With… on a compare tab; a native
+    // menu has the item everywhere, and the command answers without asking for a file first.
+    const page = await twoFiles();
+    await compareWith(page, at('b/params.sldd'));
+    page.command('compare-with');
+    await until(() => toastTexts().includes("A comparison can't be compared with another file."));
+    await settled();
+    expect(palette().open).toBe(false);
+    expect(activeTab()?.textContent).toContain(PAIR);
   });
 
   it('goes to the compare tab of a pair already compared', async () => {

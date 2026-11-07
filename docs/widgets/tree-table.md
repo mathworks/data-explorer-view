@@ -130,7 +130,10 @@ marks each line on a side (added, removed, changed with the columns that differ,
 at the row's left edge, a wash, a glyph before the name with the word for a screen reader, and in
 forced colours an outline round each differing cell. A gap row has no twisty and no
 `aria-expanded`, and Space opens nothing on it: the gaps under it show and hide as the holder opens
-and closes the other side's row, through `expandedIds`. `fixedRows` keeps the rows as given, as a
+and closes the other side's row, through `expandedIds`. A section's row counts its file's entries:
+its `_entryCount` where it has one (a compare's heading, whose lines leave some entries out and hold
+the other file's gaps), and on a gap heading no count. The two tables select the same line, and
+only the one with the keyboard rings its focused cell. `fixedRows` keeps the rows as given, as a
 sort or a search on one side alone would break the lines: a header press sorts nothing, and there
 is no search box and no column filter. To keep the two together, each table says what it did of
 itself: `dex-expansion-changed` (not for `expandedIds`, `expand()` or `collapse()`, which a holder

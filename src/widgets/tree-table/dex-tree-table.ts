@@ -1895,8 +1895,9 @@ export class DexTreeTable extends LitElement {
    * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
    * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
    * differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
-   * under it follow `expandedIds`). Default null: no marks, the table as it always was. Property
-   * only.
+   * under it follow `expandedIds`). The focused cell is ringed only while the table has the
+   * keyboard: a compare's other table selects the same line. Default null: no marks, the table as
+   * it always was. Property only.
    */
   @property({ attribute: false }) diffMarks: ReadonlyMap<string, DiffMark> | null = null;
 
@@ -2078,6 +2079,9 @@ export class DexTreeTable extends LitElement {
   @state() private _scrollTop = 0;
   @state() private _viewportHeight = 400;
   @state() private _focusedCol = 0;
+  // Whether the keyboard is in the grid: a compare's two tables select the same line, and only
+  // the one that has the keyboard rings its focused cell (diffMarks).
+  @state() private _gridFocused = false;
   @state() private _lastClickedId: string | null = null;
   @state() private _focusedRowId: string | null = null;
   @state() private _dragSourceId: string | null = null;
@@ -4464,7 +4468,9 @@ export class DexTreeTable extends LitElement {
       // run through the highlighter — a <mark> on `Design Data` while the rows below it
       // are narrowed to a few shows the user a match the filter deliberately refused.
       const isSection = isSectionRowId(row.ID);
-      const sectionCount = isSection ? (this._childCounts.get(row.ID) ?? 0) : null;
+      // A compare's heading says its own count (`_entryCount`): its file's entries, of which the
+      // lines under it are some, with the other file's gaps among them. A gap heading says none.
+      const sectionCount = isSection && this.diffMarks?.get(row.ID)?.kind !== 'gap' ? (row._entryCount ?? this._childCounts.get(row.ID) ?? 0) : null;
       // The systems enclosing a block row, shown after its label as `Gain (Controller)`.
       // A block NAME is unique only inside its own system, so a model view can list four
       // rows reading `Gain` — separate rows with separate parameters and separate links,
@@ -4502,7 +4508,7 @@ export class DexTreeTable extends LitElement {
           ${iconId ? html`<dex-icon class="name-icon" .iconId=${iconId} .size=${16}></dex-icon>` : ''}
           <span class="name-text"
             ><span class="label ${isElement ? 'readonly' : ''}"
-              >${isSection ? `${label} (${sectionCount})` : this._highlight(label, columnId)}</span
+              >${isSection ? (sectionCount === null ? label : `${label} (${sectionCount})`) : this._highlight(label, columnId)}</span
             >${qualifier
               ? html`<span class="name-qualifier" title=${row._blockPath || nothing}
                   >${'(' + qualifier + ')'}</span
@@ -4886,6 +4892,8 @@ export class DexTreeTable extends LitElement {
         tabindex="0"
         ${styleProps({ '--dex-table-min-width': `${this._minTableWidth}px` })}
         @scroll=${this._onScroll}
+        @focusin=${() => (this._gridFocused = true)}
+        @focusout=${(e: FocusEvent) => (this._gridFocused = !!this._container && this._container.contains(e.relatedTarget as Node | null))}
         @keydown=${this._onTableKeyDown}
         @keyup=${this._onMenuKey}
         @contextmenu=${this._onContainerContextMenu}
@@ -4981,7 +4989,9 @@ export class DexTreeTable extends LitElement {
                     @drop=${(e: DragEvent) => this._onRowDrop(row.ID, e)}
                   >
                     ${visibleCols.map((col, ci) => {
-                      const isFocused = this.selectedRowId === row.ID && this._focusedCol === ci;
+                      // A compare's table rings the cell only while it has the keyboard: its twin
+                      // selects the same line, and two rings would say both had it.
+                      const isFocused = this.selectedRowId === row.ID && this._focusedCol === ci && (!this.diffMarks || this._gridFocused);
                       // A section row is a strip of heading, not a set of cells with
                       // states: nothing on it is editable and its blanks are not
                       // questions left unanswered, so it gets neither cue.

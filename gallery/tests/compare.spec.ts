@@ -17,6 +17,9 @@ test('compares the text dictionary with the zip one, steps to the change with F7
   const view = page.locator('dex-compare-view');
   await expect(view.locator('.summary')).toHaveText('1 changed');
   await expect(view.locator('.caption .name')).toHaveText(['object_props_text.sldd', 'object_props_binary.sldd']);
+  // Each heading counts its own file's entries, as the file's table does: a, fleetObject and
+  // vehicleObject on both sides, though only fleetObject differs and is shown.
+  await expect(view.locator('dex-tree-table tr.section-row td.col-Name .label')).toHaveText(['Other Data (3)', 'Other Data (3)']);
   // The zip file's Notes and the rows under it, gaps on the left: hatched, and with no twisty.
   await expect(view.locator('dex-tree-table[data-side="left"] tr.diff-gap')).toHaveCount(5);
   await expect(view.locator('dex-tree-table[data-side="left"] tr.diff-gap[aria-expanded]')).toHaveCount(0);

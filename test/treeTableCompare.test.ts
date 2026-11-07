@@ -146,6 +146,57 @@ describe("a compare's marks", () => {
     await table.updateComplete;
     expect(order(table)).toEqual(['S', 'N', 'c']);
   });
+  it("reads a heading's count off the row where it gives one, and draws none on a gap heading", async () => {
+    // A compare's heading counts its file's entries (`_entryCount`): its lines leave out the entries
+    // with no difference, and hold the other file's gaps. A heading only the other file has is a gap.
+    const rows = [
+      { ...row('section:design', null, { Name: { label: 'Design Data' } }), _entryCount: 5 },
+      row('a', 'section:design'),
+      row('g', 'section:design'),
+      row('section:other', null, { Name: { label: '' } }),
+      row('h', 'section:other'),
+      row('section:arch', null, { Name: { label: 'Configurations' } }),
+      row('k', 'section:arch'),
+    ];
+    const marks = new Map<string, DiffMark>([
+      ['g', { kind: 'gap' }],
+      ['section:other', { kind: 'gap' }],
+      ['h', { kind: 'gap' }],
+    ]);
+    const table = await mount(rows, (t) => (t.diffMarks = marks));
+    const label = (id: string) => tr(table, id).querySelector('td.col-Name .label')!.textContent!.trim();
+    expect(label('section:design')).toBe('Design Data (5)');
+    expect(label('section:other')).toBe('');
+    // A heading with no count of its own counts the rows under it, as a document's table does.
+    expect(label('section:arch')).toBe('Configurations (1)');
+  });
+  it('rings the focused cell only while the table has the keyboard, in a compare; the selection stays drawn', async () => {
+    // Both of a compare's tables select the line; only the one with the keyboard rings its cell.
+    const table = await mount(LINES(), (t) => {
+      t.expandedIds = ['S'];
+      t.diffMarks = new Map<string, DiffMark>([['a', { kind: 'added' }]]);
+      t.selectedRowIds = ['a'];
+    });
+    const grid = root(table).querySelector<HTMLElement>('[role="treegrid"]')!;
+    const ringed = () => [...root(table).querySelectorAll('td.focused')].map((td) => (td.closest('tr') as HTMLElement).dataset.rowId);
+    expect(tr(table, 'a').classList.contains('selected')).toBe(true);
+    expect(ringed()).toEqual([]);
+    grid.focus();
+    grid.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+    await table.updateComplete;
+    expect(ringed()).toEqual(['a']);
+    grid.dispatchEvent(new FocusEvent('focusout', { bubbles: true, composed: true, relatedTarget: document.body }));
+    await table.updateComplete;
+    expect(ringed()).toEqual([]);
+    expect(tr(table, 'a').classList.contains('selected')).toBe(true);
+
+    // A table with no marks rings its selected cell as it always has, focused or not.
+    const plain = await mount(LINES(), (t) => {
+      t.expandedIds = ['S'];
+      t.selectedRowIds = ['a'];
+    });
+    expect([...root(plain).querySelectorAll('td.focused')]).toHaveLength(1);
+  });
 });
 
 describe('fixedRows', () => {

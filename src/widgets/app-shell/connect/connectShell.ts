@@ -917,6 +917,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   let comparing: OpenTab | null = null;
   function compareWith(from: OpenTab): void {
     if (disposed || parts.modalOpen()) return;
+    // The shell's own menus offer no Compare With… on a compare tab, a host's native menu has the
+    // item everywhere: said at once, rather than after a file is picked.
+    if (from.compare) return say('info', "A comparison can't be compared with another file.");
     popovers.closeAll();
     comparing = from;
     parts.palette.show(compareChoices(from, tabs.items, titleOf), { placeholder: `Compare ${from.name} with…`, remember: false });

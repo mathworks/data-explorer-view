@@ -14,6 +14,8 @@
 import { describe, expect, it } from 'vitest';
 import { compareRows } from '../src/model/compare/compareRows.js';
 import { diffSides } from '../src/model/compare/diff.js';
+import { diffFiles } from '../src/model/compare/diffDocuments.js';
+import { fixtureBytes } from './compare/derive.js';
 import { r, sideOf } from './compare/made.js';
 
 const A = 'file:///a/x.sldd';
@@ -125,5 +127,23 @@ describe('compareRows', () => {
     expect(layout.lines.map((line) => line.parent)).toEqual([null, null]);
     expect(layout.lines.map((line) => line.section)).toEqual(['', '']);
     expect(layout.changes).toEqual([idOf(layout, 'x')]);
+  });
+
+  it("counts on each side's heading its own file's entries: not the gaps, nor only the lines shown", async () => {
+    /** Each side's count on the heading labelled `label`. */
+    const counts = (layout: ReturnType<typeof compareRows>, label: string) => {
+      const id = layout.lines.find((line) => line.heading?.label === label)!.id;
+      return [layout.left, layout.right].map((side) => side.rows.find((row) => row.ID === id)!._entryCount);
+    };
+    // Ki is the same on both sides, and left out of the lines with "Show only differences".
+    for (const onlyDifferences of [true, false]) {
+      expect(counts(compareRows(diffSides(...sides()), { onlyDifferences }), 'design')).toEqual([3, 3]);
+    }
+    // params.sldd's three entries are all in Design Data, rt_bin.sldd's one in Other Data: each
+    // file's own table reads its other section as empty, and so does its side of the compare.
+    const diff = await diffFiles({ bytes: fixtureBytes('params.sldd'), name: 'params.sldd' }, { bytes: fixtureBytes('rt_bin.sldd'), name: 'rt_bin.sldd' });
+    const layout = compareRows(diff);
+    expect(counts(layout, 'Design Data')).toEqual([3, 0]);
+    expect(counts(layout, 'Other Data')).toEqual([0, 1]);
   });
 });
