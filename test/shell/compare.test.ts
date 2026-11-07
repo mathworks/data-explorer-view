@@ -246,6 +246,17 @@ describe('a compare tab', () => {
     expect(activeTab()?.textContent).toContain(PAIR);
   });
 
+  it("says at once that a project is not compared, when a host's menu runs Compare With… on its tab", async () => {
+    const page = await twoFiles({ 'Plant.prj': 'params.sldd' });
+    void page.handle.openPaths([at('Plant.prj')]);
+    // Its tab is the project's name.
+    await until(() => !!document.querySelector('.doc-panel dex-project-page') && activeTab()?.textContent?.includes('Plant') === true);
+    page.command('compare-with');
+    await until(() => toastTexts().includes('Plant is a project, which has no table: only data files are compared.'));
+    await settled();
+    expect(palette().open).toBe(false);
+  });
+
   it('goes to the compare tab of a pair already compared', async () => {
     const page = await twoFiles();
     await compareWith(page, at('b/params.sldd'));
