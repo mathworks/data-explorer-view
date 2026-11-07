@@ -35,4 +35,4 @@ export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from '.
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost, ShellNotice } from './connect/types.js';
+export type { CloseAnswer, ConnectShellOptions, OpenAtTarget, ShellCommand, ShellEntryTarget, ShellHandle, ShellHost, ShellNotice, } from './connect/types.js';

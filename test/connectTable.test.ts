@@ -152,6 +152,37 @@ describe('the first paint', () => {
     }
   });
 
+  // An app waiting on the first paint (the app shell's openAt, to select a link's entry) would wait
+  // for ever on a source that answered with an error: it hears the failure instead, as the banner
+  // says it, and no paint after it. A source closed while it was asked is no failure, as above.
+  it('tells the app the source failed to open, with the banner\'s message, and paints nothing', async () => {
+    const answers: [Error, string[]][] = [
+      [new Error('the read broke'), ['the read broke']],
+      [new SourceClosed('a.mat is closed.'), []],
+    ];
+    for (const [err, told] of answers) {
+      const table = document.createElement('dex-tree-table');
+      document.body.append(table);
+      const failing: TableSource = {
+        open: () => Promise.reject(err),
+        children: async (nodeId) => ({ nodeId, rows: [], truncated: 0 }),
+        matrix: async (nodeId) => ({ nodeId, message: 'none' }),
+        inspect: async () => ({ groups: [] }),
+        subscribe: () => () => {},
+      };
+      const handle = connectTable(table, failing, { variableEditor: fakeEditor().editor });
+      handles.push(handle);
+      const failed: string[] = [];
+      const painted: unknown[] = [];
+      handle.on('failed', (message) => failed.push(message));
+      handle.on('painted', (view) => painted.push(view));
+      await settle(table);
+      expect(failed, err.message).toEqual(told);
+      expect(table.banners?.error ?? null).toBe(told[0] ?? null);
+      expect(painted).toEqual([]);
+    }
+  });
+
   it("draws the paint's banners in the table's strip: what the paint held back", async () => {
     const { table } = await mount(NUMERIC, 'numeric_json.sldd', { rowBudget: 5 });
     expect(table.banners?.warnings?.headline).toMatch(/^This file is too large to load at once/);

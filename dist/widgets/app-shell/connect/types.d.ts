@@ -5,15 +5,13 @@ import type { Theme } from '../../../model/shell/settings.js';
  * command palette row's, and what a native menu asks for through `ShellHandle.command`. `new-file`
  * makes a new data dictionary (ShellHost.newFile; nothing, for a host without it); `palette` opens
  * the command palette; each `show-<view>` brings that view of the shell forward, and `show-graph`
- * goes to the Explorer's Root, where the relationship graph is. `folder-up` makes the folder above
- * the workspace folder (ShellHost.folderParent, openFolderAt), and `folder-refresh` reads it again
- * (or picks it again, for a host whose folder is a snapshot). The documents split in two panes
+ * goes to the Explorer's Root, where the relationship graph is. The documents split in two panes
  * side by side: `split-right` moves the active tab into a pane on the right (a new one, or the
  * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
  * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
  * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
  */
-export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-folder' | 'folder-up' | 'folder-refresh' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
+export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';
 /**
@@ -41,23 +39,9 @@ export interface ShellHost {
     pickFiles(): Promise<string[]>;
     /**
      * Show the host's Open Folder dialog. A folder chosen comes back through `ShellHandle.showFolder`
-     * with its port. Absent: the host shows no folders, and the shell offers no Folder button and no
-     * Folder view.
+     * with its port. Absent: the host shows no folders, and the shell offers no Folder button.
      */
     pickFolder?(): Promise<void>;
-    /** The folder above `path`, or null where this host can't go up (a browser above the picked folder; `/`). Absent: ↑ is never offered. */
-    folderParent?(path: string): string | null;
-    /**
-     * Make `path` the workspace folder: the host serves it and calls ShellHandle.showFolder, as for
-     * Open Folder. Resolves false when it can't (the folder stays, and the shell says so). `true`
-     * promises that showFolder call, made before or after the promise resolves: the Folder view's bar
-     * stays busy until it comes.
-     */
-    openFolderAt?(path: string): Promise<boolean>;
-    /** Folders opened before, newest first (paths). Absent: no Recent Folders. */
-    recentFolders?(): Promise<readonly string[]>;
-    /** What ⟳ does: read the folder again (default), or ask the user to pick it again (a browser's snapshot of a folder). */
-    folderRefresh?: 'read' | 'pick';
     /** The bytes of a data file the user opened. A rejection is shown in the file's table. */
     readFile(path: string): Promise<Uint8Array>;
     /**
@@ -116,6 +100,13 @@ export interface ShellHost {
      * Absent: the path itself.
      */
     pathTitle?(path: string): string;
+    /**
+     * A link to the entry `target` names (the desktop app's `data-explorer://open?…`), for Copy Link
+     * to Entry on a document's row menu: the shell puts it on the clipboard (copyText) and says "Link
+     * copied". Read at each menu. '' copies nothing. Absent: no such item (a browser page and the
+     * VS Code extension show none).
+     */
+    entryLink?(target: ShellEntryTarget): string;
 }
 /** How connectShell builds the app. */
 export interface ConnectShellOptions {
@@ -160,14 +151,37 @@ export interface ShellNotice {
     /** What it says, as text (a line break in it starts a new line). Empty, it says nothing, and nothing is shown. */
     text: string;
 }
+/** Where in a file a link from outside points (ShellHandle.openAt): an entry by its name, in a section by its label. */
+export interface OpenAtTarget {
+    /** The entry to select: its Name as the table shows it (`Kp`), or a block's key. Absent or '': none; the file opens as openPaths opens it. */
+    entry?: string;
+    /** The label of the section the entry is in, as its row in the table reads (`Design Data`, `Model Workspace`). Absent or '': any. */
+    section?: string;
+}
+/** An entry of a file, as a link names it: the file's path, the entry's name, and its section's label where it has one. */
+export interface ShellEntryTarget {
+    /** The file's path, as its tab opened it. */
+    path: string;
+    /** The entry's name, or a block's key for a block in a subsystem. */
+    entry: string;
+    /** The label of the section row the entry is under (`Design Data`); absent for an entry under none, a MAT-file's variable or a block linked by its key. */
+    section?: string;
+}
 /** A connected shell: what a host drives it by. */
 export interface ShellHandle {
     /** Open these files, in order, each in a tab of its own (kept, not a preview): the last named ends up active. */
     openPaths(paths: readonly string[]): Promise<void>;
     /**
-     * Show `root`, read across `port` (serveFolder's other end), as the workspace folder: in the Folder
-     * view, and for Used By, the graph and Search, in place of a folder shown before.
+     * Open the file at `path` in a tab of its own (kept, as openPaths keeps one), or go to its tab,
+     * then select the entry `at` names once the table has its rows: with `section`, the first
+     * top-level entry of that name under the section row of that label; without, as a link selects
+     * (an entry, then any row but a section's, then a block by its key). An entry the file has none
+     * of: the file stays open, and a toast says "No entry named Kp" (" in Model Elements" with a
+     * section). A file with no table (a project's page, a file that could not be read, which its tab
+     * says) selects nothing and says nothing more. Never rejects: what fails is said in the window.
      */
+    openAt(path: string, at?: OpenAtTarget): Promise<void>;
+    /** Show `root`, read across `port` (serveFolder's other end), in the Explorer, in place of a folder shown before. */
     showFolder(root: string, port: MessagePort): void;
     /** An open file changed on disk: a clean tab takes the change, a tab with unsaved edits asks first. */
     fileChanged(path: string): void;
