@@ -15,7 +15,7 @@ import { derive, fixtureBytes, rowNamed, settle } from '../compare/derive.js';
 import type { ContextMenuItem } from '../../src/widgets/context-menu/dex-context-menu.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import { compareWith, header, lineOf, PAIR, selectPath, tables, twoFiles, view } from './compareHarness.js';
-import { activeTab, at, choose, open, rowOf, startPage, tableOf, tabNamed, textOf, toastTexts, until, type Page } from './harness.js';
+import { activeTab, at, choose, enabledItems, open, rowOf, startPage, tableOf, tabNamed, textOf, toastTexts, until, type Page } from './harness.js';
 
 const menu = () => document.querySelector('dex-context-menu')!;
 
@@ -126,6 +126,10 @@ describe('Copy to Right and Copy to Left', () => {
     const wheels = tableOf('b/rt_bin.sldd')!.rows.find((r) => r.Name.label === 'Wheels');
     expect(textOf(wheels)).toBe('42');
     expect(tableOf('b/rt_bin.sldd')!.rows.some((r) => r.Name.label === 'gadget1')).toBe(false);
+    // Nothing changed in b: its tab holds no edit, and has nothing to undo.
+    await selectPath(at('b/rt_bin.sldd'));
+    expect(activeTab()!.classList.contains('dirty')).toBe(false);
+    expect(enabledItems()).not.toContain('undo');
   });
 
   it('copies the whole entry a line inside it stands for', async () => {

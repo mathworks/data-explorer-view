@@ -136,6 +136,41 @@ describe('a tree of several selected rows', () => {
     expect(selected(el)).toEqual(['c.sldd']);
   });
 
+  it('takes the focused row into the selection, or out of it, by Ctrl+Space or Cmd+Space', async () => {
+    const el = await tree(true);
+    const changes = heard<HierarchySelectionChangedDetail>(el, 'dex-hierarchy-selection-changed');
+    const chosen = heard<unknown>(el, 'dex-hierarchy-selected');
+    const space = (label: string, keys: KeyboardEventInit): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, composed: true, cancelable: true, ...keys });
+      rowOf(el, label).focus();
+      rowOf(el, label).dispatchEvent(e);
+      return e;
+    };
+    expect(space('a.sldd', { ctrlKey: true }).defaultPrevented).toBe(true);
+    space('c.sldd', { ctrlKey: true });
+    await settle(el);
+    expect(selected(el)).toEqual(['a.sldd', 'c.sldd']);
+    expect(changes.at(-1)!.keys).toEqual(['/w/a', '/w/c']);
+    space('a.sldd', { ctrlKey: true });
+    await settle(el);
+    expect(selected(el)).toEqual(['c.sldd']);
+    expect(chosen).toEqual([]);
+    // Space alone, and on macOS Ctrl+Space, is no toggle.
+    expect(space('b.sldd', {}).defaultPrevented).toBe(false);
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+    expect(space('b.sldd', { ctrlKey: true }).defaultPrevented).toBe(false);
+    space('b.sldd', { metaKey: true });
+    await settle(el);
+    expect(selected(el)).toEqual(['b.sldd', 'c.sldd']);
+  });
+
+  it("leaves Space alone in a tree that selects one row", async () => {
+    const el = await tree(false);
+    const e = new KeyboardEvent('keydown', { key: ' ', ctrlKey: true, bubbles: true, composed: true, cancelable: true });
+    rowOf(el, 'a.sldd').dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
   it('keeps the row the app reveals as the one selected', async () => {
     const el = await tree(true);
     click(el, 'a.sldd', true);

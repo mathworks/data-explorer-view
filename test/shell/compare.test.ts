@@ -263,28 +263,32 @@ describe('a compare tab', () => {
 
   // Lead's rule: F7 steps by entry. An added struct and an added array are one difference each.
   it('steps over the rows under an added entry in one press', async () => {
-    // a: nested_objects.sldd without its two entries, a cell and a struct, each with rows under it.
+    // a: nested_objects.sldd without its two entries, a cell and a struct, each with rows under it;
+    // b: the file, and a numeric array (Var, [1 2 3 4], its four elements rows under it) beside them.
     const page = startPage();
     const whole = fixtureBytes('nested_objects.sldd');
     const without = await derive(whole, 'nested_objects.sldd', async (table, rows) => {
       table.delete([rowNamed(rows, 'CellWithParam').ID, rowNamed(rows, 'StructWithParam').ID]);
     });
+    const withArray = await derive(whole, 'nested_objects.sldd', async (table) => {
+      table.addEntry({ section: 'design', className: 'MatlabVariable', rename: false });
+      await settle();
+      const added = (await table.open()).rows.filter((r) => r.parent === 'section:design').at(-1)!;
+      await table.edit({ rowId: added.ID, columnId: 'Value', oldValue: '0', newValue: '[1 2 3 4]' });
+    });
     page.main.files.set(at('a/nested_objects.sldd'), without);
-    page.main.files.set(at('b/nested_objects.sldd'), whole);
+    page.main.files.set(at('b/nested_objects.sldd'), withArray);
     await open(page, 'b/nested_objects.sldd', 'a/nested_objects.sldd');
     await compareWith(page, at('b/nested_objects.sldd'));
     const right = tables()[1]!;
     const added = right.rows.filter((r) => r.parent === 'section:design' && right.diffMarks?.get(r.ID)?.kind === 'added');
-    expect(added.map((r) => r.Name.label)).toEqual(['CellWithParam', 'StructWithParam']);
+    expect(added.map((r) => r.Name.label)).toEqual(['CellWithParam', 'StructWithParam', 'Var']);
     for (const entry of added) expect(right.rows.some((r) => r.parent === entry.ID)).toBe(true);
-    f7();
-    await settled();
-    expect(right.selectedRowIds).toEqual([added[0]!.ID]);
-    f7();
-    await settled();
-    expect(right.selectedRowIds).toEqual([added[1]!.ID]);
-    f7();
-    await settled();
-    expect(right.selectedRowIds).toEqual([added[0]!.ID]);
+    expect(right.rows.filter((r) => r.parent === added[2]!.ID)).toHaveLength(4);
+    for (const step of [0, 1, 2, 0]) {
+      f7();
+      await settled();
+      expect(right.selectedRowIds).toEqual([added[step]!.ID]);
+    }
   });
 });

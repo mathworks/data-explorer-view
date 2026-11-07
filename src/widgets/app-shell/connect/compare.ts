@@ -304,11 +304,15 @@ export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiri
         return row ? [row.ID] : [];
       });
       let dropped: { dropped: boolean; reason?: string };
-      // The drag register tells the target's table of the drag as it is taken (synchronously), so
-      // its handle judges the drop as it would one of its own rows.
-      lends!.dragStart!(lines.map((line) => sourceOf(line)!.ID));
       try {
+        // The drag register tells the target's table of the drag as it is taken (synchronously), so
+        // its handle judges the drop as it would one of its own rows.
+        lends!.dragStart!(lines.map((line) => sourceOf(line)!.ID));
         dropped = replacing.length > 0 ? await into.handle.dropReplacing(target, replacing) : await into.handle.drop(target, 'copy');
+      } catch (err) {
+        // A source that would not lend them, or a drop that threw: said, and the next section tried.
+        wiring.say('warning', `Could not copy to ${into.name}: ${message(err)}`);
+        continue;
       } finally {
         lends!.dragEnd?.();
       }

@@ -9,6 +9,7 @@
 // is the tables' too: each menu acts on its next choice only.
 import { describe, expect, it } from 'vitest';
 import type { ContextMenuItem, ContextMenuShowOptions } from '../../src/widgets/context-menu/dex-context-menu.js';
+import type { ShellLinkRequest } from '../../src/widgets/app-shell/connect/types.js';
 import { compareWith, PAIR, paletteRows, placeholder, selectPath, twoFiles } from './compareHarness.js';
 import { at, choose, explorer, palette, settled, tabNamed, tabNames, until } from './harness.js';
 
@@ -70,6 +71,28 @@ describe("a tab's menu", () => {
     choose('close-tab');
     await until(() => !tabNamed(PAIR));
     expect(tabNames()).toEqual(['params.sldd', 'params.sldd']);
+  });
+
+  // A compare tab is no file: its link is to the open files, both compared ones among them, at none.
+  it("copies a link to the open files from a compare tab's menu, the compare no file of them", async () => {
+    const page = await twoFiles();
+    const asked: ShellLinkRequest[] = [];
+    page.host.linkFor = (request) => (asked.push(request), { url: 'https://example.org/#files', left: [] });
+    await compareWith(page, at('b/params.sldd'));
+    const shown = recordMenu();
+    rightClick(tabEl(PAIR));
+    await until(() => shown.length === 1);
+    expect(shown[0]!.labels).toEqual(['Next Change', 'Previous Change', '—', 'Close', 'Close Others', '—', 'Copy Link']);
+    asked.length = 0;
+    choose('copy-link');
+    await until(() => page.main.copied.length === 1);
+    expect(page.main.copied).toEqual(['https://example.org/#files']);
+    expect(asked.at(-1)).toEqual({
+      files: [
+        { path: at('b/params.sldd'), name: 'params.sldd' },
+        { path: at('a/params.sldd'), name: 'params.sldd' },
+      ],
+    });
   });
 
   it('closes the other tabs, a compare among them', async () => {

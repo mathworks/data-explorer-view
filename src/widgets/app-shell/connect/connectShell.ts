@@ -752,16 +752,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     });
   }
 
-  // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
-  // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
-  // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
-  // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
   // Copy Link, for a host that makes links (ShellHost.linkFor): its address for every open file,
   // pane by pane, at `tab`'s selection (the active tab's, a tab's menu's own; none at Root), on the
   // clipboard. Asked of the host at once, as it answers, also as the palette and a tab's menu open
-  // (linkAt), to grey the command while no open file has an address.
-  const openFiles = (): ShellLinkFile[] => tabs.panes.flatMap((pane) => pane.items).map(({ path, name }) => ({ path, name }));
-  const linkTabOf = (tab: OpenTab | undefined): LinkTab | undefined => tab && { path: tab.path, selection: tab.selection, rows: tab.table?.rows ?? [] };
+  // (linkAt), to grey the command while no open file has an address. A compare tab is no file: its
+  // two files are among the open ones, and its link is at none of them, as Root's is.
+  const openFiles = (): ShellLinkFile[] =>
+    tabs.panes
+      .flatMap((pane) => pane.items)
+      .filter((t) => !t.compare)
+      .map(({ path, name }) => ({ path, name }));
+  const linkTabOf = (tab: OpenTab | undefined): LinkTab | undefined =>
+    tab && !tab.compare ? { path: tab.path, selection: tab.selection, rows: tab.table?.rows ?? [] } : undefined;
   const linkAt = (tab: OpenTab | undefined): ShellLink | undefined => host.linkFor?.(linkRequestOf(openFiles(), linkTabOf(tab)));
   async function copyLink(tab: OpenTab | undefined): Promise<void> {
     if (!host.linkFor) return;
@@ -776,6 +778,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     }
   }
 
+  // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
+  // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
+  // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
+  // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
   async function copyEntryLink(tab: OpenTab, rowId: string | null): Promise<void> {
     const at = rowId === null ? undefined : linkedEntryOf(tab.table?.rows ?? [], rowId);
     if (!at) return;
@@ -856,7 +862,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // Why a tab is not one a compare reads, as the end of "Could not compare a with b: a …".
   const notComparable = (tab: OpenTab): string =>
-    tab.compare ? 'is a comparison' : isProjectFile(tab.path) ? 'is a project, which has no table' : !tab.doc ? 'could not be read' : 'is not shown yet';
+    tab.compare
+      ? 'is a comparison'
+      : isProjectFile(tab.path)
+        ? 'is a project, which has no table'
+        : !tab.doc || (tab.table && !tab.table.loading && !tab.handle?.view)
+          ? 'could not be read'
+          : 'is not shown yet';
 
   /**
    * Compare `left` with `right` in a tab of their own, once both are read: their compare tab if
@@ -910,21 +922,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     parts.palette.show(compareChoices(from, tabs.items, titleOf), { placeholder: `Compare ${from.name} with…`, remember: false });
   }
 
-  // A tab's first paint: its table shown, and so a file a compare reads. A tab's `ready` settles once
-  // its table is connected, a moment before the table has its rows. A paint that fails says why in
-  // the table's banner and sends nothing: no compare follows, and the wait goes with the tab.
-  function painted(tab: OpenTab): Promise<void> {
-    const handle = tab.handle;
-    if (!handle || handle.view) return Promise.resolve();
-    return new Promise((resolve) => {
-      const off = handle.on('painted', () => {
-        off();
-        resolve();
-      });
-      tab.stops.push(off);
-    });
-  }
-
   // A row of Compare With…'s question: another open file's tab, or Browse…, which asks the host's
   // picker for one, opened (kept) and compared once it is shown. A picker that could not be shown
   // says why, as Open File's does; one the user cancelled says nothing.
@@ -941,8 +938,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       async (paths) => {
         const path = paths[0];
         if (path === undefined || disposed) return;
+        // Compared once it is shown (paintedRows): a tab's `ready` settles a moment before its rows.
         const other = await open(path);
-        await painted(other);
+        await paintedRows(other);
         if (isOpen(from) && isOpen(other)) await compare(from, other);
       },
       (err: unknown) => {
@@ -1174,15 +1172,15 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // A row's file opened for good (not a preview), once it is shown, then asked about or compared.
     compareWith(path) {
       void open(path).then(async (tab) => {
-        await painted(tab);
-        if (isOpen(tab)) compareWith(tab);
+        // A file that could not be shown is asked about by no one: its banner says why.
+        if ((await paintedRows(tab)) && isOpen(tab)) compareWith(tab);
       });
     },
     compare(first, second) {
       void (async () => {
         const a = await open(first);
         const b = await open(second);
-        await Promise.all([painted(a), painted(b)]);
+        await Promise.all([paintedRows(a), paintedRows(b)]);
         if (isOpen(a) && isOpen(b)) await compare(a, b);
       })();
     },
