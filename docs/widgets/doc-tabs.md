@@ -156,6 +156,23 @@ export interface TabMoveDetail {
 }
 ```
 
+### `dex-tab-menu`
+
+A right-click on a tab, or Shift+F10 or the ContextMenu key on the focused one: show its menu. The browser's own menu is prevented.
+
+`detail` is a `TabMenuDetail`:
+
+```ts
+/** What `dex-tab-menu` carries: the tab whose menu is asked for, and where to show it (viewport coordinates). */
+export interface TabMenuDetail {
+  id: string;
+  x: number;
+  y: number;
+  /** Asked by a key (Shift+F10, the ContextMenu key): the menu takes the keyboard (the context menu's `focusFirst`). */
+  keyboard?: true;
+}
+```
+
 ## Parts it defines
 
 `defineDocTabs()` defines these first, under their default names, then `<dex-doc-tabs>`:

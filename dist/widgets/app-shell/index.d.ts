@@ -4,7 +4,7 @@ export { DexShellAction, DexShellView, defineShellAction, defineShellView } from
 export { DexToolbar, defineToolbar } from './dex-toolbar.js';
 export type { ToolbarActionDetail, ToolbarEventMap, ToolbarItem } from './dex-toolbar.js';
 export { DexDocTabs, defineDocTabs } from './dex-doc-tabs.js';
-export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
+export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMenuDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
 export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
@@ -17,7 +17,7 @@ export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';
 export { DexToastHost, defineToastHost } from './dex-toast-host.js';
 export type { Toast } from './dex-toast-host.js';
 export { DexConfirmDialog, defineConfirmDialog } from './dex-confirm-dialog.js';
-export type { ConfirmButton, ConfirmOptions } from './dex-confirm-dialog.js';
+export type { ConfirmButton, ConfirmOptions, PromptOptions } from './dex-confirm-dialog.js';
 export { DexRawViewer, defineRawViewer } from './modules/dex-raw-viewer.js';
 export type { RawCopyDetail, RawViewerEventMap } from './modules/dex-raw-viewer.js';
 export { DexSearchPanel, defineSearchPanel } from './modules/dex-search-panel.js';
@@ -35,4 +35,4 @@ export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from '.
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, OpenAtTarget, ShellCommand, ShellEntryTarget, ShellHandle, ShellHost, ShellNotice, } from './connect/types.js';
+export type { CloseAnswer, ConnectShellOptions, OpenAtTarget, ShellCommand, ShellEntryTarget, ShellHandle, ShellHost, ShellLink, ShellLinkFile, ShellLinkRequest, ShellNotice, } from './connect/types.js';

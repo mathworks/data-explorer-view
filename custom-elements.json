@@ -420,7 +420,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A question with buttons, asked in the page for a host that has no dialogs of its own (a\nbrowser page): \"Save changes to x before closing?\", \"x changed on disk\". show() opens it and\nresolves to the id of the button pressed; Escape, a click outside it and close() resolve to the\nquestion's `cancelId`, and focus goes back where it was. It opens focused on the primary\nbutton, never on a danger one, and Tab stays among its buttons while it is open. It sends no\nevents: the promise is the answer.\n\nIt paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later\nin the document is on top: append it last in the body, outside any element that makes a\nstacking context of its own.",
+          "description": "A question with buttons, asked in the page for a host that has no dialogs of its own (a\nbrowser page): \"Save changes to x before closing?\", \"x changed on disk\". show() opens it and\nresolves to the id of the button pressed; Escape, a click outside it and close() resolve to the\nquestion's `cancelId`, and focus goes back where it was. It opens focused on the primary\nbutton, never on a danger one, and Tab stays among its buttons while it is open. prompt() asks\nfor a line of text in the same dialog (\"Open from URL\"), a host having no prompt of its own\neither: it resolves to the text typed, or null, opens focused on the field and keeps Tab among\nthe field and its buttons. One question is open at a time, of either kind. It sends no events:\nthe promise is the answer.\n\nIt paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later\nin the document is on top: append it last in the body, outside any element that makes a\nstacking context of its own.",
           "name": "DexConfirmDialog",
           "members": [
             {
@@ -443,13 +443,31 @@
             },
             {
               "kind": "method",
+              "name": "prompt",
+              "return": {
+                "type": {
+                  "text": "Promise<string | null>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "type": {
+                    "text": "PromptOptions"
+                  }
+                }
+              ],
+              "description": "Opens the dialog with a text field and resolves to the text typed, trimmed, when the primary\nbutton is pressed or Enter is pressed in the field (never blank); null on Cancel, Escape, a\nclick on the backdrop, close(), a show() or prompt() asked in its place, or the element leaving\nthe page. As show(), it answers a question still open with that question's cancel, opens\nfocused (on the field), keeps Tab inside, and gives the focus back when it closes."
+            },
+            {
+              "kind": "method",
               "name": "close",
               "return": {
                 "type": {
                   "text": "void"
                 }
               },
-              "description": "Closes the dialog, answering show() with its `cancelId`; does nothing while closed."
+              "description": "Closes the dialog, answering show() with its `cancelId` and prompt() with null; does nothing while closed."
             }
           ],
           "superclass": {
@@ -556,7 +574,7 @@
         },
         {
           "kind": "class",
-          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's menu is the app's too: a right-click on a tab (its × included), or Shift+F10 or the\nContextMenu key on the focused one, sends `dex-tab-menu` with where to show it, at the pointer or\nunder the tab, and the row draws no menu of its own. The browser's menu is kept off the tabs, and\nthe one a browser fires after a menu key asks nothing more; the row's empty end and the … button\nkeep the browser's.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
           "name": "DexDocTabs",
           "members": [
             {
@@ -640,6 +658,13 @@
                 "text": "CustomEvent<TabMoveDetail>"
               },
               "description": "Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from\n`tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert."
+            },
+            {
+              "name": "dex-tab-menu",
+              "type": {
+                "text": "CustomEvent<TabMenuDetail>"
+              },
+              "description": "A right-click on a tab, or Shift+F10 or the ContextMenu key on the focused one: show its menu. The browser's own menu is prevented."
             }
           ],
           "attributes": [
@@ -2276,6 +2301,14 @@
         },
         {
           "kind": "js",
+          "name": "TabMenuDetail",
+          "declaration": {
+            "name": "TabMenuDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "TabMoveDetail",
           "declaration": {
             "name": "TabMoveDetail",
@@ -2583,6 +2616,14 @@
           "name": "ConfirmOptions",
           "declaration": {
             "name": "ConfirmOptions",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PromptOptions",
+          "declaration": {
+            "name": "PromptOptions",
             "module": "./dex-confirm-dialog.js"
           }
         },
@@ -2943,6 +2984,30 @@
           "name": "ShellHost",
           "declaration": {
             "name": "ShellHost",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLink",
+          "declaration": {
+            "name": "ShellLink",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLinkFile",
+          "declaration": {
+            "name": "ShellLinkFile",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLinkRequest",
+          "declaration": {
+            "name": "ShellLinkRequest",
             "module": "./connect/types.js"
           }
         },

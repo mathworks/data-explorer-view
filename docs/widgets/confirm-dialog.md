@@ -76,9 +76,17 @@ first that is not a danger one, and returns, when the dialog closes, to the elem
 it when the first of these questions was asked. On an element that is not on the page it
 resolves to `cancelId` at once.
 
+### `prompt(options: PromptOptions): Promise<string | null>`
+
+Opens the dialog with a text field and resolves to the text typed, trimmed, when the primary
+button is pressed or Enter is pressed in the field (never blank); null on Cancel, Escape, a
+click on the backdrop, close(), a show() or prompt() asked in its place, or the element leaving
+the page. As show(), it answers a question still open with that question's cancel, opens
+focused (on the field), keeps Tab inside, and gives the focus back when it closes.
+
 ### `close(): void`
 
-Closes the dialog, answering show() with its `cancelId`; does nothing while closed.
+Closes the dialog, answering show() with its `cancelId` and prompt() with null; does nothing while closed.
 
 ## Events
 
