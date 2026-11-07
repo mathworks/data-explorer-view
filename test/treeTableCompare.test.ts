@@ -101,6 +101,51 @@ describe("a compare's marks", () => {
     expect(marked).toEqual([]);
     expect(root(table).querySelector('.sr-only')).toBeNull();
   });
+  it('opens nothing from a gap row: no twisty, no aria-expanded, no Space; its rows follow the holder', async () => {
+    // N and n are the other file's: here a gap, and a gap under it, kept in line with them.
+    const rows = [row('S', null), row('N', 'S', { Name: { label: '' } }), row('n', 'N', { Name: { label: '' } }), row('c', 'S')];
+    const marks = new Map<string, DiffMark>([
+      ['N', { kind: 'gap' }],
+      ['n', { kind: 'gap' }],
+    ]);
+    const table = await mount(rows, (t) => {
+      t.expandedIds = ['S', 'N'];
+      t.diffMarks = marks;
+    });
+    const said = heard<unknown>(table, 'dex-expansion-changed');
+    expect(order(table)).toEqual(['S', 'N', 'n', 'c']);
+    const toggle = tr(table, 'N').querySelector('td.col-Name .toggle') as HTMLElement;
+    expect(toggle.classList.contains('empty')).toBe(true);
+    expect(toggle.textContent!.trim()).toBe('');
+    expect(tr(table, 'N').hasAttribute('aria-expanded')).toBe(false);
+    // Indented as the other side's row is, under S.
+    const indent = (id: string) => (tr(table, id).querySelector('td.col-Name .indent') as HTMLElement).style.width;
+    expect(indent('N')).toBe(indent('c'));
+    // A row it marks is still a row that opens.
+    expect(tr(table, 'S').getAttribute('aria-expanded')).toBe('true');
+
+    // A click where the twisty would be, and Space on the selected gap, close nothing.
+    toggle.click();
+    await table.updateComplete;
+    tr(table, 'N').querySelector('td.col-Name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    await table.updateComplete;
+    expect(table.selectedRowIds).toEqual(['N']);
+    const grid = root(table).querySelector('[role="treegrid"]')!;
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, composed: true }));
+    await table.updateComplete;
+    expect([...table.expandedIds].sort()).toEqual(['N', 'S']);
+    expect(order(table)).toEqual(['S', 'N', 'n', 'c']);
+    // The arrow keys move past it.
+    grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }));
+    await table.updateComplete;
+    expect(table.selectedRowIds).toEqual(['n']);
+    expect(said).toEqual([]);
+
+    // Its rows show and hide as the holder opens and closes the line.
+    table.expandedIds = ['S'];
+    await table.updateComplete;
+    expect(order(table)).toEqual(['S', 'N', 'c']);
+  });
 });
 
 describe('fixedRows', () => {

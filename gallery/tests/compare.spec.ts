@@ -1,29 +1,26 @@
 // Copyright 2026 The MathWorks, Inc.
 // The app shell's compare, as a user reaches it: the text dictionary's tab menu, Compare With…, and
 // the zip dictionary picked in the palette open a compare tab of the two, its header saying what
-// differs; F7 selects the first change in both tables; and the compare is drawn light, then dark
-// from Settings, each kept as a screenshot to look at.
+// differs and the gaps on the left offering no twisty; F7 selects the first change in both tables;
+// and the compare is drawn light, then dark from Settings, each kept as a screenshot to look at.
 import type { Page } from '@playwright/test';
-import { APP, expect, keepScreenshot, test } from './gallery';
+import { APP, compareDictionaries, expect, keepScreenshot, test } from './gallery';
 
 const exactly = (text: string) => new RegExp(`^\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
-/** The tab row's tab for `name`. */
-const tab = (page: Page, name: string) => page.locator('dex-doc-tabs').getByRole('tab', { name, exact: true });
 /** A compare table's selected rows, on the `side` it shows. */
 const selected = (page: Page, side: 'left' | 'right') => page.locator(`dex-compare-view dex-tree-table[data-side="${side}"] tr[role="row"][aria-selected="true"]`);
 
 test('compares the text dictionary with the zip one, steps to the change with F7, and draws it light and dark', async ({ page }) => {
   await page.goto(APP);
-  await expect(tab(page, 'numeric_json.sldd')).toHaveAttribute('aria-selected', 'true');
   // Compare With… on the text dictionary's tab, then the zip dictionary among the open files.
-  await tab(page, 'object_props_text.sldd').click({ button: 'right' });
-  await page.locator('dex-context-menu').getByRole('menuitem', { name: 'Compare With…' }).click();
-  await expect(page.locator('dex-command-palette [role="combobox"]')).toBeFocused();
-  await page.locator('dex-command-palette [role="option"]').filter({ has: page.locator('.label', { hasText: exactly('object_props_binary.sldd') }) }).click();
-  await expect(tab(page, 'object_props_text.sldd ↔ object_props_binary.sldd')).toHaveAttribute('aria-selected', 'true');
+  await compareDictionaries(page);
   const view = page.locator('dex-compare-view');
   await expect(view.locator('.summary')).toHaveText('1 changed');
   await expect(view.locator('.caption .name')).toHaveText(['object_props_text.sldd', 'object_props_binary.sldd']);
+  // The zip file's Notes and the rows under it, gaps on the left: hatched, and with no twisty.
+  await expect(view.locator('dex-tree-table[data-side="left"] tr.diff-gap')).toHaveCount(5);
+  await expect(view.locator('dex-tree-table[data-side="left"] tr.diff-gap[aria-expanded]')).toHaveCount(0);
+  await expect(view.locator('dex-tree-table[data-side="left"] tr.diff-gap .toggle:not(.empty)')).toHaveCount(0);
   // F7: the change, one line selected in both tables.
   await page.keyboard.press('F7');
   await expect(selected(page, 'left')).toHaveCount(1);

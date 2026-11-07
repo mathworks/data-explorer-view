@@ -200,6 +200,36 @@ describe('the two tables, kept together', () => {
     expect([...view.expandedIds]).toEqual([]);
   });
 
+  it("folds a gap's rows away in both as the other file's row is closed, the gap itself offering no twisty", async () => {
+    // N, and n under it, only in b.sldd: gaps on the left.
+    const gaps = (which: 'left' | 'right'): Partial<CompareSide> => {
+      const left = which === 'left';
+      const kind = left ? 'gap' : 'added';
+      return {
+        rows: [row('S', null, 'Design Data'), row('N', 'S', left ? '' : 'Notes'), row('n', 'N', left ? '' : 'a', left ? '' : '5')],
+        marks: new Map<string, DiffMark>([
+          ['N', { kind }],
+          ['n', { kind }],
+        ]),
+      };
+    };
+    const view = await mount((v) => {
+      v.left = side('left', gaps('left'));
+      v.right = side('right', gaps('right'));
+      v.expandedIds = ['S', 'N'];
+    });
+    const [left, right] = tables(view);
+    expect(rowOf(left, 'n')).not.toBeNull();
+    expect(rowOf(left, 'N').querySelector('.toggle')!.textContent!.trim()).toBe('');
+    expect(rowOf(left, 'N').hasAttribute('aria-expanded')).toBe(false);
+    expect(rowOf(right, 'N').getAttribute('aria-expanded')).toBe('true');
+    (rowOf(right, 'N').querySelector('.toggle') as HTMLElement).click();
+    await settle(view);
+    expect(rowOf(right, 'n')).toBeNull();
+    expect(rowOf(left, 'n')).toBeNull();
+    expect([...view.expandedIds]).toEqual(['S']);
+  });
+
   it('scrolls the other to where one scrolled, and not again where it already is', async () => {
     const view = await mount();
     const [left, right] = tables(view);

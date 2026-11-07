@@ -2,8 +2,8 @@
 // What every gallery test shares: it fails on anything the page reports going wrong (a console
 // error, an uncaught exception, a request that failed or was answered with an error status, a
 // page served by another checkout's gallery); every navigation after its first waits for the
-// page's requests to settle; and it knows the gallery's pages, how to pick a theme, and how to
-// keep a screenshot to look at.
+// page's requests to settle; and it knows the gallery's pages, how to pick a theme, how to open the
+// app page's compare, and how to keep a screenshot to look at.
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
@@ -147,6 +147,20 @@ export function gridCells(page: Page) {
 /** One frame later: a widget that listens from the next frame on (a menu, an editor) is listening. */
 export async function nextFrame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
+}
+
+/**
+ * On the app page, its files open: Compare With… on the text dictionary's tab, and the zip one
+ * picked among the open files in the palette. Done once the compare's tab is the active one.
+ */
+export async function compareDictionaries(page: Page): Promise<void> {
+  const tab = (name: string) => page.locator('dex-doc-tabs').getByRole('tab', { name, exact: true });
+  await expect(tab('numeric_json.sldd')).toHaveAttribute('aria-selected', 'true');
+  await tab('object_props_text.sldd').click({ button: 'right' });
+  await page.locator('dex-context-menu').getByRole('menuitem', { name: 'Compare With…' }).click();
+  await expect(page.locator('dex-command-palette [role="combobox"]')).toBeFocused();
+  await page.locator('dex-command-palette [role="option"]').filter({ has: page.locator('.label', { hasText: exactly('object_props_binary.sldd') }) }).click();
+  await expect(tab('object_props_text.sldd ↔ object_props_binary.sldd')).toHaveAttribute('aria-selected', 'true');
 }
 
 /**

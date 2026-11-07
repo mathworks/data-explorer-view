@@ -1894,8 +1894,9 @@ export class DexTreeTable extends LitElement {
   /**
    * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
    * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
-   * differing cells washed deeper, and a gap row hatched. Default null: no marks, the table as it
-   * always was. Property only.
+   * differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+   * under it follow `expandedIds`). Default null: no marks, the table as it always was. Property
+   * only.
    */
   @property({ attribute: false }) diffMarks: ReadonlyMap<string, DiffMark> | null = null;
 
@@ -3030,18 +3031,17 @@ export class DexTreeTable extends LitElement {
     return this._getCellText(row, col).toLowerCase();
   }
 
-  override firstUpdated(): void {
-    if (this._container) {
-      this._viewportHeight = this._container.clientHeight;
-    }
-  }
-
   // Keep _viewportHeight in sync with the actual container height. It can't be
   // measured reliably in firstUpdated: the first paint is often the empty-state
   // template (no `.table-container`) or a zero-height panel, so the height would
   // stay at its default and the virtual window would size wrong — too few rows to
   // fill a tall panel, so a row scrolled to the bottom falls outside the rendered
   // slice. The observer (re)measures once rows render and on every panel resize.
+  // It takes the first height too: a table given its rows before its first render
+  // has its grid then, and a measure in firstUpdated set state inside the update
+  // (a second render at once, and Lit's change-in-update warning). The observer's
+  // first callback comes before the first paint, so no frame shows the default's
+  // window.
   private _resizeObserver: ResizeObserver | null = null;
 
   override updated(changedProps: Map<string, unknown>): void {
@@ -3322,8 +3322,13 @@ export class DexTreeTable extends LitElement {
    *
    * The second way is a deferred row, whose children exist in the file and not in the
    * table (host: lazyRows.ts).
+   *
+   * A compare's gap row (diffMarks) opens nothing: its file has no such row, so it has no
+   * twisty, no aria-expanded and no Space. The gaps under it show and hide with the other
+   * side's row, which its holder opens and closes through expandedIds.
    */
   private _canExpand(rowId: string): boolean {
+    if (this.diffMarks?.get(rowId)?.kind === 'gap') return false;
     return this._childCounts.has(rowId) || this._lazyIds.has(rowId);
   }
 
