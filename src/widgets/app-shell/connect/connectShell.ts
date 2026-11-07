@@ -73,6 +73,8 @@ import { TabList } from './tabs.js';
 import { settableSystemTheme, systemThemeFromMedia } from './theme.js';
 import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.js';
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
+import { connectCompare } from './compare.js';
+import { comparable, compareChoices } from './comparePick.js';
 import { paletteCommands, type PaneCommands } from './paletteItems.js';
 import { SHELL_VIEWS, viewOfCommand } from './views.js';
 import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
@@ -124,6 +126,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const stops: (() => void)[] = [];
   // The open tabs, in one pane or two (tabs.ts): the active tab is the one the focused pane shows.
   const tabs = new TabList<OpenTab>();
+  // The tabs of files: every tab but a compare's, which shows two of them and is a file of neither.
+  const fileTabs = (): OpenTab[] => tabs.items.filter((t) => !t.compare);
+  // A file's tab by its uri (another spelling of the path is the same file); never a compare tab.
+  const tabOfFile = (uri: string): OpenTab | undefined => tabs.find((t) => !t.compare && sourceUri(t.path) === uri);
   // Each pane's row of tabs, the first's the shell's own, a second's made as a second pane comes;
   // and the divider between two panes where the user left it, kept with the layout.
   const paneRows = new PaneRows(docs, strip);
@@ -137,7 +143,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // open (a tab opened, closed, saved or reloaded; refresh() tells it) repaints, once the burst is
   // over, each table whose column was answered over other tabs than are open now.
   const openUsage = createOpenFilesUsage({
-    files: () => tabs.items.flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
+    files: () => fileTabs().flatMap((t) => (t.doc && t.bytes ? [{ uri: t.doc.uri, path: t.path, bytes: t.bytes }] : [])),
     refill(uris) {
       if (disposed || folderNow()) return;
       for (const uri of uris) void ws.get(uri)?.repaint().catch((err) => log('error', `Could not fill the Usage column: ${message(err)}`));
@@ -200,7 +206,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     system,
     appName,
     about: options.about ?? [],
-    tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : [])),
+    // A compare tab's two tables are ruled as the files' are.
+    tables: () => tabs.items.flatMap((t) => (t.table ? [t.table] : t.compare ? t.compare.tables : [])),
     layoutGraph: (layout) => graph.setLayout(layout),
   });
   stops.push(() => popovers.dispose());
@@ -231,7 +238,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       const tab = tabs.find((t) => t.id === place.tabId);
       if (!tab) return false;
       activate(tab);
-      if (place.rowId === null) clearSelection(tab);
+      // A compare tab's place is its lines' selection.
+      if (tab.compare) tab.compare.select(place.rowId === null ? [] : [place.rowId]);
+      else if (place.rowId === null) clearSelection(tab);
       else tab.handle?.select([place.rowId]);
       return true;
     },
@@ -240,17 +249,18 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The location bar's segments as last drawn: what a press on one names.
   let located: readonly LocationStep[] = [];
 
-  // The inspector and the folder's tree follow the active tab.
+  // The inspector and the folder's tree follow the active tab: the folder, a file's tab only.
   const follow = () => {
     followInspector();
-    if (tabs.active) folderNow()?.reveal(sourceUri(tabs.active.path));
+    if (tabs.active && !tabs.active.compare) folderNow()?.reveal(sourceUri(tabs.active.path));
   };
 
   // The inspector's feed: the active tab's table; at Root, a page of the file selected in the graph
   // (the same feed while it is the same page), or none.
   let rootPage: { file: SelectedFile; feed: InspectorFeed } | null = null;
   function followInspector(): void {
-    if (tabs.active) return inspector.follow(tabs.active.handle ?? null);
+    // A compare tab's page is its selected line's differences.
+    if (tabs.active) return inspector.follow(tabs.active.handle ?? tabs.active.compare?.feed ?? null);
     const file = tabs.items.length > 0 ? graph.selectedFile() : null;
     if (file !== rootPage?.file) rootPage = file ? { file, feed: pageFeed(file) } : null;
     inspector.follow(rootPage?.feed ?? null);
@@ -287,7 +297,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       if (disposed) return;
       const active = tabs.active;
       const marks = new Map<string, RowMark>(
-        tabs.items.map((t) => [
+        fileTabs().map((t) => [
           sourceUri(t.path),
           { open: true, ...(t === active ? { active: true } : {}), ...(t.dirty ? { unsaved: true } : {}), ...(t.preview ? { preview: true } : {}) },
         ]),
@@ -313,6 +323,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const toolbarState = (): ToolbarState => toolbarStateOf(tabs.active, tabs.items, !!host.pickFolder, onMac(), !!host.newFile);
   // What a file's tooltips say of its path: the host's words for it, if its paths are of its making.
   const titleOf = (path: string): string => host.pathTitle?.(path) ?? path;
+  // A tab's tooltip: its file's path, or a compare tab's two.
+  const titleOfTab = (t: OpenTab): string => (t.compare ? `${titleOf(t.compare.left.path)} ↔ ${titleOf(t.compare.right.path)}` : titleOf(t.path));
 
   function refresh(): void {
     const active = tabs.active;
@@ -322,9 +334,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // Each pane's tab row, each tab as its selection names it (the section it is in), here with what
     // else follows a selection; hidden at Root, where the graph fills the center, and with no file open.
     if (!active && paneRows.holdsFocus()) rootTakesTheKeyboard();
-    paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOf(t.path)));
+    paneRows.paint(tabs, !!active, (t) => docTabOf(t, titleOfTab(t)));
+    // The Explorer lists files: a compare is a tab of two of them, and none itself.
     explorer.files = explorerFiles(
-      tabs.items.map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })),
+      fileTabs().map((t) => ({ id: t.id, path: t.path, name: t.name, title: titleOf(t.path), dirty: t.dirty, rows: t.handle?.view?.rows })),
     );
     // The rows the active table holds now: its paint, the entries repainted since, the children
     // it was answered; none for a project page or a file still being read.
@@ -332,7 +345,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     const rowId = here().rowId;
     const section = active && rowId !== null ? sectionOf(rows, rowId) : undefined;
     explorer.selected = active ? { fileId: active.id, ...(section ? { sectionId: section } : {}) } : { fileId: null };
-    const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOf(active.path) } : null;
+    const place = active ? { id: active.id, name: active.name, path: active.path, title: titleOfTab(active) } : null;
     const at = locationOf(place, active?.selection ?? null, (id) => rowIn(rows, id), explorer.rootLabel, previewOf(rootPage?.file, titleOf));
     nav.located(at);
     located = at.segments;
@@ -495,15 +508,19 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if ((await settle([tab], confirmClose, saveOk)) && tabs.items.includes(tab)) close(tab);
   }
 
-  // A tab's listeners, table and document let go, and the host told its file is closed.
+  // A tab's listeners, table and document let go, and the host told its file is closed. A compare
+  // tab's connection let go: it holds no file of its own to tell the host of.
   function release(tab: OpenTab): void {
     for (const stop of tab.stops.splice(0)) stop();
+    if (tab.compare) return tab.compare.dispose();
     tab.handle?.dispose();
     tab.doc?.dispose();
     host.closeFile?.(tab.path);
   }
 
   function close(tab: OpenTab): void {
+    // A file's compares go with it: each draws it, and would draw nothing.
+    if (!tab.compare) for (const other of tabs.items.filter((t) => t.compare?.involves(tab))) close(other);
     release(tab);
     tab.panel.remove();
     const before = tabs.active;
@@ -527,7 +544,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // A file by its uri, as the workspace knows it: on Windows the folder's tree and a link spell
     // the path File > Open gave (`C:\work\x.sldd`) as `c:\work\x.sldd` and `C:\work/x.sldd`.
     const uri = sourceUri(path);
-    const existing = tabs.find((t) => sourceUri(t.path) === uri);
+    const existing = tabOfFile(uri);
     if (existing) {
       if (!how.preview) pin(existing);
       activate(existing);
@@ -577,7 +594,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       // read, past the close it heard, so it is told again, unless a tab opened since holds the file
       // (by its uri: another spelling of the path is the same file).
       if (!tabs.items.includes(tab)) {
-        if (!tabs.find((t) => sourceUri(t.path) === uri)) host.closeFile?.(path);
+        if (!tabOfFile(uri)) host.closeFile?.(path);
         return;
       }
       const doc = await (created ? ws.create(tab.name, uri) : ws.open(bytes, tab.name, uri));
@@ -672,7 +689,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   async function openNew(path: string): Promise<void> {
     if (disposed) return;
     const name = basenameOf(path);
-    const holder = tabs.find((t) => sourceUri(t.path) === sourceUri(path));
+    const holder = tabOfFile(sourceUri(path));
     if (holder) return keepOpenFile(holder, name);
     if (!isSlddFile(path)) {
       host.closeFile?.(path);
@@ -720,6 +737,99 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     return paths.reduce<Promise<unknown>>((prev, p) => prev.then(() => (disposed ? undefined : open(p))), Promise.resolve()).then(() => undefined);
   }
 
+  // --- Comparing ---------------------------------------------------------------------------------
+
+  // Why a tab is not one a compare reads, as the end of "Could not compare a with b: a …".
+  const notComparable = (tab: OpenTab): string =>
+    tab.compare ? 'is a comparison' : isProjectFile(tab.path) ? 'is a project, which has no table' : !tab.doc ? 'could not be read' : 'is not shown yet';
+
+  /**
+   * Compare `left` with `right` in a tab of their own, once both are read: their compare tab if
+   * there is one of the two in that order, else a new one, both files' tabs kept (no longer
+   * previews), as the compare draws them.
+   */
+  async function compare(left: OpenTab, right: OpenTab): Promise<void> {
+    await Promise.all([left.ready, right.ready]);
+    if (disposed || !isOpen(left) || !isOpen(right)) return;
+    const cannot = [left, right].find((t) => !comparable(t));
+    if (cannot) return failed(`Could not compare ${left.name} with ${right.name}: ${cannot.name} ${notComparable(cannot)}`);
+    const existing = tabs.find((t) => t.compare?.left === left && t.compare.right === right);
+    if (existing) return activate(existing);
+    pin(left);
+    pin(right);
+    const panel = document.createElement('section');
+    panel.className = 'doc-panel';
+    panel.setAttribute('role', 'tabpanel');
+    panel.dataset.compare = '';
+    docs.append(panel);
+    const tab: OpenTab = { id: `tab-${++nextId}`, path: '', name: `${left.name} ↔ ${right.name}`, panel, selection: [], stops: [], ready: Promise.resolve() };
+    tabs.add(tab);
+    tab.compare = connectCompare(tab, left, right, {
+      tableStyle: () => popovers.tableStyle(),
+      storageKey: `${key}:compare`,
+      titleOf,
+      selected(lineIds) {
+        tab.selection = lineIds;
+        if (tab === tabs.active) visit();
+        later();
+      },
+      say,
+    });
+    shown();
+    await tab.compare.refresh();
+    log('info', `Comparing ${left.name} with ${right.name}`);
+  }
+
+  // Compare With…'s question, asked in the palette for the file `from`, answered by `picked`.
+  let comparing: OpenTab | null = null;
+  function compareWith(from: OpenTab): void {
+    if (disposed || parts.modalOpen()) return;
+    popovers.closeAll();
+    comparing = from;
+    parts.palette.show(compareChoices(from, tabs.items, titleOf), { placeholder: `Compare ${from.name} with…`, remember: false });
+  }
+
+  // A tab's first paint: its table shown, and so a file a compare reads. A tab's `ready` settles once
+  // its table is connected, a moment before the table has its rows. A paint that fails says why in
+  // the table's banner and sends nothing: no compare follows, and the wait goes with the tab.
+  function painted(tab: OpenTab): Promise<void> {
+    const handle = tab.handle;
+    if (!handle || handle.view) return Promise.resolve();
+    return new Promise((resolve) => {
+      const off = handle.on('painted', () => {
+        off();
+        resolve();
+      });
+      tab.stops.push(off);
+    });
+  }
+
+  // A row of Compare With…'s question: another open file's tab, or Browse…, which asks the host's
+  // picker for one, opened (kept) and compared once it is shown. A picker that could not be shown
+  // says why, as Open File's does; one the user cancelled says nothing.
+  function picked(id: string): void {
+    const from = comparing;
+    comparing = null;
+    if (!from || !isOpen(from)) return;
+    if (id !== 'browse') {
+      const other = tabs.find((t) => t.id === id);
+      if (other) void compare(from, other);
+      return;
+    }
+    void host.pickFiles().then(
+      async (paths) => {
+        const path = paths[0];
+        if (path === undefined || disposed) return;
+        const other = await open(path);
+        await painted(other);
+        if (isOpen(from) && isOpen(other)) await compare(from, other);
+      },
+      (err: unknown) => {
+        if (!(err instanceof Error && err.name === 'AbortError')) failed(`Could not open a file: ${message(err)}`);
+      },
+    );
+  }
+
   // --- Files changed on disk ---------------------------------------------------------------------
 
   // A reload unasked, or one that failed, said in the Log once it is done (an answer is said as given).
@@ -747,7 +857,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }));
+      const active = tabs.active;
+      return parts.palette.show(
+        paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, {
+          canCompare: !!active && comparable(active),
+          hasChanges: !!active?.compare?.hasChanges,
+        }),
+      );
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -778,6 +894,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     later,
     failed,
     folder: { up: () => folderNav.up(), refresh: () => folderNav.refresh() },
+    compareWith,
   };
 
   // --- The modules' views ------------------------------------------------------------------------
@@ -804,7 +921,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // Root's relationship graph (graphPane.ts), over the tabs' bytes and the folder's files.
   const graph = connectGraphPane(parts.graph, {
-    tabs: () => tabs.items,
+    tabs: fileTabs,
     folder: folderNow,
     shown: () => !disposed && !tabs.active && tabs.items.length > 0,
     open: openOn,
@@ -852,6 +969,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         if (open && view) modules.shown(view);
         later();
       },
+      picked,
     }),
   );
 
@@ -887,7 +1005,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // The Folder view's bar and menus (folderNav.ts): a move asks the host, which shows the folder
   // it moved to as it shows any; a row's file opens, beside the others or not, and closes.
-  const tabOfUri = (uri: string): OpenTab | undefined => tabs.find((t) => sourceUri(t.path) === uri);
+  const tabOfUri = tabOfFile;
   const folderNav = connectFolderNav({
     host,
     part: folderPart,
@@ -973,7 +1091,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     fileChanged(path) {
       // By its uri, as open() finds a file's tab: a watcher may spell the path otherwise.
       const uri = sourceUri(path);
-      const tab = disposed ? undefined : tabs.find((t) => sourceUri(t.path) === uri);
+      const tab = disposed ? undefined : tabOfFile(uri);
       // A clean document takes the disk's file without asking; one with edits is asked first.
       if (tab?.doc) void reloads.changedOnDisk(tab, tab.doc.dirty);
     },

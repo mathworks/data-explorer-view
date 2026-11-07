@@ -25,6 +25,7 @@ import type { FolderView } from './folder.js';
 import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
 import { rowIn, sectionOf } from './rows.js';
+import type { CompareConnection } from './compare.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 
@@ -42,6 +43,8 @@ export interface OpenTab extends ShellTab {
   ready: Promise<void>;
   /** The bytes its file holds as the shell last read or wrote them: what the relationship graph draws. */
   bytes?: Uint8Array;
+  /** A compare tab's connection (compare.ts); absent for a file's tab. A compare tab's `path` is '' and it has no doc, table or handle. */
+  compare?: CompareConnection;
 }
 
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
@@ -68,6 +71,8 @@ export function copyText(host: ShellHost, text: string): Promise<void> {
  * read for a section it showed.
  */
 export function docTabOf(tab: OpenTab, title = tab.path): DocTab {
+  // A comparison: the pair's names, the compare's icon; nothing of it is unsaved or a preview.
+  if (tab.compare) return { id: tab.id, label: tab.name, icon: 'compareUI', title, dirty: false, preview: false };
   const rows = tab.table?.rows ?? [];
   const rowId = tab.selection[0];
   const section = rowId === undefined ? undefined : sectionOf(rows, rowId);
@@ -91,9 +96,10 @@ export interface FileStatus {
  * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
  * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
  * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
- * shell names.
+ * shell names. A compare tab is a Comparison, of no format, holding no edits of its own.
  */
-export function statusOf(tab: Pick<OpenTab, 'path' | 'dirty'> | undefined): FileStatus {
+export function statusOf(tab: Pick<OpenTab, 'path' | 'dirty' | 'compare'> | undefined): FileStatus {
+  if (tab?.compare) return { format: '', kind: 'Comparison', modified: false };
   const group = tab ? fileGroupOf(tab.path) : 'other';
   if (!tab || group === 'other') return { format: '', kind: '', modified: false };
   const format = group === 'project' ? FILE_FORMATS.project.toUpperCase() : extOf(tab.path).slice(1).toUpperCase();

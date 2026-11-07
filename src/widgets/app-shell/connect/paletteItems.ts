@@ -4,9 +4,10 @@
 // a command to show each of the shell's views and Root's relationship graph, the Folder view's
 // own two (Up One Level and Read Again, for a host that shows folders, enabled as each would act
 // now), then the panes' (Split Right, Move to Other Pane, and each pane's focus, enabled as each
-// would act now), then Settings and About. Each row's id is the ShellCommand it runs, and its shortcut the chord that
-// does the same, in the platform's words (chordLabel). Pure: connectShell hands it the toolbar's
-// state, and what the panes' commands would do, as the palette opens.
+// would act now), then a compare's (Compare With… among the File rows), then Settings and About. Each row's id is the ShellCommand it runs, and its
+// shortcut the chord that does the same, in the platform's words (chordLabel). Pure: connectShell
+// hands it the toolbar's state, and what the panes' and the compare's commands would do, as the
+// palette opens.
 //
 // The labels are the toolbar's where they say what they do out of the toolbar ("Save"), and longer
 // where they lean on its icons ("Open" is Open File…, "New" New Data Dictionary…, "Close" is Close
@@ -68,6 +69,17 @@ export interface FolderCommands {
 /** No folder shown. */
 const NO_FOLDER: FolderCommands = { shown: false, canUp: false, refresh: 'read' };
 
+/** What the compare commands would do now. */
+export interface CompareCommands {
+  /** The active tab is a file a compare reads: Compare With… is enabled. */
+  canCompare: boolean;
+  /** The active tab is a compare with a change in it: Next and Previous Change are enabled. */
+  hasChanges: boolean;
+}
+
+/** No file to compare, and no compare. */
+const NO_COMPARE: CompareCommands = { canCompare: false, hasChanges: false };
+
 /** The toolbar's actions on its start side are the file's, on its end side the edits. */
 const categoryOf = (align: string | undefined): string => (align === 'end' ? 'Edit' : 'File');
 
@@ -107,11 +119,16 @@ function ordered(commands: PaletteCommand[]): PaletteCommand[] {
 
 /**
  * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
- * default), and its folder as `folder` says (none shown, by default). The Folder view's rows are
- * there where the shell has the view (`folder.view`, else a host that shows folders,
- * `state.canOpenFolder`).
+ * default), its folder as `folder` says (none shown, by default), and a compare as `compare` says
+ * (nothing to compare, by default). The Folder view's rows are there where the shell has the view
+ * (`folder.view`, else a host that shows folders, `state.canOpenFolder`).
  */
-export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PANES, folder: FolderCommands = NO_FOLDER): PaletteCommand[] {
+export function paletteCommands(
+  state: ToolbarState,
+  panes: PaneCommands = NO_PANES,
+  folder: FolderCommands = NO_FOLDER,
+  compare: CompareCommands = NO_COMPARE,
+): PaletteCommand[] {
   const label = (chord: string | undefined) => (chord ? chordLabel(parseChord(chord), state.mac) : undefined);
   const command = (id: ShellCommand, text: string, category: string, shortcut?: string, disabled = false): PaletteCommand => ({
     id,
@@ -127,6 +144,7 @@ export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PA
   );
   return [
     ...actions.filter((c) => c.category === 'File'),
+    command('compare-with', 'Compare With…', 'File', undefined, !compare.canCompare),
     ...ordered(actions.filter((c) => c.category === 'Edit')),
     ...ordered([
       ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || folderView).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),

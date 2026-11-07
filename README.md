@@ -745,6 +745,21 @@ const app = connectShell(shell, {
 });
 ```
 
+### Compare two files
+
+Compare With… (the command palette, `compare-with`) asks which file to compare
+the active tab's file with: another open file, or one the host's picker gives
+(Browse…). The two are compared entry by entry, matched by section and name, in
+a tab of their own (`a.sldd ↔ b.sldd`): a header saying what differs ("1
+changed, 1 added, 1 removed"), over the two files' tables side by side, line by
+line, a blank line where one file lacks an entry. An added, removed or changed
+entry is marked, and so is each cell that differs; "Show only differences" (on
+at first) leaves out the lines that are alike. A row opened, scrolled to or
+selected in one table is in the other, and the Properties view shows the
+selected line's differences, before → after. The compare is drawn again as
+either file is edited or saved. Both files stay open in their own tabs, and
+closing either closes the compare.
+
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus

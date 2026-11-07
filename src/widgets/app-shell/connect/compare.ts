@@ -1,0 +1,293 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// One compare tab: two open files' differences, entry by entry, line by line, in a
+// <dex-compare-view> in the tab's panel, kept up to date as either file changes.
+//
+// Each side is read through its own tab (readDiffSide over the rows its table shows now, the
+// entries' inspector pages too), the two compared (diffSides), and laid out as the view's two
+// tables' lines (compareRows). The compare reads what the user sees: a file's tab holds the
+// document, its edits and its children fetched, and the compare is drawn from that, never from the
+// disk. A change to either (an edit, a paste, a reload, a save, which moves the caption's ●) draws
+// it again, once the burst of changes is over; the tab's own view keeps its expansion and its
+// selection across a redraw, where the lines are still there.
+//
+// The inspector, while the tab is active, shows the selected line's differences (comparePage).
+// Next and Previous Change go from difference to difference by entry: a whole entry only one file
+// has is one difference, however many rows are under it (a struct's fields, an array's elements),
+// while the rows that differ inside an entry both files have are each one.
+
+import { compareRows, type CompareLine, type CompareRows, type CompareSideRows } from '../../../model/compare/compareRows.js';
+import { comparePage } from '../../../model/compare/comparePage.js';
+import { diffSides, diffSummary, type DocumentDiff } from '../../../model/compare/diff.js';
+import { readDiffSide, type DiffSide } from '../../../model/compare/readSide.js';
+import type { InspectorFeed, InspectorView } from '../../../model/source/tableSource.js';
+import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
+import type { CompareSide, DexCompareView } from '../dex-compare-view.js';
+import type { OpenTab } from './documents.js';
+
+/** What a compare tab is connected with. */
+export interface CompareWiring {
+  /** The table style setting's, now. */
+  tableStyle(): DexTreeTable['tableStyle'];
+  /** Where the compare tables keep their column choices: `${shell key}:compare`. */
+  storageKey: string;
+  /** What a tooltip says of a path: ShellHost.pathTitle's, or the path. */
+  titleOf(path: string): string;
+  /** The selection changed: the history and everything that follows the active tab. */
+  selected(lineIds: readonly string[]): void;
+  /** Say something: a toast and its line in the Log. */
+  say(level: 'info' | 'warning' | 'error', text: string, ms?: number): void;
+}
+
+/** A compare tab's connection: its two files' tabs, its view, and what it answers. */
+export interface CompareConnection {
+  readonly left: OpenTab;
+  readonly right: OpenTab;
+  readonly view: DexCompareView;
+  /** What the inspector shows while the tab is active: the selected line's page (comparePage). */
+  readonly feed: InspectorFeed;
+  /** Its two tables, which the table style setting rules too. */
+  readonly tables: readonly DexTreeTable[];
+  /** The lines as last drawn. */
+  readonly rows: CompareRows | undefined;
+  /** Whether there is a change to go to. */
+  readonly hasChanges: boolean;
+  /** Whether it compares `tab`. */
+  involves(tab: OpenTab): boolean;
+  /** Select the changed line after (1) or before (-1) the selection's first, wrapping round, in both tables. */
+  step(by: 1 | -1): void;
+  /** Select these lines (the history's place). */
+  select(lineIds: readonly string[]): void;
+  /** Read both sides again and draw them; one at a time, a change heard during one making one more after it. */
+  refresh(): Promise<void>;
+  dispose(): void;
+}
+
+/** How long after a change to either file the compare is drawn again: the rest of a burst is in by then. */
+const REDRAW_MS = 50;
+
+const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/**
+ * The lines Next and Previous Change go to, in line order: each line that differs, but those under
+ * a row that only one file has (an added or removed entry's fields and elements), which are that
+ * row's difference and not one each.
+ */
+function stopsOf(rows: CompareRows): CompareLine[] {
+  const insideOneSided = (line: CompareLine): boolean => {
+    for (let id = line.parent; id !== null; ) {
+      const up = rows.byId.get(id);
+      if (!up) return false;
+      if (up.row && (up.row.status === 'added' || up.row.status === 'removed')) return true;
+      id = up.parent;
+    }
+    return false;
+  };
+  return rows.lines.filter((line) => line.differs && !insideOneSided(line));
+}
+
+/** Draw `left` against `right` in `tab`'s panel (a `<dex-compare-view>` put in it), and keep it drawn as either changes. */
+export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiring: CompareWiring): CompareConnection {
+  const view = document.createElement('dex-compare-view');
+  view.storageKey = wiring.storageKey;
+  view.tableStyle = wiring.tableStyle();
+  tab.panel.append(view);
+
+  let disposed = false;
+  const stops: (() => void)[] = [];
+  let diff: DocumentDiff | undefined;
+  // A side read without its entries' pages (past the page limit): said in the header.
+  let pagesSkipped = false;
+  let rows: CompareRows | undefined;
+  // The first drawing opens what holds a difference; later ones keep what the user opened.
+  let opened = false;
+
+  // The inspector's feed: the selected line's page, sent to each listener now and as it changes.
+  const names = { left: left.name, right: right.name };
+  let page: InspectorView = { groups: [] };
+  const listeners = new Set<(view: InspectorView) => void>();
+  const feed: InspectorFeed = {
+    onPage(listener) {
+      listeners.add(listener);
+      listener(page);
+      return () => void listeners.delete(listener);
+    },
+    // A compare's page shows texts only: no value of it is drawn as a grid.
+    matrix: async (nodeId) => ({ nodeId, message: 'A comparison shows no value as a grid.' }),
+  };
+  const sendPage = (): void => {
+    const line = rows?.byId.get(view.selectedIds[0] ?? '');
+    page = comparePage(line, names, diff?.columnLabels ?? {});
+    for (const listener of [...listeners]) listener(page);
+  };
+
+  /** One side as the view draws it: its file's caption, its lines, its table's columns of those compared. */
+  const sideOf = (t: OpenTab, lines: CompareSideRows, compared: readonly string[]): CompareSide => {
+    const shown = t.handle?.view;
+    return {
+      name: t.name,
+      title: wiring.titleOf(t.path),
+      editable: !!t.doc?.editable && !!shown?.editable,
+      dirty: !!t.dirty,
+      rows: lines.rows,
+      marks: lines.marks,
+      columns: ['Name', ...compared.filter((c) => shown?.columns.includes(c))],
+      columnLabels: shown?.columnLabels ?? {},
+      columnGroups: shown?.columnGroups ?? {},
+    };
+  };
+
+  // The lines of the last diff laid out again: after a read, and when "Show only differences" is
+  // toggled (which reads nothing).
+  function layOut(): void {
+    if (!diff || disposed) return;
+    rows = compareRows(diff, { onlyDifferences: view.onlyDifferences });
+    view.left = sideOf(left, rows.left, diff.columns);
+    view.right = sideOf(right, rows.right, diff.columns);
+    view.summary = diffSummary(diff.counts) + (pagesSkipped ? '; entry properties not compared: over 5,000 entries' : '');
+    view.hasChanges = rows.changes.length > 0;
+    view.empty = rows.lines.length === 0 ? 'No differences' : '';
+    if (!opened) {
+      view.expandedIds = rows.opened;
+      opened = true;
+    }
+    // The selection, where its lines are still drawn.
+    const selected = view.selectedIds;
+    const kept = selected.filter((id) => rows!.byId.has(id));
+    if (kept.length !== selected.length) {
+      view.select(kept);
+      wiring.selected(kept);
+    }
+    sendPage();
+  }
+
+  /** A side read as its tab shows it now: the table's rows, its entries' pages. */
+  const read = (t: OpenTab): Promise<DiffSide> => {
+    const source = t.doc?.table;
+    const shown = t.handle?.view;
+    if (!source || !shown || !t.table) return Promise.reject(new Error(`${t.name} is no longer open`));
+    return readDiffSide(source, { shown: { view: shown, rows: t.table.rows }, properties: true });
+  };
+
+  async function readBoth(): Promise<void> {
+    try {
+      const [a, b] = await Promise.all([read(left), read(right)]);
+      if (disposed) return;
+      diff = diffSides(a, b, { properties: true });
+      pagesSkipped = !!a.pagesSkipped || !!b.pagesSkipped;
+      layOut();
+    } catch (err) {
+      if (disposed) return;
+      // What could not be read is said in place of the tables, and as a toast.
+      diff = undefined;
+      rows = undefined;
+      view.left = null;
+      view.right = null;
+      view.summary = '';
+      view.hasChanges = false;
+      view.empty = message(err);
+      sendPage();
+      wiring.say('error', `Could not compare ${left.name} with ${right.name}: ${message(err)}`);
+    }
+  }
+
+  // One read at a time: a change heard while one runs makes one more after it, which the callers
+  // of the first wait for too.
+  let running: Promise<void> | null = null;
+  let again = false;
+  function refresh(): Promise<void> {
+    if (disposed) return Promise.resolve();
+    if (running) {
+      again = true;
+      return running;
+    }
+    running = (async () => {
+      do {
+        again = false;
+        await readBoth();
+      } while (again && !disposed);
+    })().finally(() => {
+      running = null;
+    });
+    return running;
+  }
+
+  // A change to either file's rows (an edit, a paste, a reload) or its saved state: drawn again
+  // once, a moment after the first of a burst.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const soon = (): void => {
+    if (disposed || timer !== undefined) return;
+    timer = setTimeout(() => {
+      timer = undefined;
+      void refresh();
+    }, REDRAW_MS);
+  };
+  for (const t of [left, right]) {
+    const doc = t.doc;
+    if (!doc) continue;
+    stops.push(
+      doc.table.subscribe((change) => {
+        if (change.kind === 'replaceAll' || change.kind === 'updateEntry' || change.kind === 'insertEntry') soon();
+      }),
+      doc.onDirty(() => soon()),
+    );
+  }
+
+  function select(lineIds: readonly string[]): void {
+    view.select(lineIds);
+    sendPage();
+    wiring.selected(lineIds);
+  }
+
+  function step(by: 1 | -1): void {
+    if (!rows) return;
+    const targets = stopsOf(rows);
+    if (targets.length === 0) return;
+    const place = new Map(rows.lines.map((line, i) => [line.id, i]));
+    const first = view.selectedIds[0];
+    const at = first === undefined ? -1 : (place.get(first) ?? -1);
+    const next =
+      by === 1
+        ? (targets.find((line) => place.get(line.id)! > at) ?? targets[0]!)
+        : ((at < 0 ? undefined : [...targets].reverse().find((line) => place.get(line.id)! < at)) ?? targets[targets.length - 1]!);
+    select([next.id]);
+  }
+
+  const listen = <K extends keyof HTMLElementEventMap>(type: K, listener: (e: HTMLElementEventMap[K]) => void): void => {
+    view.addEventListener(type, listener);
+    stops.push(() => view.removeEventListener(type, listener));
+  };
+  listen('dex-compare-filter-changed', () => layOut());
+  listen('dex-compare-selected', (e) => {
+    sendPage();
+    wiring.selected(e.detail.lineIds);
+  });
+
+  return {
+    left,
+    right,
+    view,
+    feed,
+    get tables() {
+      return [...(view.shadowRoot?.querySelectorAll<DexTreeTable>('dex-tree-table') ?? [])];
+    },
+    get rows() {
+      return rows;
+    },
+    get hasChanges() {
+      return !!rows && rows.changes.length > 0;
+    },
+    involves: (t) => t === left || t === right,
+    step,
+    select,
+    refresh,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (timer !== undefined) clearTimeout(timer);
+      for (const stop of stops.splice(0)) stop();
+      listeners.clear();
+      view.remove();
+    },
+  };
+}

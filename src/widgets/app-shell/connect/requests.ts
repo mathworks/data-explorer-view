@@ -8,6 +8,7 @@
 // request about a tab that has closed since does nothing.
 
 import type { DexAppShell } from '../dex-app-shell.js';
+import { PICK_PREFIX } from './comparePick.js';
 import type { OpenTab } from './documents.js';
 import { connectFileMenu } from './fileMenu.js';
 import type { ShellParts } from './parts.js';
@@ -18,7 +19,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
   'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
   'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-  'palette', 'show-graph', 'folder-up', 'folder-refresh', ...SHELL_VIEWS.map((v) => v.command),
+  'palette', 'show-graph', 'folder-up', 'folder-refresh', 'compare-with', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
@@ -54,6 +55,8 @@ export interface ShellRequests {
   toggle(id: 'settings' | 'about', anchor: Rect): void;
   /** The user brought the view `view` forward, or opened or closed its side. */
   viewChanged(view: string | null, open: boolean): void;
+  /** A palette row whose id begins PICK_PREFIX was run (Compare With…'s question): what it names, the prefix taken off. */
+  picked(id: string): void;
 }
 
 /** Answer `parts`' requests with `on`; returns what stops it. */
@@ -71,7 +74,12 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
   listen(parts.toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
   listen(parts.docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
   listen(parts.folderPart, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
-  listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
+  // A row of the palette is a command, or an answer to the question it was shown with (a pick).
+  listen(parts.palette, 'dex-palette-run', (e) => {
+    const { id } = e.detail;
+    if (id.startsWith(PICK_PREFIX)) on.picked(id.slice(PICK_PREFIX.length));
+    else asked(id);
+  });
   listen(shell, 'dex-shell-view-changed', (e) => on.viewChanged(e.detail.view, e.detail.open));
   listen(shell, 'dex-shell-action', (e) => {
     const { actionId, anchor } = e.detail;

@@ -71,7 +71,7 @@ export type { CommandRunDetail, CommandWindowEventMap } from './modules/dex-comm
 export { DexLogPanel, defineLogPanel } from './modules/dex-log-panel.js';
 export type { LogEntry, LogFilter, LogFilterChangedDetail, LogLevel, LogPanelEventMap } from './modules/dex-log-panel.js';
 export { DexCommandPalette, defineCommandPalette } from './modules/dex-command-palette.js';
-export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from './modules/dex-command-palette.js';
+export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail, PaletteShowOptions } from './modules/dex-command-palette.js';
 
 // The app: every element connectShell draws defined in one call, connectShell itself, a page's
 // drop of files onto the window, and the host and handle types a page drives it by.
