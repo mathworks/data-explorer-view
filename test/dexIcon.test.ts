@@ -90,26 +90,30 @@ describe('an id that is not an alias', () => {
 });
 
 describe('with no bundler at all', () => {
-  const render = (iconId: string, base?: string): string =>
-    execFileSync(
-      process.execPath,
-      ['--conditions=browser', join(ROOT, 'test', 'tools', 'renderIconInPlainNode.mjs'), BUILT, iconId, ...(base === undefined ? [] : [base])],
-      { encoding: 'utf8' },
-    );
+  // typeBus drawn in one plain Node process, from the package's own icons/ folder and then from
+  // where setIconBase says. Starting Node and loading happy-dom and the built module takes a second
+  // or more, several on a loaded machine: done once, given the time, and killed at 30 s, so a
+  // process that hangs fails the hook rather than holding the worker.
+  let own = '';
+  let based = '';
+  beforeAll(() => {
+    const script = join(ROOT, 'test', 'tools', 'renderIconInPlainNode.mjs');
+    const out = execFileSync(process.execPath, ['--conditions=browser', script, BUILT, 'typeBus', './icons/'], { encoding: 'utf8', timeout: 30_000 });
+    [own, based] = JSON.parse(out) as [string, string];
+  }, 45_000);
 
   it('the built module reads nothing from import.meta.env', () => {
     expect(readFileSync(BUILT, 'utf8')).not.toMatch(/import\.meta\.env/);
   });
 
   it("renders in plain Node, from the package's own icons/ folder, where the file is", () => {
-    const src = render('typeBus');
-    expect(src.startsWith('file://')).toBe(true);
-    expect(existsSync(fileURLToPath(src)), src).toBe(true);
-    expect(realpathSync(fileURLToPath(src))).toBe(realpathSync(join(ROOT, 'icons', 'typeBus.svg')));
+    expect(own.startsWith('file://')).toBe(true);
+    expect(existsSync(fileURLToPath(own)), own).toBe(true);
+    expect(realpathSync(fileURLToPath(own))).toBe(realpathSync(join(ROOT, 'icons', 'typeBus.svg')));
   });
 
   it('and from wherever setIconBase says', () => {
-    expect(render('typeBus', './icons/')).toBe('./icons/typeBus.svg');
+    expect(based).toBe('./icons/typeBus.svg');
   });
 });
 
