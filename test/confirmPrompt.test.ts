@@ -73,8 +73,8 @@ function key(k: string, init: KeyboardEventInit = {}): KeyboardEvent {
 }
 
 /** A key pressed in the field: it bubbles out of the dialog's shadow root, as a real key press does. */
-function keyInField(el: DexConfirmDialog, k: string): KeyboardEvent {
-  const ev = new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true });
+function keyInField(el: DexConfirmDialog, k: string, init: KeyboardEventInit = {}): KeyboardEvent {
+  const ev = new KeyboardEvent('keydown', { key: k, bubbles: true, composed: true, cancelable: true, ...init });
   field(el).dispatchEvent(ev);
   return ev;
 }
@@ -126,6 +126,15 @@ describe('what the prompt asks', () => {
     expect(buttonNamed(el, 'Rename').classList.contains('primary')).toBe(true);
   });
 
+  it("keeps line breaks in the message only, so the template's own between its parts draw no blank lines", async () => {
+    // The body held pre-line: the newlines Lit's template has between the message and the field
+    // drew as blank lines, above the message and between it and the field.
+    const el = await open({ ...URL_PROMPT, message: 'One line.\nAnother.' });
+    const root = el.shadowRoot!;
+    expect(getComputedStyle(root.querySelector('.body')!).whiteSpace).not.toBe('pre-line');
+    expect(getComputedStyle(root.querySelector('.message')!).whiteSpace).toBe('pre-line');
+  });
+
   it('names Cancel as it is asked to', async () => {
     const el = await open({ ...URL_PROMPT, cancelLabel: 'Not Now' });
     expect(buttons(el).map((b) => b.textContent?.trim())).toEqual(['Open', 'Not Now']);
@@ -170,6 +179,19 @@ describe('the answer', () => {
 
   it('is null on Escape', async () => {
     await open();
+    key('Escape');
+    await expect(answer).resolves.toBeNull();
+  });
+
+  it('stays open on an Escape or an Enter that ends an input method\'s composition', async () => {
+    // Escape there cancels what is being composed, and Enter commits it: neither is for the dialog.
+    const el = await open();
+    expect(key('Escape', { isComposing: true }).defaultPrevented).toBe(false);
+    keyInField(el, 'Escape', { isComposing: true });
+    expect(el.hasAttribute('open')).toBe(true);
+    expect(keyInField(el, 'Enter', { isComposing: true }).defaultPrevented).toBe(false);
+    expect(el.hasAttribute('open')).toBe(true);
+    // Composed, the same keys answer as before.
     key('Escape');
     await expect(answer).resolves.toBeNull();
   });

@@ -120,15 +120,21 @@ export class DexConfirmDialog extends LitElement {
     }
 
     /* The body scrolls, and not the footer: however many files the question names, the buttons
-       stay on screen. A line break in the message or the detail starts a new line, so a host can
-       name one file a line. */
+       stay on screen. */
     .body {
       padding: 16px;
       max-height: 70vh;
       overflow: auto;
       line-height: 1.4;
-      white-space: pre-line;
       overflow-wrap: anywhere;
+    }
+
+    /* A line break in the message or the detail starts a new line, so a host can name one file a
+       line. On these and not the body: the template's own line breaks between the body's parts
+       would draw as blank lines. */
+    .message,
+    .detail {
+      white-space: pre-line;
     }
 
     .detail {
@@ -359,6 +365,9 @@ export class DexConfirmDialog extends LitElement {
   // context menu's arrows and Enter, the table's shortcuts) never act on what is behind a modal.
   private _onKeyDown = (e: KeyboardEvent): void => {
     if (!this._open) return;
+    // A key that ends an input method's composition in the prompt's field is the input method's:
+    // its Escape cancels what is being composed, and does not cancel the question.
+    if (e.isComposing) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
       this.close();
