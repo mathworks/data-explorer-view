@@ -43,6 +43,17 @@ export type { Toast } from './dex-toast-host.js';
 export { DexConfirmDialog, defineConfirmDialog } from './dex-confirm-dialog.js';
 export type { ConfirmButton, ConfirmOptions } from './dex-confirm-dialog.js';
 
+// A compare: two files' tables side by side, kept line by line, under a header of what differs.
+export { DexCompareView, defineCompareView } from './dex-compare-view.js';
+export type {
+  CompareFilterChangedDetail,
+  CompareMenuDetail,
+  CompareSelectedDetail,
+  CompareSide,
+  CompareStepDetail,
+  CompareViewEventMap,
+} from './dex-compare-view.js';
+
 // The modules' views: Raw, Search, the Gallery, the relationship graph, the Terminal (a command
 // window), the Log, and the command palette.
 export { DexRawViewer, defineRawViewer } from './modules/dex-raw-viewer.js';

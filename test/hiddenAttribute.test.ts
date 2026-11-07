@@ -42,6 +42,7 @@ describe('the hidden attribute', () => {
       'DexColumnFilter',
       'DexCommandPalette',
       'DexCommandWindow',
+      'DexCompareView',
       'DexConfirmDialog',
       'DexContextMenu',
       'DexDocTabs',

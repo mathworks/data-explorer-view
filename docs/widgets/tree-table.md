@@ -134,7 +134,7 @@ is no search box and no column filter. To keep the two together, each table says
 itself: `dex-expansion-changed` (not for `expandedIds`, `expand()` or `collapse()`, which a holder
 copying one table's expansion onto the other uses, so nothing echoes) and `dex-table-scrolled`,
 with `bodyScroll` and `scrollBodyTo(top, left)` to read and set the other's. `gridLabel` names each
-grid for a screen reader. A compare view holds two tables this way.
+grid for a screen reader. [`<dex-compare-view>`](compare-view.md) holds two tables this way.
 
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
