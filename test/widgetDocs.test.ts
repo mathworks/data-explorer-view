@@ -19,7 +19,7 @@ const page = (tag: string) => `${tag.replace(/^dex-/, '')}.md`;
 
 describe('docs/widgets', () => {
   it('has a page for every widget, and none for a widget there is not', () => {
-    expect(TAGS.length).toBe(32);
+    expect(TAGS.length).toBe(33);
     expect(readdirSync(DOCS).sort()).toEqual(TAGS.map(page).sort());
   });
 
