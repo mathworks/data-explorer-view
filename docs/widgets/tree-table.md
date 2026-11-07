@@ -122,6 +122,20 @@ connectInspector(inspector, handle);
 doc.onDirty(() => handle.refreshInspector());
 ```
 
+### Comparing
+
+Two tables given the same row ids, in the same order and tree, stay line by line beside each
+other: a compare's two files, with a blank row on a side where its file lacks the line. `diffMarks`
+marks each line on a side (added, removed, changed with the columns that differ, or a gap): a bar
+at the row's left edge, a wash, a glyph before the name with the word for a screen reader, and in
+forced colours an outline round each differing cell. `fixedRows` keeps the rows as given, as a
+sort or a search on one side alone would break the lines: a header press sorts nothing, and there
+is no search box and no column filter. To keep the two together, each table says what it did of
+itself: `dex-expansion-changed` (not for `expandedIds`, `expand()` or `collapse()`, which a holder
+copying one table's expansion onto the other uses, so nothing echoes) and `dex-table-scrolled`,
+with `bodyScroll` and `scrollBodyTo(top, left)` to read and set the other's. `gridLabel` names each
+grid for a screen reader. A compare view holds two tables this way.
+
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
 [variable editor](variable-editor.md) a matrix glyph opens.

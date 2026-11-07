@@ -124,6 +124,39 @@ export interface TableBanners {
   warnings?: WarningBanner;
 }
 
+/** How a compare marks a row (`diffMarks`): what its file holds of the line, and which cells differ. */
+export interface DiffMark {
+  /**
+   * 'added': only this table's file has the row, the other draws a gap; 'removed': likewise, from
+   * the other point of view (the row's file lost it); 'changed': both have it, `columns` differing;
+   * 'gap': this table's file has no such row, the line is the other side's.
+   */
+  kind: 'added' | 'removed' | 'changed' | 'gap';
+  /** With 'changed': the column keys whose cells differ. */
+  columns?: readonly string[];
+}
+
+/** What `dex-expansion-changed` carries: every row shown open now. */
+export interface ExpansionChangedDetail {
+  expandedIds: string[];
+}
+
+/** What `dex-table-scrolled` carries: where the rows are scrolled to, in pixels. */
+export interface TableScrolledDetail {
+  top: number;
+  left: number;
+}
+
+// What a mark says on its row: the glyph before the name, which carries the mark without its
+// colour (WCAG 1.4.1), and the word a screen reader reads in its place. A gap has no glyph: there
+// is no row of this file there to mark, only the line the other file's row is on.
+const DIFF_GLYPHS: Record<DiffMark['kind'], { glyph: string; word: string }> = {
+  added: { glyph: '+', word: 'Added' },
+  removed: { glyph: '−', word: 'Removed' },
+  changed: { glyph: '~', word: 'Changed' },
+  gap: { glyph: '', word: 'Not in this file' },
+};
+
 interface SortEntry {
   column: string;
   direction: 'asc' | 'desc';
@@ -913,6 +946,34 @@ export class DexTreeTable extends LitElement {
         height: var(--dex-row-height, 28px);
       }
 
+      /* A compare's marks (diffMarks): each kind's wash on its row, the cells it differs in
+         washed deeper, and a gap row hatched on its cells, the line being the other file's. Before
+         hover and selection, which win over them (the bar and the glyph stay): a wash is a cue,
+         and the selection is where the user is. */
+      tr.data-row.diff-added {
+        background: var(--dex-diff-added-bg, rgba(46, 125, 50, 0.1));
+      }
+
+      tr.data-row.diff-removed {
+        background: var(--dex-diff-removed-bg, rgba(198, 40, 40, 0.09));
+      }
+
+      tr.data-row.diff-changed {
+        background: var(--dex-diff-changed-bg, rgba(180, 83, 9, 0.08));
+      }
+
+      tr.data-row.diff-changed td.diff-cell {
+        background: var(--dex-diff-cell-bg, rgba(180, 83, 9, 0.2));
+      }
+
+      tr.data-row.diff-gap td {
+        background-image: repeating-linear-gradient(
+          135deg,
+          var(--dex-diff-gap-stripe, rgba(0, 0, 0, 0.1)) 0 1px,
+          transparent 1px 6px
+        );
+      }
+
       tr.data-row:hover {
         background: var(--dex-bg-hover, #e8e8e8);
       }
@@ -957,6 +1018,20 @@ export class DexTreeTable extends LitElement {
         background: var(--dex-color-accent-bg, #cde4f7);
         color: var(--dex-row-ink, #333);
         --dex-color-text-muted: color-mix(in srgb, var(--dex-row-ink, #333) 78%, transparent);
+      }
+
+      /* The selection surface wins over a compare's washes on the cells too; its glyph takes the
+         selected row's ink, as the row's text does. */
+      tr.data-row.selected td.diff-cell {
+        background: none;
+      }
+
+      tr.data-row.selected.diff-gap td {
+        background-image: none;
+      }
+
+      tr.data-row.selected .diff-glyph {
+        color: var(--dex-row-ink, #333);
       }
 
       tr.data-row.cut {
@@ -1114,6 +1189,37 @@ export class DexTreeTable extends LitElement {
 
       /* Selection is listed after hover for the same reason it is on the <tr>:
          equal specificity, so a selected row under the cursor reads as selected. */
+      /* The frozen Name cell paints its own opaque base (above), so a compare's wash is layered on
+         it as its row's state colours are, and before them, which win. */
+      tr.data-row.diff-added td:first-child {
+        background-image: linear-gradient(
+          var(--dex-diff-added-bg, rgba(46, 125, 50, 0.1)),
+          var(--dex-diff-added-bg, rgba(46, 125, 50, 0.1))
+        );
+      }
+
+      tr.data-row.diff-removed td:first-child {
+        background-image: linear-gradient(
+          var(--dex-diff-removed-bg, rgba(198, 40, 40, 0.09)),
+          var(--dex-diff-removed-bg, rgba(198, 40, 40, 0.09))
+        );
+      }
+
+      tr.data-row.diff-changed td:first-child {
+        background-image: linear-gradient(
+          var(--dex-diff-changed-bg, rgba(180, 83, 9, 0.08)),
+          var(--dex-diff-changed-bg, rgba(180, 83, 9, 0.08))
+        );
+      }
+
+      /* One class short of the rules around it, so the selection's layer below still wins. */
+      tr.diff-changed td.diff-cell:first-child {
+        background-image: linear-gradient(
+          var(--dex-diff-cell-bg, rgba(180, 83, 9, 0.2)),
+          var(--dex-diff-cell-bg, rgba(180, 83, 9, 0.2))
+        );
+      }
+
       tr.data-row:hover td:first-child {
         background-image: linear-gradient(
           var(--dex-bg-hover, #e8e8e8),
@@ -1318,6 +1424,94 @@ export class DexTreeTable extends LitElement {
         display: flex;
         align-items: center;
         gap: 4px;
+      }
+
+      /* A compare's mark, drawn so it never rests on colour alone (WCAG 1.4.1): the glyph before
+         the name, in the row's text colour (so its contrast is the text's, on every surface), and
+         the word a screen reader reads for it. */
+      .diff-glyph {
+        flex: none;
+        width: 1ch;
+        text-align: center;
+        font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace);
+        color: var(--dex-color-text, #333);
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      /* The bar at a marked row's left edge, in its kind's colour (3:1 against the rows, WCAG
+         1.4.11). A pseudo-element of the frozen Name cell, which its sticky position makes the box
+         of, and not a box-shadow: the cell's frozen edge is one (--dex-frozen-edge), and a second
+         would take its place. */
+      tr.data-row.diff-added td:first-child::before,
+      tr.data-row.diff-removed td:first-child::before,
+      tr.data-row.diff-changed td:first-child::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+      }
+
+      tr.data-row.diff-added td:first-child::before {
+        background: var(--dex-diff-added, #2e7d32);
+      }
+
+      tr.data-row.diff-removed td:first-child::before {
+        background: var(--dex-diff-removed, #c62828);
+      }
+
+      tr.data-row.diff-changed td:first-child::before {
+        background: var(--dex-diff-changed, #b45309);
+      }
+
+      /* Where the search box is not drawn (fixedRows): the space it took, so the Columns button
+         stays at the bar's end. */
+      .filter-bar-space {
+        flex: 1 1 auto;
+      }
+
+      /* Forced colours drops the washes and the hatching (the bar and the glyph carry each mark):
+         the bar is drawn in the text's colour, a differing cell is outlined, and a gap row's top
+         edge dashed. */
+      @media (forced-colors: active) {
+        tr.data-row.diff-added,
+        tr.data-row.diff-removed,
+        tr.data-row.diff-changed,
+        tr.data-row.diff-changed td.diff-cell {
+          background: none;
+        }
+
+        tr.data-row.diff-added td:first-child,
+        tr.data-row.diff-removed td:first-child,
+        tr.data-row.diff-changed td:first-child,
+        tr.data-row.diff-gap td {
+          background-image: none;
+        }
+
+        tr.data-row.diff-added td:first-child::before,
+        tr.data-row.diff-removed td:first-child::before,
+        tr.data-row.diff-changed td:first-child::before {
+          forced-color-adjust: none;
+          background: CanvasText;
+        }
+
+        td.diff-cell {
+          outline: 1px solid Highlight;
+          outline-offset: -1px;
+        }
+
+        tr.data-row.diff-gap td {
+          border-top: 1px dashed GrayText;
+        }
       }
 
       .name-cell .toggle {
@@ -1651,6 +1845,37 @@ export class DexTreeTable extends LitElement {
    */
   @property({ type: Boolean, attribute: 'keyboard-menu' }) keyboardMenu = false;
 
+  /**
+   * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
+   * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
+   * differing cells washed deeper, and a gap row hatched. Default null: no marks, the table as it
+   * always was. Property only.
+   */
+  @property({ attribute: false }) diffMarks: ReadonlyMap<string, DiffMark> | null = null;
+
+  /**
+   * The rows as given, in their order, all of them: a header press sorts nothing and draws no sort
+   * mark, and there is no search box and no column filter (the Columns button stays). For two tables
+   * kept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.
+   */
+  @property({ type: Boolean, reflect: true, attribute: 'fixed-rows' }) fixedRows = false;
+
+  /** What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`. */
+  @property({ attribute: 'grid-label' }) gridLabel = 'Data entries';
+
+  /** Where the rows are scrolled to now, in pixels (the grid's own scroll position). */
+  get bodyScroll(): { top: number; left: number } {
+    return { top: this._container?.scrollTop ?? 0, left: this._container?.scrollLeft ?? 0 };
+  }
+
+  /** Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows. */
+  scrollBodyTo(top: number, left?: number): void {
+    const container = this._container;
+    if (!container) return;
+    container.scrollTop = top;
+    if (left !== undefined) container.scrollLeft = left;
+  }
+
   // Whether the `+ Add` button is drawn and the gallery can open.
   private get _addsEntries(): boolean {
     return this.canAdd && !this.readonly;
@@ -1705,7 +1930,13 @@ export class DexTreeTable extends LitElement {
   }
   set expandedIds(ids: Iterable<string>) {
     this._expandedIds = new Set(ids);
+    this._expansionByHolder = true;
   }
+
+  // Set by the three ways the table's holder opens and closes rows (the setter, expand(),
+  // collapse()), and cleared by the update that draws it: dex-expansion-changed says the table's own
+  // changes alone, so a holder that copies one table's expansion onto another hears no echo.
+  private _expansionByHolder = false;
 
   /**
    * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
@@ -1727,6 +1958,7 @@ export class DexTreeTable extends LitElement {
       if (!parents.has(id)) this._requestChildren(id);
     }
     this._expandedIds = next;
+    this._expansionByHolder = true;
     this._visibleRowsCache = null;
   }
 
@@ -1735,6 +1967,7 @@ export class DexTreeTable extends LitElement {
     const next = new Set(this._expandedIds);
     for (const id of ids) next.delete(id);
     this._expandedIds = next;
+    this._expansionByHolder = true;
     this._visibleRowsCache = null;
   }
 
@@ -2423,6 +2656,8 @@ export class DexTreeTable extends LitElement {
     // container's own contextmenu handler out of it.
     e.preventDefault();
     e.stopPropagation();
+    // No column filter while the rows are kept as given (fixedRows).
+    if (this.fixedRows) return;
     this._openColumnFilter(col, e.currentTarget as HTMLElement);
   }
 
@@ -2568,6 +2803,8 @@ export class DexTreeTable extends LitElement {
   // --- Sorting ---
 
   private _onHeaderClick(col: string, e: MouseEvent): void {
+    // The rows as given (fixedRows): a sort on one side of a compare alone would break its lines.
+    if (this.fixedRows) return;
     if (this._resizingCol) return;
     // A resize just ended: this is the trailing click from that drag, not an
     // intent to sort. Consume the flag and bail.
@@ -2612,6 +2849,7 @@ export class DexTreeTable extends LitElement {
   }
 
   private _getSortIndicator(col: string): unknown {
+    if (this.fixedRows) return nothing;
     const entry = this._sortState.find((s) => s.column === col);
     if (!entry) return nothing;
     return html`<span class="sort-indicator">${entry.direction === 'asc' ? '▲' : '▼'}</span>`;
@@ -2625,6 +2863,7 @@ export class DexTreeTable extends LitElement {
   // There is no funnel in the icon set, so the glyph is inline SVG drawn in
   // currentColor — it inherits the header's colour and therefore themes for free.
   private _renderFunnel(col: string) {
+    if (this.fixedRows) return nothing;
     const label = this.columnLabels?.[col] || col;
     const active = this._tokenForColumn(col) !== undefined;
     return html`
@@ -2748,6 +2987,18 @@ export class DexTreeTable extends LitElement {
 
   override updated(changedProps: Map<string, unknown>): void {
     super.updated(changedProps);
+    // The rows shown open changed, by the table itself: said once the change is drawn. Not the
+    // first update's (nothing was open before it to change), nor the holder's (_expansionByHolder).
+    if (changedProps.has('_expandedIds') && changedProps.get('_expandedIds') !== undefined && !this._expansionByHolder) {
+      this.dispatchEvent(
+        new CustomEvent<ExpansionChangedDetail>('dex-expansion-changed', {
+          detail: { expandedIds: [...this._expandedIds] },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
+    this._expansionByHolder = false;
     if (!this._resizeObserver && this._container && typeof ResizeObserver !== 'undefined') {
       this._resizeObserver = new ResizeObserver(() => {
         if (!this._container) return;
@@ -2782,6 +3033,15 @@ export class DexTreeTable extends LitElement {
   // scroll event, which is what the early exit exists to avoid.
   private _onScroll(): void {
     if (!this._container) return;
+    // Every scroll, before the early exit below that skips a repaint: one that moves the rows inside
+    // the slice already drawn is still a scroll the other table of a compare has to follow.
+    this.dispatchEvent(
+      new CustomEvent<TableScrolledDetail>('dex-table-scrolled', {
+        detail: { top: this._container.scrollTop, left: this._container.scrollLeft },
+        bubbles: true,
+        composed: true,
+      }),
+    );
     // Before the early exit below: a purely horizontal scroll never changes the row
     // slice, so it would return without ever noticing that the frozen column now
     // has content hidden behind it. Only the crossing matters, so this repaints at
@@ -2883,7 +3143,8 @@ export class DexTreeTable extends LitElement {
   private _getVisibleRows(): TreeTableRow[] {
     if (this._visibleRowsCache) return this._visibleRowsCache;
     let rows = this.rows;
-    if (this._filterText) {
+    // Every row, while they are kept as given (fixedRows): a search on one side alone breaks the lines.
+    if (this._filterText && !this.fixedRows) {
       rows = this._filterRows(rows, this._filterText);
     }
     const visible = this._flattenToVisible(rows);
@@ -2963,10 +3224,12 @@ export class DexTreeTable extends LitElement {
     }
 
     // Sort each level independently so siblings reorder while every child
-    // stays within its parent's subtree.
-    this._sortSiblings(topLevel);
-    for (const siblings of childMap.values()) {
-      this._sortSiblings(siblings);
+    // stays within its parent's subtree. Not while the rows are kept as given (fixedRows).
+    if (!this.fixedRows) {
+      this._sortSiblings(topLevel);
+      for (const siblings of childMap.values()) {
+        this._sortSiblings(siblings);
+      }
     }
 
     const result: TreeTableRow[] = [];
@@ -4095,6 +4358,18 @@ export class DexTreeTable extends LitElement {
     return html`<input class="edit-input" .value=${text} @keydown=${this._onEditKeyDown} @blur=${this._onEditBlur} />`;
   }
 
+  // A compare's mark at the start of the Name cell (diffMarks): the glyph, hidden from a screen
+  // reader, which reads the word in its place. Before the indent, so the glyphs of every depth line
+  // up in one column at the row's left edge, beside its bar. Nothing for an unmarked row.
+  private _renderDiffGlyph(row: TreeTableRow): unknown {
+    const mark = this.diffMarks?.get(row.ID);
+    if (!mark) return nothing;
+    const { glyph, word } = DIFF_GLYPHS[mark.kind];
+    return html`${glyph ? html`<span class="diff-glyph" aria-hidden="true">${glyph}</span>` : nothing}<span class="sr-only"
+        >${word}</span
+      >`;
+  }
+
   private _renderCellValue(row: TreeTableRow, columnId: string): unknown {
     const isEditing = this._editingCell?.rowId === row.ID && this._editingCell?.columnId === columnId;
 
@@ -4137,6 +4412,7 @@ export class DexTreeTable extends LitElement {
       if (isEditing) {
         return html`
           <div class="name-cell">
+            ${this._renderDiffGlyph(row)}
             <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
             <span class="toggle empty"></span>
             ${this._renderEditor(label)}
@@ -4147,6 +4423,7 @@ export class DexTreeTable extends LitElement {
       const iconId = row.Name?.iconId || '';
       return html`
         <div class="name-cell">
+          ${this._renderDiffGlyph(row)}
           <span class="indent" ${styleProps({ width: `${depth * 16}px` })}></span>
           <span
             class="toggle ${hasChildren ? '' : 'empty'} ${awaiting ? 'loading' : ''}"
@@ -4437,11 +4714,13 @@ export class DexTreeTable extends LitElement {
     return html`
       <div class="filter-bar">
         ${this._renderAddButton()}${this._renderAddGallery()}
-        <dex-filter-bar
-          .text=${this._filterText}
-          .tokens=${this._filterTokens}
-          @dex-filter-applied=${(e: CustomEvent) => this._setFilterText((e.detail as { text: string }).text)}
-        ></dex-filter-bar>
+        ${this.fixedRows
+          ? html`<span class="filter-bar-space"></span>`
+          : html`<dex-filter-bar
+              .text=${this._filterText}
+              .tokens=${this._filterTokens}
+              @dex-filter-applied=${(e: CustomEvent) => this._setFilterText((e.detail as { text: string }).text)}
+            ></dex-filter-bar>`}
         ${this._renderColumnsButton()}
       </div>
     `;
@@ -4537,7 +4816,7 @@ export class DexTreeTable extends LitElement {
         role="treegrid"
         aria-rowcount=${totalRows + 1}
         aria-colcount=${visibleCols.length}
-        aria-label="Data entries"
+        aria-label=${this.gridLabel}
         aria-readonly=${this.readonly ? 'true' : nothing}
         aria-keyshortcuts=${this.keyboardMenu ? MENU_KEYS : nothing}
         tabindex="0"
@@ -4561,7 +4840,7 @@ export class DexTreeTable extends LitElement {
                     <th
                       role="columnheader"
                       aria-colindex=${ci + 1}
-                      aria-sort=${this._getAriaSortValue(col)}
+                      aria-sort=${this.fixedRows ? nothing : this._getAriaSortValue(col)}
                       draggable=${col === 'Name' ? 'false' : 'true'}
                       class="${this._dragOverColId === col && this._dragOverSide === 'left'
                         ? 'drag-over-left'
@@ -4610,6 +4889,7 @@ export class DexTreeTable extends LitElement {
                 // screen reader can see, so without these a blind user cannot
                 // tell nesting level or whether a row can be expanded at all.
                 const hasChildren = this._canExpand(row.ID);
+                const mark = this.diffMarks?.get(row.ID);
                 return html`
                   <tr
                     role="row"
@@ -4624,7 +4904,9 @@ export class DexTreeTable extends LitElement {
                       ? this._dropForbidden
                         ? 'drop-target-forbidden'
                         : 'drop-target-on'
-                      : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''}"
+                      : ''} ${isDropTarget && this._dropPosition === 'above' ? 'drop-target-above' : ''} ${mark
+                      ? `diff-${mark.kind}`
+                      : ''}"
                     data-row-id="${row.ID}"
                     draggable=${this._dragsOut ? 'true' : 'false'}
                     @contextmenu=${(e: MouseEvent) => this._onRowContextMenu(row.ID, e)}
@@ -4640,10 +4922,11 @@ export class DexTreeTable extends LitElement {
                       // states: nothing on it is editable and its blanks are not
                       // questions left unanswered, so it gets neither cue.
                       const state = isSection ? '' : this._cellStateClass(row, col);
+                      const differs = mark?.kind === 'changed' && !!mark.columns?.includes(col);
                       return html`<td
                         role="gridcell"
                         aria-colindex=${ci + 1}
-                        class="col-${col} ${state} ${isFocused ? 'focused' : ''}"
+                        class="col-${col} ${state} ${isFocused ? 'focused' : ''} ${differs ? 'diff-cell' : ''}"
                         @click=${(e: MouseEvent) => this._onCellClick(row.ID, ci, e)}
                         @dblclick=${() => this._onCellDblClickIfEditable(row, col)}
                       >
@@ -4896,6 +5179,13 @@ export interface TreeTableEventMap {
   'dex-link-clicked': CustomEvent<LinkClickedDetail>;
   /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
   'dex-add-entry': CustomEvent<AddEntryDetail>;
+  /**
+   * The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection
+   * whose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`.
+   */
+  'dex-expansion-changed': CustomEvent<ExpansionChangedDetail>;
+  /** The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`). */
+  'dex-table-scrolled': CustomEvent<TableScrolledDetail>;
 }
 
 declare global {
