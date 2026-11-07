@@ -19,7 +19,7 @@ import type { ShellLink, ShellLinkFile, ShellLinkRequest } from './types.js';
 /** What Open from URL… asks. */
 export const OPEN_URL_PROMPT: PromptOptions = {
   title: 'Open from URL',
-  message: "The web address of a data dictionary, model or MAT-file. A GitHub file page, or another code host's file page, works too.",
+  message: 'The web address of a data dictionary, model or MAT-file. A file page on GitHub, or one whose address has /-/blob/ in it, works too.',
   label: 'URL',
   placeholder: 'https://',
   type: 'url',
