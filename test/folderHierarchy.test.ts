@@ -115,6 +115,36 @@ describe('a folder hierarchy', () => {
     ]);
   });
 
+  it('draws such dictionaries as rows of their folder too when a file elsewhere reaches them', async () => {
+    // c → /v/y.sldd → a ⇄ b. A folder's rows are decided by the references inside it alone, as which
+    // of its files nothing references always was: c reaches a and b only through v, so in w they are
+    // still rows of their own, beside c, and under c by way of y as well.
+    folder = new Map();
+    put('/w/a.sldd', sldd('b.sldd'));
+    put('/w/b.sldd', sldd('a.sldd'));
+    put('/w/c.sldd', sldd('y.sldd'));
+    put('/v/y.sldd', sldd('a.sldd'));
+    expect(await all(hierarchy())).toEqual([
+      'v',
+      '  y.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '        a.sldd',
+      'w',
+      '  a.sldd',
+      '    b.sldd',
+      '      a.sldd',
+      '  b.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '  c.sldd',
+      '    y.sldd',
+      '      a.sldd',
+      '        b.sldd',
+      '          a.sldd',
+    ]);
+  });
+
   it('reads the folder once, however many rows are asked for', async () => {
     const h = hierarchy();
     await all(h);
