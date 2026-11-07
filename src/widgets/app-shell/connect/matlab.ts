@@ -175,7 +175,7 @@ const WAITS: Partial<Record<MatlabAction, string>> = {
 const DICTIONARY_SECTIONS: readonly string[] = ['Design Data', 'Other Data', 'Embedded Coder', 'Configurations'];
 
 /** The label of `id` while `status` holds: a MATLAB with no Data Explorer opens a file in Model Explorer. */
-function labelOf(id: MatlabAction, status: MatlabStatus | undefined): string {
+export function matlabActionLabel(id: MatlabAction, status: MatlabStatus | undefined): string {
   if (id === 'matlab-data-explorer' && status?.state === 'connected' && !status.dataExplorer) return 'Open in Model Explorer';
   return LABELS[id];
 }
@@ -206,7 +206,7 @@ export function matlabOffers(status: MatlabStatus | undefined, target: MatlabTar
   return MATLAB_ACTIONS.filter((id) => takes(id, target, status)).map((id) => {
     const icon = ICONS[id];
     const reason = target.dirty ? WAITS[id] : undefined;
-    return { id, label: labelOf(id, status), ...(icon ? { icon } : {}), ...(reason ? { disabled: true, reason } : {}) };
+    return { id, label: matlabActionLabel(id, status), ...(icon ? { icon } : {}), ...(reason ? { disabled: true, reason } : {}) };
   });
 }
 
@@ -253,7 +253,7 @@ function contextOf(target: MatlabTarget): { model?: string; dictionary?: string;
 
 /** Carry out `id` on `target`; never rejects (a failure is said). */
 export async function runMatlab(id: MatlabAction, target: MatlabTarget, on: MatlabRunContext): Promise<void> {
-  const label = labelOf(id, on.matlab.status());
+  const label = matlabActionLabel(id, on.matlab.status());
   const model = target.modelName ?? target.fileName;
   // A short note of what was done; the toast goes by itself.
   const done = (text: string): void => on.say('info', text, 2000);
