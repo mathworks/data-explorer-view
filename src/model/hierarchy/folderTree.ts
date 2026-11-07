@@ -50,7 +50,9 @@ export interface FolderTreeOptions {
 
 // The icon of a row of another file: a plain document.
 const OTHER_ICON = 'documentList';
-const FOLDER_ICON = 'simulink_folder';
+// A folder's row: a plain folder, as a file browser draws one. The hierarchy's own group of a
+// folder's data files keeps the Simulink folder (`simulink_folder`), as the extension's tree has it.
+const FOLDER_ICON = 'folder';
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
@@ -293,7 +295,7 @@ export class FolderTree {
     });
   }
 
-  // A folder's row, as the hierarchy draws a folder; a project's folder (the hierarchy groups a
+  // A folder's row, a plain folder; a project's folder (the hierarchy groups a
   // project by its marker's folder) is the project's row under the folder's own name, so the row
   // reads as the path bar does, with the project's name after it where that is another.
   private folderRow(entry: FolderEntry, key: string, top: readonly HierarchyItem[]): HierarchyItem {

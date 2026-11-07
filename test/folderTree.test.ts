@@ -168,7 +168,7 @@ describe('a folder tree', () => {
   it("draws the workspace folder as one row, its path set, and the index's notice after it", async () => {
     const tree = treeOf();
     expect(await tree.roots()).toEqual([
-      { label: 'w', kind: 'group', groupKind: 'folder', collapsible: 'collapsed', icon: 'simulink_folder', key: '/dir%3A%2Fw', path: '/w' },
+      { label: 'w', kind: 'group', groupKind: 'folder', collapsible: 'collapsed', icon: 'folder', key: '/dir%3A%2Fw', path: '/w' },
     ]);
     indexLimit = 3;
     const cut = await treeOf().roots();
@@ -318,7 +318,7 @@ describe('a folder tree', () => {
       kind: 'group',
       groupKind: 'folder',
       collapsible: 'collapsed',
-      icon: 'simulink_folder',
+      icon: 'folder',
       key: '/dir%3A%2Fw/dir%3Adocs',
       path: '/w/docs',
     });
@@ -600,11 +600,11 @@ describe('a folder tree', () => {
     const icons = new Set((await everyRow(treeOf())).map(({ item }) => item.icon).filter((id): id is string => !!id));
     expect([...icons].sort()).toEqual([
       'documentList',
+      'folder',
       'link_database',
       'matlabWorkspaceFile',
       'simulink',
       'simulink_database',
-      'simulink_folder',
       'simulink_project',
     ]);
     for (const id of icons) expect(existsSync(join(process.cwd(), 'icons', `${id}.svg`)), id).toBe(true);
@@ -613,6 +613,20 @@ describe('a folder tree', () => {
 
 describe('a host that lists no entries', () => {
   const none = async (): Promise<null> => null;
+
+  it("draws the hierarchy's own folder rows, which keep the hierarchy's folder icon", async () => {
+    // A file browser's folder is a plain folder (`folder`); the hierarchy's group of a folder's data
+    // files is the Simulink one, as the VS Code extension's tree draws it.
+    const tree = new FolderTree({ hierarchy: hierarchy(), entries: none, root: '/w' });
+    const groups = (await tree.roots()).filter((r) => r.groupKind === 'folder');
+    expect(groups.map((r) => [r.label, r.icon])).toEqual([
+      ['models', 'simulink_folder'],
+      ['w', 'simulink_folder'],
+    ]);
+    const listing = treeOf();
+    const root = await rootRow(listing);
+    expect([root.icon, (await child(listing, root, 'models')).icon, (await child(listing, root, 'empty')).icon]).toEqual(['folder', 'folder', 'folder']);
+  });
 
   it("is the hierarchy's tree, row for row and key for key", async () => {
     const h = hierarchy();

@@ -104,10 +104,13 @@ test('fills the inspector, the location bar and Raw with the row selected', asyn
   await expect(page.locator('dex-property-inspector .prop-row').first()).toBeVisible();
   await expect(page.locator('.dex-inspector-empty')).toBeHidden();
   await expect(page.locator('dex-location-bar .segment[aria-current="location"] .label')).toHaveText('Array');
-  // Root and back: the row is still the inspector's.
+  // Root and back: the row is still the inspector's. Back, since the tab row hides at Root, where
+  // the graph fills the center.
   await page.locator('dex-location-bar .segment').first().click();
   await expect(page.locator('.dex-inspector-empty')).toBeVisible();
-  await tab(page, 'numeric_json.sldd').click();
+  await page.locator('dex-location-bar').getByRole('button', { name: 'Back' }).click();
+  // Its tab, named for the section its selection is in.
+  await expect(page.locator('dex-doc-tabs [role="tab"][aria-selected="true"]')).toHaveAccessibleName('numeric_json.sldd, Design Data');
   await expect(page.locator('dex-property-inspector .prop-row').first()).toBeVisible();
   // And Raw, in the inspector's place on the right.
   await viewButton(page, 'raw').click();
