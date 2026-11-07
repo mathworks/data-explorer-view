@@ -4,7 +4,8 @@
 // a command to show each of the shell's views and Root's relationship graph, the Folder view's
 // own two (Up One Level and Read Again, for a host that shows folders, enabled as each would act
 // now), then the panes' (Split Right, Move to Other Pane, and each pane's focus, enabled as each
-// would act now), then a compare's (Compare With… among the File rows), then Settings and About. Each row's id is the ShellCommand it runs, and its
+// would act now), then a compare's (Compare With… among the File rows, Next and Previous Change
+// after the panes'), then Settings and About. Each row's id is the ShellCommand it runs, and its
 // shortcut the chord that does the same, in the platform's words (chordLabel). Pure: connectShell
 // hands it the toolbar's state, and what the panes' and the compare's commands would do, as the
 // palette opens.
@@ -159,6 +160,8 @@ export function paletteCommands(
       command('move-to-other-pane', 'Move to Other Pane', 'View', undefined, !panes.moveToOther),
       command('focus-pane-1', 'Focus First Pane', 'View', label(chordOf('focus-pane-1')), panes.panes < 1),
       command('focus-pane-2', 'Focus Second Pane', 'View', label(chordOf('focus-pane-2')), panes.panes < 2),
+      command('next-change', 'Next Change', 'View', label(chordOf('next-change')), !compare.hasChanges),
+      command('previous-change', 'Previous Change', 'View', label(chordOf('previous-change')), !compare.hasChanges),
     ]),
     command('settings', 'Settings', 'Other', label(chordOf('settings'))),
     command('about', 'About', 'Other'),

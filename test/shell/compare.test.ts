@@ -7,6 +7,8 @@
 //    which file (another open one, or one the host's picker gives), and opens a tab of the pair;
 //  - it draws the two files' differences (the lines, their marks, the gaps, the header's counts),
 //    keeps drawing them as either file changes or is saved, and shows only differences, or all;
+//  - F7 and Shift+F7 go to the next and previous difference, entry by entry, only while a compare
+//    tab is active (they are the browser's caret browsing everywhere else);
 //  - the inspector shows the selected line's differences;
 //  - it is a tab like no other: both files stay open in their own tabs, closing one of them closes
 //    the compare, and the Explorer, the status bar, the title and the palette treat it as what it is.
@@ -77,6 +79,11 @@ const lineOf = (label: string): string => {
   return row!.ID;
 };
 const inspector = (): DexPropertyInspector => document.querySelector('dex-property-inspector') as DexPropertyInspector;
+const f7 = (shift = false): KeyboardEvent => {
+  const e = new KeyboardEvent('keydown', { key: 'F7', shiftKey: shift, bubbles: true, cancelable: true });
+  window.dispatchEvent(e);
+  return e;
+};
 
 /** Select the tab of the file at `path` (two tabs read params.sldd: told apart by their paths), as a click does. */
 async function selectPath(path: string): Promise<void> {
@@ -146,6 +153,44 @@ describe('a compare tab', () => {
     expect(tables()[0]!.rows.some((r) => r.Name.label === 'Configurations')).toBe(false);
   });
 
+  it('goes to the next and previous difference with F7 and Shift+F7, only on a compare tab', async () => {
+    const page = await twoFiles();
+    await compareWith(page, at('b/params.sldd'));
+    const selected = (): string[] => [...tables()[0]!.selectedRowIds];
+    const both = (): boolean => JSON.stringify(tables()[0]!.selectedRowIds) === JSON.stringify(tables()[1]!.selectedRowIds);
+    const press = async (shift = false): Promise<KeyboardEvent> => {
+      const e = f7(shift);
+      await settled();
+      return e;
+    };
+    expect((await press()).defaultPrevented).toBe(true);
+    expect(selected()).toEqual([lineOf('Kp')]);
+    expect(both()).toBe(true);
+    await press();
+    expect(selected()).toEqual([lineOf('Uo')]);
+    await press();
+    expect(selected()).toEqual([lineOf('Param')]);
+    await press();
+    expect(selected()).toEqual([lineOf('Kp')]);
+    await press(true);
+    expect(selected()).toEqual([lineOf('Param')]);
+    expect(both()).toBe(true);
+
+    page.command('palette');
+    await until(() => palette().open);
+    const row = (label: string) => paletteRows().find((r) => r.label === label)!;
+    expect(row('Next Change').disabled).toBe(false);
+    expect(row('Previous Change').disabled).toBe(false);
+    palette().close();
+
+    await selectTab('params.sldd');
+    expect((await press()).defaultPrevented).toBe(false);
+    page.command('palette');
+    await until(() => palette().open);
+    expect(row('Next Change').disabled).toBe(true);
+    expect(row('Previous Change').disabled).toBe(true);
+    palette().close();
+  });
 
   it("shows the selected line's differences in the inspector", async () => {
     const page = await twoFiles();
@@ -269,4 +314,30 @@ describe('a compare tab', () => {
     expect(tables()).toHaveLength(2);
   });
 
+  // Lead's rule: F7 steps by entry. An added struct and an added array are one difference each.
+  it('steps over the rows under an added entry in one press', async () => {
+    // a: nested_objects.sldd without its two entries, a cell and a struct, each with rows under it.
+    const page = startPage();
+    const whole = fixtureBytes('nested_objects.sldd');
+    const without = await derive(whole, 'nested_objects.sldd', async (table, rows) => {
+      table.delete([rowNamed(rows, 'CellWithParam').ID, rowNamed(rows, 'StructWithParam').ID]);
+    });
+    page.main.files.set(at('a/nested_objects.sldd'), without);
+    page.main.files.set(at('b/nested_objects.sldd'), whole);
+    await open(page, 'b/nested_objects.sldd', 'a/nested_objects.sldd');
+    await compareWith(page, at('b/nested_objects.sldd'));
+    const right = tables()[1]!;
+    const added = right.rows.filter((r) => r.parent === 'section:design' && right.diffMarks?.get(r.ID)?.kind === 'added');
+    expect(added.map((r) => r.Name.label)).toEqual(['CellWithParam', 'StructWithParam']);
+    for (const entry of added) expect(right.rows.some((r) => r.parent === entry.ID)).toBe(true);
+    f7();
+    await settled();
+    expect(right.selectedRowIds).toEqual([added[0]!.ID]);
+    f7();
+    await settled();
+    expect(right.selectedRowIds).toEqual([added[1]!.ID]);
+    f7();
+    await settled();
+    expect(right.selectedRowIds).toEqual([added[0]!.ID]);
+  });
 });

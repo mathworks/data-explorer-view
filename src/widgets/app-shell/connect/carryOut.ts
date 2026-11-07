@@ -153,6 +153,10 @@ export function carryOut(id: ShellCommand, tab: OpenTab | undefined, on: CarryOu
     case 'compare-with':
       if (tab) on.compareWith(tab);
       break;
+    case 'next-change':
+    case 'previous-change':
+      tab?.compare?.step(id === 'next-change' ? 1 : -1);
+      break;
     case 'show-graph':
       // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).
       showRootFrom(

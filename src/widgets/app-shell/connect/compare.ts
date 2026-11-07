@@ -262,6 +262,7 @@ export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiri
     sendPage();
     wiring.selected(e.detail.lineIds);
   });
+  listen('dex-compare-step', (e) => step(e.detail.by));
 
   return {
     left,

@@ -49,6 +49,8 @@ describe('paletteCommands', () => {
       ['move-to-other-pane', 'Move to Other Pane', 'View'],
       ['focus-pane-1', 'Focus First Pane', 'View'],
       ['focus-pane-2', 'Focus Second Pane', 'View'],
+      ['next-change', 'Next Change', 'View'],
+      ['previous-change', 'Previous Change', 'View'],
       ['settings', 'Settings', 'Other'],
       ['about', 'About', 'Other'],
     ]);
@@ -62,12 +64,13 @@ describe('paletteCommands', () => {
   it('greys the actions the toolbar greys, and no view, Settings or About', () => {
     const disabled = (state: ToolbarState) => paletteCommands(state).filter((c) => c.disabled).map((c) => c.id);
     const PANES = ['split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2'];
-    // With no folder shown, the Folder view's own two do nothing either; and with no file to compare,
-    // Compare With….
+    // With no folder shown, the Folder view's own two do nothing either; and with no file to compare
+    // and no compare, a compare's three.
     const FOLDER = ['folder-up', 'folder-refresh'];
-    expect(disabled(NOTHING)).toEqual(['save', 'save-as', 'save-all', 'close-tab', 'compare-with', 'undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES]);
+    const CHANGES = ['next-change', 'previous-change'];
+    expect(disabled(NOTHING)).toEqual(['save', 'save-as', 'save-all', 'close-tab', 'compare-with', 'undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES, ...CHANGES]);
     const editing: ToolbarState = { ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true, can: (id) => id === 'undo' };
-    expect(disabled(editing)).toEqual(['compare-with', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES]);
+    expect(disabled(editing)).toEqual(['compare-with', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES, ...CHANGES]);
   });
 
   it("enables the Folder view's commands as each would act now, and names Read Again for what ⟳ does", () => {
@@ -99,13 +102,19 @@ describe('paletteCommands', () => {
     expect(disabled({ splitRight: false, moveToOther: false, panes: 0 })).toEqual(['split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2']);
   });
 
-  it("enables Compare With… where the active tab is a file a compare reads", () => {
+  it("enables a compare's commands as each would act now", () => {
     const disabled = (compare: CompareCommands) =>
       paletteCommands(NOTHING, undefined, undefined, compare)
-        .filter((c) => c.disabled && /compare/.test(c.id))
+        .filter((c) => c.disabled && /compare|change/.test(c.id))
         .map((c) => c.id);
-    expect(disabled({ canCompare: true, hasChanges: false })).toEqual([]);
+    // A file a compare reads is active.
+    expect(disabled({ canCompare: true, hasChanges: false })).toEqual(['next-change', 'previous-change']);
+    // A compare tab with a difference in it is active.
     expect(disabled({ canCompare: false, hasChanges: true })).toEqual(['compare-with']);
+    // F7 and Shift+F7, named for the platform.
+    const shortcut = (mac: boolean) => Object.fromEntries(paletteCommands({ ...NOTHING, mac }).map((c) => [c.id, c.shortcut]));
+    expect([shortcut(false)['next-change'], shortcut(false)['previous-change']]).toEqual(['F7', 'Shift+F7']);
+    expect(shortcut(true)['previous-change']).toBe('⇧F7');
   });
 
   it("names each command's chord for the platform, the views' and Settings' included", () => {

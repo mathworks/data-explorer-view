@@ -975,10 +975,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   // New's chord only for a host that makes files, asked at each press as the host's members are.
   // Mod+1 and Mod+2 only while the documents are in two panes: with one, they are the browser's,
-  // which switches its own tabs by them.
+  // which switches its own tabs by them. F7 and Shift+F7 only while a compare tab is active: they are
+  // the browser's caret browsing everywhere else.
   const offers = (id: ShellCommand): boolean => {
     if (id === 'new-file') return !!host.newFile;
     if (id === 'focus-pane-1' || id === 'focus-pane-2') return tabs.panes.length > 1;
+    if (id === 'next-change' || id === 'previous-change') return !!tabs.active?.compare;
     return true;
   };
   stops.push(installKeys(command, { nativeMenu: options.nativeMenu, offers }));
