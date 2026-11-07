@@ -122,6 +122,48 @@ describe('RelGraph roots selection', () => {
     expect(labels(topRoots(g)).sort()).toEqual(['a.slx', 'b.slx']);
   });
 
+  // The fall-back above, for the part of a group no root reaches. Files that reference each other
+  // round in a circle are each referenced, so none is a root; with a file nothing references beside
+  // them, the group used to list that file alone, and the circle, with the references it misses,
+  // was in no row at all.
+  it('draws files that reference each other beside a file nothing references', () => {
+    const g = new RelGraph([
+      src('a.sldd', { slddRefs: ['b.sldd'] }),
+      src('b.sldd', { slddRefs: ['a.sldd', 'gone.sldd'] }),
+      src('c.sldd'),
+    ]);
+    expect(labels(topRoots(g))).toEqual(['a.sldd', 'b.sldd', 'c.sldd']);
+    // Each is drawn as a fully cyclic group draws it: the other under it, then itself again, marked.
+    const b = byLabel(g.children(byLabel(topRoots(g), 'a.sldd')), 'b.sldd');
+    expect(g.children(b).map((n) => [n.label, n.kind, n.cycle])).toEqual([
+      ['a.sldd', 'sldd', true],
+      ['gone.sldd', 'missing', false],
+    ]);
+    expect(labels(g.children(byLabel(topRoots(g), 'b.sldd')))).toEqual(['a.sldd', 'gone.sldd']);
+  });
+
+  it('draws every file no root reaches as a fully cyclic group draws its files', () => {
+    // a ⇄ b, and d, which only a references: the three are what {a, b, d} alone would list.
+    const circle = [src('a.sldd', { slddRefs: ['b.sldd', 'd.sldd'] }), src('b.sldd', { slddRefs: ['a.sldd'] }), src('d.sldd')];
+    expect(labels(topRoots(new RelGraph(circle)))).toEqual(['a.sldd', 'b.sldd', 'd.sldd']);
+    expect(labels(topRoots(new RelGraph([...circle, src('c.sldd')])))).toEqual(['a.sldd', 'b.sldd', 'c.sldd', 'd.sldd']);
+  });
+
+  it('draws a file that references itself beside a file nothing references', () => {
+    const g = new RelGraph([src('a.sldd', { slddRefs: ['a.sldd'] }), src('c.sldd')]);
+    expect(labels(topRoots(g))).toEqual(['a.sldd', 'c.sldd']);
+  });
+
+  it('keeps a circle a root reaches under that root alone', () => {
+    // c → a ⇄ b: the circle is drawn under c, as before, and is no root of its own.
+    const g = new RelGraph([
+      src('a.sldd', { slddRefs: ['b.sldd'] }),
+      src('b.sldd', { slddRefs: ['a.sldd'] }),
+      src('c.sldd', { slddRefs: ['a.sldd'] }),
+    ]);
+    expect(labels(topRoots(g))).toEqual(['c.sldd']);
+  });
+
   it('returns [] for an empty workspace', () => {
     const g = new RelGraph([]);
     expect(g.roots()).toEqual([]);

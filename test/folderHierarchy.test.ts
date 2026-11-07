@@ -94,6 +94,27 @@ describe('a folder hierarchy', () => {
     expect(await all(hierarchy())).toEqual(['w', '  top.sldd', '    mid.sldd', '      leaf.sldd', '    gone.sldd']);
   });
 
+  it('draws dictionaries that reference each other, and what they miss, beside one nothing references', async () => {
+    // Neither a nor b is unreferenced, so neither was a root of the folder once c was there: the
+    // tree drew c alone, and b's unresolved gone.sldd with nothing to say so.
+    folder = new Map();
+    put('/w/a.sldd', sldd('b.sldd'));
+    put('/w/b.sldd', sldd('a.sldd', 'gone.sldd'));
+    put('/w/c.sldd', sldd());
+    expect(await all(hierarchy())).toEqual([
+      'w',
+      '  a.sldd',
+      '    b.sldd',
+      '      a.sldd',
+      '      gone.sldd',
+      '  b.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '    gone.sldd',
+      '  c.sldd',
+    ]);
+  });
+
   it('reads the folder once, however many rows are asked for', async () => {
     const h = hierarchy();
     await all(h);
