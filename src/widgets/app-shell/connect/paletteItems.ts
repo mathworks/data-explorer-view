@@ -111,3 +111,15 @@ export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PA
     command('about', 'About', 'Other'),
   ];
 }
+
+/**
+ * `commands` with a host's MATLAB group (`matlab`, connectShell's from matlab.ts) among them: after
+ * every other group, before Settings and About, as a MATLAB menu would come before a window's own.
+ * An empty group leaves the list as it was. A list of its own rather than a part of
+ * paletteCommands, so what the shell lists of itself does not wait on what its host reaches.
+ */
+export function withMatlabCommands(commands: readonly PaletteCommand[], matlab: readonly PaletteCommand[]): PaletteCommand[] {
+  const other = commands.findIndex((c) => c.category === 'Other');
+  const at = other < 0 ? commands.length : other;
+  return [...commands.slice(0, at), ...matlab, ...commands.slice(at)];
+}

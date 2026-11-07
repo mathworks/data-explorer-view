@@ -594,6 +594,7 @@ shell runs.
 | `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
 | `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
+| `matlab` | a MATLAB the host reaches (`ShellMatlab`): the status bar's MATLAB, and its row menus' and palette's commands while connected (see "MATLAB") | no MATLAB anywhere |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -700,6 +701,35 @@ const app = connectShell(shell, {
   ],
 });
 ```
+
+#### MATLAB
+
+A host that reaches a MATLAB (an Electron app's link to the MATLAB session the
+user connected) hands it in as `host.matlab`, a `ShellMatlab`: its status
+(`status()`, and `on(listener)` for each change), `showConnect()`, the host's
+way to connect, and one call per command, each mirroring the request the
+host's link sends. The status bar names the MATLAB connected (`MATLAB R2027a`,
+`(busy)` while it runs something, as it answers only once it is done); a press
+of it, the palette's Connect to MATLAB… and `app.command('matlab-connect')`
+call `showConnect()`. While one is connected, a row's menu, an open file's menu
+in the Explorer and the palette's MATLAB group (for the active tab's selected
+row, or its file) offer what the row or file takes:
+
+| Command | Offered for | What the shell does with the answer |
+|---|---|---|
+| Open in Simulink (`matlab-open`) | a model, or a block of one, highlighted | a toast |
+| Update Diagram (`matlab-update-diagram`) | a model | its errors and warnings counted in a toast, each in the Log |
+| Evaluate in MATLAB (`matlab-evaluate`) | a row's value, evaluated in its dictionary section, its model's workspace, or (a MAT-file's) the base workspace | Properties comes forward with a MATLAB group: the value as MATLAB displays it, its class and size, or the expression's error; kept while the row's value stands |
+| Send to Workspace (`matlab-to-workspace`) | a dictionary's entry, a MAT-file's variable, a model workspace's variable | a toast |
+| Get from Workspace (`matlab-from-workspace`) | a dictionary's entry, a MAT-file's variable | a toast; the host's watcher then tells `app.fileChanged`, and the clean tab reloads |
+| Open in MATLAB's Data Explorer (`matlab-data-explorer`) | a file, at the row's entry; Open in Model Explorer before R2027a, which opens no MAT-file | a toast, saying when the entry could not be selected |
+
+MATLAB reads and writes the saved file, not what a tab holds: Send and Get wait,
+disabled with the reason, while the tab holds unsaved edits. What needs Simulink
+is not offered by a MATLAB without it. The shell sends nothing unasked: each
+call is a user's choice, and a rejection (the link's failure) is said as an
+error, in a toast and the Log. A host with no `matlab` (the browser host, the
+VS Code extension) shows none of it.
 
 ### Keyboard shortcuts
 

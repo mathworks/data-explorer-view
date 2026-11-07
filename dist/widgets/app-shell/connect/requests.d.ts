@@ -1,5 +1,7 @@
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { OpenTab } from './documents.js';
+import { type MatlabAction } from './matlab.js';
+import type { ContextMenuItem } from '../../context-menu/dex-context-menu.js';
 import type { ShellParts } from './parts.js';
 import type { ShellCommand } from './types.js';
 import type { Rect } from '../../../model/shell/placement.js';
@@ -33,6 +35,10 @@ export interface ShellRequests {
     toggle(id: 'settings' | 'about', anchor: Rect): void;
     /** The user brought the view `view` forward, or opened or closed its side. */
     viewChanged(view: string | null, open: boolean): void;
+    /** The MATLAB items an open file's menu in the Explorer ends with; none without a MATLAB. */
+    matlabItems?(tab: OpenTab): ContextMenuItem[];
+    /** Carry out a MATLAB item chosen on a file's menu. */
+    runMatlab?(tab: OpenTab, id: MatlabAction): void;
 }
 /** Answer `parts`' requests with `on`; returns what stops it. */
 export declare function connectRequests(shell: DexAppShell, parts: ShellParts, on: ShellRequests): () => void;

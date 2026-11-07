@@ -18,7 +18,7 @@ import { edit, open, startPage, until } from './harness.js';
 beforeAll(() => defineShellStatus());
 afterEach(() => document.body.replaceChildren());
 
-async function mount(props: Partial<Pick<DexShellStatus, 'format' | 'kind' | 'modified'>>): Promise<DexShellStatus> {
+async function mount(props: Partial<Pick<DexShellStatus, 'format' | 'kind' | 'modified' | 'matlab' | 'matlabTitle'>>): Promise<DexShellStatus> {
   const el = new DexShellStatus();
   Object.assign(el, props);
   document.body.append(el);
@@ -28,6 +28,7 @@ async function mount(props: Partial<Pick<DexShellStatus, 'format' | 'kind' | 'mo
 
 const pill = (el: Element) => el.shadowRoot!.querySelector<HTMLElement>('.format');
 const mark = (el: Element) => el.shadowRoot!.querySelector<HTMLElement>('.modified');
+const matlabButtons = (el: Element) => [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('button.matlab')];
 
 // The stylesheet as text, comments out and whitespace folded.
 const sheet = (): string =>
@@ -101,6 +102,40 @@ describe('<dex-shell-status>', () => {
   it('draws nothing for no file, or one of no kind it names', async () => {
     const el = await mount({});
     expect(el.shadowRoot!.querySelectorAll('span')).toHaveLength(0);
+    expect(el.shadowRoot!.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('draws the MATLAB connected as a button, with no file open too', async () => {
+    // At Root, with nothing open, the bar still says which MATLAB the window reaches.
+    const el = await mount({ matlab: 'MATLAB R2027a', matlabTitle: 'Connected to MATLAB R2027a (process 47857)' });
+    const [button, ...more] = matlabButtons(el);
+    expect(more).toEqual([]);
+    expect(button!.textContent?.trim()).toBe('MATLAB R2027a');
+    expect(button!.title).toBe('Connected to MATLAB R2027a (process 47857)');
+    expect(button!.type).toBe('button');
+    expect(button!.querySelector('dex-icon')).toBeNull();
+    expect(pill(el)).toBeNull();
+  });
+
+  it('draws the MATLAB button before the pill', async () => {
+    const el = await mount({ matlab: 'MATLAB R2027a', format: 'SLDD', kind: 'Data dictionary' });
+    const drawn = [...el.shadowRoot!.children].map((n) => n.className);
+    expect(drawn).toEqual(['matlab', 'format']);
+  });
+
+  it('asks to show how to connect when the MATLAB button is pressed', async () => {
+    const el = await mount({ matlab: 'MATLAB R2027a' });
+    const heard: Event[] = [];
+    const listen = (e: Event) => heard.push(e);
+    document.addEventListener('dex-shell-matlab-connect', listen);
+    try {
+      matlabButtons(el)[0]!.click();
+    } finally {
+      document.removeEventListener('dex-shell-matlab-connect', listen);
+    }
+    expect(heard).toHaveLength(1);
+    expect(heard[0]!.bubbles).toBe(true);
+    expect(heard[0]!.composed).toBe(true);
   });
 
   it('draws the pill and the mark in the theme, each readable at 4.5:1 or better in every theme', () => {
@@ -116,10 +151,22 @@ describe('<dex-shell-status>', () => {
     }
   });
 
+  it("draws the MATLAB button's ink readable on the bar at 4.5:1 or better in every theme, ringed when focused", () => {
+    // The status area's muted ink is 4.3:1 on the dark bar: the button is a control, and takes the
+    // secondary text's.
+    expect(rule('.matlab')).toContain('color: var(--dex-color-text-secondary, #555)');
+    for (const [set, t] of Object.entries(THEME_SETS)) {
+      const bar = rgba(t.get('--dex-bg-activity-bar')!);
+      expect(contrast(rgba(t.get('--dex-color-text-secondary')!), bar), `${set}: the MATLAB button`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(rule('button:focus-visible')).toContain('box-shadow: var(--dex-focus-ring');
+  });
+
   it('outlines both in forced colours, where their surfaces are painted over', () => {
     const forced = /@media \(forced-colors: active\) \{(.*)\}\s*$/.exec(sheet())?.[1] ?? '';
     expect(rule('.format', forced)).toContain('border-color: CanvasText');
     expect(rule('.modified', forced)).toContain('border-color: CanvasText');
+    expect(rule('.matlab', forced)).toContain('border: 1px solid ButtonText');
   });
 });
 

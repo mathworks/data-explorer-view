@@ -590,3 +590,83 @@ describe('a Data Type value that names another entry is a link', () => {
     expect(el.shadowRoot!.querySelector('.prop-value a')).toBeNull();
   });
 });
+
+describe('a read-only text of several lines', () => {
+  // MATLAB's display of a value (`magic(4)`) is lines of columns, laid out in spaces: drawn as a
+  // span of normal white-space, its lines ran into one and its columns collapsed. A read-only row
+  // marked multiline keeps them, in a monospace face, and scrolls past a height.
+  const DISPLAY = '    16     2     3    13\n     5    11    10     8';
+  // The stylesheet as text, comments out and whitespace folded.
+  const sheet = (): string =>
+    [DexPropertyInspector.styles]
+      .flat(Infinity)
+      .map((s) => (s as { cssText: string }).cssText)
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\s+/g, ' ');
+  // Every declaration of the rules `selector` is one of the selectors of, in order.
+  const rule = (selector: string, css = sheet()): string =>
+    [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selectors]) => selectors!.split(',').some((one) => one.trim() === selector))
+      .map(([, , body]) => body)
+      .join(';');
+
+  it('is drawn as a block of its lines, as written', async () => {
+    const el = await makeInspector([{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: DISPLAY, multiline: true }] }]);
+    const text = el.shadowRoot!.querySelector<HTMLElement>('.prop-value .prop-text')!;
+    expect(text.textContent).toBe(DISPLAY);
+    expect(getComputedStyle(text).whiteSpace).toBe('pre');
+    expect(getComputedStyle(text).display).toBe('block');
+    // No field: it is read-only.
+    expect(el.shadowRoot!.querySelector('textarea, input')).toBeNull();
+  });
+
+  it('keeps every other read-only row a line of text, and an editable one a field of lines', async () => {
+    const el = await makeInspector([
+      {
+        title: 'G',
+        properties: [
+          { name: 'Value', value: 'one\ntwo' },
+          { name: 'Description', value: 'one\ntwo', editable: true, key: 'Description', multiline: true },
+        ],
+      },
+    ]);
+    expect(el.shadowRoot!.querySelectorAll('.prop-text')).toHaveLength(0);
+    expect(el.shadowRoot!.querySelectorAll('textarea')).toHaveLength(1);
+  });
+
+  it("draws it in the theme's monospace face, scrolled past a height, framed in forced colours", () => {
+    const text = rule('.prop-text');
+    expect(text).toContain('white-space: pre');
+    expect(text).toContain("font-family: var(--dex-font-mono, 'SF Mono', 'Menlo', 'Monaco', monospace)");
+    expect(text).toContain('overflow: auto');
+    expect(text).toMatch(/max-height: \d+px/);
+    expect(text).toContain('border: 1px solid var(--dex-border-color-light, #e0e0e0)');
+    expect(text).toContain('background: var(--dex-bg-secondary, #f8f8f8)');
+    const forced = /@media \(forced-colors: active\) \{(.*?\})\s*\}/.exec(sheet())?.[1] ?? '';
+    expect(rule('.prop-text', forced)).toContain('border-color: CanvasText');
+  });
+
+  // A box that scrolls is a tab stop of its own in some browsers only (Chromium's), so a keyboard
+  // user elsewhere could not reach the lines past its height: it is one in every browser, named by
+  // its row, ringed as the theme rings a focus.
+  it('is a tab stop of its own, a region named by its row, so the keyboard can scroll it in any browser', async () => {
+    const el = await makeInspector([{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: DISPLAY, multiline: true }] }]);
+    const text = el.shadowRoot!.querySelector<HTMLElement>('.prop-text')!;
+    expect(text.getAttribute('tabindex')).toBe('0');
+    // A region, which may be named (a span of no role may not), read as a labelled scrolling area.
+    expect(text.getAttribute('role')).toBe('region');
+    expect(text.getAttribute('aria-label')).toBe('In MATLAB');
+    text.focus();
+    expect(el.shadowRoot!.activeElement).toBe(text);
+  });
+
+  it("rings it as the theme rings a focus, and with the system's highlight in forced colours", () => {
+    const ring = rule('.prop-text:focus-visible');
+    expect(ring).toContain('box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4))');
+    expect(ring).toContain('outline: none');
+    // Forced colours draw no shadow: there the ring is an outline.
+    const forced = /@media \(forced-colors: active\) \{(.*?\})\s*\}/.exec(sheet())?.[1] ?? '';
+    expect(rule('.prop-text:focus-visible', forced)).toContain('outline: 2px solid Highlight');
+  });
+});
