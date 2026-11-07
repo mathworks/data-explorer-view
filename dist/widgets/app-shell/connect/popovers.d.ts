@@ -5,6 +5,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { DexAboutPanel } from '../dex-about-panel.js';
+import type { DexFolderBar } from '../dex-folder-bar.js';
 import type { DexLocationBar } from '../dex-location-bar.js';
 import type { DexSettingsPanel } from '../dex-settings-panel.js';
 import type { DexToolbar } from '../dex-toolbar.js';
@@ -39,6 +40,7 @@ export declare function connectPopovers(shell: DexAppShell, parts: {
     aboutPanel: DexAboutPanel;
     toolbar: DexToolbar;
     location: DexLocationBar;
+    folderBar: DexFolderBar;
 }, options: {
     store: KeyValueStore | null;
     key: string;

@@ -4,8 +4,11 @@
 // Files are picked, dropped, read, saved and watched through one WebFiles; a picked or dropped
 // folder is served in the page and handed to the shell as an Electron main process hands its page a
 // port, and looked at again when the page is shown or its window focused, since a browser says
-// nothing of a folder's changes. There are no native prompts: with no confirmClose or
-// confirmReload, the shell asks about unsaved edits and changes on disk in its own dialog.
+// nothing of a folder's changes. The Folder view moves within a picked folder, and only there: a
+// page reaches no folder the user did not pick, so the folder above the picked one is none, and a
+// folder of it shown is served with its files at the paths they had, for a tab open on one. There
+// are no native prompts: with no confirmClose or confirmReload, the shell asks about unsaved edits
+// and changes on disk in its own dialog.
 //
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
@@ -21,7 +24,7 @@ import type { FilePickers, UserActivation } from './fsAccess.js';
 import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
-import type { BrowserDir } from './walk.js';
+import { subDir, type BrowserDir } from './walk.js';
 import { watchOpenFiles, type OpenFileWatch } from './watch.js';
 
 /**
@@ -100,8 +103,10 @@ export interface BrowserHost extends ShellHost {
   dispose(): void;
 }
 
-/** The folder shown: how it is served, how it is looked at again, and when it last was. */
+/** The folder shown: what it is, how it is served, how it is looked at again, and when it last was. */
 interface Shown {
+  /** The folder as it is served: a picked one, or a folder of one. */
+  dir: BrowserDir;
   served: WebFolderServer;
   look: () => Promise<string[]>;
   looking: boolean;
@@ -135,6 +140,16 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const opened = new Set<string>();
   let shown: Shown | undefined;
   let edited = false;
+  // The folders picked or dropped this session, each by the root it is shown at, newest first: the
+  // folders the Folder view moves within, and its recent ones.
+  const picked: { root: string; dir: BrowserDir }[] = [];
+  // The picked folder `path` is, or is in: the one whose root is the path, or begins it and a `/`.
+  const pickedOf = (path: string) => picked.find((p) => path === p.root || path.startsWith(`${p.root}/`));
+  // A folder of a picked one, as the host spells it (FolderEntry paths): no trailing `/`, no empty,
+  // `.` or `..` segment. Any other spelling is no folder of it: served there, its files would be at
+  // paths they never had (`/proj//a.sldd`), and a tab open on one would not find it.
+  const spelledIn = (path: string, root: string): boolean =>
+    path === root || !path.slice(root.length + 1).split('/').some((part) => part === '' || part === '.' || part === '..');
 
   // A look at the shown folder: the files it touched the page reads again. One at a time; one asked
   // while another runs follows it.
@@ -187,8 +202,20 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   async function showFolder(dir: BrowserDir): Promise<{ looked: Promise<void> }> {
     if (!onFolder) return { looked: Promise.resolve() };
     const root = await files.folderRoot(dir);
+    // Picked again: first again, at the root it took back.
+    const was = picked.findIndex((p) => p.root === root);
+    if (was >= 0) picked.splice(was, 1);
+    picked.unshift({ root, dir });
+    return serve(root, dir);
+  }
+
+  // Serve the folder `dir` at `root`, a picked folder's or a folder of one, in place of the folder
+  // shown before. A folder of a picked one is served at the picked root and its path in it, so each
+  // of its files is listed at the path it had under the picked folder.
+  function serve(root: string, dir: BrowserDir): { looked: Promise<void> } {
     stopShowing();
     const folder: Shown = {
+      dir,
       served: serveWebFolder(root, dir, files),
       look: folderLooks(root, dir),
       looking: false,
@@ -197,7 +224,7 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       timer: undefined,
     };
     shown = folder;
-    onFolder(root, folder.served.port);
+    onFolder!(root, folder.served.port);
     return { looked: lookAt(folder) };
   }
 
@@ -261,7 +288,26 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
         const dir = await pickDirectory(deps);
         if (dir) await openFolder(dir);
       },
+      // The Folder view's moves: up to the folder picked and no further, and to a folder of a
+      // folder picked this session. A folder outside them all is none of the page's.
+      folderParent(path: string) {
+        const of = pickedOf(path);
+        return !of || path === of.root || !spelledIn(path, of.root) ? null : path.slice(0, path.lastIndexOf('/'));
+      },
+      async openFolderAt(path: string) {
+        const of = pickedOf(path);
+        if (!of || !spelledIn(path, of.root)) return false;
+        const rel = path === of.root ? '' : path.slice(of.root.length + 1);
+        await serve(path, await subDir(of.dir, rel)).looked;
+        return true;
+      },
+      recentFolders: async () => picked.map((p) => p.root),
     }),
+    // A folder the browser listed as it was picked is that list for good: ⟳ picks it again. A
+    // handle's folder is read again.
+    get folderRefresh(): 'read' | 'pick' {
+      return shown?.dir.kind === 'list' ? 'pick' : 'read';
+    },
     openFolder,
     async openDropped(data) {
       // Asked of the drop before anything is awaited.

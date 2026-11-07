@@ -48,6 +48,7 @@ describe('the hidden attribute', () => {
       'DexErrorDialog',
       'DexExplorer',
       'DexFilterBar',
+      'DexFolderBar',
       'DexGalleryPanel',
       'DexHierarchy',
       'DexIcon',

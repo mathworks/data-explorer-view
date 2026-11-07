@@ -1,10 +1,28 @@
+import type { FolderEntry } from '../hierarchy/folderEntries.js';
 import type { FolderHierarchyOptions } from '../hierarchy/folderHierarchy.js';
 import type { TablePort } from './wire.js';
 /**
- * A folder and how to read it: the `files` and the `reader` a FolderHierarchy is given. Served
- * from where the files are (serveFolder), or given to a FolderHierarchy beside them.
+ * A folder and how to read it: the `files` and the `reader` a FolderHierarchy is given, and for
+ * a tree of every entry (FolderTree) its folders one level at a time. Served from where the files
+ * are (serveFolder), or given to a FolderHierarchy beside them.
  */
-export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'>;
+export type FolderReads = Pick<FolderHierarchyOptions, 'files' | 'reader'> & {
+    /**
+     * One level of `dir`. Absent: the served folder answers a `list` with a `dir` with `refused`.
+     *
+     * `dir` is the page's, not trusted: list only a folder this host serves, and throw for any
+     * other, with the reason the page's call rejects with. A folder that cannot be read throws too
+     * (its permissions, gone). The order is the host's own: the page sorts (sortEntries).
+     *
+     * Containment is easy to get wrong. A `..` segment (`/w/models/../../etc`) climbs out of a path
+     * that starts with the root; a prefix test without the separator lets `/w-other` pass as inside
+     * `/w`; a symbolic link inside the root names a folder outside it, which a test of the path
+     * alone never sees. The safe form: answer only the root itself or a folder this host returned
+     * as an entry (a set of the paths it answered with), each realpath'd as it is answered, and
+     * compare a realpath'd `dir` against that set; never resolve or join the page's path to decide.
+     */
+    entries?(dir: string): Promise<readonly FolderEntry[]>;
+};
 /** How serveFolder answers. */
 export interface ServeFolderOptions {
     /**
@@ -36,6 +54,9 @@ export interface FolderServer {
  *
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
  *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
+ * - `list` with a `dir` with what `folder.entries` lists of that folder, in `entries`, each
+ *   entry's name, path and kind alone, and kept as no listing; or `refused` when the folder lists
+ *   no entries or `dir` is not a string;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
@@ -47,7 +68,9 @@ export interface FolderServer {
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  * A project store is whatever the reader's `projectStore` answers for a listed file, which need
  * not be a project's marker: a reader decides which files have a store, and one that reads the
- * folder beside any file it is given lets the page read that much.
+ * folder beside any file it is given lets the page read that much. A folder's entries are the
+ * names `folder.entries` lists for a folder the page names, which is the host's to refuse
+ * (FolderReads.entries): no file is read for them.
  *
  * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
  * listens on the port (a table's, for one).

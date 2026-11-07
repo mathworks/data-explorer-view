@@ -6,14 +6,16 @@
 // its handle, or downloads a file the page has no handle to. And the app's own files fetched at different times into one group (the web version's
 // samples, and the files its address names): a link from a model fetched first finds the
 // dictionary fetched after it, where files given to the host one at a time never could, each in a
-// folder of its own. The File System Access API is test/browserHost/fakeFs.ts's.
+// folder of its own. And the Folder view moving within the folder the user picked: no folder above
+// it, a folder of it shown with its files at the paths they had. The File System Access API is
+// test/browserHost/fakeFs.ts's.
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { browserHost, type BrowserHost } from '../../src/browser/index.js';
 import { connectShell } from '../../src/widgets/app-shell/connect/connectShell.js';
 import type { ShellHandle } from '../../src/widgets/app-shell/connect/types.js';
-import { asFile, FakeFileHandle } from '../browserHost/fakeFs.js';
-import { dirtyTabs, fixture, tabNames, textOf, toastTexts, until, valueIn } from './harness.js';
+import { asDir, asFile, fakeDir, FakeFileHandle } from '../browserHost/fakeFs.js';
+import { dirtyTabs, fixture, folderBar, settled, tabNames, textOf, toastTexts, until, valueIn } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -106,5 +108,37 @@ describe('the shell over the browser host', () => {
     const beside = `${model.slice(0, model.lastIndexOf('/'))}/params.sldd`;
     await until(() => !!tableAt(beside)?.banners?.error);
     expect(tableAt(beside)!.banners!.error).toMatch(/^Failed to open params\.sldd: ENOENT/);
+  });
+
+  it('moves the Folder view within the folder picked: none above it, a folder of it shown at its path, a tab on a file of it kept', async () => {
+    const bytes = (name: string) => new Uint8Array(readFileSync(fixture(name)));
+    const proj = fakeDir('proj', { 'params.sldd': bytes('params.sldd'), 'models/shared_gain.slx': bytes('shared_gain.slx'), 'notes.md': '# notes' });
+    const window = Object.assign(new EventTarget(), { showDirectoryPicker: async () => asDir(proj) });
+    let app: ShellHandle | undefined;
+    const host = browserHost({ window, document, navigator: {}, onFolder: (root, port) => app?.showFolder(root, port) });
+    const shell = document.createElement('dex-app-shell');
+    document.body.append(shell);
+    app = connectShell(shell, { host });
+    stop.push(() => (app!.dispose(), host.dispose(), shell.remove()));
+    const rows = () => [...(document.querySelector('dex-hierarchy')?.shadowRoot?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])];
+    const rowNamed = (label: string) => rows().find((r) => r.querySelector('.label')?.textContent?.trim() === label);
+    app.command('open-folder');
+    await until(() => folderBar().segments.map((s) => s.label).join() === 'proj');
+    // The picked folder is the top: nothing above it is the page's.
+    expect([folderBar().canUp, folderBar().refresh]).toEqual([false, 'read']);
+    await until(() => !!rowNamed('notes.md'));
+    expect(rowNamed('notes.md')!.classList.contains('dimmed')).toBe(true);
+    void app.openPaths(['/proj/models/shared_gain.slx']);
+    await until(() => tabNames().includes('shared_gain.slx'));
+    expect(await host.openFolderAt!('/proj/models')).toBe(true);
+    await until(() => folderBar().segments.map((s) => s.label).join() === 'proj,models');
+    expect(folderBar().canUp).toBe(true);
+    // The tab's file is at the path it had: its row in the folder shown now is its tab's.
+    await until(() => !!rowNamed('shared_gain.slx') && rowNamed('shared_gain.slx')!.classList.contains('open'));
+    expect(tabNames()).toEqual(['shared_gain.slx']);
+    folderBar().dispatchEvent(new CustomEvent('dex-folder-up', { detail: null, bubbles: true, composed: true }));
+    await until(() => folderBar().segments.map((s) => s.label).join() === 'proj');
+    await settled();
+    expect(folderBar().canUp).toBe(false);
   });
 });

@@ -11,7 +11,7 @@ import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
     'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
     'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
-    'palette', 'show-graph', ...SHELL_VIEWS.map((v) => v.command),
+    'palette', 'show-graph', 'folder-up', 'folder-refresh', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {
@@ -28,9 +28,11 @@ export function connectRequests(shell, parts, on) {
         if (isShellCommand(id))
             on.command(id);
     };
-    // The toolbar, the welcome's buttons, which ask what the toolbar's Open and Folder ask, and the palette.
+    // The toolbar, the welcome's buttons, which ask what the toolbar's Open and Folder ask, the Folder
+    // view's Open Folder… with no folder shown, and the palette.
     listen(parts.toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
     listen(parts.docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
+    listen(parts.folderPart, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
     listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
     listen(shell, 'dex-shell-view-changed', (e) => on.viewChanged(e.detail.view, e.detail.open));
     listen(shell, 'dex-shell-action', (e) => {

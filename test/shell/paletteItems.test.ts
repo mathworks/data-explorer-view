@@ -10,7 +10,7 @@
 // Terminal, the panes' last), then Other. Each carries the chord that does the same, in the
 // platform's words, and its id is the ShellCommand the shell carries out.
 import { describe, expect, it } from 'vitest';
-import { paletteCommands, type PaneCommands } from '../../src/widgets/app-shell/connect/paletteItems.js';
+import { paletteCommands, type FolderCommands, type PaneCommands } from '../../src/widgets/app-shell/connect/paletteItems.js';
 import { SHELL_VIEWS } from '../../src/widgets/app-shell/connect/views.js';
 import type { ToolbarState } from '../../src/widgets/app-shell/connect/toolbarItems.js';
 
@@ -34,6 +34,9 @@ describe('paletteCommands', () => {
       ['delete', 'Delete', 'Edit'],
       ['add-child', 'Add Child', 'Edit'],
       ['show-explorer', 'Show Explorer', 'View'],
+      ['show-folder', 'Show Folder', 'View'],
+      ['folder-up', 'Folder: Up One Level', 'View'],
+      ['folder-refresh', 'Folder: Read Again', 'View'],
       ['show-gallery', 'Show Gallery', 'View'],
       ['show-search', 'Show Search', 'View'],
       ['show-graph', 'Show Graph', 'View'],
@@ -58,9 +61,27 @@ describe('paletteCommands', () => {
   it('greys the actions the toolbar greys, and no view, Settings or About', () => {
     const disabled = (state: ToolbarState) => paletteCommands(state).filter((c) => c.disabled).map((c) => c.id);
     const PANES = ['split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2'];
-    expect(disabled(NOTHING)).toEqual(['save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...PANES]);
+    // With no folder shown, the Folder view's own two do nothing either.
+    const FOLDER = ['folder-up', 'folder-refresh'];
+    expect(disabled(NOTHING)).toEqual(['save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES]);
     const editing: ToolbarState = { ...NOTHING, active: { editable: true, dirty: true }, anyDirty: true, can: (id) => id === 'undo' };
-    expect(disabled(editing)).toEqual(['redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...PANES]);
+    expect(disabled(editing)).toEqual(['redo', 'cut', 'copy', 'paste', 'delete', 'add-child', ...FOLDER, ...PANES]);
+  });
+
+  it("enables the Folder view's commands as each would act now, and names Read Again for what ⟳ does", () => {
+    const folder = (f: FolderCommands) =>
+      paletteCommands(NOTHING, undefined, f)
+        .filter((c) => c.id.startsWith('folder-'))
+        .map((c) => [c.id, c.label, !!c.disabled]);
+    expect(folder({ shown: true, canUp: true, refresh: 'read' })).toEqual([
+      ['folder-up', 'Folder: Up One Level', false],
+      ['folder-refresh', 'Folder: Read Again', false],
+    ]);
+    // A browser's picked folder: nothing above it, and only picked again.
+    expect(folder({ shown: true, canUp: false, refresh: 'pick' })).toEqual([
+      ['folder-up', 'Folder: Up One Level', true],
+      ['folder-refresh', 'Folder: Pick Again', false],
+    ]);
   });
 
   it("enables each of the panes' commands as it would act now", () => {
@@ -86,8 +107,19 @@ describe('paletteCommands', () => {
     expect(shortcut(true)).toMatchObject({ 'split-right': '⌘\\', 'focus-pane-2': '⌘2' });
   });
 
-  it('offers no Folder to a host without one', () => {
-    expect(paletteCommands({ ...NOTHING, canOpenFolder: false }).map((c) => c.id)).not.toContain('open-folder');
+  it('lists the Folder view only where the shell has it, as it was connected, whatever the host offers now', () => {
+    const ids = (view: boolean, canOpenFolder: boolean) =>
+      paletteCommands({ ...NOTHING, canOpenFolder }, undefined, { view, shown: true, canUp: true, refresh: 'read' }).map((c) => c.id);
+    // A host that showed no folders when the shell was connected, and offers Open Folder since.
+    expect(ids(false, true)).toContain('open-folder');
+    for (const id of ['show-folder', 'folder-up', 'folder-refresh']) expect(ids(false, true), id).not.toContain(id);
+    // One that did, and offers none now: the view is there still.
+    for (const id of ['show-folder', 'folder-up', 'folder-refresh']) expect(ids(true, false), id).toContain(id);
+  });
+
+  it('offers no Folder, and no Folder view, to a host without one', () => {
+    const ids = paletteCommands({ ...NOTHING, canOpenFolder: false }, undefined, { shown: true, canUp: true, refresh: 'read' }).map((c) => c.id);
+    for (const id of ['open-folder', 'show-folder', 'folder-up', 'folder-refresh']) expect(ids, id).not.toContain(id);
   });
 
   it('offers no New to a host that makes no file', () => {

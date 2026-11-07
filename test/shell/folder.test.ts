@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 // @vitest-environment happy-dom
 //
-// A folder in the Explorer, served as the Electron app's main process serves it (folderReads
+// A folder in the Folder view, served as the Electron app's main process serves it (folderReads
 // through serveFolder) across a channel: its tree following the active tab, the Usage column it
 // fills, the links it resolves, the Search view over its names, its changes, and its projects'
 // pages. Ported from data-explorer-app's page test of the same name, against <dex-shell-folder>.
@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { sourceUri } from '../../src/model/source/sourceUri.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import type { DexProjectPage } from '../../src/widgets/project-page/dex-project-page.js';
-import { fixture, folderPart, searchPanel, serveFolderTo, startPage, tempFolder, treeLabels, until, type Page } from './harness.js';
+import { fixture, folderBar, folderPart, searchPanel, serveFolderTo, startPage, tempFolder, treeLabels, until, type Page } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -56,11 +56,12 @@ const ask = (query: string) => {
 const found = () => (searchPanel().searching ? null : searchPanel().results.map((r) => r.entry.name));
 const PLANT = { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'shared_gain.slx': 'shared_gain.slx' };
 
-describe('a folder in the Explorer', () => {
+describe('a folder in the Folder view', () => {
   it('fills the Usage column from the models in it, for a dictionary opened before it was shown too', async () => {
     const dir = tempFolder('plant', PLANT);
     const page = pageOn();
-    expect(folderPart().hidden).toBe(true);
+    // No folder yet: the Folder view says none is open.
+    expect(folderPart().root).toBe('');
     const dict = path.join(dir, 'params.sldd');
     void page.handle.openPaths([dict]);
     await until(() => (tableAt(dict)?.columns?.length ?? 0) > 0);
@@ -69,9 +70,10 @@ describe('a folder in the Explorer', () => {
     show(page, dir);
     await until(() => !!tableAt(dict)!.columns?.includes('UsedBy') && usedBy(dict, 'Uo').includes('DictOnly'));
     expect(usedBy(dict, 'Kp')).toContain('PlantGain');
-    expect(folderPart().hidden).toBe(false);
-    await until(() => folderPart().shadowRoot?.querySelector('.title')?.textContent === 'plant');
-    expect(folderPart().shadowRoot!.querySelector<HTMLElement>('.title')!.title).toBe(dir);
+    // The folder's name the path bar's last segment, its path what that segment names.
+    expect(folderPart().root).toBe(dir);
+    await until(() => folderBar().segments.at(-1)?.label === 'plant');
+    expect(folderBar().segments.at(-1)!.path).toBe(dir);
   });
 
   it("selects the active tab's file in its tree, and a link opens the file the tree shows for its name, wherever it is", async () => {
@@ -145,7 +147,7 @@ describe('a folder in the Explorer', () => {
     const dir = tempFolder('plant', PLANT);
     show(page, dir);
     await until(() => treeLabels().includes('shadow_ws.slx') && !note());
-    await until(() => folderPart().shadowRoot?.querySelector('.title')?.textContent === 'plant');
+    await until(() => folderBar().segments.at(-1)?.label === 'plant');
   });
 });
 

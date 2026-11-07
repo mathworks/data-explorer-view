@@ -20,18 +20,44 @@ import {
   type StoreEntry,
   type StoreFs,
 } from 'data-explorer-core';
+import { entryKindOf, type FolderEntry } from '../model/hierarchy/folderEntries.js';
 import { listedFiles } from '../model/hierarchy/folderList.js';
 import { portFromMessagePort } from '../model/source/ports.js';
 import { serveFolder, type FolderReads } from '../model/source/serveFolder.js';
 import { sourceUri } from '../model/source/sourceUri.js';
 import { entriesOf } from './fsAccess.js';
 import { stampOf, type WebFiles } from './files.js';
-import { byCodeUnit, listDirectory, type BrowserDir } from './walk.js';
+import { byCodeUnit, listDirectory, listLevel, subDir, type BrowserDir } from './walk.js';
 
-/** The folder `dir`, shown at `root`, as serveFolder reads it. `limit` caps its listing. */
+/** The reason a folder the page names is refused: it is not the folder shown, nor one under it. */
+const NOT_SHOWN = 'Not a folder of the shown folder.';
+
+/**
+ * The `/`-separated path of the folder `path` in the folder shown at `root` ('' for the root): the
+ * page's question, so taken as written, nothing resolved. A path not under the root, or that steps
+ * out of it or names a folder twice over (a `..` or a `.` segment, an empty one), is refused.
+ */
+function folderIn(root: string, path: string): string {
+  if (path === root) return '';
+  if (!path.startsWith(`${root}/`)) throw new Error(NOT_SHOWN);
+  const rel = path.slice(root.length + 1);
+  if (rel.split('/').some((part) => part === '' || part === '.' || part === '..')) throw new Error(NOT_SHOWN);
+  return rel;
+}
+
+/**
+ * The folder `dir`, shown at `root`, as serveFolder reads it. `limit` caps its listing. Its
+ * `entries` are one level of a folder of it (the Folder view's), each at the path its listing
+ * would give it: the root, and below it each name, a `/` between.
+ */
 export function webFolderReads(root: string, dir: BrowserDir, files: WebFiles, limit?: number): FolderReads {
   const store = storeFs(root, dir);
   return {
+    // Only the folder shown and the folders under it: a page names no other (FolderReads.entries).
+    async entries(path): Promise<FolderEntry[]> {
+      const at = await subDir(dir, folderIn(root, path));
+      return (await listLevel(at)).map(({ name, folder }) => ({ name, path: `${path}/${name}`, kind: folder ? 'folder' : entryKindOf(name) }));
+    },
     files: {
       list: async () => {
         const listing = await listDirectory(dir, limit === undefined ? {} : { limit });

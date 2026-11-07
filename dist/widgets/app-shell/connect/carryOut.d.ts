@@ -27,6 +27,11 @@ export interface CarryOutContext {
     later(): void;
     /** Something could not be done: say so. */
     failed(message: string): void;
+    /** The Folder view's moves: the folder above made the workspace folder, and the folder read again (folderNav.ts). */
+    folder: {
+        up(): void;
+        refresh(): void;
+    };
 }
 /**
  * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel

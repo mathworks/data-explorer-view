@@ -124,6 +124,57 @@ that says only the first files are shown.
 Over a worker's port, or a `MessagePort`, `serveFolder(folder, port, { transfer: true })` hands
 each file's bytes over rather than copying them.
 
+### A folder as a file browser shows it
+
+A `FolderTree` (`data-explorer-view/model`) draws the same folder one level at a time: its
+folders, its data files (each the hierarchy's own row, with its references under it) and its
+other files. Its rows carry three fields the hierarchy's never do, which the tree draws:
+
+- `dimmed`: a file the app does not open. Its row is in the muted ink, `aria-disabled`, and a
+  click or Enter selects it and sends `dex-hierarchy-selected` with `uri: null`, so nothing opens.
+- `relation`: what a reference is to the row above it ("model reference", "data dictionary",
+  "referenced dictionary", "MAT-file"), drawn after the name in the muted ink.
+- `path`: the row's folder or file, for re-rooting and the menu, as the host spells it (a
+  reference row's too). `rowPath(item)` answers it, or for a row the hierarchy made, its file's
+  path read back from its uri.
+
+`connectHierarchy(element, hierarchy, { tree })` draws a tree's rows in place of the hierarchy's:
+every ask for rows goes to it (the top level, a row's rows, `reveal`, the walk back to the row the
+user chose), and the hierarchy's refreshes and rebuilds still draw again.
+
+```js
+const tree = new FolderTree({ hierarchy, entries: (dir) => folder.entries(dir), root });
+const handle = connectHierarchy(element, hierarchy, { tree, expandTopLevel: true });
+```
+
+### Marks: how each file stands in the tabs
+
+`marks` (or `handle.setMarks(marks)`) is a map from a file's uri (a row's `id`) to how its tab
+stands, in the tabs' own vocabulary, on every row of that file: `open`, a bar in the accent at the
+row's left edge (a border in forced colours); `active`, the active tab, `aria-current="true"` and a
+fill lighter than the selection's (it is not the tree's selection, which may be another row);
+`unsaved`, the ● after the label (the index's own unsaved mark is the same badge, so a row never
+shows two); `preview`, the label in italics. Set it again as the tabs change; an empty map marks
+nothing.
+
+```js
+handle.setMarks(new Map(tabs.map((t) => [t.uri, { open: true, active: t.active, unsaved: t.dirty, preview: t.preview }])));
+```
+
+### A row's menu
+
+With `rowMenu` (attribute `row-menu`), a right click on a row, or Shift+F10 or the ContextMenu key
+on the focused row, sends `dex-hierarchy-menu` with the row (`item`) and where to draw the menu:
+the pointer, or for the keyboard (`keyboard: true`) the row's lower left. The browser's own menu
+is kept away, both keys are spent, and the tree names them (`aria-keyshortcuts`). The tree draws
+no menu: the app does (a `<dex-context-menu>`), and a connected tree hands it on as the handle's
+`menu`. Off, the default, the right click and both keys are the browser's, as they always were.
+
+```js
+element.rowMenu = true;
+handle.on('menu', ({ item, x, y, keyboard }) => contextMenu.show(x, y, menuFor(item), { focusFirst: keyboard === true }));
+```
+
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
 ## At a glance
@@ -154,11 +205,27 @@ type `string[]` · default `[]` · property only
 The keys of the open rows. The tree changes it as the user opens and closes rows; a row
 whose key is here opens as soon as it is shown. Default none.
 
+### `marks`
+
+type `ReadonlyMap<string, RowMark>` · default `new Map()` · property only
+
+How each file's rows stand in the tabs, by the file's uri (a row's `id`): open, the active
+tab, unsaved, a preview. Setting it redraws the rows; it sends nothing. Default none.
+
 ### `selectedKey`
 
 type `string | null` · default `null` · property only
 
 The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing.
+
+### `rowMenu`
+
+type `boolean` · default `false` · attribute `row-menu`
+
+Whether a row's menu is the app's: a right click on a row, or Shift+F10 or the ContextMenu key
+on the focused row, sends `dex-hierarchy-menu`, the browser's own menu kept away and both keys
+spent, and the tree names the keys (`aria-keyshortcuts`). False, the default, leaves the right
+click and both keys to the browser, as they always were. Attribute `row-menu`.
 
 ### `label`
 
@@ -197,14 +264,17 @@ typed with no cast, on the element, the document or the window.
 ### `dex-hierarchy-selected`
 
 A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
-null for a row that is no file. Sent again each time a row is chosen.
+null for a row that is no file (or a dimmed one). Sent again each time a row is chosen.
 
 `detail` is a `HierarchySelectedDetail`:
 
 ```ts
 /** What `dex-hierarchy-selected` carries: the row chosen. */
 export interface HierarchySelectedDetail {
-  /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
+  /**
+   * The file the row opens (its `id`), or null for a row that is no file: a folder, External Data,
+   * a reference no file answers; and for a `dimmed` row, a file the app does not open.
+   */
   uri: string | null;
   /** The row's key, as `selectedKey` now holds it. */
   key: string;
@@ -219,9 +289,10 @@ export interface HierarchyItem {
   /**
    * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
    * reference no file answers, or `notice` for the row that says something of the folder rather
-   * than being in it (that only its first files are shown).
+   * than being in it (that only its first files are shown). `other` only on a FolderTree's row of
+   * a file the app does not open (`dimmed`): FolderHierarchy never makes one.
    */
-  kind: NodeKind | 'notice';
+  kind: NodeKind | 'notice' | 'other';
   /** What a group is (`kind` is `group`). */
   groupKind?: GroupKind;
   /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
@@ -244,6 +315,95 @@ export interface HierarchyItem {
    * rebuild, so a tree keeps what was open.
    */
   key: string;
+  // The three below are a FolderTree's (folderTree.ts), for the Folder view: absent on every row
+  // FolderHierarchy makes, so the VS Code extension's trees, drawn from these rows, never see them.
+  /** A file the app does not open (FolderTree's other files): drawn dimmed, opens nothing. */
+  dimmed?: boolean;
+  /**
+   * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
+   * Copy Path). Only on a FolderTree's rows: an entry's path, and a reference's file's spelled as
+   * the root is. FolderHierarchy's rows have none: `rowPath(item)` reads a file's from its uri.
+   */
+  path?: string;
+  /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
+  relation?: string;
+}
+
+export type NodeKind = SourceType | 'missing' | 'group';
+
+export type SourceType = 'model' | 'sldd' | 'mat' | 'project';
+
+export type GroupKind = 'external-data' | 'project' | 'folder';
+
+export type HealthState = 'cycle' | 'modified';
+```
+
+### `dex-hierarchy-menu`
+
+A row's menu is asked for: a right click on it (the browser's own menu kept away), or Shift+F10
+or the ContextMenu key on the focused row (`keyboard`, at the row's lower left). The tree
+draws no menu: the app does, for the row's `item`.
+
+`detail` is a `HierarchyMenuDetail`:
+
+```ts
+/** What `dex-hierarchy-menu` carries: the row whose menu is asked for, and where to show it. */
+export interface HierarchyMenuDetail {
+  /** The row. */
+  item: HierarchyItem;
+  /** Where the menu's left edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's left edge. */
+  x: number;
+  /** Where the menu's top edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's bottom edge. */
+  y: number;
+  /** Asked by the keyboard (Shift+F10, the ContextMenu key): the menu takes the focus to its first item. */
+  keyboard?: true;
+}
+
+/** One row of a folder's hierarchy, as a tree draws it. */
+export interface HierarchyItem {
+  /** What the row reads: a file's name, a project's or a folder's, `External Data`, or the name a reference names. */
+  label: string;
+  /**
+   * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
+   * reference no file answers, or `notice` for the row that says something of the folder rather
+   * than being in it (that only its first files are shown). `other` only on a FolderTree's row of
+   * a file the app does not open (`dimmed`): FolderHierarchy never makes one.
+   */
+  kind: NodeKind | 'notice' | 'other';
+  /** What a group is (`kind` is `group`). */
+  groupKind?: GroupKind;
+  /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
+  id?: string;
+  /**
+   * A file row's mark: `cycle` when it closes a circular reference, else `modified` when it has
+   * unsaved changes, else null. Not on a row that is no file.
+   */
+  health?: HealthState | null;
+  /** `collapsed` when the row has rows under it (`children()` answers them), `none` when it has none. */
+  collapsible: 'none' | 'collapsed';
+  /** What follows the label: why the row is unlike the others (`unresolved reference`, `↻ circular reference`). */
+  description?: string;
+  /** More than the label says, for a tooltip. */
+  tooltip?: string;
+  /** Its icon's id in the package's icons/. None on an unresolved reference, which draws a warning. */
+  icon?: string;
+  /**
+   * The row among its siblings, after its parent's key: the same row has the same key after a
+   * rebuild, so a tree keeps what was open.
+   */
+  key: string;
+  // The three below are a FolderTree's (folderTree.ts), for the Folder view: absent on every row
+  // FolderHierarchy makes, so the VS Code extension's trees, drawn from these rows, never see them.
+  /** A file the app does not open (FolderTree's other files): drawn dimmed, opens nothing. */
+  dimmed?: boolean;
+  /**
+   * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
+   * Copy Path). Only on a FolderTree's rows: an entry's path, and a reference's file's spelled as
+   * the root is. FolderHierarchy's rows have none: `rowPath(item)` reads a file's from its uri.
+   */
+  path?: string;
+  /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
+  relation?: string;
 }
 
 export type NodeKind = SourceType | 'missing' | 'group';
@@ -269,7 +429,9 @@ Each falls back to the light default when the page sets none (see `data-explorer
 
 | Token | Light default | |
 |---|---|---|
+| `--dex-bg-active` | `#e0e0e0` |  |
 | `--dex-bg-hover` | `#e8e8e8` |  |
+| `--dex-color-accent` | `#0078d4` |  |
 | `--dex-color-accent-bg` | `#cde4f7` |  |
 | `--dex-color-modified` | `#b45309` | The Status column's "Modified". |
 | `--dex-color-text` | `#333` |  |

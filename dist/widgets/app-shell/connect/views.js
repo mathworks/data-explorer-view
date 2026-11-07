@@ -13,10 +13,18 @@
 // window in Chromium, and no page can prevent it; the Terminal is Ctrl+` on every platform, a
 // literal Ctrl as VS Code has it, as Cmd+` switches a Mac's windows.
 //
+// The Folder view, second on the left beside the Explorer (which keeps the open files), is
+// Mod+Shift+K: of the free letters, the one no browser keeps from a page and the app's native menu
+// leaves alone. Mod+Shift+J is Chromium's DevTools console on Windows and Linux and its Downloads
+// on macOS; Mod+Shift+Y a Mac's Make New Sticky Note service, and Firefox's Downloads elsewhere;
+// Mod+Shift+K is only Firefox's Web Console on Windows and Linux, and Edge's Duplicate Tab, both of
+// which a page spends, as Show Graph's Mod+Shift+H spends a browser's history.
+//
 // Pure: data alone.
 /** The shell's views, in the order of their buttons on each side. */
 export const SHELL_VIEWS = [
     { view: 'explorer', side: 'left', label: 'Explorer', icon: 'filesSB', chord: 'Mod+Shift+E', command: 'show-explorer' },
+    { view: 'folder', side: 'left', label: 'Folder', icon: 'folder', chord: 'Mod+Shift+K', command: 'show-folder' },
     { view: 'gallery', side: 'left', label: 'Gallery', icon: 'gridUI', chord: 'Mod+Shift+L', command: 'show-gallery' },
     { view: 'search', side: 'left', label: 'Search', icon: 'find', chord: 'Mod+Shift+F', command: 'show-search' },
     { view: 'properties', side: 'right', label: 'Properties', icon: 'propertyInspectorSB', chord: 'Mod+Shift+I', command: 'show-properties' },

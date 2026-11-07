@@ -111,6 +111,12 @@ export function carryOut(id, tab, on) {
             on.nav[id]();
             on.later();
             break;
+        case 'folder-up':
+            on.folder.up();
+            break;
+        case 'folder-refresh':
+            on.folder.refresh();
+            break;
         case 'show-graph':
             // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).
             showRootFrom(on.tabs.active?.panel, () => {

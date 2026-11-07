@@ -75,6 +75,13 @@ export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export type { GraphReader, ProjectStore, RawFile } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hierarchy/folderHierarchy.js';
+// One level of a folder, every entry (the index above holds only the data files): its order, and
+// which files are data.
+export { entryKindOf, sortEntries } from './hierarchy/folderEntries.js';
+export type { FolderEntry, FolderEntryKind } from './hierarchy/folderEntries.js';
+// The Folder view's tree: a folder's entries merged with the hierarchy's rows.
+export { FolderTree, rowPath } from './hierarchy/folderTree.js';
+export type { FolderTreeOptions } from './hierarchy/folderTree.js';
 
 // Sources: a document as a table shows it (the rows, the children of a row, a matrix's cells,
 // the inspector's page, and what changes after), and the workspace that opens documents in the
