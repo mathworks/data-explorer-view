@@ -9,6 +9,7 @@
 import { comparable, PICK_PREFIX } from './comparePick.js';
 import { connectFileMenu } from './fileMenu.js';
 import { connectTabMenu } from './tabMenu.js';
+import { isMatlabCommand } from './matlab.js';
 import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
     'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
@@ -17,7 +18,8 @@ const COMMANDS = new Set([
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {
-    return COMMANDS.has(id);
+    // A MATLAB's commands are matlab.ts's, which knows them.
+    return COMMANDS.has(id) || isMatlabCommand(id);
 }
 /** Answer `parts`' requests with `on`; returns what stops it. */
 export function connectRequests(shell, parts, on) {
@@ -90,8 +92,17 @@ export function connectRequests(shell, parts, on) {
         if (sectionId !== undefined)
             tab.handle?.select([sectionId]);
     });
-    // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file.
-    stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close, comparable, compareWith: on.compareWith }));
+    // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file, and a
+    // connected MATLAB's commands for it.
+    stops.push(connectFileMenu(parts.explorer, parts.menu, {
+        tabOf: on.tabOf,
+        save: on.save,
+        close: on.close,
+        comparable,
+        compareWith: on.compareWith,
+        ...(on.matlabItems ? { matlabItems: on.matlabItems } : {}),
+        ...(on.runMatlab ? { runMatlab: on.runMatlab } : {}),
+    }));
     // A tab's menu: Compare With… or a compare's steps, Close, Close Others and Copy Link for that tab.
     stops.push(connectTabMenu(parts.docs, parts.menu, {
         tabOf: on.tabOf,

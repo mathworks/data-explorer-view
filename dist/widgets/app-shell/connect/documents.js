@@ -145,10 +145,12 @@ export function connectDocument(tab, doc, storageKey, wiring) {
         resolveLink: (link, fromUri) => wiring.folder()?.resolveLink(link, fromUri),
         // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file). A row in
         // an entry has a link to it where the host makes links, asked at each menu; a section's own row,
-        // and the space under the rows, name no entry.
+        // and the space under the rows, name no entry. A connected MATLAB's commands for the row come
+        // after, asked at each menu.
         menuItems: (context) => [
             ...(host.entryLink && context.rowId !== null && linkedEntryOf(context.rows, context.rowId) ? [{ ...COPY_ENTRY_LINK }] : []),
             { ...SHOW_IN_GRAPH },
+            ...(wiring.matlabItems?.(tab, context) ?? []),
         ],
     });
     tab.handle = handle;

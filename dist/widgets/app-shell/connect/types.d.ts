@@ -19,7 +19,7 @@ import type { Theme } from '../../../model/shell/settings.js';
  * `next-change` and `previous-change` go to the next or previous difference of the active compare
  * tab.
  */
-export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'open-url' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'copy-link' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-folder' | 'folder-up' | 'folder-refresh' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph' | 'compare-with' | 'next-change' | 'previous-change';
+export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'open-url' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'copy-link' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-folder' | 'folder-up' | 'folder-refresh' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph' | 'compare-with' | 'next-change' | 'previous-change' | 'matlab-connect' | 'matlab-open' | 'matlab-update-diagram' | 'matlab-evaluate' | 'matlab-to-workspace' | 'matlab-from-workspace' | 'matlab-data-explorer';
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';
 /** One open file, as Copy Link names it to the host. */
@@ -158,6 +158,11 @@ export interface ShellHost {
     /** What a project page calls the file manager `reveal` shows things in ('Finder'). Default by platform. */
     revealIn?: string;
     /**
+     * A MATLAB the host reaches. Absent (the browser host, the VS Code extension): no MATLAB in the
+     * status bar, the menus or the palette. Its `on` is subscribed once, as the shell connects.
+     */
+    matlab?: ShellMatlab;
+    /**
      * What a tooltip says of the file at `path` (its tab's, its Explorer row's, its location bar
      * segment's): what the path means to the user, for a host whose paths are of its own making (the
      * browser host's: a file's name, or its place in the folder it was shown from); '' for none.
@@ -275,4 +280,108 @@ export interface ShellHandle {
     requestClose(): Promise<boolean>;
     /** Take the app down: every document closed, the shell's children and overlays removed, every listener gone. */
     dispose(): void;
+}
+/**
+ * Whether a MATLAB is connected, and what it has: its release and process, whether it is running
+ * something (it answers once it is done), whether it has its Data Explorer (R2027a and later) and
+ * Simulink.
+ */
+export type MatlabStatus = {
+    state: 'off';
+} | {
+    state: 'connected';
+    release: string;
+    pid: number;
+    busy: boolean;
+    dataExplorer: boolean;
+    simulink: boolean;
+};
+/** An error or a warning as MATLAB gave it: its message as plain text, and its identifier where it has one. */
+export interface MatlabDiagnostic {
+    identifier?: string;
+    message: string;
+}
+/** A value as MATLAB displays it: the text (cut at MATLAB's end past 20000 characters, `truncated`), its class and its size. */
+export interface MatlabValue {
+    text: string;
+    class: string;
+    size: number[];
+    truncated: boolean;
+}
+/** What an evaluation answers: the value, or the expression's own error (an answer, not a failure). */
+export type MatlabEvaluation = {
+    value: MatlabValue;
+} | {
+    error: MatlabDiagnostic;
+};
+/** What Update Diagram answers: whether the model updated, its errors, and its warnings. */
+export interface MatlabUpdate {
+    model: string;
+    ok: boolean;
+    errors: MatlabDiagnostic[];
+    warnings: MatlabDiagnostic[];
+}
+/** An entry of a saved file: its file's path, its section (a dictionary's, or a model's `Model Workspace`; none for a MAT-file), and its name. */
+export interface MatlabEntryRef {
+    file: string;
+    section?: string;
+    entry: string;
+}
+/** A base-workspace variable a workspace command moved: its name, class and size. */
+export interface MatlabVariable {
+    name: string;
+    class: string;
+    size: number[];
+}
+/** Where a file opened in MATLAB: its Data Explorer, or (before R2027a) Model Explorer; and whether the entry asked for was selected there. */
+export interface MatlabOpenedIn {
+    app: 'dataExplorer' | 'modelExplorer';
+    selected: boolean;
+}
+/**
+ * A MATLAB the host reaches (the Electron app's link to a MATLAB session). The shell offers its
+ * commands only while `status()` is connected, and calls each only from a user's choice. A
+ * rejection is the link's failure (not connected, no answer), said as a toast and in the Log. An
+ * expression's own error is Evaluate's answer, not a rejection.
+ */
+export interface ShellMatlab {
+    /** What is connected now (read at each menu, palette and repaint). */
+    status(): MatlabStatus;
+    /** Hear each change of status; returns the unsubscribe. */
+    on(listener: (status: MatlabStatus) => void): () => void;
+    /** The host's Connect to MATLAB: how to connect, and what is connected. */
+    showConnect(): void;
+    /** Open the model in Simulink, the block (its path below the root, or its SID) highlighted. */
+    open(target: {
+        model: string;
+        block?: string;
+        sid?: string;
+    }): Promise<void>;
+    /**
+     * Evaluate `expression` in the base workspace, or in the model's workspace, or the dictionary's
+     * section (Design Data by default), as `context` names one; the value, or the expression's error.
+     */
+    evaluate(request: {
+        expression: string;
+        context?: {
+            model?: string;
+            dictionary?: string;
+            section?: string;
+        };
+    }): Promise<MatlabEvaluation>;
+    /** Update the model's diagram, and say its errors and warnings. */
+    updateDiagram(model: string): Promise<MatlabUpdate>;
+    /** MATLAB reads the entry from the saved file into a base-workspace variable `name`. */
+    toWorkspace(request: MatlabEntryRef & {
+        name: string;
+    }): Promise<MatlabVariable>;
+    /** MATLAB writes base-workspace `name` into the entry of the saved file, which the host's watcher then reloads. */
+    fromWorkspace(request: MatlabEntryRef & {
+        name: string;
+    }): Promise<MatlabVariable>;
+    /** Open the file in MATLAB's Data Explorer (or Model Explorer, before it), the entry selected where it can be. */
+    openInDataExplorer(request: {
+        path: string;
+        entry?: string;
+    }): Promise<MatlabOpenedIn>;
 }

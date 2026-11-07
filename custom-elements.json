@@ -3411,6 +3411,78 @@
             "name": "ShellNotice",
             "module": "./connect/types.js"
           }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabDiagnostic",
+          "declaration": {
+            "name": "MatlabDiagnostic",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabEntryRef",
+          "declaration": {
+            "name": "MatlabEntryRef",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabEvaluation",
+          "declaration": {
+            "name": "MatlabEvaluation",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabOpenedIn",
+          "declaration": {
+            "name": "MatlabOpenedIn",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabStatus",
+          "declaration": {
+            "name": "MatlabStatus",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabUpdate",
+          "declaration": {
+            "name": "MatlabUpdate",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabValue",
+          "declaration": {
+            "name": "MatlabValue",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "MatlabVariable",
+          "declaration": {
+            "name": "MatlabVariable",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellMatlab",
+          "declaration": {
+            "name": "ShellMatlab",
+            "module": "./connect/types.js"
+          }
         }
       ]
     },
@@ -6463,7 +6535,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a text, a choice from its `options`, or a text of several lines; a change sends\n`dex-property-changed`), a link (on its name, or on its value; a click sends\n`dex-property-navigate`), or a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
+          "description": "The properties of one entry, in titled groups of name–value rows. A row may be an editable\nfield (a text, a choice from its `options`, or a text of several lines; a change sends\n`dex-property-changed`), a link (on its name, or on its value; a click sends\n`dex-property-navigate`), a matrix value with the glyph that opens it in the variable\neditor (`dex-matrix-open`, from `<dex-matrix-open>`), or a read-only text of several lines\n(`multiline`), drawn as written in a monospace face. It holds no data of its own: an app sets\n`groups`, from the model's buildPropertyGroups, each time the selection changes.",
           "name": "DexPropertyInspector",
           "members": [
             {
@@ -6510,6 +6582,10 @@
           "customElement": true,
           "cssProperties": [
             {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
               "name": "--dex-border-color",
               "default": "#d0d0d0"
             },
@@ -6530,8 +6606,16 @@
               "default": "#555"
             },
             {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
               "name": "--dex-font-family",
               "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
             }
           ]
         },

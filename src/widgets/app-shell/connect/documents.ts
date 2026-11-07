@@ -13,10 +13,10 @@ import { projectPageMessage } from '../../../model/source/projectPage.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { extOf, isSupportedPath } from 'data-explorer-core';
 import type { LinkTarget } from '../../../model/ids/linkTarget.js';
-import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
 import type { DexProjectPage, ProjectOpenDetail } from '../../project-page/dex-project-page.js';
-import { connectTable, type TableHandle } from '../../tree-table/connectTable.js';
+import { connectTable, type TableHandle, type TableMenuContext } from '../../tree-table/connectTable.js';
 import type { DexTreeTable, RowSelectedDetail } from '../../tree-table/dex-tree-table.js';
 import type { DexVariableEditor } from '../../variable-editor/dex-variable-editor.js';
 import type { DocTab } from '../dex-doc-tabs.js';
@@ -162,6 +162,8 @@ export interface DocumentWiring {
   folder(): FolderView | undefined;
   /** How a table made now is ruled: the table style setting's. */
   tableStyle(): DexTreeTable['tableStyle'];
+  /** The MATLAB items a row's menu ends with (connectShell's, from matlab.ts); none without a MATLAB. */
+  matlabItems?(tab: OpenTab, context: TableMenuContext): ContextMenuItem[];
 }
 
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
@@ -202,10 +204,12 @@ export function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiri
     resolveLink: (link: LinkTarget, fromUri: string) => wiring.folder()?.resolveLink(link, fromUri),
     // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file). A row in
     // an entry has a link to it where the host makes links, asked at each menu; a section's own row,
-    // and the space under the rows, name no entry.
+    // and the space under the rows, name no entry. A connected MATLAB's commands for the row come
+    // after, asked at each menu.
     menuItems: (context) => [
       ...(host.entryLink && context.rowId !== null && linkedEntryOf(context.rows, context.rowId) ? [{ ...COPY_ENTRY_LINK }] : []),
       { ...SHOW_IN_GRAPH },
+      ...(wiring.matlabItems?.(tab, context) ?? []),
     ],
   });
   tab.handle = handle;

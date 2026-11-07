@@ -20,8 +20,9 @@ export interface PropertyNavigateDetail {
  * The properties of one entry, in titled groups of name–value rows. A row may be an editable
  * field (a text, a choice from its `options`, or a text of several lines; a change sends
  * `dex-property-changed`), a link (on its name, or on its value; a click sends
- * `dex-property-navigate`), or a matrix value with the glyph that opens it in the variable
- * editor (`dex-matrix-open`, from `<dex-matrix-open>`). It holds no data of its own: an app sets
+ * `dex-property-navigate`), a matrix value with the glyph that opens it in the variable
+ * editor (`dex-matrix-open`, from `<dex-matrix-open>`), or a read-only text of several lines
+ * (`multiline`), drawn as written in a monospace face. It holds no data of its own: an app sets
  * `groups`, from the model's buildPropertyGroups, each time the selection changes.
  *
  * @tagname dex-property-inspector

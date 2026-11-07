@@ -12,6 +12,8 @@ import { comparable, PICK_PREFIX } from './comparePick.js';
 import type { OpenTab } from './documents.js';
 import { connectFileMenu } from './fileMenu.js';
 import { connectTabMenu } from './tabMenu.js';
+import { isMatlabCommand, type MatlabAction } from './matlab.js';
+import type { ContextMenuItem } from '../../context-menu/dex-context-menu.js';
 import type { ShellParts } from './parts.js';
 import type { ShellCommand } from './types.js';
 import { SHELL_VIEWS } from './views.js';
@@ -25,7 +27,8 @@ const COMMANDS: ReadonlySet<string> = new Set<ShellCommand>([
 
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id: string): id is ShellCommand {
-  return COMMANDS.has(id);
+  // A MATLAB's commands are matlab.ts's, which knows them.
+  return COMMANDS.has(id) || isMatlabCommand(id);
 }
 
 /** What connectShell does for its parts' requests. */
@@ -68,6 +71,10 @@ export interface ShellRequests {
   picked(id: string): void;
   /** Ask which file to compare `tab`'s with, and open a compare tab of the two. */
   compareWith(tab: OpenTab): void;
+  /** The MATLAB items an open file's menu in the Explorer ends with; none without a MATLAB. */
+  matlabItems?(tab: OpenTab): ContextMenuItem[];
+  /** Carry out a MATLAB item chosen on a file's menu. */
+  runMatlab?(tab: OpenTab, id: MatlabAction): void;
 }
 
 /** Answer `parts`' requests with `on`; returns what stops it. */
@@ -130,8 +137,19 @@ export function connectRequests(shell: DexAppShell, parts: ShellParts, on: Shell
     on.activate(tab);
     if (sectionId !== undefined) tab.handle?.select([sectionId]);
   });
-  // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file.
-  stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close, comparable, compareWith: on.compareWith }));
+  // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file, and a
+  // connected MATLAB's commands for it.
+  stops.push(
+    connectFileMenu(parts.explorer, parts.menu, {
+      tabOf: on.tabOf,
+      save: on.save,
+      close: on.close,
+      comparable,
+      compareWith: on.compareWith,
+      ...(on.matlabItems ? { matlabItems: on.matlabItems } : {}),
+      ...(on.runMatlab ? { runMatlab: on.runMatlab } : {}),
+    }),
+  );
   // A tab's menu: Compare With… or a compare's steps, Close, Close Others and Copy Link for that tab.
   stops.push(
     connectTabMenu(parts.docs, parts.menu, {

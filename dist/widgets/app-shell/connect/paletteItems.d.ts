@@ -49,3 +49,10 @@ export interface CompareCommands {
  * group's last, greyed while the host's link would link no file.
  */
 export declare function paletteCommands(state: ToolbarState, panes?: PaneCommands, folder?: FolderCommands, host?: HostCommands, compare?: CompareCommands): PaletteCommand[];
+/**
+ * `commands` with a host's MATLAB group (`matlab`, connectShell's from matlab.ts) among them: after
+ * every other group, before Settings and About, as a MATLAB menu would come before a window's own.
+ * An empty group leaves the list as it was. A list of its own rather than a part of
+ * paletteCommands, so what the shell lists of itself does not wait on what its host reaches.
+ */
+export declare function withMatlabCommands(commands: readonly PaletteCommand[], matlab: readonly PaletteCommand[]): PaletteCommand[];

@@ -38,3 +38,4 @@ export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
 export type { CloseAnswer, ConnectShellOptions, OpenAtTarget, ShellCommand, ShellEntryTarget, ShellHandle, ShellHost, ShellLink, ShellLinkFile, ShellLinkRequest, ShellNotice, } from './connect/types.js';
+export type { MatlabDiagnostic, MatlabEntryRef, MatlabEvaluation, MatlabOpenedIn, MatlabStatus, MatlabUpdate, MatlabValue, MatlabVariable, ShellMatlab, } from './connect/types.js';

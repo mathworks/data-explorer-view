@@ -1,5 +1,6 @@
-import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexExplorer } from '../dex-explorer.js';
+import { type MatlabAction } from './matlab.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellCommand } from './types.js';
 /** The menu's label of the chord of `command`, read at each menu as the platform says it (a tab's menu's too). */
@@ -16,6 +17,10 @@ export interface FileMenuActions<T extends ShellTab> {
     comparable(tab: T): boolean;
     /** Ask which file to compare `tab`'s with (Compare With…). */
     compareWith(tab: T): void;
+    /** The MATLAB items after the file's own, a separator before them; none without a MATLAB. */
+    matlabItems?(tab: T): ContextMenuItem[];
+    /** Carry out a MATLAB item chosen on `tab`'s file. */
+    runMatlab?(tab: T, id: MatlabAction): void;
 }
 /** Answer `explorer`'s file menus with `menu`; returns what stops it. */
 export declare function connectFileMenu<T extends ShellTab>(explorer: DexExplorer, menu: DexContextMenu, actions: FileMenuActions<T>): () => void;

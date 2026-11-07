@@ -78,10 +78,25 @@ import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { connectCompare } from './compare.js';
 import { comparable, compareChoices } from './comparePick.js';
-import { paletteCommands, type HostCommands, type PaneCommands } from './paletteItems.js';
+import {
+  isMatlabAction,
+  matlabActionLabel,
+  matlabLabel,
+  matlabMenuItems,
+  matlabOffers,
+  matlabPaletteCommands,
+  MatlabResults,
+  matlabTargetOf,
+  runMatlab,
+  withMatlabResults,
+  type MatlabAction,
+  type MatlabTarget,
+} from './matlab.js';
+import { paletteCommands, withMatlabCommands, type HostCommands, type PaneCommands } from './paletteItems.js';
 import { copiedNote, linkRequestOf, NO_LINK, OPEN_URL_PROMPT, type LinkTab } from './shareLinks.js';
 import { SHELL_VIEWS, viewOfCommand } from './views.js';
-import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle, ShellLink, ShellLinkFile } from './types.js';
+import type { ConnectShellOptions, MatlabStatus, OpenAtTarget, ShellCommand, ShellHandle, ShellLink, ShellLinkFile } from './types.js';
+import type { TableHandle } from '../../tree-table/connectTable.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -189,6 +204,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // shown, to the file its tree shows for the name the link holds; at Root, to the graph's file.
   const inspector = connectInspector(parts.inspector, null, { variableEditor: editor, empty: parts.inspectorEmpty });
   inspector.on('navigate', (target) => void followInspectorLink(target));
+  // A connected MATLAB's evaluations, kept for their rows (matlab.ts), and each table's feed to the
+  // inspector with them added, made once per table so the inspector follows one feed per table.
+  const matlabResults = new MatlabResults();
+  const matlabFeeds = new WeakMap<TableHandle, InspectorFeed>();
   async function followInspectorLink(target: string): Promise<void> {
     const from = tabs.active;
     if (!from) return graph.openLink(target);
@@ -199,7 +218,17 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // The workspace folder (shownFolder.ts, below), in the Folder view: its hierarchy; a chosen file opens as a tab.
   const folderNow = (): FolderView | undefined => folders.current;
   // A table is ruled as Settings says when it is made (popovers, below, is there before any file is read).
-  const wiring = { host, editor, menu, dialog, folder: folderNow, tableStyle: () => popovers.tableStyle() };
+  const wiring = {
+    host,
+    editor,
+    menu,
+    dialog,
+    folder: folderNow,
+    tableStyle: () => popovers.tableStyle(),
+    // A row's menu ends with a connected MATLAB's commands for the row (none without one).
+    matlabItems: (tab: OpenTab, context: { rowId: string | null; rows: readonly TreeTableRow[] }) =>
+      matlabMenuItems(matlabOffers(host.matlab?.status(), matlabTarget(tab, context.rowId, context.rows))),
+  };
 
   // The system's theme for Auto: the source the host gave (the page's media queries by default),
   // until the host tells one itself (setSystemTheme).
@@ -264,7 +293,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   let rootPage: { file: SelectedFile; feed: InspectorFeed } | null = null;
   function followInspector(): void {
     // A compare tab's page is its selected line's differences.
-    if (tabs.active) return inspector.follow(tabs.active.handle ?? tabs.active.compare?.feed ?? null);
+    if (tabs.active) return inspector.follow(inspected(tabs.active) ?? tabs.active.compare?.feed ?? null);
     const file = tabs.items.length > 0 ? graph.selectedFile() : null;
     if (file !== rootPage?.file) rootPage = file ? { file, feed: pageFeed(file) } : null;
     inspector.follow(rootPage?.feed ?? null);
@@ -679,6 +708,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           later();
         }),
       );
+      // A connected MATLAB's command chosen on a row's menu (wiring.matlabItems).
+      tab.stops.push(
+        handle.on('action', ({ actionId, rowId }) => {
+          if (isMatlabAction(actionId)) runOn(tab, actionId, rowId);
+        }),
+      );
       if (tab === tabs.active) follow();
       later();
       log('info', created ? `Opened ${tab.name}, a new data dictionary` : `Opened ${tab.name}`);
@@ -975,6 +1010,15 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The tab active when the command was given, whatever is active by the time it is carried out.
     const tab = tabs.active;
     if (id === 'settings' || id === 'about') return popovers.toggle(id);
+    if (id === 'matlab-connect') return void host.matlab?.showConnect();
+    // On the active tab's selected row, or its file with none, once a cell editor still open has
+    // given the document what it holds (a native menu's item takes no focus).
+    if (isMatlabAction(id)) {
+      void Promise.resolve(tab?.handle?.commitEdit()).then(() => {
+        if (!disposed) runOn(tab && isOpen(tab) ? tab : undefined, id, tab?.selection[0] ?? null);
+      });
+      return;
+    }
     // The palette, as its own modal: the popovers make way first, one Escape closing one layer;
     // none over another modal, whose keys are its own, until one stack keeps their order (F2).
     if (id === 'palette') {
@@ -982,10 +1026,13 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       popovers.closeAll();
       const active = tabs.active;
       return parts.palette.show(
-        paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, hostCommands(), {
-          canCompare: !!active && comparable(active),
-          hasChanges: !!active?.compare?.hasChanges,
-        }),
+        withMatlabCommands(
+          paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }, hostCommands(), {
+            canCompare: !!active && comparable(active),
+            hasChanges: !!active?.compare?.hasChanges,
+          }),
+          matlabCommands(),
+        ),
       );
     }
     const view = viewOfCommand(id);
@@ -1118,6 +1165,9 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       },
       picked,
       compareWith,
+      // An open file's menu in the Explorer ends with a connected MATLAB's commands for the file.
+      matlabItems: (tab) => matlabMenuItems(matlabOffers(host.matlab?.status(), matlabTarget(tab, null))),
+      runMatlab: (tab, id) => runOn(tab, id, null),
     }),
   );
 
@@ -1244,6 +1294,77 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // Its tree says so in a row of its own; the Log keeps the line.
     indexFailed: (text) => log('error', `The folder's data files could not be read: ${text}`),
   });
+
+  // --- MATLAB ------------------------------------------------------------------------------------
+
+  // A MATLAB the host reaches (ShellHost.matlab, matlab.ts): the status bar names the one connected,
+  // and its button, like the palette's Connect to MATLAB… and the `matlab-connect` command, shows
+  // the host's way to connect. Heard once, from now on, and drawn as it is now. A MATLAB gone takes
+  // its answers with it: Properties shows what this MATLAB said, and the next may say otherwise.
+  const paintMatlab = (now: MatlabStatus | undefined = host.matlab?.status()): void => {
+    if (disposed) return;
+    const { label, title } = matlabLabel(now);
+    status.matlab = label;
+    status.matlabTitle = title;
+  };
+  stops.push(
+    host.matlab?.on((now) => {
+      if (now.state === 'off') matlabResults.clear();
+      paintMatlab(now);
+    }) ?? (() => {}),
+  );
+  paintMatlab();
+  status.addEventListener('dex-shell-matlab-connect', () => host.matlab?.showConnect());
+
+  // The palette's MATLAB group, for a host with a MATLAB: Connect to MATLAB…, connected or not, then
+  // the active tab's commands, for its selected row or its file.
+  function matlabCommands() {
+    const active = tabs.active;
+    const offers = active ? matlabOffers(host.matlab?.status(), matlabTarget(active, active.selection[0] ?? null)) : [];
+    return matlabPaletteCommands(!!host.matlab, offers);
+  }
+
+  // What `tab`'s row `rowId` (null: its file) is to MATLAB, as its table holds it now.
+  function matlabTarget(tab: OpenTab, rowId: string | null, rows: readonly TreeTableRow[] = tab.table?.rows ?? []): MatlabTarget | undefined {
+    return matlabTargetOf(tab, rows, rowId);
+  }
+
+  // A MATLAB command on `tab`'s row (or its file), however it was asked for: carried out only where
+  // it is offered now, and not while it waits for a save, each refusal said.
+  function runOn(tab: OpenTab | undefined, id: MatlabAction, rowId: string | null): void {
+    const matlab = host.matlab;
+    const target = tab ? matlabTarget(tab, rowId) : undefined;
+    const offer = matlabOffers(matlab?.status(), target).find((o) => o.id === id);
+    if (!matlab || !target || !offer) return say('info', `${matlabActionLabel(id, matlab?.status())} is not available here`);
+    if (offer.disabled) return say('info', offer.reason ?? `${offer.label} is not available now`);
+    void runMatlab(id, target, {
+      matlab,
+      say,
+      log,
+      evaluated(of, answer) {
+        if (of.rowId !== undefined && of.value !== undefined) matlabResults.set(of.docUri, of.rowId, of.value, answer);
+      },
+      showProperties: () => command('show-properties'),
+    });
+  }
+
+  // The feed the inspector follows for `tab`: its table's, with what a connected MATLAB answered of
+  // a row's value added while the row's value is still the one asked (a changed value finds none).
+  // A host with no MATLAB has the table's own.
+  function inspected(tab: OpenTab): InspectorFeed | null {
+    const handle = tab.handle;
+    if (!handle || !host.matlab) return handle ?? null;
+    let feed = matlabFeeds.get(handle);
+    if (!feed) {
+      const answerFor = (rowId: string) => {
+        const target = matlabTarget(tab, rowId);
+        return target?.value === undefined ? undefined : matlabResults.get(target.docUri, rowId, target.value);
+      };
+      feed = withMatlabResults(handle, answerFor, (listener) => matlabResults.on(listener));
+      matlabFeeds.set(handle, feed);
+    }
+    return feed;
+  }
 
   // Nothing is open yet, and nowhere has been visited: the history starts at the first file.
   paint();

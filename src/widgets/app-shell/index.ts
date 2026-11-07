@@ -91,3 +91,16 @@ export type {
   ShellLinkRequest,
   ShellNotice,
 } from './connect/types.js';
+
+// A MATLAB a host may reach (ShellHost.matlab), and what its commands answer.
+export type {
+  MatlabDiagnostic,
+  MatlabEntryRef,
+  MatlabEvaluation,
+  MatlabOpenedIn,
+  MatlabStatus,
+  MatlabUpdate,
+  MatlabValue,
+  MatlabVariable,
+  ShellMatlab,
+} from './connect/types.js';
