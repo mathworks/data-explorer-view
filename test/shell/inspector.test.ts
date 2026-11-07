@@ -258,6 +258,21 @@ describe('the Properties view at Root', () => {
     expect(tabNames()).toEqual(['params.sldd', 'shadow_ws.slx']);
   });
 
+  it("shows the row a tab's selection holds again when Back comes back to the tab from Root", async () => {
+    // The tab's table has its selection all along; the inspector, following none at Root, follows
+    // it again, and Back selects the same row once more, which is no new page to send.
+    const page = startPage(FILES);
+    await open(page, 'shadow_ws.slx', 'params.sldd');
+    await selectRow('params.sldd', 'Kp');
+    await until(() => rows().includes('Name: Kp'));
+    page.command('show-graph');
+    await until(() => inspectorNote().hidden === false);
+    page.command('back');
+    await until(() => activeTab() === tabNamed('params.sldd'));
+    await until(() => rows().includes('Name: Kp'));
+    expect(inspectorNote().hidden).toBe(true);
+  });
+
   it("follows the active tab again when one is shown, and the graph's selection back at Root", async () => {
     const { box } = await atRoot();
     graphClick(box('shadow_ws.slx').id);

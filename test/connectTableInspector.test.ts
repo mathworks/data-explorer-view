@@ -135,6 +135,21 @@ describe('inspectorPages', () => {
     expect(seen.map((p) => p.rowId)).toEqual([uriOf('params.sldd')]);
   });
 
+  it('sends a new listener the page of the row selected, though a select of that row overtakes it, which sends the others nothing', async () => {
+    // As an inspector that follows the table again (back from Root) hears it: its first page is
+    // overtaken by the row selected once more, the page the first listener has already.
+    const { handle, pages, select, rowNamed } = await mount('params.sldd', { inspectorPages: true });
+    await select('Kp');
+    const before = pages.length;
+    const seen: InspectorView[] = [];
+    const stop = handle.onPage((page) => seen.push(page));
+    await select('Kp');
+    stop();
+    expect(seen.map((p) => p.rowId)).toEqual([rowNamed('Kp').ID]);
+    // The first listener, which has the page, is sent it no more.
+    expect(pages.length).toBe(before);
+  });
+
   it('sends the page again on refreshInspector() where it changed: the file now holds an edit', async () => {
     const { handle, doc, pages, rowNamed, table } = await mount('params.sldd', { inspectorPages: true, editing: true }, true);
     expect(row(pages.at(-1), 'Modified')?.value).toBe('No');
