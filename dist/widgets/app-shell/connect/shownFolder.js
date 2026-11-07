@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The folder in the Explorer, as the shell shows one and then another in its place: the folder's
-// part (its title, its note) and its tree filled from the folder read across its port (folder.ts's
+// The workspace folder, as the shell shows one and then another in its place: the Folder view's
+// part (its root, its note) and its tree filled from the folder read across its port (folder.ts's
 // showFolder), and what listens to the folder, let go of with it. connectShell says what a chosen
 // file and a change mean (a tab opened, the documents' Usage and project pages painted again, the
 // Search view asked again); this keeps the folder's own half.
@@ -28,9 +28,9 @@ export function connectShownFolder(part, tree, actions) {
         },
         show(root, port) {
             drop();
-            part.hidden = false;
             part.root = root;
             part.note = '';
+            part.status = '';
             let note = 'No data files in this folder.';
             const shown = showFolder(tree, root, port, {
                 empty: (isEmpty) => (part.note = isEmpty ? note : ''),
@@ -40,6 +40,8 @@ export function connectShownFolder(part, tree, actions) {
                     part.note = note;
                     actions.failed?.(text);
                 },
+                menu: (detail) => actions.menu?.(detail),
+                indexFailed: (text) => actions.indexFailed?.(text),
             });
             folder = shown;
             // The folder's names are read again each time it takes a change: its tree is built again

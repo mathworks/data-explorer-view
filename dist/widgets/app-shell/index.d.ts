@@ -9,6 +9,8 @@ export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
 export type { ExplorerDropDetail, ExplorerDropTarget, ExplorerDropVerdict, ExplorerEventMap, ExplorerFile, ExplorerGroup, ExplorerMenuDetail, ExplorerOpenDetail, ExplorerSection, ExplorerSelection, } from './dex-explorer.js';
+export { DexFolderBar, defineFolderBar } from './dex-folder-bar.js';
+export type { FolderBarEventMap, FolderGoDetail, FolderMenuDetail, FolderSegment } from './dex-folder-bar.js';
 export { DexSettingsPanel, defineSettingsPanel } from './dex-settings-panel.js';
 export type { SettingsChangeDetail, SettingsPanelEventMap } from './dex-settings-panel.js';
 export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';

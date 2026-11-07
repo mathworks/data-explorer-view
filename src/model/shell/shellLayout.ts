@@ -84,6 +84,18 @@ export function initialLayout(views: Record<ShellSide, readonly string[]>, kept:
 }
 
 /**
+ * The view `side` was left on, as `kept` says it (what keepLayout wrote, or its parsed object, read
+ * as initialLayout reads it), or null where it says none: nothing kept, nothing for the side, or a
+ * view the side no longer has among `views` (initialLayout falls back to the side's first there,
+ * which no one chose). For a page that asks whether the user left a side on a view of their own.
+ */
+export function keptView(kept: unknown, side: ShellSide, views: readonly string[]): string | null {
+  const record = asRecord(typeof kept === 'string' ? parseJson(kept) : kept);
+  const view = asRecord(record?.[side])?.view;
+  return typeof view === 'string' && views.includes(view) ? view : null;
+}
+
+/**
  * Click on a view's activity button: the shown, open view collapses its side; any other opens.
  *
  * Collapsing keeps the view, as the prototype's and VS Code's activity bars do: the button that

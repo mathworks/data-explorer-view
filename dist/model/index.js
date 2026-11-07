@@ -48,6 +48,11 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
+// One level of a folder, every entry (the index above holds only the data files): its order, and
+// which files are data.
+export { entryKindOf, sortEntries } from './hierarchy/folderEntries.js';
+// The Folder view's tree: a folder's entries merged with the hierarchy's rows.
+export { FolderTree, rowPath } from './hierarchy/folderTree.js';
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';

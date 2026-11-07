@@ -43,6 +43,7 @@ turns the API off), get the right column.
 | Save As | `showSaveFilePicker` | a download |
 | Changed on disk | open files looked at every 2 s while the page is shown | not seen |
 | A shown folder's changes | listed again when the page is shown or focused (at most once every 3 s) | not seen |
+| The Folder view's ⟳ | reads the folder again | Pick Again: the folder is the list the browser gave when it was picked |
 | Unsaved edits | the shell's own dialog, and `host.edited` for `beforeunload` | the same |
 
 A download marks the document saved: the user has the file. The page holds the file as it
@@ -133,6 +134,20 @@ async function openSamples(urls) {
 A shown folder is listed by core's listing rules (the same files, skips, order and limit as
 `listFolder` from `data-explorer-core/node/folder`), served in the page over a `MessageChannel`, so
 the hierarchy, Usage, search and project pages work as they do on the desktop.
+
+## The Folder view
+
+The shell's Folder view moves within the folder the user picked or dropped, and only there: a
+browser gives a page no folder but the ones the user chose, so the picked folder is the top of the
+path, and ↑ goes nowhere from it (`host.folderParent` answers null there). A folder of it (a folder
+row's Use as Folder, a segment of the path, ↑ back up) is served as the shell's workspace folder
+(`host.openFolderAt`), its files at the paths they had under the picked folder, so a tab open on one
+of them is still its tab. Each folder's entries are read as its row opens: through the directory's
+handle, or from the list of files the browser gave when the folder was picked, which holds every
+file then and no folder without a file in it. A hidden entry (a name starting with `.`) is left out
+of the rows, as a file browser leaves it out. The recent folders are this session's picked and
+dropped ones, newest first; the page keeps none past a reload, so a folder is picked again then.
+There is no Reveal: a page cannot show a file in the file manager.
 
 ## Files from the web
 

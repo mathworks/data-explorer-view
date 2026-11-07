@@ -19,7 +19,7 @@ const page = (tag: string) => `${tag.replace(/^dex-/, '')}.md`;
 
 describe('docs/widgets', () => {
   it('has a page for every widget, and none for a widget there is not', () => {
-    expect(TAGS.length).toBe(31);
+    expect(TAGS.length).toBe(32);
     expect(readdirSync(DOCS).sort()).toEqual(TAGS.map(page).sort());
   });
 
@@ -56,7 +56,7 @@ describe('docs/widgets', () => {
 
   it("is linked from the README's table of entries, a page for each entry's widget", () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
-    const shell = ['dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette'];
+    const shell = ['dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-folder-bar', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette'];
     for (const tag of ['dex-tree-table', 'dex-property-inspector', 'dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-icon', ...shell]) {
       expect(readme, tag).toContain(`](docs/widgets/${page(tag)})`);
     }

@@ -14,8 +14,8 @@ export { DexAppShell, defineAppShell } from './dex-app-shell.js';
 export type { AppShellEventMap, ShellActionDetail, ShellViewChangedDetail } from './dex-app-shell.js';
 export { DexShellAction, DexShellView, defineShellAction, defineShellView } from './dex-shell-view.js';
 
-// The shell's parts: the toolbar, the tab row, the location bar, the Explorer, the two popovers,
-// the toasts and the confirm dialog.
+// The shell's parts: the toolbar, the tab row, the location bar, the Explorer, the folder bar, the
+// two popovers, the toasts and the confirm dialog.
 export { DexToolbar, defineToolbar } from './dex-toolbar.js';
 export type { ToolbarActionDetail, ToolbarEventMap, ToolbarItem } from './dex-toolbar.js';
 export { DexDocTabs, defineDocTabs } from './dex-doc-tabs.js';
@@ -35,6 +35,8 @@ export type {
   ExplorerSection,
   ExplorerSelection,
 } from './dex-explorer.js';
+export { DexFolderBar, defineFolderBar } from './dex-folder-bar.js';
+export type { FolderBarEventMap, FolderGoDetail, FolderMenuDetail, FolderSegment } from './dex-folder-bar.js';
 export { DexSettingsPanel, defineSettingsPanel } from './dex-settings-panel.js';
 export type { SettingsChangeDetail, SettingsPanelEventMap } from './dex-settings-panel.js';
 export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';

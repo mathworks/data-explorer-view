@@ -46,3 +46,22 @@ export declare const byCodeUnit: (a: string, b: string) => number;
 export declare function listDirectory(dir: BrowserDir, { limit }?: {
     limit?: number;
 }): Promise<WebListing>;
+/** One entry of a folder, one level down: its name in it, and whether it is a folder. */
+export interface DirEntry {
+    name: string;
+    folder: boolean;
+}
+/**
+ * The folder at `rel` in `dir` (its `/`-separated path there; '' for `dir` itself) as a BrowserDir
+ * of its own: for a handle, the handle walked down to it; for a listed folder, the files the
+ * browser listed under it, each by its path from it. Rejects, naming it, for a folder `dir` holds
+ * none of (a listed folder holds a folder only where it holds a file under it).
+ */
+export declare function subDir(dir: BrowserDir, rel: string): Promise<BrowserDir>;
+/**
+ * One level of `dir`: its folders and files, every one of them (not only the supported files a
+ * listing takes, nor only the directories it enters), but for a hidden one (a name starting with
+ * `.`), in no order: the page sorts them. A listed folder's are the folder as it was picked: the
+ * folders that hold a file, and the files. A handle's directory that cannot be read rejects.
+ */
+export declare function listLevel(dir: BrowserDir): Promise<DirEntry[]>;

@@ -39,7 +39,7 @@ const file = (target: string): string => join(ROOT, target);
 const TAGS = ['dex-tree-table', 'dex-filter-bar', 'dex-column-filter', 'dex-add-gallery', 'dex-property-inspector',
   'dex-variable-editor', 'dex-matrix-grid', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-matrix-open', 'dex-icon',
   // The app shell's, and its internal elements, which defineShellWidgets defines too.
-  'dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette',
+  'dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-folder-bar', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette',
   'dex-shell-docs', 'dex-shell-folder', 'dex-shell-note', 'dex-shell-status'];
 // An icon, through the one pattern; and the 0.x module paths, which 1.0 no longer exports.
 const ICON_PATH = 'icons/wsTable.svg';

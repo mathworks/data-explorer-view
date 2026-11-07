@@ -25,7 +25,7 @@ const ICON_BY_KIND = {
     project: 'simulink_project',
     group: 'link_database',
 };
-/** Every icon id a hierarchy row can name, for the check that each one ships in icons/. */
+/** Every icon id FolderHierarchy's rows can name, for the check that each one ships in icons/ (a FolderTree's own rows name more: its test checks those). */
 export const HIERARCHY_ICONS = [
     ...new Set([...Object.values(ICON_BY_KIND), 'simulink_folder', 'typeGeneric']),
 ];
@@ -39,7 +39,14 @@ function iconOf(node) {
             return 'simulink_folder';
         return ICON_BY_KIND.group;
     }
-    return Object.hasOwn(ICON_BY_KIND, node.kind) ? ICON_BY_KIND[node.kind] : 'typeGeneric';
+    return fileIconOf(node.kind);
+}
+/**
+ * The icon of a file's row, by its kind: the one table, so a FolderTree's row of a file the graph
+ * has no node for (past the index's cap) draws as the graph's row of it would.
+ */
+export function fileIconOf(kind) {
+    return Object.hasOwn(ICON_BY_KIND, kind) ? ICON_BY_KIND[kind] : 'typeGeneric';
 }
 /**
  * The single most severe health state of a file row, or null when it is healthy. A cycle before
@@ -156,6 +163,21 @@ export class FolderHierarchy {
             level = next;
         }
         return undefined;
+    }
+    /**
+     * The row of the file `uri` as the top of its own expansion: the row a group lists it as when
+     * nothing there references it, whether or not something does. Collapsible by its references,
+     * marked as such a row is (unsaved; no cycle, which only a repeat under it closes), and keyed as
+     * a row of the top level, `/` and its uri encoded. Undefined for a uri no file of the folder
+     * has, and for a project's marker, which heads its group and is no file row.
+     *
+     * For a tree that draws every file in its own folder rather than under what references it
+     * (FolderTree), which keys the row again under its own; its rows are this hierarchy's
+     * children(), from the graph as it is then. Answered from the graph there is: no listing, no read.
+     */
+    async rowOf(uri) {
+        const node = (await this.ensureGraph()).nodeOf(uri);
+        return node ? this.itemsOf([node], '')[0] : undefined;
     }
     /** Draw the rows again from the graph there is: for a file's unsaved changes. */
     refresh() {

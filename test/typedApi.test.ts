@@ -27,7 +27,7 @@ const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
 const TAGS = ['dex-about-panel', 'dex-add-gallery', 'dex-app-shell', 'dex-column-filter', 'dex-command-palette',
   'dex-command-window', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
-  'dex-filter-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
+  'dex-filter-bar', 'dex-folder-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
   'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-raw-viewer',
   'dex-relationship-graph', 'dex-search-panel', 'dex-settings-panel', 'dex-shell-action', 'dex-shell-view',
   'dex-toast-host', 'dex-toolbar', 'dex-tree-table', 'dex-variable-editor'];
@@ -91,9 +91,9 @@ const own = (file: string, m: ModuleEvents): string[] => [...m.dispatched.keys()
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 52 events from 34 widgets: a parse that found none would pass everything below.
+    // 57 events from 35 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(52);
+    expect(new Set(names).size).toBe(57);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -118,10 +118,12 @@ describe('every dispatched event is declared, in its own module, with its detail
   it("lets connectShell's internal parts send a part's event only as the part declares it", () => {
     const declared = new Map(MODULES.flatMap(([, m]) => [...m.declared]));
     const sent = MODULES.flatMap(([file, m]) => resent(file, m).flatMap((name) => m.dispatched.get(name)!.map((t) => [file, name, t] as const)));
-    // The welcome's buttons, which share one dispatch, and a table's selection cleared as a click
-    // on no row clears it: a check that found none would pass for nothing.
+    // The welcome's buttons, which share one dispatch, the Folder view's Open Folder… with no
+    // folder shown, and a table's selection cleared as a click on no row clears it: a check that
+    // found none would pass for nothing.
     expect(sent.map(([file, name]) => `${file} ${name}`).sort()).toEqual([
       'src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action',
+      'src/widgets/app-shell/connect/dex-shell-folder.ts dex-toolbar-action',
       'src/widgets/app-shell/connect/documents.ts dex-row-selected',
     ]);
     for (const [, name, t] of sent) expect(declared.get(name), name).toBe(`CustomEvent<${t}>`);

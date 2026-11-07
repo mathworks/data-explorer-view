@@ -1,6 +1,10 @@
 const messageOf = (err) => (err instanceof Error ? err.message : String(err));
-/** The one reason a question is refused: it names nothing the host listed. */
+/** The reason a question about a file is refused: it names nothing the host listed. */
 const NOT_LISTED = 'Not a file of the folder.';
+/** The reason a `list` with a `dir` is refused by a host that lists no entries (FolderReads.entries absent). */
+const NO_ENTRIES = 'This folder lists no entries.';
+/** The reason a `list` with a `dir` is refused when its folder is not a path. */
+const NO_DIR = 'No folder named.';
 function isRecord(x) {
     return typeof x === 'object' && x !== null;
 }
@@ -9,6 +13,9 @@ function isRecord(x) {
  *
  * - `list` with the folder's files, `folder.files.list()`, which this keeps as the listing, with
  *   `folder.reader(files)` its reader, and `truncated` when the listing says it was cut short;
+ * - `list` with a `dir` with what `folder.entries` lists of that folder, in `entries`, each
+ *   entry's name, path and kind alone, and kept as no listing; or `refused` when the folder lists
+ *   no entries or `dir` is not a string;
  * - `version`, `bytes` and `projectStore` with what that reader answers for the file of the
  *   listing whose uriString is the question's `uri`, exactly, given the listing's own SourceFile;
  * - every other question about a file `refused`, with nothing read: a uri the listing does not
@@ -20,7 +27,9 @@ function isRecord(x) {
  * reader that trusts its caller's SourceFile (core's reads its `path`) is never handed the page's.
  * A project store is whatever the reader's `projectStore` answers for a listed file, which need
  * not be a project's marker: a reader decides which files have a store, and one that reads the
- * folder beside any file it is given lets the page read that much.
+ * folder beside any file it is given lets the page read that much. A folder's entries are the
+ * names `folder.entries` lists for a folder the page names, which is the host's to refuse
+ * (FolderReads.entries): no file is read for them.
  *
  * `changed(uris?)` says the folder changed. Any other message is left alone, for whatever else
  * listens on the port (a table's, for one).
@@ -50,12 +59,13 @@ export function serveFolder(folder, port, options = {}) {
         else
             port.postMessage(message);
     };
-    // The fields a question's answer carries: its value, and for a listing cut short `truncated`.
+    // The fields a question's answer carries: its value, for a listing cut short `truncated`, and
+    // for a folder's entries those alone.
     const answer = (id, question) => {
         Promise.resolve()
             .then(question)
             .then(({ value, ...more }) => {
-            const message = { type: 'folderAnswer', id, value: value ?? null, ...more };
+            const message = { type: 'folderAnswer', id, ...('entries' in more ? {} : { value: value ?? null }), ...more };
             post(message, value instanceof ArrayBuffer ? value : undefined);
         }, (err) => post({ type: 'folderAnswer', id, error: messageOf(err) }));
     };
@@ -79,11 +89,23 @@ export function serveFolder(folder, port, options = {}) {
             return;
         const { id, ask } = m;
         switch (ask) {
-            case 'list':
-                return answer(id, async () => {
-                    const { files, truncated } = await list();
-                    return truncated ? { value: files, truncated: true } : { value: files };
-                });
+            case 'list': {
+                if (m.dir === undefined) {
+                    return answer(id, async () => {
+                        const { files, truncated } = await list();
+                        return truncated ? { value: files, truncated: true } : { value: files };
+                    });
+                }
+                // A folder's entries: no listing of the files, so nothing they make readable.
+                if (!folder.entries)
+                    return post({ type: 'folderAnswer', id, refused: NO_ENTRIES });
+                if (typeof m.dir !== 'string')
+                    return post({ type: 'folderAnswer', id, refused: NO_DIR });
+                const entries = folder.entries.bind(folder);
+                const dir = m.dir;
+                // Just what the wire carries, as a listing's files are: a host's entries may hold more.
+                return answer(id, async () => ({ entries: (await entries(dir)).map(({ name, path, kind }) => ({ name, path, kind })) }));
+            }
             case 'version':
             case 'bytes':
             case 'projectStore': {

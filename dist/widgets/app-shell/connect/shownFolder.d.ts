@@ -1,4 +1,4 @@
-import type { DexHierarchy } from '../../hierarchy/dex-hierarchy.js';
+import type { DexHierarchy, HierarchyMenuDetail } from '../../hierarchy/dex-hierarchy.js';
 import type { DexShellFolder } from './dex-shell-folder.js';
 import { type FolderView } from './folder.js';
 /** What the shell does with the folder shown. */
@@ -13,8 +13,12 @@ export interface ShownFolderActions {
     namesChanged?(folder: FolderView): void;
     /** The folder shown could not be read: why, as its note says it. */
     failed?(message: string): void;
+    /** A row's menu was asked for (a right click, Shift+F10 on the row). */
+    menu?(detail: HierarchyMenuDetail): void;
+    /** The folder's data files could not be read, where its tree shows its entries all the same: why, once. */
+    indexFailed?(message: string): void;
 }
-/** The folder shown in the Explorer, if any, and how to show another. */
+/** The folder shown in the Folder view, if any, and how to show another. */
 export interface ShownFolder {
     /** The folder shown now, or none before the first. */
     readonly current: FolderView | undefined;

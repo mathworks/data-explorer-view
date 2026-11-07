@@ -37,6 +37,7 @@ export declare class RelGraph {
     roots(): GraphNode[];
     private toGroupNode;
     private groupRoots;
+    nodeOf(uriString: string): GraphNode | undefined;
     children(node: GraphNode): GraphNode[];
     private hasDataLinks;
     private hasExpandableRefs;

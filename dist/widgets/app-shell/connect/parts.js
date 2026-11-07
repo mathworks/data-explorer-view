@@ -3,8 +3,9 @@
 // What connectShell puts in the shell, and in the page beside it: the markup the Electron app's
 // index.html held (data-explorer-app at 0983920), as the shell's parts. In the shell, the toolbar
 // and the location bar in their rows, a `<dex-shell-view>` for each of the shell's views
-// (views.ts: the Explorer, with the open files and the folder under them, the Gallery and Search
-// on the left; the Properties and Raw on the right; the Terminal and the Log in the bottom panel),
+// (views.ts: the Explorer with the open files, the Folder view with the workspace folder's bar and
+// tree (for a host that shows folders), the Gallery and Search on the left; the Properties and Raw
+// on the right; the Terminal and the Log in the bottom panel),
 // the Settings and About actions on the left, the documents' area in the center (the open files'
 // panels, and Root's relationship graph), and the status. In the body, once, the overlays
 // every part shares: the variable editor, the context menu, the error and confirm dialogs, the
@@ -30,19 +31,24 @@ function view(id, ...content) {
 function action(id, label, icon, shortcut = '') {
     return withAttributes(document.createElement('dex-shell-action'), { side: 'left', action: id, label, icon, shortcut });
 }
-/** Fill `shell` with the app's parts, and put the shared overlays in the body. */
+/**
+ * Fill `shell` with the app's parts, and put the shared overlays in the body. `folders`: the host
+ * shows folders, and the shell has a Folder view; without, its parts are made all the same (a
+ * folder shown still feeds Used By, the graph and Search), and drawn nowhere.
+ */
 export function buildShell(shell, options) {
     const toolbar = document.createElement('dex-toolbar');
     toolbar.slot = 'toolbar';
     toolbar.label = options.appName;
     const location = document.createElement('dex-location-bar');
     location.slot = 'location';
-    // The open files, and under them the folder, once one is shown.
+    // The open files; and the workspace folder in a view of its own: its path bar, then its tree.
     const explorer = document.createElement('dex-explorer');
     const folderPart = document.createElement('dex-shell-folder');
-    folderPart.hidden = true;
+    const folderBar = document.createElement('dex-folder-bar');
     const tree = document.createElement('dex-hierarchy');
-    folderPart.append(tree);
+    tree.label = 'Folder';
+    folderPart.append(folderBar, tree);
     // The modules' views: each a widget of its own, which connectShell fills.
     const gallery = document.createElement('dex-gallery-panel');
     const search = document.createElement('dex-search-panel');
@@ -74,7 +80,8 @@ export function buildShell(shell, options) {
     const children = [
         toolbar,
         location,
-        view('explorer', explorer, folderPart),
+        view('explorer', explorer),
+        ...(options.folders ? [view('folder', folderPart)] : []),
         view('gallery', gallery),
         view('search', search),
         action('settings', 'Settings', 'settings', 'Mod+,'),
@@ -106,6 +113,7 @@ export function buildShell(shell, options) {
         location,
         explorer,
         folderPart,
+        folderBar,
         tree,
         docs,
         strip,

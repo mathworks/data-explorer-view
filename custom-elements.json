@@ -973,6 +973,215 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-folder-bar.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The folder bar: ↑, then the path of the folder shown as segments, outermost first\n(\"Users › delite › complex_dataflow\"), then ⟳ (Read Again, or Pick Again) and ⋯ (Folder\nActions). It draws the segments it is given, the last one as the folder shown, and turns each\npress into a request: `dex-folder-up`, `dex-folder-go` with a segment's path,\n`dex-folder-refresh` and `dex-folder-menu`. It moves nowhere itself and works out no path: the\napp says by `canUp` whether there is a folder above, by `refresh` what ⟳ does, and by `busy`\nthat a move is under way, during which only ⋯ can be used; it gives the bar the new segments\nonce the new folder is shown.\n\nA path too long for the bar folds the folders after the first into a `…` button, keeping as many\nof the last ones as fit; the `…` asks for the menu too, with the folders it holds. Where even\nthe first does not fit beside the current folder it is folded as well, and a bar too narrow for\nthe current folder alone clips its name with an ellipsis.\n\nEvery button is a tab stop, a disabled one included. Alt+↑ (⌥↑) anywhere in the bar is ↑.",
+          "name": "DexFolderBar",
+          "members": [
+            {
+              "kind": "field",
+              "name": "segments",
+              "type": {
+                "text": "FolderSegment[]"
+              },
+              "default": "[]",
+              "description": "The path of the folder shown, outermost first; the last is the folder shown, drawn as the\ncurrent one, which is no button. Replace the array to change it. Default none."
+            },
+            {
+              "kind": "field",
+              "name": "canUp",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "↑ can be used: the host gives a folder above the one shown. Off, the default, disables it\n(a browser's picked folder has none above it). Attribute `can-up`.",
+              "attribute": "can-up"
+            },
+            {
+              "kind": "field",
+              "name": "refresh",
+              "type": {
+                "text": "'read' | 'pick' | 'none'"
+              },
+              "default": "'read'",
+              "description": "What ⟳ does, by its name: `read` (Read Again, the default) for a folder the host reads again,\n`pick` (Pick Again) for one it can only ask the user for again (a browser's snapshot of a\nfolder), `none` for no ⟳. Either sends `dex-folder-refresh`. Attribute `refresh`.",
+              "attribute": "refresh"
+            },
+            {
+              "kind": "field",
+              "name": "busy",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "A move or a read is under way: ↑, the segments, the `…` and ⟳ are disabled, and the bar says\naria-busy, until the app turns it off. ⋯ stays usable. Off, the default. Attribute `busy`.",
+              "attribute": "busy"
+            },
+            {
+              "kind": "field",
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of ↑, ⟳ and ⋯ in one colour, the text's (`<dex-icon mono>`), as the shell's\nMinimal icon style draws its glyphs; off, the default, draws them in their files' colours.\nAttribute `mono`, reflected so a page's stylesheet can follow it.",
+              "attribute": "mono",
+              "reflects": true
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-folder-up",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "↑ was pressed, or Alt+↑ in the bar, while `canUp` said there is a folder above and the bar was not `busy`."
+            },
+            {
+              "name": "dex-folder-go",
+              "type": {
+                "text": "CustomEvent<FolderGoDetail>"
+              },
+              "description": "A segment was pressed, not the current folder's, while the bar was not `busy`: its folder's\npath. The bar changes nothing itself; the app re-roots, and gives it the new segments."
+            },
+            {
+              "name": "dex-folder-refresh",
+              "type": {
+                "text": "CustomEvent<null>"
+              },
+              "description": "⟳ was pressed (Read Again, or Pick Again as `refresh` says) while the bar was not `busy`."
+            },
+            {
+              "name": "dex-folder-menu",
+              "type": {
+                "text": "CustomEvent<FolderMenuDetail>"
+              },
+              "description": "⋯ (Folder Actions) was pressed, or the `…` of a folded path while the bar was not `busy`: the\napp shows its menu against the button's box, the folders the `…` holds when it was that."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "can-up",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "↑ can be used: the host gives a folder above the one shown. Off, the default, disables it\n(a browser's picked folder has none above it). Attribute `can-up`.",
+              "fieldName": "canUp"
+            },
+            {
+              "name": "refresh",
+              "type": {
+                "text": "'read' | 'pick' | 'none'"
+              },
+              "default": "'read'",
+              "description": "What ⟳ does, by its name: `read` (Read Again, the default) for a folder the host reads again,\n`pick` (Pick Again) for one it can only ask the user for again (a browser's snapshot of a\nfolder), `none` for no ⟳. Either sends `dex-folder-refresh`. Attribute `refresh`.",
+              "fieldName": "refresh"
+            },
+            {
+              "name": "busy",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "A move or a read is under way: ↑, the segments, the `…` and ⟳ are disabled, and the bar says\naria-busy, until the app turns it off. ⋯ stays usable. Off, the default. Attribute `busy`.",
+              "fieldName": "busy"
+            },
+            {
+              "name": "mono",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Draws the icons of ↑, ⟳ and ⋯ in one colour, the text's (`<dex-icon mono>`), as the shell's\nMinimal icon style draws its glyphs; off, the default, draws them in their files' colours.\nAttribute `mono`, reflected so a page's stylesheet can follow it.",
+              "fieldName": "mono"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-folder-bar",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-disabled",
+              "default": "#999"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineFolderBar",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-folder-bar'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-folder-bar>`, or under `tag`, and the `<dex-icon>` its buttons draw."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexFolderBar",
+          "declaration": {
+            "name": "DexFolderBar",
+            "module": "dist/widgets/app-shell/dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineFolderBar",
+          "declaration": {
+            "name": "defineFolderBar",
+            "module": "dist/widgets/app-shell/dex-folder-bar.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/app-shell/dex-location-bar.js",
       "declarations": [
         {
@@ -2223,6 +2432,54 @@
           "declaration": {
             "name": "ExplorerSelection",
             "module": "./dex-explorer.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexFolderBar",
+          "declaration": {
+            "name": "DexFolderBar",
+            "module": "./dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineFolderBar",
+          "declaration": {
+            "name": "defineFolderBar",
+            "module": "./dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FolderBarEventMap",
+          "declaration": {
+            "name": "FolderBarEventMap",
+            "module": "./dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FolderGoDetail",
+          "declaration": {
+            "name": "FolderGoDetail",
+            "module": "./dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FolderMenuDetail",
+          "declaration": {
+            "name": "FolderMenuDetail",
+            "module": "./dex-folder-bar.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FolderSegment",
+          "declaration": {
+            "name": "FolderSegment",
+            "module": "./dex-folder-bar.js"
           }
         },
         {
@@ -4725,7 +4982,7 @@
               }
             }
           ],
-          "description": "Wire `element` to `hierarchy`: draw its rows now, and again on each of its refreshes and\nrebuilds, and answer each row the user opens."
+          "description": "Wire `element` to `hierarchy`: draw its rows (or `options.tree`'s) now, and again on each of its\nrefreshes and rebuilds, and answer each row the user opens."
         }
       ],
       "exports": [
@@ -4745,7 +5002,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, a file's mark a badge (a circular\nreference, unsaved changes), and a notice (a folder of which only the first files are shown) an\ninformation mark.\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it\nopens, and a row with rows under it opens or closes. The arrow keys move through the rows\n(Right opens a row or goes into it, Left closes it or goes to its parent), Home and End go to\nthe first and the last. `revealRow` shows a row the app names (the file it has open), and\n`expandTopLevel` opens the folder's own row on first show. connectHierarchy wires one to a\nFolderHierarchy.",
+          "description": "A folder's hierarchy as a tree: each project and folder, the files in it, and under each file\nthe files it references, opened a level at a time. The rows are HierarchyItems\n(`data-explorer-view/model`'s FolderHierarchy makes them); the rows under one are asked of\n`loadChildren` as it is first opened, and asked again when `items` is replaced. A row reads its\nfile's name and kind, an unresolved reference a warning, a file's mark a badge (a circular\nreference, unsaved changes), and a notice (a folder of which only the first files are shown) an\ninformation mark.\n\nFor a folder drawn as a file browser draws it (FolderTree's rows), a `dimmed` row is a file the\napp does not open, in the muted ink, disabled for a screen reader and opening nothing; a row's\n`relation` says after its name what it is to the row above it; and `marks` mark each file's rows\nas its tab stands (open, active, unsaved, a preview). With `rowMenu`, a right click, Shift+F10 or\nthe ContextMenu key asks for a row's menu (`dex-hierarchy-menu`), which the app draws. Rows\nwithout these fields, a tree without marks and one without `rowMenu` draw and answer as they\nalways have.\n\nA click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it\nopens, and a row with rows under it opens or closes. The arrow keys move through the rows\n(Right opens a row or goes into it, Left closes it or goes to its parent), Home and End go to\nthe first and the last. `revealRow` shows a row the app names (the file it has open), and\n`expandTopLevel` opens the folder's own row on first show. connectHierarchy wires one to a\nFolderHierarchy.",
           "name": "DexHierarchy",
           "members": [
             {
@@ -4777,12 +5034,31 @@
             },
             {
               "kind": "field",
+              "name": "marks",
+              "type": {
+                "text": "ReadonlyMap<string, RowMark>"
+              },
+              "default": "new Map()",
+              "description": "How each file's rows stand in the tabs, by the file's uri (a row's `id`): open, the active\ntab, unsaved, a preview. Setting it redraws the rows; it sends nothing. Default none."
+            },
+            {
+              "kind": "field",
               "name": "selectedKey",
               "type": {
                 "text": "string | null"
               },
               "default": "null",
               "description": "The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing."
+            },
+            {
+              "kind": "field",
+              "name": "rowMenu",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether a row's menu is the app's: a right click on a row, or Shift+F10 or the ContextMenu key\non the focused row, sends `dex-hierarchy-menu`, the browser's own menu kept away and both keys\nspent, and the tree names the keys (`aria-keyshortcuts`). False, the default, leaves the right\nclick and both keys to the browser, as they always were. Attribute `row-menu`.",
+              "attribute": "row-menu"
             },
             {
               "kind": "field",
@@ -4836,10 +5112,26 @@
               "type": {
                 "text": "CustomEvent<HierarchySelectedDetail>"
               },
-              "description": "A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or\nnull for a row that is no file. Sent again each time a row is chosen."
+              "description": "A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or\nnull for a row that is no file (or a dimmed one). Sent again each time a row is chosen."
+            },
+            {
+              "name": "dex-hierarchy-menu",
+              "type": {
+                "text": "CustomEvent<HierarchyMenuDetail>"
+              },
+              "description": "A row's menu is asked for: a right click on it (the browser's own menu kept away), or Shift+F10\nor the ContextMenu key on the focused row (`keyboard`, at the row's lower left). The tree\ndraws no menu: the app does, for the row's `item`."
             }
           ],
           "attributes": [
+            {
+              "name": "row-menu",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether a row's menu is the app's: a right click on a row, or Shift+F10 or the ContextMenu key\non the focused row, sends `dex-hierarchy-menu`, the browser's own menu kept away and both keys\nspent, and the tree names the keys (`aria-keyshortcuts`). False, the default, leaves the right\nclick and both keys to the browser, as they always were. Attribute `row-menu`.",
+              "fieldName": "rowMenu"
+            },
             {
               "name": "label",
               "type": {
@@ -4867,8 +5159,16 @@
           "customElement": true,
           "cssProperties": [
             {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
               "name": "--dex-bg-hover",
               "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-color-accent",
+              "default": "#0078d4"
             },
             {
               "name": "--dex-color-accent-bg",
@@ -5017,6 +5317,14 @@
         },
         {
           "kind": "js",
+          "name": "HierarchyRows",
+          "declaration": {
+            "name": "HierarchyRows",
+            "module": "./connectHierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "RevealOptions",
           "declaration": {
             "name": "RevealOptions",
@@ -5041,9 +5349,25 @@
         },
         {
           "kind": "js",
+          "name": "HierarchyMenuDetail",
+          "declaration": {
+            "name": "HierarchyMenuDetail",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "HierarchySelectedDetail",
           "declaration": {
             "name": "HierarchySelectedDetail",
+            "module": "./dex-hierarchy.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "RowMark",
+          "declaration": {
+            "name": "RowMark",
             "module": "./dex-hierarchy.js"
           }
         }

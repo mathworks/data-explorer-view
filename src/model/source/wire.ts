@@ -20,6 +20,7 @@
 import type { SourceFile } from 'data-explorer-core';
 import type { DropFacts } from '../actions/dropFacts.js';
 import type { SectionRule } from '../actions/sectionRules.js';
+import type { FolderEntry } from '../hierarchy/folderEntries.js';
 import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
@@ -405,8 +406,24 @@ export type TableEditHostMessage =
 // with a prefix that looks like the folder's, of another scheme, or another spelling of a listed
 // one: nothing is decoded, resolved or normalised) is refused, and nothing is read for it. A
 // project store is answered only for a listed file, from beside it, by the host's reader.
+//
+// A FOLDER'S ENTRIES ARE THE HOST'S TO REFUSE. A `list` with a `dir` names a folder by its path,
+// which no listing holds (the index lists files, and the folders it would name are any the user
+// opens), so it is matched against nothing here: the host's `entries` (FolderReads.entries) is
+// what lists only the folders it serves, and throws for any other, the error the page's call
+// rejects with. Its traps are the ones a uri check above avoids by matching exactly: a `..`
+// segment that climbs out of a path starting with the root, a prefix test without the separator
+// (`/w-other` is not inside `/w`), and a symbolic link inside the root to a folder outside it. So
+// a host answers only its root or a folder it returned as an entry, realpath'd, rather than any
+// path that resolves inside. What it answers is names and kinds, never a file's bytes: those are
+// still only a listed file's, and a folder's entries are not the listing the host keeps.
+//
+// Why a `list` with a `dir` and not an ask of its own: FolderAsk and the answer's `value` are what
+// an app's own host is written against (a switch over every ask), and a `dir` and an `entries`
+// only add to them. A host older than the fields ignores the `dir` and answers its listing of
+// files, with no `entries`, which the page reads as a host that lists none.
 
-/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
+/** What a `folderRequest` asks: the folder's files (or with a `dir`, one level of that folder), or a version, the bytes or the project store of one of them. */
 export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
 
 /**
@@ -415,6 +432,11 @@ export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
  *
  * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
  *   host keeps this listing, and the questions below are about its files.
+ * - `list` with a `dir`: one level of the folder `dir`, answered in `entries` (the host's
+ *   FolderReads.entries), asked whether or not the folder is listed, and kept as no listing.
+ *   `refused` when the host lists no entries, or when `dir` is not a string; an error when the
+ *   host cannot list that folder, or will not. A host older than the field answers its listing of
+ *   files instead, with no `entries`: the page reads that as a host that lists none.
  * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
  *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
  *   and nothing is read: a page can have the host read only the files the host listed. So is a
@@ -427,6 +449,8 @@ export interface FolderRequestMessage {
   ask: FolderAsk;
   /** The file asked about, by its uriString. Not on a `list`. */
   uri?: string;
+  /** On a `list`, the folder whose entries are asked for (its path, as the entries' paths are). Absent: the folder's files. */
+  dir?: string;
 }
 
 /**
@@ -434,7 +458,7 @@ export interface FolderRequestMessage {
  *
  * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
  * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
- * `projectStore`, a ProjectStore or null.
+ * `projectStore`, a ProjectStore or null. A `list` with a `dir` is answered in `entries`.
  */
 export interface FolderAnswerMessage {
   type: 'folderAnswer';
@@ -444,10 +468,16 @@ export interface FolderAnswerMessage {
   error?: string;
   /**
    * Why the host did not answer: the question names no file of its last listing (or asks what the
-   * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
-   * was not given.
+   * wire does not), or asks for entries the host does not list. Nothing was read. The page's call
+   * answers null, as a reader does for a file it was not given.
    */
   refused?: string;
+  /**
+   * On the answer to a `list` with a `dir`: the folder's entries, each its name, path and kind
+   * alone, in the host's order (the page sorts them). Absent from the answer of a host older than
+   * the field, which answered its listing of files instead: the page reads that as no entries.
+   */
+  entries?: FolderEntry[];
   /**
    * On the answer to a `list`: true when the listing was cut short, the folder holding more
    * supported files than `value` (FolderFileList.truncated, which a structured clone of the array

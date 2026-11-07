@@ -39,7 +39,7 @@ const openRequest = (detail: { fileId: string | null; sectionId?: string; pin: b
 const fileOf = (label: string) => explorer().files.find((f) => f.label === label);
 
 describe('the Explorer', () => {
-  it('sits in the left side as its Explorer view, above the folder', async () => {
+  it('sits in the left side as its Explorer view, the open files alone: the folder is a view of its own', async () => {
     const page = startPage(FILES);
     const view = explorer().parentElement!;
     expect([view.localName, view.getAttribute('side'), view.getAttribute('view'), view.getAttribute('label'), view.getAttribute('icon'), view.getAttribute('shortcut')]).toEqual([
@@ -50,7 +50,7 @@ describe('the Explorer', () => {
       'filesSB',
       'Mod+Shift+E',
     ]);
-    expect([...view.children].map((c) => c.localName)).toEqual(['dex-explorer', 'dex-shell-folder']);
+    expect([...view.children].map((c) => c.localName)).toEqual(['dex-explorer']);
     expect(view.parentElement).toBe(page.shell);
   });
 

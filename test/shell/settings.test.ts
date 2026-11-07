@@ -11,24 +11,7 @@
 // for a dialog: one Escape must not close two layers.
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ShellSettings, type Theme } from '../../src/model/shell/settings.js';
-import {
-  aboutPanel,
-  activityButton,
-  at,
-  confirmDialog,
-  dirtyTabs,
-  edit,
-  errorDialog,
-  graph,
-  graphShown,
-  locationBar,
-  open,
-  settingsPanel,
-  startPage,
-  tableOf,
-  toolbar,
-  until,
-} from './harness.js';
+import { aboutPanel, activityButton, at, confirmDialog, dirtyTabs, edit, errorDialog, folderBar, graph, graphShown, locationBar, open, settingsPanel, startPage, tableOf, toolbar, until } from './harness.js';
 
 const theme = () => document.documentElement.dataset.theme;
 
@@ -117,25 +100,25 @@ describe('the settings', () => {
 
 describe('the icon style', () => {
   // Minimal, the default (the prototype's), draws the icons of the shell's own buttons in one
-  // colour: the toolbar's, Back, Forward and Up, the activity bars' and the status bar's.
-  const mono = (page: ReturnType<typeof startPage>) => [toolbar().mono, locationBar().mono, page.shell.mono];
+  // colour: the toolbar's, Back, Forward and Up, the folder bar's, the activity bars' and the status bar's.
+  const mono = (page: ReturnType<typeof startPage>) => [toolbar().mono, locationBar().mono, folderBar().mono, page.shell.mono];
 
   it('is Minimal at first: the toolbar, the location bar and the bars draw their icons in one colour', () => {
     const page = startPage();
     expect(settingsPanel().settings.iconStyle).toBe('minimal');
-    expect(mono(page)).toEqual([true, true, true]);
+    expect(mono(page)).toEqual([true, true, true, true]);
   });
 
   it('Colorful draws them in their own colours, is kept, and comes back so at the next start', () => {
     const page = startPage();
     choose({ ...DEFAULT_SETTINGS, iconStyle: 'colorful' });
-    expect(mono(page)).toEqual([false, false, false]);
+    expect(mono(page)).toEqual([false, false, false, false]);
     expect(JSON.parse(localStorage.getItem('dex-shell:settings')!).iconStyle).toBe('colorful');
     page.handle.dispose();
     const next = startPage();
-    expect(mono(next)).toEqual([false, false, false]);
+    expect(mono(next)).toEqual([false, false, false, false]);
     choose({ ...DEFAULT_SETTINGS });
-    expect(mono(next)).toEqual([true, true, true]);
+    expect(mono(next)).toEqual([true, true, true, true]);
   });
 });
 

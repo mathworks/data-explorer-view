@@ -1,7 +1,11 @@
 import { type FolderReads } from '../model/source/serveFolder.js';
 import { type WebFiles } from './files.js';
 import { type BrowserDir } from './walk.js';
-/** The folder `dir`, shown at `root`, as serveFolder reads it. `limit` caps its listing. */
+/**
+ * The folder `dir`, shown at `root`, as serveFolder reads it. `limit` caps its listing. Its
+ * `entries` are one level of a folder of it (the Folder view's), each at the path its listing
+ * would give it: the root, and below it each name, a `/` between.
+ */
 export declare function webFolderReads(root: string, dir: BrowserDir, files: WebFiles, limit?: number): FolderReads;
 /** A folder served in the page: what serveWebFolder returns. */
 export interface WebFolderServer {

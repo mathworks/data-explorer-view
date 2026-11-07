@@ -15,6 +15,7 @@ import type { Rect } from '../../../model/shell/placement.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { DexAppShell } from '../dex-app-shell.js';
 import type { DexAboutPanel } from '../dex-about-panel.js';
+import type { DexFolderBar } from '../dex-folder-bar.js';
 import type { DexLocationBar } from '../dex-location-bar.js';
 import type { DexSettingsPanel } from '../dex-settings-panel.js';
 import type { DexToolbar } from '../dex-toolbar.js';
@@ -60,7 +61,7 @@ export function pageStorage(): KeyValueStore | null {
  */
 export function connectPopovers(
   shell: DexAppShell,
-  parts: { settingsPanel: DexSettingsPanel; aboutPanel: DexAboutPanel; toolbar: DexToolbar; location: DexLocationBar },
+  parts: { settingsPanel: DexSettingsPanel; aboutPanel: DexAboutPanel; toolbar: DexToolbar; location: DexLocationBar; folderBar: DexFolderBar },
   options: {
     store: KeyValueStore | null;
     key: string;
@@ -72,7 +73,7 @@ export function connectPopovers(
     layoutGraph?(layout: GraphLayoutStyle): void;
   },
 ): Popovers {
-  const { settingsPanel, aboutPanel, toolbar, location } = parts;
+  const { settingsPanel, aboutPanel, toolbar, location, folderBar } = parts;
   const { store, key, system } = options;
   let settings: ShellSettings = readSettings(store, key);
   const apply = (): void => {
@@ -84,6 +85,7 @@ export function connectPopovers(
     const mono = settings.iconStyle === 'minimal';
     toolbar.mono = mono;
     location.mono = mono;
+    folderBar.mono = mono;
     shell.mono = mono;
     for (const table of options.tables()) table.tableStyle = tableStyleOf(settings);
   };

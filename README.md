@@ -70,7 +70,7 @@ defineVariableEditor();
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | [`<dex-project-page>`](docs/widgets/project-page.md), a project's page, and the HTML renderer and stylesheet it draws with |
 | `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
-| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
+| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [folder bar](docs/widgets/folder-bar.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
 | `data-explorer-view/browser-host` | `browserHost`, a `ShellHost` for a plain browser page with no backend (see [docs/browser-host.md](docs/browser-host.md)) |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
@@ -504,8 +504,8 @@ and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` sto
 ## Build an app on the shell
 
 `data-explorer-view/app-shell` is the window of a whole app. A toolbar and a
-location bar run across the top. Each side has an activity bar and a sidebar: the Explorer (the open files,
-and a folder's hierarchy under them), the Gallery (the Add gallery's tiles) and
+location bar run across the top. Each side has an activity bar and a sidebar: the Explorer (the open files),
+the Folder view (the workspace folder, for a host that shows folders), the Gallery (the Add gallery's tiles) and
 Search on the left, the Properties and the Raw pane on the right. The open
 files are tabs in the middle, and Root shows the relationship graph of them
 all. The Terminal (a MATLAB-style command window) and the Log share the bottom
@@ -584,15 +584,19 @@ shell runs.
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
 | `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close; an answer with `downloaded` (a browser's download, for a file it cannot write) is said "Downloaded NAME" | needed |
 | `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place; an answer of `path` itself with `downloaded` is said "Downloaded NAME", as for `saveFile` | needed |
-| `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's Open Folder…; the folder comes back by `app.showFolder` | no Folder button: the host shows no folders |
+| `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's and the Folder view's Open Folder…; the folder comes back by `app.showFolder` | no Folder button and no Folder view: the host shows no folders |
+| `folderParent(path)` | each folder shown: the folder above `path` (null at the top: `/`, a browser's picked folder), for the Folder view's path and its ↑ | the path is the folder alone, and there is no ↑ |
+| `openFolderAt(path)` | ↑, a segment of the Folder view's path, a recent folder, a folder row's Use as Folder: make `path` the workspace folder, served and shown by `app.showFolder` as for Open Folder; `true` promises that `app.showFolder` call, before or after it resolves, and the bar stays busy until it comes; false (or a rejection) leaves the folder shown, and says why | no moves: the folder changes only by Open Folder |
+| `recentFolders()` | the Folder view's ⋯: the folders opened before, newest first (paths) | no Recent Folders |
+| `folderRefresh` | read for the Folder view's ⟳: `'read'` reads the folder again, `'pick'` asks the user to pick it again (a browser's snapshot of a folder) | `'read'` |
 | `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |
 | `confirmClose(names)` | a tab, or the window, is to close with unsaved edits: save, discard or cancel | the shell's own dialog in the page |
 | `confirmReload(name)` | a file with unsaved edits changed on disk, or another program wrote over a save of it: reload, or keep the edits | the shell's own dialog in the page |
 | `setEdited(edited)` | each repaint: whether any open file has unsaved edits (the window's edited mark, a prompt before it closes) | nothing |
 | `setTitle(title)` | each repaint: `● plant.sldd — My app` | `document.title` |
 | `copyText(text)` | Copy Name, Copy Value | `navigator.clipboard` |
-| `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
-| `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
+| `reveal(path)` | a project page's link to what the shell does not open (a folder, a script), and the Folder view's Reveal | the link does nothing, and there is no Reveal |
+| `revealIn` | read for a project page's links and the Folder view's Reveal: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
 | `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
 
 An Electron app writes its own host: each member a call over IPC to its main
@@ -641,6 +645,38 @@ installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)))
 addEventListener('beforeunload', (e) => {
   if (host.edited) e.preventDefault(); // the browser asks before unsaved edits are lost
 });
+```
+
+### The Folder view
+
+The Folder view shows the workspace folder, the one `app.showFolder` gave, whose files feed
+Used By, the graph and Search, as a file browser does: its folders first, then its files, by
+name. A data file opens in a tab (a click: a preview; its menu's Open: kept) and expands to the
+files it references, each saying what it is ("model reference", "data dictionary"); any other
+file is drawn dimmed and opens nothing. A folder's entries are read as its row opens, for a
+served folder that lists them (`FolderReads.entries`); one that lists none shows the hierarchy's
+tree. The rows of the files open in tabs carry the tabs' marks: a bar for an open file, the
+active tab's row highlighted (and revealed as the tab changes), ● for unsaved edits, italics for
+a preview.
+
+Its path bar moves the workspace folder: ↑, a segment of the path, ⋯'s Recent Folders and a
+folder row's Use as Folder each ask the host (`openFolderAt`), which serves the folder and shows
+it as it shows one picked; the bar says "Reading NAME…" until it comes, and a folder the host
+cannot open leaves the one shown, with a toast that says why. ⟳ reads the folder again, and ⋯
+holds Open Folder…, the recent folders and Reveal. A row's menu (a right click, Shift+F10 or the
+ContextMenu key) opens a data file, beside the others too, closes it, reveals a row's file or
+folder and copies its path. The view comes forward with the first folder shown, unless the
+layout kept from before shows another view there (an app that reopens its last folder at launch
+leaves the user's view as it was); with none, it says so and offers Open Folder… and a drop. The command palette has Show Folder, Folder: Up One
+Level and Folder: Read Again.
+
+```js
+const host = {
+  // …the members above, and the Folder view's moves:
+  folderParent: (path) => (path === '/' ? null : dirname(path)),
+  openFolderAt: (path) => window.api.openFolderAt(path), // main serves it, and posts its port for app.showFolder
+  recentFolders: () => window.api.recentFolders(),
+};
 ```
 
 ### What a page adds
@@ -724,7 +760,8 @@ and leaves Undo and Redo to a table, which undoes its own document.
 | Cmd/Ctrl+Shift+H | Root's relationship graph (Show Graph) |
 | Cmd/Ctrl+, | Settings |
 | Cmd/Ctrl+Shift+P, F1 | the command palette |
-| Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Explorer, the Gallery, Search |
+| Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+K | the Explorer, the Folder view (a host that shows folders) |
+| Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Gallery, Search |
 | Cmd/Ctrl+Shift+I, Cmd/Ctrl+Shift+U | the Properties, Raw |
 | Ctrl+\` (on macOS too), Cmd/Ctrl+Shift+D | the Terminal, the Log |
 
@@ -741,7 +778,8 @@ them. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U be
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
 there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in
-a Mac's browsers, and F1 opens the command palette wherever a browser keeps
+a Mac's browsers, the Folder view is Cmd/Ctrl+Shift+K because Cmd/Ctrl+Shift+J is
+Chromium's console or its Downloads, and F1 opens the command palette wherever a browser keeps
 Ctrl+Shift+P for itself.
 
 ### Every part on its own
@@ -753,6 +791,7 @@ with its [views](docs/widgets/shell-view.md) and
 the [tab row](docs/widgets/doc-tabs.md), the
 [location bar](docs/widgets/location-bar.md), the
 [Explorer](docs/widgets/explorer.md), the
+[folder bar](docs/widgets/folder-bar.md), the
 [Settings](docs/widgets/settings-panel.md) and
 [About](docs/widgets/about-panel.md) popovers, the
 [toasts](docs/widgets/toast-host.md), the
