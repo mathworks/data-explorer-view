@@ -295,7 +295,14 @@ export class DexContextMenu extends LitElement {
    * keyboard is on the first item at once, and goes back where it was as the menu closes.
    */
   show(x: number, y: number, items: ContextMenuItem[], options: ContextMenuShowOptions = {}): void {
-    if (this._open) this._sendClosed();
+    // The open menu is let go of whole, its dismissals too, which the new one attaches again a frame
+    // on. The event that asked for the new one may still be on its way to the document: a touch
+    // long-press's or an assistive tool's contextmenu, with no mousedown before it to have closed
+    // the old menu, would reach the old one's dismissal there and close the new menu at once.
+    if (this._open) {
+      this._sendClosed();
+      this._detach();
+    }
     // What has the keyboard now, unless it is this menu's own item (a menu replaced while the
     // keyboard is in it gives it back where the first one would have).
     this._returnFocus = options.focusFirst ? (this._holdsFocus() ? this._returnFocus : deepActiveElement()) : null;
@@ -332,13 +339,19 @@ export class DexContextMenu extends LitElement {
     this._returnFocus = null;
     this._byKey = false;
     this.removeAttribute('open');
+    this._detach();
+    document.removeEventListener('keyup', this._menuKeyUpHandler);
+    back?.focus();
+    if (wasOpen) this._sendClosed();
+  }
+
+  // The listeners an open menu is dismissed by (a press, a right-click, a key or a scroll outside
+  // it), gone: as it closes, and as show() replaces it, whose frame attaches them again.
+  private _detach(): void {
     document.removeEventListener('mousedown', this._dismissHandler);
     document.removeEventListener('contextmenu', this._contextMenuHandler);
     document.removeEventListener('keydown', this._keyHandler);
-    document.removeEventListener('keyup', this._menuKeyUpHandler);
     window.removeEventListener('scroll', this._scrollHandler, true);
-    back?.focus();
-    if (wasOpen) this._sendClosed();
   }
 
   // What every way of closing an open menu says, so that whoever filled it knows its items are

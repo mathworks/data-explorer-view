@@ -1192,8 +1192,15 @@ export class DexTreeTable extends LitElement {
         color: var(--dex-color-text, #333);
       }
 
+      /* A hovered row is lighter than the surfaces the muted ink is chosen for: in the dark set
+         bg-hover is #333, where #8c8c8c reads 3.76:1. Its read-only cells take a muted ink of the
+         row's own, as a selected row's do (below), at the same 78%: of the row's text ink, laid over
+         the hover surface, it is 5.6:1 light, 6.5:1 dark and 8.8:1 high contrast. Redeclared on the
+         <tr>, so it is substituted once for every cell under it. A selected row under the cursor reads as selected:
+         its rule comes after this one, at the same specificity, and its mix is the one used. */
       tr.data-row:hover {
         background: var(--dex-bg-hover, #e8e8e8);
+        --dex-color-text-muted: color-mix(in srgb, var(--dex-color-text, #333) 78%, transparent);
       }
 
       /* A selected row supplies its own INK as well as its own surface, because VS Code
