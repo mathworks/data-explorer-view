@@ -184,22 +184,45 @@ export class RelGraph {
     };
   }
 
-  // Members that nothing else in the SAME group references. Falls back to all
-  // members when every member is referenced (a fully cyclic group).
+  // Members that nothing else in the SAME group references, and with them every
+  // member none of those reaches through the group, in path order.
+  //
+  // The second half is the fully cyclic group's fall-back (every member, when
+  // every member is referenced), taken for the part of a group no root reaches:
+  // files that reference each other round in a circle are each referenced, so
+  // none is a root, and with a file nothing references beside them the group
+  // used to list that file alone. The circle, and the unresolved references
+  // under it, were then in no row of the tree. Now each of its files is a row
+  // of the group, as it is in a group of the circle alone, and a group every
+  // member of which a root reaches lists its roots as before.
   private groupRoots(g: Group): GraphSource[] {
     const referenced = new Set<string>();
+    const targets = new Map<string, string[]>();
     for (const uri of g.members) {
       const s = this.sources.get(uri)!;
+      const inGroup: string[] = [];
       for (const ref of this.outgoingRefs(s)) {
         for (const t of this.resolveFor(ref, uri)) {
-          if (this.groupOf.get(t) === g.key) referenced.add(t);
+          if (this.groupOf.get(t) !== g.key) continue;
+          referenced.add(t);
+          inGroup.push(t);
         }
+      }
+      targets.set(uri, inGroup);
+    }
+    // What the unreferenced members reach through the group: the rows under them.
+    const reached = new Set(g.members.filter((u) => !referenced.has(u)));
+    const queue = [...reached];
+    for (let i = 0; i < queue.length; i++) {
+      for (const t of targets.get(queue[i]) ?? []) {
+        if (reached.has(t)) continue;
+        reached.add(t);
+        queue.push(t);
       }
     }
     const members = g.members.map((u) => this.sources.get(u)!)
       .sort((a, b) => a.path.localeCompare(b.path));
-    const roots = members.filter((s) => !referenced.has(s.uriString));
-    return roots.length > 0 ? roots : members;
+    return members.filter((s) => !referenced.has(s.uriString) || !reached.has(s.uriString));
   }
 
   // A file's node as the top of its own expansion, with no ancestors: the node a group lists it
