@@ -90,6 +90,26 @@ export interface TableBanners {
     /** What the read could not read, and what the paint held back (TableView.warnings). */
     warnings?: WarningBanner;
 }
+/** How a compare marks a row (`diffMarks`): what its file holds of the line, and which cells differ. */
+export interface DiffMark {
+    /**
+     * 'added': only this table's file has the row, the other draws a gap; 'removed': likewise, from
+     * the other point of view (the row's file lost it); 'changed': both have it, `columns` differing;
+     * 'gap': this table's file has no such row, the line is the other side's.
+     */
+    kind: 'added' | 'removed' | 'changed' | 'gap';
+    /** With 'changed': the column keys whose cells differ. */
+    columns?: readonly string[];
+}
+/** What `dex-expansion-changed` carries: every row shown open now. */
+export interface ExpansionChangedDetail {
+    expandedIds: string[];
+}
+/** What `dex-table-scrolled` carries: where the rows are scrolled to, in pixels. */
+export interface TableScrolledDetail {
+    top: number;
+    left: number;
+}
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
  * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
@@ -210,6 +230,34 @@ export declare class DexTreeTable extends LitElement {
      * they always were. Attribute `keyboard-menu`.
      */
     keyboardMenu: boolean;
+    /**
+     * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
+     * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
+     * differing cells washed deeper, and a gap row hatched. Default null: no marks, the table as it
+     * always was. Property only.
+     */
+    diffMarks: ReadonlyMap<string, DiffMark> | null;
+    /**
+     * The rows as given, in their order, all of them: a header press sorts nothing and draws no sort
+     * mark, and there is no search box and no column filter (the Columns button stays). For two tables
+     * kept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.
+     */
+    fixedRows: boolean;
+    /** What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`. */
+    gridLabel: string;
+    /** Where the rows are scrolled to now, in pixels (the grid's own scroll position). */
+    get bodyScroll(): {
+        top: number;
+        left: number;
+    };
+    /** Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows. */
+    scrollBodyTo(top: number, left?: number): void;
+    /**
+     * Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,
+     * and the menu keys open a row's menu. An empty table's body takes it where there are no rows.
+     * Nothing while the table is loading. Called before the table is drawn, once it is.
+     */
+    focusGrid(): void;
     private get _addsEntries();
     private get _dragsRows();
     private get _dragsOut();
@@ -242,6 +290,7 @@ export declare class DexTreeTable extends LitElement {
      */
     get expandedIds(): Set<string>;
     set expandedIds(ids: Iterable<string>);
+    private _expansionByHolder;
     /**
      * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
      * closed, and a row whose children the payload held back (`_lazy`) asks for them once
@@ -534,6 +583,7 @@ export declare class DexTreeTable extends LitElement {
     private _renderMatrixGlyph;
     private _renderParamLinks;
     private _renderEditor;
+    private _renderDiffGlyph;
     private _renderCellValue;
     willUpdate(changedProps: Map<string, unknown>): void;
     private _scrollToSelectedRow;
@@ -612,6 +662,13 @@ export interface TreeTableEventMap {
     'dex-link-clicked': CustomEvent<LinkClickedDetail>;
     /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
     'dex-add-entry': CustomEvent<AddEntryDetail>;
+    /**
+     * The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection
+     * whose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`.
+     */
+    'dex-expansion-changed': CustomEvent<ExpansionChangedDetail>;
+    /** The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`). */
+    'dex-table-scrolled': CustomEvent<TableScrolledDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

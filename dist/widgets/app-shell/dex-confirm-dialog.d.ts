@@ -28,13 +28,35 @@ export interface ConfirmOptions {
      */
     cancelId: string;
 }
+/** What prompt() asks: a question with one line of text to type. */
+export interface PromptOptions {
+    /** The dialog's title, which is also its accessible name. */
+    title: string;
+    /** What to type, said above the field. */
+    message: string;
+    /** The field's label, drawn before it and read as its name. */
+    label: string;
+    /** What the field holds as the dialog opens, selected. Default ''. */
+    value?: string;
+    /** The field's placeholder. */
+    placeholder?: string;
+    /** 'url' gives a phone its address keyboard and turns off spelling and autofill. Default 'text'. */
+    type?: 'text' | 'url';
+    /** The button that answers with the text (the primary one), disabled while the field is blank. */
+    okLabel: string;
+    /** Default 'Cancel'. */
+    cancelLabel?: string;
+}
 /**
  * A question with buttons, asked in the page for a host that has no dialogs of its own (a
  * browser page): "Save changes to x before closing?", "x changed on disk". show() opens it and
  * resolves to the id of the button pressed; Escape, a click outside it and close() resolve to the
  * question's `cancelId`, and focus goes back where it was. It opens focused on the primary
- * button, never on a danger one, and Tab stays among its buttons while it is open. It sends no
- * events: the promise is the answer.
+ * button, never on a danger one, and Tab stays among its buttons while it is open. prompt() asks
+ * for a line of text in the same dialog ("Open from URL"), a host having no prompt of its own
+ * either: it resolves to the text typed, or null, opens focused on the field and keeps Tab among
+ * the field and its buttons. One question is open at a time, of either kind. It sends no events:
+ * the promise is the answer.
  *
  * It paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later
  * in the document is on top: append it last in the body, outside any element that makes a
@@ -44,8 +66,9 @@ export interface ConfirmOptions {
  */
 export declare class DexConfirmDialog extends LitElement {
     static styles: import("lit").CSSResult[];
-    private _options;
+    private _question;
     private _open;
+    private _text;
     private _answer;
     private _returnFocusTo;
     private _pressedOnBackdrop;
@@ -59,8 +82,17 @@ export declare class DexConfirmDialog extends LitElement {
      * resolves to `cancelId` at once.
      */
     show(options: ConfirmOptions): Promise<string>;
-    /** Closes the dialog, answering show() with its `cancelId`; does nothing while closed. */
+    /**
+     * Opens the dialog with a text field and resolves to the text typed, trimmed, when the primary
+     * button is pressed or Enter is pressed in the field (never blank); null on Cancel, Escape, a
+     * click on the backdrop, close(), a show() or prompt() asked in its place, or the element leaving
+     * the page. As show(), it answers a question still open with that question's cancel, opens
+     * focused (on the field), keeps Tab inside, and gives the focus back when it closes.
+     */
+    prompt(options: PromptOptions): Promise<string | null>;
+    /** Closes the dialog, answering show() with its `cancelId` and prompt() with null; does nothing while closed. */
     close(): void;
+    private _ask;
     connectedCallback(): void;
     disconnectedCallback(): void;
     private _finish;
@@ -69,9 +101,12 @@ export declare class DexConfirmDialog extends LitElement {
     private _findActiveElement;
     private _onKeyDown;
     private _trapTab;
+    private _submit;
+    private _onFieldKeydown;
     private _onPointerDown;
     private _onBackdropClick;
     render(): import("lit-html").TemplateResult<1> | typeof nothing;
+    private _renderPrompt;
 }
 /** Registers the widget as `<dex-confirm-dialog>`, or under `tag`. */
 export declare function defineConfirmDialog(tag?: string): void;

@@ -416,11 +416,332 @@
     },
     {
       "kind": "javascript-module",
+      "path": "dist/widgets/app-shell/dex-compare-view.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "Two files compared line by line: a header (what differs, \"Show only differences\", Previous and\nNext Change) over two read-only tables side by side, whose rows share ids line for line. A row\nopened, scrolled to or selected in one is in the other; a line one file lacks is a gap row there.\n\nThe app gives each side its rows, a row per line under the line's id, the same ids in the same\norder and tree on both, with a blank row where a file lacks the line, and each line's mark on\nthat side; and it lays them out again when \"Show only differences\" is toggled\n(`dex-compare-filter-changed`) or a file changes. The view keeps the two tables one picture: a\nline opened in one is opened in the other, a scroll of one scrolls the other to the same place,\nand a selection in one is the other's, said in `dex-compare-selected`. The tables keep their rows\nas given (a sort or a search on one side alone would break the lines) and take no edit; a row's\nmenu is asked for in `dex-compare-menu`, with the side it was asked on, for the app to offer Copy\nto Left or Right. Only vertical scroll follows: each table keeps its own column widths and\nchoices, so the same sideways scroll would put different columns under each other. Previous and\nNext Change send `dex-compare-step` for the app to say which line that is (`select`). The tables'\nown events stay inside the view.\n\nIt fills the box it is given, a column: the header, then the two sides, each a caption (the\nfile's name, ● while it is unsaved, \"Read-only\" where no copy can go into it) over its table.",
+          "name": "DexCompareView",
+          "members": [
+            {
+              "kind": "field",
+              "name": "left",
+              "type": {
+                "text": "CompareSide | null"
+              },
+              "default": "null",
+              "description": "The left side: its caption and its table's rows."
+            },
+            {
+              "kind": "field",
+              "name": "right",
+              "type": {
+                "text": "CompareSide | null"
+              },
+              "default": "null",
+              "description": "The right side, the same lines as the left."
+            },
+            {
+              "kind": "field",
+              "name": "summary",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The header's words for what differs (\"3 changed, 1 added, 2 removed\"), said politely to a screen reader as it changes.",
+              "attribute": "summary"
+            },
+            {
+              "kind": "field",
+              "name": "onlyDifferences",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "The header's checkbox: lines with no difference in or under them are left out (the app gives rows to match). Default true. Attribute `only-differences`.",
+              "attribute": "only-differences"
+            },
+            {
+              "kind": "field",
+              "name": "hasChanges",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether there is a change to go to: Previous and Next Change are enabled. Attribute `has-changes`.",
+              "attribute": "has-changes"
+            },
+            {
+              "kind": "field",
+              "name": "empty",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Said in place of the tables while both have no rows (\"No differences\"); '' shows the tables.",
+              "attribute": "empty"
+            },
+            {
+              "kind": "field",
+              "name": "tableStyle",
+              "type": {
+                "text": "'normal' | 'light'"
+              },
+              "default": "'normal'",
+              "description": "Both tables' style. Attribute `table-style`.",
+              "attribute": "table-style"
+            },
+            {
+              "kind": "field",
+              "name": "storageKey",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "Both tables' `storageKey` (their column choices, shared). Default null: kept for the element's life only. Attribute `storage-key`.",
+              "attribute": "storage-key"
+            },
+            {
+              "kind": "field",
+              "name": "expandedIds",
+              "type": {
+                "text": "Set<string>"
+              },
+              "description": "The lines shown open, both tables'; setting it sends nothing."
+            },
+            {
+              "kind": "field",
+              "name": "selectedIds",
+              "type": {
+                "text": "string[]"
+              },
+              "description": "The selected lines.",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "select",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "lineIds",
+                  "type": {
+                    "text": "readonly string[]"
+                  }
+                }
+              ],
+              "description": "Select these lines in both tables, opening their parents and bringing the first into view; sends nothing."
+            },
+            {
+              "kind": "method",
+              "name": "focus",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "The keyboard to the left table's grid."
+            }
+          ],
+          "events": [
+            {
+              "name": "dex-compare-selected",
+              "type": {
+                "text": "CustomEvent<CompareSelectedDetail>"
+              },
+              "description": "The selection changed, in either table: both select `lineIds` now."
+            },
+            {
+              "name": "dex-compare-menu",
+              "type": {
+                "text": "CustomEvent<CompareMenuDetail>"
+              },
+              "description": "A row's menu was asked for (right-click, Shift+F10, ContextMenu key), the right-clicked row selected first."
+            },
+            {
+              "name": "dex-compare-step",
+              "type": {
+                "text": "CustomEvent<CompareStepDetail>"
+              },
+              "description": "Previous (-1) or Next (+1) Change was pressed."
+            },
+            {
+              "name": "dex-compare-filter-changed",
+              "type": {
+                "text": "CustomEvent<CompareFilterChangedDetail>"
+              },
+              "description": "\"Show only differences\" was toggled; `onlyDifferences` follows it already."
+            }
+          ],
+          "attributes": [
+            {
+              "name": "summary",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "The header's words for what differs (\"3 changed, 1 added, 2 removed\"), said politely to a screen reader as it changes.",
+              "fieldName": "summary"
+            },
+            {
+              "name": "only-differences",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "The header's checkbox: lines with no difference in or under them are left out (the app gives rows to match). Default true. Attribute `only-differences`.",
+              "fieldName": "onlyDifferences"
+            },
+            {
+              "name": "has-changes",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Whether there is a change to go to: Previous and Next Change are enabled. Attribute `has-changes`.",
+              "fieldName": "hasChanges"
+            },
+            {
+              "name": "empty",
+              "type": {
+                "text": "string"
+              },
+              "default": "''",
+              "description": "Said in place of the tables while both have no rows (\"No differences\"); '' shows the tables.",
+              "fieldName": "empty"
+            },
+            {
+              "name": "table-style",
+              "type": {
+                "text": "'normal' | 'light'"
+              },
+              "default": "'normal'",
+              "description": "Both tables' style. Attribute `table-style`.",
+              "fieldName": "tableStyle"
+            },
+            {
+              "name": "storage-key",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "Both tables' `storageKey` (their column choices, shared). Default null: kept for the element's life only. Attribute `storage-key`.",
+              "fieldName": "storageKey"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "dex-compare-view",
+          "customElement": true,
+          "cssProperties": [
+            {
+              "name": "--dex-bg-active",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-bg-hover",
+              "default": "#e8e8e8"
+            },
+            {
+              "name": "--dex-bg-primary",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-bg-secondary",
+              "default": "#f8f8f8"
+            },
+            {
+              "name": "--dex-bg-toolbar",
+              "default": "#fff"
+            },
+            {
+              "name": "--dex-border-color",
+              "default": "#d0d0d0"
+            },
+            {
+              "name": "--dex-border-color-light",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-color-text",
+              "default": "#333"
+            },
+            {
+              "name": "--dex-color-text-muted",
+              "default": "#666"
+            },
+            {
+              "name": "--dex-focus-ring",
+              "default": "0 0 0 2px rgba(0, 120, 212, 0.4)"
+            },
+            {
+              "name": "--dex-font-family",
+              "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-size",
+              "default": "13px"
+            },
+            {
+              "name": "--dex-tag-bg",
+              "default": "#e0e0e0"
+            },
+            {
+              "name": "--dex-tag-fg",
+              "description": "A label on a row naming what kind of thing it is (the project page's \"interface\").",
+              "default": "#333"
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "defineCompareView",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "tag",
+              "default": "'dex-compare-view'"
+            }
+          ],
+          "description": "Registers the widget as `<dex-compare-view>`, or under `tag`, with the icons and the tables it draws."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "DexCompareView",
+          "declaration": {
+            "name": "DexCompareView",
+            "module": "dist/widgets/app-shell/dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCompareView",
+          "declaration": {
+            "name": "defineCompareView",
+            "module": "dist/widgets/app-shell/dex-compare-view.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "dist/widgets/app-shell/dex-confirm-dialog.js",
       "declarations": [
         {
           "kind": "class",
-          "description": "A question with buttons, asked in the page for a host that has no dialogs of its own (a\nbrowser page): \"Save changes to x before closing?\", \"x changed on disk\". show() opens it and\nresolves to the id of the button pressed; Escape, a click outside it and close() resolve to the\nquestion's `cancelId`, and focus goes back where it was. It opens focused on the primary\nbutton, never on a danger one, and Tab stays among its buttons while it is open. It sends no\nevents: the promise is the answer.\n\nIt paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later\nin the document is on top: append it last in the body, outside any element that makes a\nstacking context of its own.",
+          "description": "A question with buttons, asked in the page for a host that has no dialogs of its own (a\nbrowser page): \"Save changes to x before closing?\", \"x changed on disk\". show() opens it and\nresolves to the id of the button pressed; Escape, a click outside it and close() resolve to the\nquestion's `cancelId`, and focus goes back where it was. It opens focused on the primary\nbutton, never on a danger one, and Tab stays among its buttons while it is open. prompt() asks\nfor a line of text in the same dialog (\"Open from URL\"), a host having no prompt of its own\neither: it resolves to the text typed, or null, opens focused on the field and keeps Tab among\nthe field and its buttons. One question is open at a time, of either kind. It sends no events:\nthe promise is the answer.\n\nIt paints at z-index 10000, as `<dex-error-dialog>` does, so where both are open the one later\nin the document is on top: append it last in the body, outside any element that makes a\nstacking context of its own.",
           "name": "DexConfirmDialog",
           "members": [
             {
@@ -443,13 +764,31 @@
             },
             {
               "kind": "method",
+              "name": "prompt",
+              "return": {
+                "type": {
+                  "text": "Promise<string | null>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "type": {
+                    "text": "PromptOptions"
+                  }
+                }
+              ],
+              "description": "Opens the dialog with a text field and resolves to the text typed, trimmed, when the primary\nbutton is pressed or Enter is pressed in the field (never blank); null on Cancel, Escape, a\nclick on the backdrop, close(), a show() or prompt() asked in its place, or the element leaving\nthe page. As show(), it answers a question still open with that question's cancel, opens\nfocused (on the field), keeps Tab inside, and gives the focus back when it closes."
+            },
+            {
+              "kind": "method",
               "name": "close",
               "return": {
                 "type": {
                   "text": "void"
                 }
               },
-              "description": "Closes the dialog, answering show() with its `cancelId`; does nothing while closed."
+              "description": "Closes the dialog, answering show() with its `cancelId` and prompt() with null; does nothing while closed."
             }
           ],
           "superclass": {
@@ -556,7 +895,7 @@
         },
         {
           "kind": "class",
-          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
+          "description": "The row of tabs above an app's documents, one per open file, as `tabs` lists them, `active`\nmarking the one shown. It draws them and asks for everything else: a click (or Enter or Space)\nsends `dex-tab-select`, × (or a middle click, Delete or Backspace) `dex-tab-close`, a double-click\n`dex-tab-pin`, and a tab dropped on another `dex-tab-move`. Which tabs there are, in what\norder, and which is active stay the app's: nothing here changes `tabs` or `active`. A tab\ndropped on the row's empty end goes to its end. Rows of the same `group` (an app's two panes)\ntake each other's tabs: one dropped on a tab of the other lands before or after it, by the half\nof the tab the pointer is over, and the row it lands in sends `dex-tab-move`.\n\nA tab's menu is the app's too: a right-click on a tab (its × included), or Shift+F10 or the\nContextMenu key on the focused one, sends `dex-tab-menu` with where to show it, at the pointer or\nunder the tab, and the row draws no menu of its own. The browser's menu is kept off the tabs, and\nthe one a browser fires after a menu key asks nothing more; the row's empty end and the … button\nkeep the browser's.\n\nA tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the\nfile, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●\nwhere its × is, until the pointer or the keyboard comes onto it. A row too long for its width\nscrolls sideways (a wheel scrolls it too), keeps the active tab in view, clear of the … button it\nthen offers, which lists every tab, as the row is drawn and as it is resized; a tab scrolled partly\nout past the row's start hides its ×, and no tab is wider than the row. The arrow keys move the\nfocus along the tabs, and Home and End to either end. A row `unfocused` (the row of a pane the\nuser is not in) marks its active tab in a muted grey rather than the accent.",
           "name": "DexDocTabs",
           "members": [
             {
@@ -640,6 +979,13 @@
                 "text": "CustomEvent<TabMoveDetail>"
               },
               "description": "Move this tab: it was dropped on the tab at `index`, or at the row's end. Remove it from\n`tabs`, then insert it at `index`; a tab of another row of the group, not in `tabs`, insert."
+            },
+            {
+              "name": "dex-tab-menu",
+              "type": {
+                "text": "CustomEvent<TabMenuDetail>"
+              },
+              "description": "A right-click on a tab, or Shift+F10 or the ContextMenu key on the focused one: show its menu. The browser's own menu is prevented."
             }
           ],
           "attributes": [
@@ -2276,6 +2622,14 @@
         },
         {
           "kind": "js",
+          "name": "TabMenuDetail",
+          "declaration": {
+            "name": "TabMenuDetail",
+            "module": "./dex-doc-tabs.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "TabMoveDetail",
           "declaration": {
             "name": "TabMoveDetail",
@@ -2584,6 +2938,78 @@
           "declaration": {
             "name": "ConfirmOptions",
             "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "PromptOptions",
+          "declaration": {
+            "name": "PromptOptions",
+            "module": "./dex-confirm-dialog.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "DexCompareView",
+          "declaration": {
+            "name": "DexCompareView",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "defineCompareView",
+          "declaration": {
+            "name": "defineCompareView",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareFilterChangedDetail",
+          "declaration": {
+            "name": "CompareFilterChangedDetail",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareMenuDetail",
+          "declaration": {
+            "name": "CompareMenuDetail",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareSelectedDetail",
+          "declaration": {
+            "name": "CompareSelectedDetail",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareSide",
+          "declaration": {
+            "name": "CompareSide",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareStepDetail",
+          "declaration": {
+            "name": "CompareStepDetail",
+            "module": "./dex-compare-view.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "CompareViewEventMap",
+          "declaration": {
+            "name": "CompareViewEventMap",
+            "module": "./dex-compare-view.js"
           }
         },
         {
@@ -2927,6 +3353,30 @@
           "name": "ShellHost",
           "declaration": {
             "name": "ShellHost",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLink",
+          "declaration": {
+            "name": "ShellLink",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLinkFile",
+          "declaration": {
+            "name": "ShellLinkFile",
+            "module": "./connect/types.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ShellLinkRequest",
+          "declaration": {
+            "name": "ShellLinkRequest",
             "module": "./connect/types.js"
           }
         },
@@ -7671,6 +8121,80 @@
             },
             {
               "kind": "field",
+              "name": "diffMarks",
+              "type": {
+                "text": "ReadonlyMap<string, DiffMark> | null"
+              },
+              "default": "null",
+              "description": "Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,\na glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the\ndiffering cells washed deeper, and a gap row hatched. Default null: no marks, the table as it\nalways was. Property only."
+            },
+            {
+              "kind": "field",
+              "name": "fixedRows",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The rows as given, in their order, all of them: a header press sorts nothing and draws no sort\nmark, and there is no search box and no column filter (the Columns button stays). For two tables\nkept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.",
+              "attribute": "fixed-rows",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "gridLabel",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data entries'",
+              "description": "What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`.",
+              "attribute": "grid-label"
+            },
+            {
+              "kind": "field",
+              "name": "bodyScroll",
+              "type": {
+                "text": "{ top: number; left: number }"
+              },
+              "description": "Where the rows are scrolled to now, in pixels (the grid's own scroll position).",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "scrollBodyTo",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "top",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "left",
+                  "optional": true,
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ],
+              "description": "Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows."
+            },
+            {
+              "kind": "method",
+              "name": "focusGrid",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,\nand the menu keys open a row's menu. An empty table's body takes it where there are no rows.\nNothing while the table is loading. Called before the table is drawn, once it is."
+            },
+            {
+              "kind": "field",
               "name": "storageKey",
               "type": {
                 "text": "string | null"
@@ -7851,6 +8375,20 @@
               "description": "A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`."
             },
             {
+              "name": "dex-expansion-changed",
+              "type": {
+                "text": "CustomEvent<ExpansionChangedDetail>"
+              },
+              "description": "The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection\nwhose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`."
+            },
+            {
+              "name": "dex-table-scrolled",
+              "type": {
+                "text": "CustomEvent<TableScrolledDetail>"
+              },
+              "description": "The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`)."
+            },
+            {
               "name": "dex-request-children",
               "type": {
                 "text": "CustomEvent<RequestChildrenDetail>"
@@ -7979,6 +8517,24 @@
               "fieldName": "keyboardMenu"
             },
             {
+              "name": "fixed-rows",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The rows as given, in their order, all of them: a header press sorts nothing and draws no sort\nmark, and there is no search box and no column filter (the Columns button stays). For two tables\nkept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.",
+              "fieldName": "fixedRows"
+            },
+            {
+              "name": "grid-label",
+              "type": {
+                "text": "string"
+              },
+              "default": "'Data entries'",
+              "description": "What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`.",
+              "fieldName": "gridLabel"
+            },
+            {
               "name": "storage-key",
               "type": {
                 "text": "string | null"
@@ -8089,8 +8645,45 @@
               "default": "#555"
             },
             {
+              "name": "--dex-diff-added",
+              "description": "A compare's marks (dex-tree-table's `diffMarks`): each kind's bar at a row's left edge (3:1 against the rows), its wash, a differing cell's deeper wash, and a gap row's hatching.",
+              "default": "#2e7d32"
+            },
+            {
+              "name": "--dex-diff-added-bg",
+              "default": "rgba(46, 125, 50, 0.1)"
+            },
+            {
+              "name": "--dex-diff-cell-bg",
+              "default": "rgba(180, 83, 9, 0.2)"
+            },
+            {
+              "name": "--dex-diff-changed",
+              "default": "#b45309"
+            },
+            {
+              "name": "--dex-diff-changed-bg",
+              "default": "rgba(180, 83, 9, 0.08)"
+            },
+            {
+              "name": "--dex-diff-gap-stripe",
+              "default": "rgba(0, 0, 0, 0.1)"
+            },
+            {
+              "name": "--dex-diff-removed",
+              "default": "#c62828"
+            },
+            {
+              "name": "--dex-diff-removed-bg",
+              "default": "rgba(198, 40, 40, 0.09)"
+            },
+            {
               "name": "--dex-font-family",
               "default": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            {
+              "name": "--dex-font-mono",
+              "default": "'SF Mono', 'Menlo', 'Monaco', monospace"
             },
             {
               "name": "--dex-frozen-shade",
@@ -8381,6 +8974,14 @@
         },
         {
           "kind": "js",
+          "name": "DiffMark",
+          "declaration": {
+            "name": "DiffMark",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
           "name": "EditCompletedDetail",
           "declaration": {
             "name": "EditCompletedDetail",
@@ -8392,6 +8993,14 @@
           "name": "EditTextRequestDetail",
           "declaration": {
             "name": "EditTextRequestDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "ExpansionChangedDetail",
+          "declaration": {
+            "name": "ExpansionChangedDetail",
             "module": "./dex-tree-table.js"
           }
         },
@@ -8448,6 +9057,14 @@
           "name": "TableContextMenuDetail",
           "declaration": {
             "name": "TableContextMenuDetail",
+            "module": "./dex-tree-table.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "TableScrolledDetail",
+          "declaration": {
+            "name": "TableScrolledDetail",
             "module": "./dex-tree-table.js"
           }
         },

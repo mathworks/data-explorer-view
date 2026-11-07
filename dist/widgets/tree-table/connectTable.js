@@ -658,6 +658,9 @@ export function connectTable(table, source, options = {}) {
         drop(rowId, mode) {
             return editing && !disposed ? editing.drop(rowId, mode) : Promise.resolve({ dropped: false, count: 0 });
         },
+        dropReplacing(rowId, replacing) {
+            return editing && !disposed ? editing.dropReplacing(rowId, replacing) : Promise.resolve({ dropped: false, count: 0 });
+        },
         undo() {
             editing?.history('undo');
         },

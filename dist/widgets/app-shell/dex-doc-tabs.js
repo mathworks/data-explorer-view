@@ -36,6 +36,12 @@ const rowsInPage = new Set();
  * take each other's tabs: one dropped on a tab of the other lands before or after it, by the half
  * of the tab the pointer is over, and the row it lands in sends `dex-tab-move`.
  *
+ * A tab's menu is the app's too: a right-click on a tab (its × included), or Shift+F10 or the
+ * ContextMenu key on the focused one, sends `dex-tab-menu` with where to show it, at the pointer or
+ * under the tab, and the row draws no menu of its own. The browser's menu is kept off the tabs, and
+ * the one a browser fires after a menu key asks nothing more; the row's empty end and the … button
+ * keep the browser's.
+ *
  * A tab's subtitle, when it has one, is drawn before its icon and label, smaller and muted: the
  * file, while the label names a part of it. A preview tab's label is italic; an unsaved one shows ●
  * where its × is, until the pointer or the keyboard comes onto it. A row too long for its width
@@ -80,6 +86,9 @@ export class DexDocTabs extends LitElement {
         // `active` changed: its tab is to be scrolled into view once it is drawn.
         this._scrollPending = false;
         this._resize = null;
+        // A menu key was pressed or let go on a tab in this task: the contextmenu a browser fires after
+        // it is the key's, whose menu was asked for already. Cleared a task later.
+        this._menuKeyed = false;
         // A press anywhere but on the menu or its button closes it; the button's own toggles it.
         this._onOutside = (e) => {
             const path = e.composedPath();
@@ -376,6 +385,8 @@ export class DexDocTabs extends LitElement {
         this._resize?.disconnect();
         this._resize = null;
         this._closeMenu(false);
+        clearTimeout(this._menuKeyedTimer);
+        this._menuKeyed = false;
     }
     firstUpdated() {
         this._observe();
@@ -433,6 +444,9 @@ export class DexDocTabs extends LitElement {
     }
     _move(id, index) {
         this.dispatchEvent(new CustomEvent('dex-tab-move', { detail: { id, index }, bubbles: true, composed: true }));
+    }
+    _askMenu(detail) {
+        this.dispatchEvent(new CustomEvent('dex-tab-menu', { detail, bubbles: true, composed: true }));
     }
     // The tab the keyboard was on is gone (closed, most likely by Delete): the focus goes to the tab
     // now in its place, or the last, so a run of Deletes closes one tab after another. Only if the
@@ -530,6 +544,8 @@ export class DexDocTabs extends LitElement {
         this._resize.observe(bar);
     }
     _onTabKeydown(e, tab) {
+        if (this._onMenuKey(e, tab))
+            return;
         // Enter or Space on a × a click left the focus on is the ×'s own: it closes.
         if ((e.key === 'Enter' || e.key === ' ') && e.target !== e.currentTarget)
             return;
@@ -568,6 +584,38 @@ export class DexDocTabs extends LitElement {
                 return;
         }
         e.preventDefault();
+    }
+    // Shift+F10 or the ContextMenu key on a tab (or on its ×), as Chromium tells them: the ContextMenu
+    // key alone, F10 with Shift alone. Its keydown asks for the tab's menu, under the tab, to take the
+    // keyboard; its keyup is spent too, which is when Windows opens the browser's own menu. Either
+    // marks the task, so a contextmenu the browser fires after it asks nothing more
+    // (_onContextMenu). Returns whether the key was one of them.
+    _onMenuKey(e, tab) {
+        if (e.ctrlKey || e.metaKey || e.altKey)
+            return false;
+        const menuKey = (e.key === 'F10' && e.shiftKey) || (e.key === 'ContextMenu' && !e.shiftKey);
+        if (!menuKey)
+            return false;
+        e.preventDefault();
+        this._menuKeyed = true;
+        clearTimeout(this._menuKeyedTimer);
+        this._menuKeyedTimer = setTimeout(() => {
+            this._menuKeyed = false;
+            this._menuKeyedTimer = undefined;
+        }, 0);
+        if (e.type === 'keydown') {
+            const box = e.currentTarget.getBoundingClientRect();
+            this._askMenu({ id: tab.id, x: box.left, y: box.bottom, keyboard: true });
+        }
+        return true;
+    }
+    // A right-click on a tab, or on its ×: its menu, at the pointer, in place of the browser's. One
+    // that follows a menu key is the browser's answer to the key, whose menu was asked for already.
+    _onContextMenu(e, tab) {
+        e.preventDefault();
+        if (this._menuKeyed)
+            return;
+        this._askMenu({ id: tab.id, x: e.clientX, y: e.clientY });
     }
     // The focus is leaving the row: the next Tab back in goes to the active tab, not the one left.
     _onFocusOut(e) {
@@ -847,6 +895,8 @@ export class DexDocTabs extends LitElement {
         @mousedown=${this._onMouseDown}
         @auxclick=${(e) => this._onAuxClick(e, tab)}
         @keydown=${(e) => this._onTabKeydown(e, tab)}
+        @keyup=${(e) => this._onMenuKey(e, tab)}
+        @contextmenu=${(e) => this._onContextMenu(e, tab)}
         @focusin=${() => (this._focusId = tab.id)}
         @dragstart=${(e) => this._onDragStart(e, tab)}
         @dragover=${(e) => this._onDragOver(e, tab)}

@@ -12,10 +12,42 @@ import type { Theme } from '../../../model/shell/settings.js';
  * right one there is), `move-to-other-pane` into the other pane (making it, from a lone pane), and
  * `focus-pane-1` and `focus-pane-2` go to the left and the right pane. A file is open in one tab
  * only, so a split moves a tab and never copies it; a pane's only tab makes no new pane.
+ * `open-url` asks for a web address and opens the file there (ShellHost.fetchUrl), and `copy-link`
+ * puts the link that opens the open files again on the clipboard (ShellHost.linkFor); a host
+ * without the member never offers its command.
  */
-export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-folder' | 'folder-up' | 'folder-refresh' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
+export type ShellCommand = 'new-file' | 'open-file' | 'open-folder' | 'open-url' | 'save' | 'save-as' | 'save-all' | 'close-tab' | 'copy-link' | 'undo' | 'redo' | 'add-child' | 'cut' | 'copy' | 'paste' | 'delete' | 'next-tab' | 'previous-tab' | 'split-right' | 'move-to-other-pane' | 'focus-pane-1' | 'focus-pane-2' | 'focus-filter' | 'back' | 'forward' | 'up' | 'settings' | 'about' | 'palette' | 'show-explorer' | 'show-folder' | 'folder-up' | 'folder-refresh' | 'show-gallery' | 'show-search' | 'show-properties' | 'show-raw' | 'show-terminal' | 'show-log' | 'show-graph';
 /** What to do with unsaved edits of files that are to close. */
 export type CloseAnswer = 'save' | 'discard' | 'cancel';
+/** One open file, as Copy Link names it to the host. */
+export interface ShellLinkFile {
+    /** Its path, as it was opened. */
+    path: string;
+    /** Its tab's name. */
+    name: string;
+}
+/** What the shell asks a link of (ShellHost.linkFor). */
+export interface ShellLinkRequest {
+    /** Every open file, pane by pane, each pane's in the order of its row. */
+    files: readonly ShellLinkFile[];
+    /**
+     * The file the link is to select in (the active tab's, or the tab whose menu was opened), and its
+     * selection's entry: the top-level entry the first selected row is in, by name, and the label of
+     * its section (none in a MAT-file). Absent at Root; `entry` absent with no entry selected.
+     */
+    at?: {
+        path: string;
+        entry?: string;
+        section?: string;
+    };
+}
+/** The host's link for a request. */
+export interface ShellLink {
+    /** The address that opens the files again (and selects `at`'s entry), or null when none of them has one. */
+    url: string | null;
+    /** The names of the files the link leaves out, having no address, in the request's order. */
+    left: readonly string[];
+}
 /**
  * What the shell asks of the page it runs in: files to open, their bytes, where saves go, and the
  * questions a host may ask in its own dialogs. Every member is read from the object each time it is
@@ -39,6 +71,12 @@ export interface ShellHost {
     newFile?(suggestedName: string): Promise<string | null>;
     /** Show the host's Open File dialog; resolves to the chosen paths (empty when cancelled). */
     pickFiles(): Promise<string[]>;
+    /**
+     * Fetch the file at the web address `url` (Open from URL…) and resolve to the path to open it by;
+     * reject with what the user is to read when it is not fetched (an address it does not take, a
+     * server that refuses, a file too large). Absent: the shell offers no Open from URL.
+     */
+    fetchUrl?(url: string): Promise<string>;
     /**
      * Show the host's Open Folder dialog. A folder chosen comes back through `ShellHandle.showFolder`
      * with its port. Absent: the host shows no folders, and the shell offers no Folder button and no
@@ -105,6 +143,12 @@ export interface ShellHost {
     setTitle?(title: string): void;
     /** Put text on the system clipboard (the table's Copy Name and Copy Value). Absent: `navigator.clipboard`. */
     copyText?(text: string): Promise<void>;
+    /**
+     * The address that opens the open files again, at an entry (Copy Link). Asked as the palette and a
+     * tab's menu open (to enable Copy Link), and when it runs: answer at once, reading nothing.
+     * Absent: the shell offers no Copy Link.
+     */
+    linkFor?(request: ShellLinkRequest): ShellLink;
     /** Show a file or folder in the OS file manager: a project page's link to what the shell does not open. */
     reveal?(path: string): Promise<void>;
     /** What a project page calls the file manager `reveal` shows things in ('Finder'). Default by platform. */

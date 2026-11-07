@@ -1,6 +1,7 @@
 import { documentDrop } from '../../model/actions/documentDrop.js';
 import { dropDecision } from '../../model/actions/dropDecision.js';
 import { resolveOperands, sectionRowIdOf } from '../../model/actions/operands.js';
+import { fileNameOf } from '../../model/ids/pathUtil.js';
 import { buildSectionRowId, sectionNameFromRowId, WHOLE_FILE_SECTION } from '../../model/ids/sectionRowId.js';
 import { buildContextMenuItems, resolveShortcutAction, shouldOpenCellEditor, shouldShowContextMenu, } from './menuItems.js';
 // Whether a value read off a change is an object — the one shape every list element below
@@ -262,7 +263,16 @@ export function wireEditing(host) {
     // in the page has refused it; then a task more, for what the source said as it ended to reach the
     // table. Refused if the source refused anything meanwhile, as `ran` is not told: a refusal does not
     // say which gesture it was about.
-    const dropFromOutside = (rowId, mode) => {
+    //
+    // A replacing drop (a compare's Copy to Right) is judged and settled the same way, as a copy, and
+    // handed to the source's `dropReplacing`; a source without one is no target for it.
+    const dropFromOutside = (rowId, mode) => dropJudged(rowId, mode, (s) => s.drop(rowId, mode));
+    const dropReplacing = (rowId, replacing) => dropJudged(rowId, 'copy', (s) => {
+        if (typeof s.dropReplacing !== 'function')
+            throw new Error(`${fileNameOf(host.docUri())} does not replace entries.`);
+        return s.dropReplacing(rowId, replacing);
+    });
+    const dropJudged = (rowId, mode, give) => {
         const count = editable && dragDescriptor ? dragDescriptor.items.length : 0;
         const decision = dropDecisionFor(rowId, mode);
         if (!source || !decision?.canDrop || (rowId === '' && !wholeFileRule())) {
@@ -273,7 +283,7 @@ export function wireEditing(host) {
         dropping.add(w);
         let answer;
         try {
-            answer = source.drop(rowId, mode);
+            answer = give(source);
         }
         catch (err) {
             dropping.delete(w);
@@ -574,6 +584,7 @@ export function wireEditing(host) {
         history,
         dropDecision: dropDecisionFor,
         drop: dropFromOutside,
+        dropReplacing,
         failed: refused,
     };
 }

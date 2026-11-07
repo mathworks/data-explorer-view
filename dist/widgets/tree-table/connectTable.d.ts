@@ -321,6 +321,15 @@ export interface TableHandle extends InspectorFeed {
      */
     drop(rowId: string, mode: DragMode): Promise<DropResult>;
     /**
+     * With `editing`: `drop(rowId, 'copy')` with the entries of `replacing` (rows of this table's
+     * document) taken out first in the same edit (the source's `dropReplacing`): one edit of this
+     * document, undone by one Undo. Until core can paste in place, the copy goes last in its section.
+     * Judged and settled as `drop` is (dropDecision first, then the
+     * source's promise and a task). A source without `dropReplacing` refuses it:
+     * `{ dropped: false, count, reason: '<file> does not replace entries.' }`. No `ran` is told.
+     */
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<DropResult>;
+    /**
      * Ask the source for the inspector's page again, for a change the table does not hear of: that
      * the document now holds edits, or none, on the file's page (`inspectorPages`). A listener is sent
      * it only if it is not the page last sent.
