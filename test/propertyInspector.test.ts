@@ -646,4 +646,25 @@ describe('a read-only text of several lines', () => {
     const forced = /@media \(forced-colors: active\) \{(.*?\})\s*\}/.exec(sheet())?.[1] ?? '';
     expect(rule('.prop-text', forced)).toContain('border-color: CanvasText');
   });
+
+  // A box that scrolls is a tab stop of its own in some browsers only (Chromium's), so a keyboard
+  // user elsewhere could not reach the lines past its height: it is one in every browser, named by
+  // its row, ringed as the theme rings a focus.
+  it('is a tab stop of its own, named by its row, so the keyboard can scroll it in any browser', async () => {
+    const el = await makeInspector([{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: DISPLAY, multiline: true }] }]);
+    const text = el.shadowRoot!.querySelector<HTMLElement>('.prop-text')!;
+    expect(text.getAttribute('tabindex')).toBe('0');
+    expect(text.getAttribute('aria-label')).toBe('In MATLAB');
+    text.focus();
+    expect(el.shadowRoot!.activeElement).toBe(text);
+  });
+
+  it("rings it as the theme rings a focus, and with the system's highlight in forced colours", () => {
+    const ring = rule('.prop-text:focus-visible');
+    expect(ring).toContain('box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4))');
+    expect(ring).toContain('outline: none');
+    // Forced colours draw no shadow: there the ring is an outline.
+    const forced = /@media \(forced-colors: active\) \{(.*?\})\s*\}/.exec(sheet())?.[1] ?? '';
+    expect(rule('.prop-text:focus-visible', forced)).toContain('outline: 2px solid Highlight');
+  });
 });

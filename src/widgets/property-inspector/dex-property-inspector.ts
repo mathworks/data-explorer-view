@@ -169,10 +169,23 @@ export class DexPropertyInspector extends LitElement {
       overflow: auto;
     }
 
-    /* Forced colours paint the tint over with the page's: the frame keeps it a box. */
+    /* A tab stop of its own (tabindex), as a box that scrolls is in some browsers only, so the
+       keyboard reaches the lines past its height in every one: ringed as the theme rings a focus. */
+    .prop-text:focus-visible {
+      outline: none;
+      box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
+    }
+
+    /* Forced colours paint the tint over with the page's: the frame keeps it a box. They draw no
+       shadow either, so its focus ring is an outline in the system's highlight. */
     @media (forced-colors: active) {
       .prop-text {
         border-color: CanvasText;
+      }
+
+      .prop-text:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: 1px;
       }
     }
   `];
@@ -311,8 +324,8 @@ export class DexPropertyInspector extends LitElement {
         ><dex-matrix-open .matrix=${prop.matrix}></dex-matrix-open>`;
     }
     // A text of lines, read-only: its lines and spaces as written, which a span of normal
-    // white-space would run into one.
-    if (prop.multiline) return html`<span class="prop-text">${prop.value}</span>`;
+    // white-space would run into one. A tab stop named by its row, so the keyboard can scroll it.
+    if (prop.multiline) return html`<span class="prop-text" tabindex="0" aria-label=${prop.name}>${prop.value}</span>`;
     return html`<span>${prop.value}</span>`;
   }
 

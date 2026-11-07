@@ -70,9 +70,12 @@ channel answers as it would without them.
 
 A read-only row marked `multiline` is a text of several lines as it was written: its line breaks
 and spaces kept, in the theme's monospace face (`--dex-font-mono`), on a framed box that scrolls
-past a height. The shell's MATLAB group shows MATLAB's display of a value this way, a matrix's
-columns lined up as MATLAB laid them out. buildPropertyGroups marks only editable rows `multiline`
-(their field of several lines), so its read-only rows read as they always did.
+past a height. The box is a tab stop named by its row (`tabindex="0"`, `aria-label`), ringed with
+`--dex-focus-ring` while it has the keyboard, so a keyboard user can reach it and scroll it with
+the arrow keys in any browser, not only in Chromium, where a box that scrolls is one already. The
+shell's MATLAB group shows MATLAB's display of a value this way, a matrix's columns lined up as
+MATLAB laid them out. buildPropertyGroups marks only editable rows `multiline` (their field of
+several lines), so its read-only rows read as they always did.
 
 ```js
 inspector.groups = [{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: '    16     2\n     5    11', multiline: true }] }];
