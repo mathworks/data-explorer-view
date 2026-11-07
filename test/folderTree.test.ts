@@ -427,6 +427,55 @@ describe('a folder tree', () => {
     expect(again.find((r) => r.label === 'proj')?.groupKind).toBe('project');
   });
 
+  it("says in a row after the root's that the index could not be read, and tells it once for each failure", async () => {
+    let failWith: string | null = 'EACCES: permission denied';
+    const failing = new FolderHierarchy({
+      files: {
+        list: async () => {
+          if (failWith) throw new Error(failWith);
+          return listing();
+        },
+      },
+      reader,
+    });
+    const told: string[] = [];
+    const tree = new FolderTree({ hierarchy: failing, entries, root: '/w', indexFailed: (err) => told.push((err as Error).message) });
+    const notice = {
+      label: "The folder's data files could not be read: EACCES: permission denied",
+      kind: 'notice',
+      collapsible: 'none',
+      tooltip: 'Used By, the graph and Search have nothing of this folder until they can be read. Read the folder again to try once more.',
+      key: '/notice%3Aunindexed',
+    };
+    expect((await tree.roots()).map((r) => r.label)).toEqual(['w', notice.label]);
+    expect((await tree.roots())[1]).toEqual(notice);
+    // Drawn again: the same failure, not told twice.
+    expect(told).toEqual(['EACCES: permission denied']);
+    // Read again: the notice goes; a failure after that is told again.
+    failWith = null;
+    failing.rebuild();
+    expect((await tree.roots()).map((r) => r.label)).toEqual(['w']);
+    failWith = 'EACCES: permission denied';
+    failing.rebuild();
+    await tree.roots();
+    expect(told).toEqual(['EACCES: permission denied', 'EACCES: permission denied']);
+  });
+
+  it("fails as the hierarchy fails for a host that lists no entries: the tree is the hierarchy's", async () => {
+    const failing = new FolderHierarchy({
+      files: {
+        list: async () => {
+          throw new Error('the folder is gone');
+        },
+      },
+      reader,
+    });
+    const told: unknown[] = [];
+    const tree = new FolderTree({ hierarchy: failing, entries: async () => null, root: '/w', indexFailed: (err) => told.push(err) });
+    await expect(tree.roots()).rejects.toThrow('the folder is gone');
+    expect(told).toEqual([]);
+  });
+
   it('asks the index nothing for a level of other files alone', async () => {
     const h = hierarchy();
     const tree = treeOf(h);

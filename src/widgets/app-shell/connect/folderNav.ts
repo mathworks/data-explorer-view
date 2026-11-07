@@ -97,8 +97,8 @@ export interface FolderNav {
   up(): void;
   /** Read the folder shown again (⟳, Read Again), or pick it again for a host whose folder is a snapshot. */
   refresh(): void;
-  /** What the palette's folder rows can do now. */
-  commands(): FolderCommands;
+  /** What the palette's folder rows can do now (all but whether there is a Folder view, which is connectShell's to say). */
+  commands(): Omit<FolderCommands, 'view'>;
   /** Show the menu of a row the tree asked one for. */
   rowMenu(detail: HierarchyMenuDetail): void;
   dispose(): void;
@@ -118,9 +118,13 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
   let acts: Map<string, () => void> | null = null;
 
   const parent = (): ((path: string) => string | null) | undefined => (host.folderParent ? (path) => host.folderParent!(path) : undefined);
+  // A folder above the one shown, and a host that can open it: a parent that is the folder itself
+  // (a Windows drive's `C:\`) is none.
   const canUp = (): boolean => {
     const root = context.folder()?.root;
-    return root !== undefined && !!host.openFolderAt && !!host.folderParent?.(root);
+    if (root === undefined) return false;
+    const up = host.folderParent?.(root);
+    return !!up && up !== root && !!host.openFolderAt;
   };
   const refreshKind = (): 'read' | 'pick' => (host.folderRefresh === 'pick' ? 'pick' : 'read');
 
@@ -181,7 +185,7 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
   function up(): void {
     const root = context.folder()?.root;
     const above = root === undefined ? null : host.folderParent?.(root);
-    if (above) void goTo(above);
+    if (above && above !== root) void goTo(above);
   }
 
   function show(x: number, y: number, entries: Entry[], keyboard = false): void {
@@ -217,7 +221,7 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
   ];
 
   // ⋯: Open Folder…, the folders opened before (the one shown is not among them), and Reveal.
-  async function actionsMenu(anchor: FolderMenuDetail['anchor']): Promise<void> {
+  async function actionsMenu(anchor: FolderMenuDetail['anchor'], keyboard: boolean): Promise<void> {
     const root = context.folder()?.root;
     const recent = host.recentFolders && host.openFolderAt ? await host.recentFolders().catch(() => [] as readonly string[]) : [];
     if (disposed) return;
@@ -236,15 +240,16 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
       if (entries.length > 0) entries.push(separator());
       entries.push(...reveal);
     }
-    show(anchor.x, anchor.y + anchor.height, entries);
+    show(anchor.x, anchor.y + anchor.height, entries, keyboard);
   }
 
   // `…`: the folders a long path folded away, each a move there.
-  function foldMenu(anchor: FolderMenuDetail['anchor'], segments: readonly FolderSegment[]): void {
+  function foldMenu(anchor: FolderMenuDetail['anchor'], segments: readonly FolderSegment[], keyboard: boolean): void {
     show(
       anchor.x,
       anchor.y + anchor.height,
       segments.map((s, i) => ({ item: { id: `folder-fold-${i}`, label: s.label, icon: 'folder' }, act: () => void goTo(s.path) })),
+      keyboard,
     );
   }
 
@@ -263,7 +268,8 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
         { item: { id: 'folder-row-side', label: 'Open to the Side' }, act: () => context.open(path, true) },
       );
       if (context.isOpen(uri)) head.push({ item: { id: 'folder-row-close', label: 'Close', icon: 'close' }, act: () => context.close(uri) });
-    } else if (isFolderRow(item) && host.openFolderAt) {
+    } else if (isFolderRow(item) && host.openFolderAt && path !== context.folder()?.root) {
+      // The root's row is the workspace folder already.
       head.push({ item: { id: 'folder-row-root', label: 'Use as Folder', icon: 'folder' }, act: () => void goTo(path) });
     }
     const tail = where(path, name);
@@ -273,10 +279,12 @@ export function connectFolderNav(context: FolderNavContext): FolderNav {
   const onUp = (): void => up();
   const onGo = (e: CustomEvent<{ path: string }>): void => void goTo(e.detail.path);
   const onRefresh = (): void => refresh();
+  // Each menu a key opened (Enter or Space on ⋯ or …) takes the keyboard, as a menu button's does.
   const onMenu = (e: CustomEvent<FolderMenuDetail>): void => {
     const { anchor, segments } = e.detail;
-    if (segments) foldMenu(anchor, segments);
-    else void actionsMenu(anchor);
+    const keyboard = e.detail.keyboard === true;
+    if (segments) foldMenu(anchor, segments, keyboard);
+    else void actionsMenu(anchor, keyboard);
   };
   const onAction = (e: CustomEvent<{ actionId: string }>): void => {
     const act = acts?.get(e.detail.actionId);

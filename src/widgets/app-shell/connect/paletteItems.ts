@@ -52,6 +52,11 @@ const NO_PANES: PaneCommands = { splitRight: false, moveToOther: false, panes: 0
 
 /** What the Folder view's commands would do now: whether a folder is shown, whether it has one above, what ⟳ does. */
 export interface FolderCommands {
+  /**
+   * Whether the shell has a Folder view, as it was connected (a host that shows folders then). Absent:
+   * a host that shows folders now has one (`ToolbarState.canOpenFolder`).
+   */
+  view?: boolean;
   /** A folder is shown: Read Again reads it (or picks it again). */
   shown: boolean;
   /** The folder shown has one above it the host can open: Up One Level goes there. */
@@ -103,7 +108,8 @@ function ordered(commands: PaletteCommand[]): PaletteCommand[] {
 /**
  * The palette's commands for the shell as `state` says it is, its panes as `panes` says (none, by
  * default), and its folder as `folder` says (none shown, by default). The Folder view's rows are
- * there for a host that shows folders (`state.canOpenFolder`), as the view is.
+ * there where the shell has the view (`folder.view`, else a host that shows folders,
+ * `state.canOpenFolder`).
  */
 export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PANES, folder: FolderCommands = NO_FOLDER): PaletteCommand[] {
   const label = (chord: string | undefined) => (chord ? chordLabel(parseChord(chord), state.mac) : undefined);
@@ -114,6 +120,8 @@ export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PA
     ...(shortcut ? { shortcut } : {}),
     ...(disabled ? { disabled } : {}),
   });
+  // The Folder view's rows, where the shell has the view.
+  const folderView = folder.view ?? state.canOpenFolder;
   const actions = toolbarItems(state).map((item) =>
     command(item.id as ShellCommand, item.label, categoryOf(item.align), item.shortcut, !!item.disabled),
   );
@@ -121,8 +129,8 @@ export function paletteCommands(state: ToolbarState, panes: PaneCommands = NO_PA
     ...actions.filter((c) => c.category === 'File'),
     ...ordered(actions.filter((c) => c.category === 'Edit')),
     ...ordered([
-      ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || state.canOpenFolder).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
-      ...(state.canOpenFolder
+      ...SHELL_VIEWS.filter((v) => v.view !== 'folder' || folderView).map((v) => command(v.command, `Show ${v.label}`, 'View', label(v.chord))),
+      ...(folderView
         ? [
             command('folder-up', 'Folder: Up One Level', 'View', undefined, !folder.canUp),
             command('folder-refresh', folder.refresh === 'pick' ? 'Folder: Pick Again' : 'Folder: Read Again', 'View', undefined, !folder.shown),

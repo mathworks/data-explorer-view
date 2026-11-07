@@ -107,6 +107,16 @@ describe('paletteCommands', () => {
     expect(shortcut(true)).toMatchObject({ 'split-right': '⌘\\', 'focus-pane-2': '⌘2' });
   });
 
+  it('lists the Folder view only where the shell has it, as it was connected, whatever the host offers now', () => {
+    const ids = (view: boolean, canOpenFolder: boolean) =>
+      paletteCommands({ ...NOTHING, canOpenFolder }, undefined, { view, shown: true, canUp: true, refresh: 'read' }).map((c) => c.id);
+    // A host that showed no folders when the shell was connected, and offers Open Folder since.
+    expect(ids(false, true)).toContain('open-folder');
+    for (const id of ['show-folder', 'folder-up', 'folder-refresh']) expect(ids(false, true), id).not.toContain(id);
+    // One that did, and offers none now: the view is there still.
+    for (const id of ['show-folder', 'folder-up', 'folder-refresh']) expect(ids(true, false), id).toContain(id);
+  });
+
   it('offers no Folder, and no Folder view, to a host without one', () => {
     const ids = paletteCommands({ ...NOTHING, canOpenFolder: false }, undefined, { shown: true, canUp: true, refresh: 'read' }).map((c) => c.id);
     for (const id of ['open-folder', 'show-folder', 'folder-up', 'folder-refresh']) expect(ids, id).not.toContain(id);

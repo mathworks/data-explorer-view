@@ -17,8 +17,8 @@
 // Mod+Shift+K: of the free letters, the one no browser keeps from a page and the app's native menu
 // leaves alone. Mod+Shift+J is Chromium's DevTools console on Windows and Linux and its Downloads
 // on macOS; Mod+Shift+Y a Mac's Make New Sticky Note service, and Firefox's Downloads elsewhere;
-// Mod+Shift+K is only Firefox's Web Console on Windows and Linux, which a page spends, as Show
-// Graph's Mod+Shift+H spends a browser's history.
+// Mod+Shift+K is only Firefox's Web Console on Windows and Linux, and Edge's Duplicate Tab, both of
+// which a page spends, as Show Graph's Mod+Shift+H spends a browser's history.
 //
 // Pure: data alone.
 

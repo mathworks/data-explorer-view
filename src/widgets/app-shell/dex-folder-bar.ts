@@ -33,6 +33,12 @@ export interface FolderMenuDetail {
    * folded away, for the menu to list. Absent when Folder Actions (⋯) was pressed.
    */
   segments?: FolderSegment[];
+  /**
+   * Pressed by the keyboard (Enter or Space on the button), not a pointer: the menu is to take the
+   * keyboard at once (a context menu's `focusFirst`), as a menu button's menu does. Absent for a
+   * pointer's press.
+   */
+  keyboard?: true;
 }
 
 /** ↑'s chord, as the shell writes its chords: the shell's own Up, which in this bar goes up a folder. */
@@ -398,16 +404,19 @@ export class DexFolderBar extends LitElement {
     this.dispatchEvent(new CustomEvent<null>('dex-folder-refresh', { bubbles: true, composed: true }));
   }
 
-  private _menu(button: HTMLElement, segments?: FolderSegment[]): void {
-    const box = button.getBoundingClientRect();
+  // A press of ⋯ or …. Enter and Space on a button click it with no pointer's count (detail 0),
+  // where a pointer's click counts 1 or more: the menu of a key's press takes the keyboard.
+  private _menu(e: MouseEvent, segments?: FolderSegment[]): void {
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const detail: FolderMenuDetail = { anchor: { x: box.x, y: box.y, width: box.width, height: box.height } };
     if (segments) detail.segments = segments;
+    if (e.detail === 0) detail.keyboard = true;
     this.dispatchEvent(new CustomEvent<FolderMenuDetail>('dex-folder-menu', { detail, bubbles: true, composed: true }));
   }
 
   private _onFold(e: MouseEvent): void {
     if (this.busy) return;
-    this._menu(e.currentTarget as HTMLElement, [...this._folded]);
+    this._menu(e, [...this._folded]);
   }
 
   // Alt+↑ is the shell's Up, heard on the window: in the bar it is ↑, and spent even where ↑ goes
@@ -494,7 +503,7 @@ export class DexFolderBar extends LitElement {
           title="Folder Actions"
           aria-haspopup="menu"
           aria-disabled="false"
-          @click=${(e: MouseEvent) => this._menu(e.currentTarget as HTMLElement)}
+          @click=${(e: MouseEvent) => this._menu(e)}
         ><dex-icon .iconId=${'meatballMenuUI'} .size=${16} .mono=${this.mono}></dex-icon></button>
       </nav>
     `;

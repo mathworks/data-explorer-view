@@ -41,6 +41,11 @@ export interface FolderTreeOptions {
   entries(dir: string): Promise<readonly FolderEntry[] | null>;
   /** The workspace folder's path (the served root). */
   root: string;
+  /**
+   * The index could not be read (its listing failed): told once for each failure, not at each draw
+   * of it, for an app's log. The tree says so itself, in a row after the root's. Absent: nothing is told.
+   */
+  indexFailed?(err: unknown): void;
 }
 
 // The icon of a row of another file: a plain document.
@@ -106,6 +111,9 @@ export class FolderTree {
   private readonly hierarchy: FolderHierarchy;
   private readonly entries: (dir: string) => Promise<readonly FolderEntry[] | null>;
   private readonly root: string;
+  private readonly indexFailed: ((err: unknown) => void) | undefined;
+  // The index's failure last told (indexFailed), until the index is read again: the same one is not told twice.
+  private toldFailure: string | null = null;
   // Whether the host lists entries, from its first answer for the root: a host does not start or
   // stop. And that answer, until the root's row first opens, which draws it rather than list the
   // root a second time.
@@ -120,12 +128,14 @@ export class FolderTree {
     this.hierarchy = options.hierarchy;
     this.entries = (dir) => options.entries(dir);
     this.root = options.root;
+    this.indexFailed = options.indexFailed;
   }
 
   /**
    * The root's own row (as FolderHierarchy.roots), its path set; and after it, when the index's
-   * listing was cut short, the hierarchy's row that says so. For a host that lists no entries,
-   * the hierarchy's roots.
+   * listing was cut short, the hierarchy's row that says so, or when it could not be read, a row
+   * that says why (the folder's entries are drawn all the same, its data files as plain rows). For
+   * a host that lists no entries, the hierarchy's roots, and its failure.
    */
   async roots(): Promise<HierarchyItem[]> {
     const [lists, index] = await Promise.all([this.listsEntries(), settled(this.hierarchy.roots())]);
@@ -133,12 +143,33 @@ export class FolderTree {
       if ('failed' in index) throw index.failed;
       return index.rows;
     }
-    // An index that cannot be read leaves the root's row, with no project's look and no notice.
+    // An index that cannot be read leaves the root's row, with no project's look, and a row after
+    // it that says so: not a failure of the tree, whose rows are the folder's entries still.
     const top = 'rows' in index ? index.rows : [];
     // Keyed by its whole path, where a folder under it is keyed by its name: another root of the
     // same name is another tree.
     const root = this.folderRow({ name: basename(this.root) || this.root, path: this.root, kind: 'folder' }, part(`dir:${this.root}`), top);
+    if ('failed' in index) return [root, this.unindexed(index.failed)];
+    this.toldFailure = null;
     return [root, ...top.filter((item) => item.kind === 'notice')];
+  }
+
+  // The row that says the index could not be read, as the hierarchy's says it was cut short; and
+  // the failure told, once.
+  private unindexed(err: unknown): HierarchyItem {
+    const why = messageOf(err);
+    if (why !== this.toldFailure) {
+      this.toldFailure = why;
+      this.indexFailed?.(err);
+    }
+    return {
+      label: `The folder's data files could not be read: ${why}`,
+      kind: 'notice',
+      collapsible: 'none',
+      tooltip: 'Used By, the graph and Search have nothing of this folder until they can be read. Read the folder again to try once more.',
+      // No folder's or file's key: those are `dir:`, `other:` or a uri.
+      key: part('notice:unindexed'),
+    };
   }
 
   /**

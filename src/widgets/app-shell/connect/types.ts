@@ -103,7 +103,12 @@ export interface ShellHost {
   // workspace folder, the ones opened before, and what Read Again does.
   /** The folder above `path`, or null where this host can't go up (a browser above the picked folder; `/`). Absent: ↑ is never offered. */
   folderParent?(path: string): string | null;
-  /** Make `path` the workspace folder: the host serves it and calls ShellHandle.showFolder, as for Open Folder. Resolves false when it can't (the folder stays). */
+  /**
+   * Make `path` the workspace folder: the host serves it and calls ShellHandle.showFolder, as for
+   * Open Folder. Resolves false when it can't (the folder stays, and the shell says so). `true`
+   * promises that showFolder call, made before or after the promise resolves: the Folder view's bar
+   * stays busy until it comes.
+   */
   openFolderAt?(path: string): Promise<boolean>;
   /** Folders opened before, newest first (paths). Absent: no Recent Folders. */
   recentFolders?(): Promise<readonly string[]>;

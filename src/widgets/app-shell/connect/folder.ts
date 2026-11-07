@@ -69,6 +69,8 @@ export function showFolder(
     open: (uri: string) => void;
     error: (message: string) => void;
     menu?: (detail: HierarchyMenuDetail) => void;
+    /** The index could not be read, where the tree shows the folder's entries all the same (its row says so): why, once. */
+    indexFailed?: (message: string) => void;
   },
 ): FolderView {
   const reader = folderReader(portFromMessagePort(port));
@@ -77,7 +79,17 @@ export function showFolder(
   tree.rowMenu = true;
   // Every entry of each folder, for a host that lists them; the hierarchy's rows for one that does
   // not, which FolderTree learns from its first answer.
-  const rows = new FolderTree({ hierarchy: session.hierarchy, entries: (dir) => reader.entries(dir), root });
+  // Let go of with the folder: a draw still under way as another folder is shown fails on the
+  // closed reader, and is no failure of the folder shown now.
+  let stopped = false;
+  const rows = new FolderTree({
+    hierarchy: session.hierarchy,
+    entries: (dir) => reader.entries(dir),
+    root,
+    indexFailed: (err) => {
+      if (!stopped) options.indexFailed?.(err instanceof Error ? err.message : String(err));
+    },
+  });
   const handle = connectHierarchy(tree, session.hierarchy, { empty: options.empty, expandTopLevel: true, tree: rows });
   // The graph's files as last read, by uri, with the version they were read at.
   const read = new Map<string, { version: string; bytes: ArrayBuffer }>();
@@ -122,6 +134,7 @@ export function showFolder(
     },
     onChange: (listener) => reader.onChange(listener),
     dispose() {
+      stopped = true;
       handle.dispose();
       session.dispose();
       reader.dispose();

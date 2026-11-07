@@ -78,6 +78,22 @@ import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js'
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/**
+ * The view the layout kept under `key` shows on `side`, as the user left it, or null where none is
+ * kept (no layout, none for the side, storage that cannot be read): `<dex-app-shell>`'s own record
+ * (shellLayout.ts), read as it reads it back.
+ */
+function keptViewOf(store: { getItem(key: string): string | null } | null, key: string, side: 'left' | 'right' | 'bottom'): string | null {
+  try {
+    const kept = key ? store?.getItem(key) : null;
+    const record: unknown = kept ? JSON.parse(kept) : null;
+    const view = (record as Record<string, { view?: unknown } | undefined> | null)?.[side]?.view;
+    return typeof view === 'string' ? view : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whether two files' bytes are the same. */
 const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
@@ -115,6 +131,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   // A Folder view for a host that shows folders, as it is when the shell is connected.
   const folderView = !!host.pickFolder;
   const parts = buildShell(shell, { appName, folders: folderView });
+  // Its Open Folder… with no folder shown, as the view itself, as the shell was connected.
+  parts.folderPart.canOpenFolder = folderView;
   const { toolbar, location, explorer, folderPart, folderBar, tree, docs, strip, status, editor, menu, dialog, confirm, toasts } = parts;
 
   let disposed = false;
@@ -126,6 +144,10 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
   const paneRows = new PaneRows(docs, strip);
   const store = pageStorage();
   docs.ratio = keptSplit(store, shell.storageKey);
+  // The left view the layout read back says the user chose, if it says one: the Folder view then
+  // stays behind it when the first folder comes (an app reopens its last folder at launch, and the
+  // view the user left wins), and comes forward with it only where there is no choice kept.
+  const keptLeft = keptViewOf(store, shell.storageKey, 'left');
   let nextId = 0;
   // The Log, which every part of the shell writes to.
   const log = (level: LogLevel, text: string): void => parts.log.appendEntry({ level, message: text });
@@ -263,7 +285,6 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     docs.welcome = tabs.items.length === 0;
     parts.graphPanel.hidden = !!active || tabs.items.length === 0;
     docs.canOpenFolder = !!host.pickFolder;
-    folderPart.canOpenFolder = !!host.pickFolder;
     markRows();
     const title = active ? `${active.dirty ? '● ' : ''}${active.name} — ${appName}` : appName;
     if (host.setTitle) host.setTitle(title);
@@ -745,7 +766,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     if (id === 'palette') {
       if (parts.modalOpen()) return;
       popovers.closeAll();
-      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), folderNav.commands()));
+      return parts.palette.show(paletteCommands(toolbarState(), paneCommands(), { ...folderNav.commands(), view: folderView }));
     }
     const view = viewOfCommand(id);
     if (view) {
@@ -921,7 +942,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
       folderNav.shown(shown.root);
       if (folderView && !folderRevealed) {
         folderRevealed = true;
-        modules.show('folder');
+        if (keptLeft === null) modules.show('folder');
       }
       markRows();
       modules.scope(basenameOf(shown.root));
@@ -939,6 +960,8 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     // The Search view's results on show are the folder's as it is now.
     namesChanged: () => modules.namesChanged(),
     failed: (text) => log('error', `This folder could not be read: ${text}`),
+    // Its tree says so in a row of its own; the Log keeps the line.
+    indexFailed: (text) => log('error', `The folder's data files could not be read: ${text}`),
   });
 
   // Nothing is open yet, and nowhere has been visited: the history starts at the first file.

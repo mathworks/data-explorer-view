@@ -25,7 +25,8 @@ bar.addEventListener('dex-folder-go', (e) => reroot(e.detail.path));
 bar.addEventListener('dex-folder-refresh', () => readAgain());
 bar.addEventListener('dex-folder-menu', (e) => {
   // e.detail.anchor: the button's box. e.detail.segments: the folders a `…` holds, when it was that.
-  showMenu(e.detail.anchor, e.detail.segments);
+  // e.detail.keyboard: Enter or Space pressed it, so the menu takes the keyboard (focusFirst).
+  showMenu(e.detail.anchor, e.detail.segments, { focusFirst: e.detail.keyboard === true });
 });
 
 async function reroot(path) {

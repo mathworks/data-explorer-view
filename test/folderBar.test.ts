@@ -61,6 +61,8 @@ const named = (el: DexFolderBar, name: string): HTMLButtonElement | null =>
   root(el).querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`);
 const up = (el: DexFolderBar): HTMLButtonElement => named(el, 'Up One Level')!;
 const actions = (el: DexFolderBar): HTMLButtonElement => named(el, 'Folder Actions')!;
+/** A pointer's click on `button`, which counts its clicks (detail 1); a key's click (Enter, Space, `click()`) counts none. */
+const pointerClick = (button: HTMLElement): void => void button.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true, composed: true, cancelable: true }));
 const moreItem = (el: DexFolderBar): HTMLLIElement => root(el).querySelector<HTMLLIElement>('.path > li.more')!;
 const moreButton = (el: DexFolderBar): HTMLButtonElement => moreItem(el).querySelector<HTMLButtonElement>('button')!;
 const pathBox = (el: DexFolderBar): HTMLElement => root(el).querySelector<HTMLElement>('.path')!;
@@ -369,9 +371,19 @@ describe('⋯', () => {
     expect(button.getAttribute('aria-haspopup')).toBe('menu');
     expect(button.querySelector('dex-icon')!.iconId).toBe('meatballMenuUI');
     button.getBoundingClientRect = () => rect(200, 4, 24, 24);
-    button.click();
+    pointerClick(button);
     // No segments: the menu is the folder's actions, not the folders a long path hid.
     expect(seen).toEqual([{ anchor: { x: 200, y: 4, width: 24, height: 24 } }]);
+  });
+
+  it('says its menu was asked for by the keyboard when Enter or Space pressed it, for the menu to take the keyboard', async () => {
+    const el = await bar({ segments: PATH });
+    const seen = heard('dex-folder-menu');
+    const button = actions(el);
+    button.getBoundingClientRect = () => rect(200, 4, 24, 24);
+    // A key's click: no pointer's count.
+    button.click();
+    expect(seen).toEqual([{ anchor: { x: 200, y: 4, width: 24, height: 24 }, keyboard: true }]);
   });
 });
 
@@ -445,8 +457,11 @@ describe('a path too long for the bar', () => {
     await narrow(el, 200);
     const seen = heard('dex-folder-menu');
     moreButton(el).getBoundingClientRect = () => rect(40, 4, 20, 20);
-    moreButton(el).click();
+    pointerClick(moreButton(el));
     expect(seen).toEqual([{ anchor: { x: 40, y: 4, width: 20, height: 20 }, segments: DEEP.slice(1, 6) }]);
+    // Pressed by the keyboard, its menu takes the keyboard.
+    moreButton(el).click();
+    expect(seen[1]).toEqual({ anchor: { x: 40, y: 4, width: 20, height: 20 }, segments: DEEP.slice(1, 6), keyboard: true });
   });
 
   it('folds the first one too where the last two do not fit beside it, and then clips the current one', async () => {

@@ -28,6 +28,8 @@ export interface ShownFolderActions {
   failed?(message: string): void;
   /** A row's menu was asked for (a right click, Shift+F10 on the row). */
   menu?(detail: HierarchyMenuDetail): void;
+  /** The folder's data files could not be read, where its tree shows its entries all the same: why, once. */
+  indexFailed?(message: string): void;
 }
 
 /** The folder shown in the Folder view, if any, and how to show another. */
@@ -71,6 +73,7 @@ export function connectShownFolder(part: DexShellFolder, tree: DexHierarchy, act
           actions.failed?.(text);
         },
         menu: (detail) => actions.menu?.(detail),
+        indexFailed: (text) => actions.indexFailed?.(text),
       });
       folder = shown;
       // The folder's names are read again each time it takes a change: its tree is built again

@@ -259,6 +259,33 @@ describe('the Folder view', () => {
     expect(drawn().filter((l) => !l.startsWith(' '))).toEqual(['data', 'models']);
   });
 
+  it('stays behind the left view the kept layout shows when the first folder comes, as at a launch that reopens it', async () => {
+    localStorage.setItem('dex-shell:layout', JSON.stringify({ left: { view: 'search', open: true, size: 220 } }));
+    const work = workFolder();
+    const page = folderPage(work, { entries: true, show: false });
+    await settled();
+    expect(viewShown(page, 'left')).toBe('search');
+    page.serve(work);
+    await until(() => segmentLabels().at(-1) === 'work');
+    await settled();
+    expect(viewShown(page, 'left')).toBe('search');
+  });
+
+  it('feeds Used By from a folder shown by a host with no Folder view', async () => {
+    const work = workFolder();
+    const page = folderPage(work, { entries: true, without: ['pickFolder'] });
+    expect(folderView(page)).toBeNull();
+    const dict = path.join(work, 'data', 'params.sldd');
+    void page.handle.openPaths([dict]);
+    const usedBy = () => {
+      const table = document.querySelector<HTMLElement & { rows: { Name?: { label: string }; UsedBy?: { blockLinks?: { blockName: string }[] } }[] }>(
+        `.doc-panel[data-path="${CSS.escape(dict)}"] dex-tree-table`,
+      );
+      return (table?.rows.find((r) => r.Name?.label === 'Kp')?.UsedBy?.blockLinks ?? []).map((b) => b.blockName);
+    };
+    await until(() => usedBy().includes('PlantGain'), 5000);
+  });
+
   it('is brought forward the first time a folder is shown, and not again as the folder changes', async () => {
     const work = workFolder();
     const page = folderPage(path.join(work, 'data'), { entries: true, show: false });
@@ -332,6 +359,19 @@ describe('the path bar', () => {
     expect(bar().busy).toBe(false);
   });
 
+  it('offers no ↑ where the host gives the folder itself as the one above, as a drive is its own top', async () => {
+    const work = workFolder();
+    const page = folderPage(work);
+    await until(() => segmentLabels().length > 0);
+    page.host.folderParent = (p) => p;
+    page.serve(path.join(work, 'models'));
+    await until(() => segmentLabels().join() === 'models');
+    expect(bar().canUp).toBe(false);
+    page.command('folder-up');
+    await settled();
+    expect(page.openedAt).toEqual([]);
+  });
+
   it('offers no ↑ for a host that cannot go up, and Pick Again for one that can only ask for the folder again', async () => {
     const work = workFolder();
     const page = folderPage(work);
@@ -377,6 +417,25 @@ describe('the path bar', () => {
     await until(() => menus.length === 3);
     choose('Open Folder…');
     await until(() => page.main.folderPicks === 1);
+  });
+
+  it('opens either menu with the keyboard on its first item when Enter or Space pressed its button', async () => {
+    const work = workFolder();
+    const page = folderPage(path.join(work, 'data'));
+    await until(() => segmentLabels().length === 3);
+    recordMenus();
+    page.host.recentFolders = async () => [work];
+    send('dex-folder-menu', { anchor: { x: 100, y: 10, width: 24, height: 24 }, keyboard: true });
+    await until(() => menus.length === 1);
+    expect(lastMenu().options?.focusFirst).toBe(true);
+    send('dex-folder-menu', { anchor: { x: 40, y: 10, width: 20, height: 24 }, segments: [{ label: 'work', path: work }], keyboard: true });
+    await until(() => menus.length === 2);
+    expect(menuLabels()).toEqual(['work']);
+    expect(lastMenu().options?.focusFirst).toBe(true);
+    // A pointer's press: the keyboard stays where it is.
+    send('dex-folder-menu', { anchor: { x: 100, y: 10, width: 24, height: 24 } });
+    await until(() => menus.length === 3);
+    expect(lastMenu().options?.focusFirst).toBeFalsy();
   });
 
   it('leaves out the recent folders with none, and Reveal for a host that shows nothing in a file manager', async () => {
@@ -442,6 +501,10 @@ describe("a row's menu", () => {
     rightClick('data');
     await until(() => menus.length === 3);
     expect(menuLabels()).toEqual(['Use as Folder', '—', 'Reveal in Finder', 'Copy Path']);
+    // The root's row is the workspace folder already.
+    rightClick('work');
+    await until(() => menus.length === 4);
+    expect(menuLabels()).toEqual(['Reveal in Finder', 'Copy Path']);
   });
 
   it("does what a data file's items say: Open keeps a tab, Open to the Side puts it beside, Close closes it", async () => {

@@ -586,7 +586,7 @@ shell runs.
 | `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place; an answer of `path` itself with `downloaded` is said "Downloaded NAME", as for `saveFile` | needed |
 | `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's and the Folder view's Open Folder…; the folder comes back by `app.showFolder` | no Folder button and no Folder view: the host shows no folders |
 | `folderParent(path)` | each folder shown: the folder above `path` (null at the top: `/`, a browser's picked folder), for the Folder view's path and its ↑ | the path is the folder alone, and there is no ↑ |
-| `openFolderAt(path)` | ↑, a segment of the Folder view's path, a recent folder, a folder row's Use as Folder: make `path` the workspace folder, served and shown by `app.showFolder` as for Open Folder; false (or a rejection) leaves the folder shown, and says why | no moves: the folder changes only by Open Folder |
+| `openFolderAt(path)` | ↑, a segment of the Folder view's path, a recent folder, a folder row's Use as Folder: make `path` the workspace folder, served and shown by `app.showFolder` as for Open Folder; `true` promises that `app.showFolder` call, before or after it resolves, and the bar stays busy until it comes; false (or a rejection) leaves the folder shown, and says why | no moves: the folder changes only by Open Folder |
 | `recentFolders()` | the Folder view's ⋯: the folders opened before, newest first (paths) | no Recent Folders |
 | `folderRefresh` | read for the Folder view's ⟳: `'read'` reads the folder again, `'pick'` asks the user to pick it again (a browser's snapshot of a folder) | `'read'` |
 | `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |
@@ -665,8 +665,9 @@ it as it shows one picked; the bar says "Reading NAME…" until it comes, and a 
 cannot open leaves the one shown, with a toast that says why. ⟳ reads the folder again, and ⋯
 holds Open Folder…, the recent folders and Reveal. A row's menu (a right click, Shift+F10 or the
 ContextMenu key) opens a data file, beside the others too, closes it, reveals a row's file or
-folder and copies its path. The view comes forward with the first folder shown; with none, it
-says so and offers Open Folder… and a drop. The command palette has Show Folder, Folder: Up One
+folder and copies its path. The view comes forward with the first folder shown, unless the
+layout kept from before shows another view there (an app that reopens its last folder at launch
+leaves the user's view as it was); with none, it says so and offers Open Folder… and a drop. The command palette has Show Folder, Folder: Up One
 Level and Folder: Read Again.
 
 ```js
