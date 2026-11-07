@@ -26,7 +26,7 @@ import { sourceFiles } from './tools/moduleGraph.js';
 const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
 const TAGS = ['dex-about-panel', 'dex-add-gallery', 'dex-app-shell', 'dex-column-filter', 'dex-command-palette',
-  'dex-command-window', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
+  'dex-command-window', 'dex-compare-view', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
   'dex-filter-bar', 'dex-folder-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
   'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-raw-viewer',
   'dex-relationship-graph', 'dex-search-panel', 'dex-settings-panel', 'dex-shell-action', 'dex-shell-view',
