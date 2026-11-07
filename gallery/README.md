@@ -25,7 +25,7 @@ npm run test:gallery    # the browser tests (see below)
 | `hierarchy.html` | `<dex-hierarchy>` over a folder read in the page (`FolderHierarchy`, `connectHierarchy`): its files and what each references, a file's unsaved-changes mark, the folder read again |
 | `composed.html` | folders, table, inspector and variable editor together (`connectHierarchy`, `connectTable`, `connectInspector`): a file chosen in a folder opens in the table, its Usage column filled over the folders, a Usage link opens the model on the block, a search finds an entry by name, the selection fills the inspector, the matrix glyph opens the editor |
 | `folder.html` | a folder read across a channel (`serveFolder`, `folderReader`), beside a table: the tree open at its top level, a link in the table opening the file the tree shows for it (`resolveLink`), and the tree showing the table's file (`reveal`); with `?limit=N`, a listing cut at N files, which the tree's last row says |
-| `app.html` | a whole app, `<dex-app-shell>` filled by `connectShell` over `browserHost()`: the gallery's files open as tabs (`host.files.addPicked`, `openPaths`), a folder of models and dictionaries in the Explorer (`host.openFolder`), the inspector, Raw, Search, the Gallery, the Terminal, the Log, the relationship graph at Root, Settings and the command palette |
+| `app.html` | a whole app, `<dex-app-shell>` filled by `connectShell` over `browserHost()`: the gallery's files open as tabs (`host.files.addPicked`, `openPaths`), a folder of models and dictionaries in the Explorer (`host.openFolder`), the inspector, Raw, Search, the Gallery, the Terminal, the Log, the relationship graph at Root, Settings, the command palette, and a compare of the two object dictionaries (Compare With… on a tab) |
 
 Each page has the theme switch (light, dark, high contrast) in its header: it sets
 `data-theme` on `<html>`, which is all `theme.css` reads. The app page has none: the window is
@@ -109,11 +109,14 @@ matrix glyph opens the editor on the right cells; the hierarchy opens a folder w
 mouse and the keyboard and hands the page the file chosen; a folder read across a channel
 opens its top level, follows a link to the file its tree shows and reveals the table's file; the
 menu, the dialog and the
-project page answer the mouse and the keyboard; and the theme switch changes the colours of the
-page and of the widgets. `csp.spec.ts` checks that every built page has the strict
+project page answer the mouse and the keyboard; the theme switch changes the colours of the
+page and of the widgets; and the app page compares two dictionaries and steps to their change
+with F7. `csp.spec.ts` checks that every built page has the strict
 policy, and that each engine refuses an inline style and a `data:` image under it, so
 any widget that needed either would fail the other tests on the refusal's console
-error. They check behaviour, not pixels, so they hold across engines.
+error. They check behaviour, not pixels, so they hold across engines. A few keep a screenshot
+in `test-results/` for a person to look at (the Folder view, the compare light and dark), in
+every engine but WebKit, whose screenshot adds a `<style>` to the page that the policy refuses.
 
 They run against the built gallery in Chromium, Firefox and WebKit, and against the dev
 server in Chromium (`chromium-dev`), each on 127.0.0.1 and a port of its own: 4791 and 4792,

@@ -22,6 +22,7 @@ import sharedParams from '../../../test-integration/fixtures/usageorder/sharedPa
 import workspaceData from '../../../test-integration/fixtures/workspace/data.sldd?url';
 import workspaceModel from '../../../test-integration/fixtures/workspace/model.slx?url';
 import workspaceParams from '../../../test-integration/fixtures/workspace/params.sldd?url';
+import objectPropsText from '../../../test/fixtures/object_props_text.sldd?url';
 import { FIXTURES } from '../fixtures';
 import '../app.css';
 
@@ -36,6 +37,10 @@ const FOLDER: Readonly<Record<string, string>> = {
   'workspace/model.slx': workspaceModel,
   'workspace/params.sldd': workspaceParams,
 };
+
+// The zip dictionary's text twin, opened before it, for Compare With…: the two differ in the zip's
+// fleetObject › Notes rows.
+const TEXT_TWIN = { name: 'object_props_text.sldd', url: objectPropsText };
 
 // Files of the folder that are no data: made in the page, as the browser's list of a folder holds
 // every file the user picked, whatever it is.
@@ -83,7 +88,7 @@ async function start(): Promise<void> {
     ...Object.entries(FILE_TEXT).map(([rel, text]) => ({ rel, file: new File([text], rel.slice(rel.lastIndexOf('/') + 1)) })),
   ];
   await host.openFolder({ kind: 'list', root: 'plant', files });
-  const opened = [...FIXTURES].reverse();
+  const opened = [...FIXTURES].reverse().flatMap((f) => (f.name === 'object_props_binary.sldd' ? [TEXT_TWIN, f] : [f]));
   const paths = await Promise.all(opened.map(async (f) => host.files.addPicked(f.name, { kind: 'bytes', bytes: await bytesOf(f.url) })));
   await app.openPaths(paths);
 }
