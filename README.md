@@ -759,8 +759,12 @@ at first) leaves out the lines that are alike. A row opened, scrolled to or
 selected in one table is in the other, and the Properties view shows the
 selected line's differences, before → after. F7 and Shift+F7, the palette's
 Next and Previous Change and the header's arrows go from difference to
-difference, an entry only one file has being one. The compare is drawn again as
-either file is edited or saved. Both
+difference, an entry only one file has being one. A line's menu copies its
+entry to the other file (Copy to Right, Copy to Left), replacing the entry of
+its name there, or adding it where that file lacks it: one edit of the file
+copied into for each section copied, undone there by one Undo. A file that may
+not be edited takes no copy. Show in <file> goes to the line's row in that
+file's tab. The compare is drawn again as either file is edited or saved. Both
 files stay open in their own tabs, and closing either closes the compare.
 
 ### Keyboard shortcuts

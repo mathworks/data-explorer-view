@@ -785,6 +785,12 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
         later();
       },
       say,
+      menu,
+      showIn(file, rowId) {
+        if (!isOpen(file)) return;
+        activate(file);
+        file.handle?.select([rowId]);
+      },
     });
     shown();
     await tab.compare.refresh();

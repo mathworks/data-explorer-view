@@ -15,8 +15,18 @@
 // Next and Previous Change go from difference to difference by entry: a whole entry only one file
 // has is one difference, however many rows are under it (a struct's fields, an array's elements),
 // while the rows that differ inside an entry both files have are each one.
+//
+// A line's menu copies its entry to the other side (Copy to Right, Copy to Left): through that
+// file's own tab, as a drag of the entries from the side that has them let go on the section they
+// go in, so it is one edit of that file, undone there by one Undo, and drawn here from the file's
+// own change. An entry that file has already is replaced (the handle's dropReplacing), keeping its
+// name; one it lacks is copied in. A side that may not be edited takes no copy, and its menu offers
+// none. Show in <file> goes to the line's row in that file's tab.
 
 import { compareRows, type CompareLine, type CompareRows, type CompareSideRows } from '../../../model/compare/compareRows.js';
+import { buildSectionRowId } from '../../../model/ids/sectionRowId.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import { shortcutOf } from './fileMenu.js';
 import { comparePage } from '../../../model/compare/comparePage.js';
 import { diffSides, diffSummary, type DocumentDiff } from '../../../model/compare/diff.js';
 import { readDiffSide, type DiffSide } from '../../../model/compare/readSide.js';
@@ -37,6 +47,10 @@ export interface CompareWiring {
   selected(lineIds: readonly string[]): void;
   /** Say something: a toast and its line in the Log. */
   say(level: 'info' | 'warning' | 'error', text: string, ms?: number): void;
+  /** The shared context menu, for a line's menu. */
+  menu: DexContextMenu;
+  /** Show `tab` with `rowId` selected: the line's Show in <file>. */
+  showIn(tab: OpenTab, rowId: string): void;
 }
 
 /** A compare tab's connection: its two files' tabs, its view, and what it answers. */
@@ -60,6 +74,14 @@ export interface CompareConnection {
   select(lineIds: readonly string[]): void;
   /** Read both sides again and draw them; one at a time, a change heard during one making one more after it. */
   refresh(): Promise<void>;
+  /**
+   * Copy the entries of these lines into `to`'s file from the other's (Copy to Right: `to` 'right'),
+   * each line standing for its entry, lines the source lacks left out: per section, the source's
+   * entries dragged (`doc.table.dragStart`), dropped on the target's section through its tab's handle
+   * (`dropReplacing` with the target's rows of the entries it has, else `drop(…, 'copy')`), the drag
+   * ended; one undo step per section in the target. Said as a toast. Nothing into a side that may not be edited.
+   */
+  copy(lineIds: readonly string[], to: 'left' | 'right'): Promise<void>;
   dispose(): void;
 }
 
@@ -253,6 +275,109 @@ export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiri
     select([next.id]);
   }
 
+  /** Whether `t` may take a copy: its document is edited in the page, and its table may edit it. */
+  const editable = (t: OpenTab): boolean => !!t.doc?.editable && !!t.handle?.view?.editable;
+
+  async function copy(lineIds: readonly string[], to: 'left' | 'right'): Promise<void> {
+    if (!rows || disposed) return;
+    const into = to === 'right' ? right : left;
+    const from = to === 'right' ? left : right;
+    if (!editable(into) || !into.handle) return;
+    const sourceOf = (line: CompareLine) => (to === 'right' ? line.row?.a : line.row?.b);
+    const targetOf = (line: CompareLine) => (to === 'right' ? line.row?.b : line.row?.a);
+    // Each line stands for its entry (an engine copies whole entries), each once, in line order,
+    // those the source has; grouped by section, each section one drop.
+    const wanted = new Set(lineIds.map((id) => rows!.byId.get(id)?.entry).filter((id): id is string => !!id));
+    const bySection = new Map<string, CompareLine[]>();
+    for (const line of rows.lines) {
+      if (!wanted.has(line.id) || !sourceOf(line)) continue;
+      const list = bySection.get(line.section);
+      if (list) list.push(line);
+      else bySection.set(line.section, [line]);
+    }
+    const lends = from.doc?.table;
+    if (bySection.size > 0 && !lends?.dragStart) return wiring.say('error', `Could not copy from ${from.name}: it lends no entries.`);
+    for (const [section, lines] of bySection) {
+      const target = section === '' ? '' : buildSectionRowId(section);
+      const replacing = lines.flatMap((line) => {
+        const row = targetOf(line);
+        return row ? [row.ID] : [];
+      });
+      let dropped: { dropped: boolean; reason?: string };
+      // The drag register tells the target's table of the drag as it is taken (synchronously), so
+      // its handle judges the drop as it would one of its own rows.
+      lends!.dragStart!(lines.map((line) => sourceOf(line)!.ID));
+      try {
+        dropped = replacing.length > 0 ? await into.handle.dropReplacing(target, replacing) : await into.handle.drop(target, 'copy');
+      } finally {
+        lends!.dragEnd?.();
+      }
+      const n = lines.length;
+      if (dropped.dropped) wiring.say('info', `Copied ${n} ${n === 1 ? 'entry' : 'entries'} to ${into.name}`, 2000);
+      else wiring.say('warning', `Could not copy to ${into.name}: ${dropped.reason ?? 'it refused the entries.'}`);
+    }
+  }
+
+  // A line's menu: Copy to Right and Copy to Left where that side takes a copy, enabled for a
+  // selected line the other side has and that differs, in it or under it; Next and Previous Change;
+  // Show in each file that has the first selected line's row. Acted on by its next choice only, as
+  // every user of the shared menu is.
+  let menuFor: readonly string[] | null = null;
+  function lineMenu(lineIds: readonly string[], x: number, y: number, keyboard: boolean): void {
+    if (!rows) return;
+    const lines = lineIds.map((id) => rows!.byId.get(id)).filter((line): line is CompareLine => !!line?.row);
+    const copyable = (has: 'a' | 'b') => lines.some((line) => !!line.row![has] && (line.differs || line.differsBelow));
+    const copies: ContextMenuItem[] = [
+      ...(editable(right) ? [{ id: 'copy-right', label: 'Copy to Right', icon: 'arrowNavigationEastUI', disabled: !copyable('a') }] : []),
+      ...(editable(left) ? [{ id: 'copy-left', label: 'Copy to Left', icon: 'arrowNavigationWestUI', disabled: !copyable('b') }] : []),
+    ];
+    const first = lines[0]?.row;
+    const shows: ContextMenuItem[] = [
+      ...(first?.a ? [{ id: 'show-left', label: `Show in ${left.name}` }] : []),
+      ...(first?.b ? [{ id: 'show-right', label: `Show in ${right.name}` }] : []),
+    ];
+    const hasChanges = rows.changes.length > 0;
+    const items: ContextMenuItem[] = [
+      ...copies,
+      ...(copies.length > 0 ? [{ id: '', label: '', separator: true }] : []),
+      { id: 'next-change', label: 'Next Change', icon: 'arrowNavigationSouthUI', disabled: !hasChanges, ...shortcutOf('next-change') },
+      { id: 'previous-change', label: 'Previous Change', icon: 'arrowNavigationNorthUI', disabled: !hasChanges, ...shortcutOf('previous-change') },
+      ...(shows.length > 0 ? [{ id: '', label: '', separator: true }, ...shows] : []),
+    ];
+    wiring.menu.show(x, y, items, { focusFirst: keyboard });
+    // After show(): a menu it replaced said it closed, which ends the menu before this one.
+    menuFor = [...lineIds];
+  }
+  const onMenuAction = (e: CustomEvent<{ actionId: string }>): void => {
+    const lineIds = menuFor;
+    menuFor = null;
+    if (!lineIds || disposed) return;
+    const first = rows?.byId.get(lineIds[0] ?? '')?.row;
+    switch (e.detail.actionId) {
+      case 'copy-right':
+      case 'copy-left':
+        return void copy(lineIds, e.detail.actionId === 'copy-right' ? 'right' : 'left');
+      case 'next-change':
+      case 'previous-change':
+        return step(e.detail.actionId === 'next-change' ? 1 : -1);
+      case 'show-left':
+        if (first?.a) wiring.showIn(left, first.a.ID);
+        return;
+      case 'show-right':
+        if (first?.b) wiring.showIn(right, first.b.ID);
+        return;
+    }
+  };
+  const onMenuClosed = (): void => {
+    menuFor = null;
+  };
+  wiring.menu.addEventListener('dex-action', onMenuAction);
+  wiring.menu.addEventListener('dex-menu-closed', onMenuClosed);
+  stops.push(() => {
+    wiring.menu.removeEventListener('dex-action', onMenuAction);
+    wiring.menu.removeEventListener('dex-menu-closed', onMenuClosed);
+  });
+
   const listen = <K extends keyof HTMLElementEventMap>(type: K, listener: (e: HTMLElementEventMap[K]) => void): void => {
     view.addEventListener(type, listener);
     stops.push(() => view.removeEventListener(type, listener));
@@ -263,6 +388,7 @@ export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiri
     wiring.selected(e.detail.lineIds);
   });
   listen('dex-compare-step', (e) => step(e.detail.by));
+  listen('dex-compare-menu', (e) => lineMenu(e.detail.lineIds, e.detail.x, e.detail.y, !!e.detail.keyboard));
 
   return {
     left,
@@ -282,6 +408,7 @@ export function connectCompare(tab: OpenTab, left: OpenTab, right: OpenTab, wiri
     step,
     select,
     refresh,
+    copy,
     dispose() {
       if (disposed) return;
       disposed = true;
