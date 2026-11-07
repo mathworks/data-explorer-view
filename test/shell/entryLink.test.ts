@@ -88,6 +88,18 @@ describe('Copy Link to Entry', () => {
     expect(toastTexts()).not.toContain('Link copied');
   });
 
+  it('copies nothing, and says nothing, where the host answers what is no link at all', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const targets = makesLinks(page, () => 42 as never);
+    await menuOn('params.sldd', 'Kp');
+    choose('copyEntryLink');
+    await until(() => targets.length > 0);
+    await settled();
+    expect(page.main.copied).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+  });
+
   it('links a block in a subsystem by its key, and one in the root system by its name: openAt follows each back to its row', async () => {
     const page = startPage(FILES);
     await open(page, 'slxcases.slx');

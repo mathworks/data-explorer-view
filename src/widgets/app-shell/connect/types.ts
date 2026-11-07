@@ -205,8 +205,11 @@ export interface OpenAtTarget {
 
 /** An entry of a file, as a link names it: the file's path, the entry's name, and its section's label where it has one. */
 export interface ShellEntryTarget {
+  /** The file's path, as its tab opened it. */
   path: string;
+  /** The entry's name, or a block's key for a block in a subsystem. */
   entry: string;
+  /** The label of the section row the entry is under (`Design Data`); absent for an entry under none, a MAT-file's variable or a block linked by its key. */
   section?: string;
 }
 
