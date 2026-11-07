@@ -16,5 +16,16 @@ export declare const SECTION_ROW_PREFIX = "section:";
 export declare function buildSectionRowId(name: string): string;
 /** True if `id` is a section header row id. */
 export declare function isSectionRowId(id: string): boolean;
+/**
+ * Whether `row` is a top-level entry, as a name or a link selects one (selectByName, the Terminal's
+ * names, ShellHandle.openAt): its parent is a section row or, in a table with no section rows (a
+ * MAT-file's), it has no parent and is no section row itself. A row nested under an entry (a
+ * field, a block in a subsystem) is none. One rule for all of them: a name the table selects and
+ * the shell links to the same row.
+ */
+export declare function isEntryRow(row: {
+    readonly ID: string;
+    readonly parent: string | null;
+}): boolean;
 /** Extract the section name from a section row id, or null if it isn't one. */
 export declare function sectionNameFromRowId(id: string): string | null;

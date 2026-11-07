@@ -4,10 +4,13 @@
 // section climb a selected row's parents through. The rows are the table's own array, which the
 // table replaces whole on every change (a paint, one entry's repaint, a row's children answered),
 // so the array is the cache's key: each is indexed once, a row gone from the next one is gone, and
-// a child the table merged in later is found as soon as it is there.
+// a child the table merged in later is found as soon as it is there. And the entry a link from
+// outside the shell names (ShellHandle.openAt, a link copied from a row): which row an entry's
+// name, and its section's label, select; and what name and label a row's entry is linked by, a
+// block in a subsystem by its key, so that the link selects that row again.
 import { describe, expect, it } from 'vitest';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
-import { graphNameOf, rowIn, sectionOf } from '../../src/widgets/app-shell/connect/rows.js';
+import { entryOf, graphNameOf, linkedEntryOf, rowIn, rowOfEntry, sectionOf } from '../../src/widgets/app-shell/connect/rows.js';
 
 const row = (ID: string, parent: string | null, label = ID): TreeTableRow => ({ ID, parent, Name: { label } }) as TreeTableRow;
 const PAINT: readonly TreeTableRow[] = [
@@ -74,5 +77,127 @@ describe('graphNameOf', () => {
     expect(graphNameOf(PAINT, 'section:design')).toBeUndefined();
     expect(graphNameOf(PAINT, 'gone')).toBeUndefined();
     expect(graphNameOf([row('a', 'b'), row('b', 'a')], 'a')).toBeUndefined();
+  });
+});
+
+// A dictionary's sections, an entry with a field, a name two sections hold, and a block by its key;
+// and a MAT-file's variable, under no section.
+const LINKED: readonly TreeTableRow[] = [
+  row('section:design', null, 'Design Data'),
+  row('e:Kp', 'section:design', 'Kp'),
+  row('e:Bus', 'section:design', 'Bus'),
+  row('e:Bus/Speed', 'e:Bus', 'Speed'),
+  row('section:other', null, 'Other Data'),
+  row('o:Kp', 'section:other', 'Kp'),
+  row('section:blocks', null, 'Model Elements'),
+  { ...row('b:65', 'section:blocks', 'Gain'), _blockKey: '65' } as TreeTableRow,
+];
+const MAT: readonly TreeTableRow[] = [row('m:P', null, 'ParamMat'), row('m:P/x', 'm:P', 'x')];
+const idOf = (found: TreeTableRow | undefined) => found?.ID;
+
+describe('rowOfEntry', () => {
+  it('is the entry of that name, the first section\'s where two sections hold one', () => {
+    expect(idOf(rowOfEntry(LINKED, 'Kp'))).toBe('e:Kp');
+  });
+
+  it('is the entry of that name in the section of that label, given one', () => {
+    expect(idOf(rowOfEntry(LINKED, 'Kp', 'Other Data'))).toBe('o:Kp');
+  });
+
+  it('is a nested row of that name where no entry has it, as a link selects one', () => {
+    expect(idOf(rowOfEntry(LINKED, 'Speed'))).toBe('e:Bus/Speed');
+  });
+
+  it('is only an entry, given a section: a nested row of that name is none', () => {
+    expect(rowOfEntry(LINKED, 'Speed', 'Design Data')).toBeUndefined();
+  });
+
+  it("is never a section's own row, which is no entry", () => {
+    expect(rowOfEntry(LINKED, 'Design Data')).toBeUndefined();
+  });
+
+  it('is a block by its key, which no cell prints', () => {
+    expect(idOf(rowOfEntry(LINKED, '65'))).toBe('b:65');
+  });
+
+  it('is none for a section the table has none of, or for no name', () => {
+    expect(rowOfEntry(LINKED, 'Kp', 'Nope')).toBeUndefined();
+    expect(rowOfEntry(LINKED, '')).toBeUndefined();
+  });
+
+  it("is a MAT-file's variable by its name, and none in a section, which a MAT-file has none of", () => {
+    expect(idOf(rowOfEntry(MAT, 'ParamMat'))).toBe('m:P');
+    expect(rowOfEntry(MAT, 'ParamMat', 'Design Data')).toBeUndefined();
+  });
+});
+
+describe('entryOf', () => {
+  it("is the entry a nested row is in, and its section's label", () => {
+    expect(entryOf(LINKED, 'e:Bus/Speed')).toEqual({ entry: 'Bus', section: 'Design Data' });
+  });
+
+  it("is an entry itself, and its section's label", () => {
+    expect(entryOf(LINKED, 'e:Kp')).toEqual({ entry: 'Kp', section: 'Design Data' });
+  });
+
+  it("is none for a section's own row", () => {
+    expect(entryOf(LINKED, 'section:design')).toBeUndefined();
+  });
+
+  it("is a MAT-file's variable with no section at all", () => {
+    const found = entryOf(MAT, 'm:P/x');
+    expect(found).toEqual({ entry: 'ParamMat' });
+    expect(found).not.toHaveProperty('section');
+  });
+
+  it('is none for a row the table does not hold', () => {
+    expect(entryOf(LINKED, 'nope')).toBeUndefined();
+  });
+
+  it('is none for a parent chain that loops', () => {
+    expect(entryOf([row('a', 'b'), row('b', 'a')], 'a')).toBeUndefined();
+  });
+});
+
+// A model's blocks, as core lists them: flat under Model Elements, a block in a subsystem with the
+// subsystem's path, and the name of one block in the root system and one in the subsystem the same.
+const block = (ID: string, label: string, key: string, systemPath: string, parent = 'section:blocks'): TreeTableRow =>
+  ({ ...row(ID, parent, label), _blockKey: key, _systemPath: systemPath }) as TreeTableRow;
+const MODEL: readonly TreeTableRow[] = [
+  row('section:blocks', null, 'Model Elements'),
+  block('b:2', 'Gain', '2', ''),
+  block('b:5', 'Sub', '5', ''),
+  block('b:8', 'Gain', '8', 'Sub'),
+];
+
+describe('linkedEntryOf', () => {
+  it('links a block in a subsystem by its key, which selects that block again', () => {
+    const linked = linkedEntryOf(MODEL, 'b:8');
+    expect(linked).toStrictEqual({ entry: '8' });
+    expect(idOf(rowOfEntry(MODEL, linked!.entry, linked!.section))).toBe('b:8');
+  });
+
+  it('links a block in the root system by its name and section, as entryOf does, which select it again', () => {
+    const linked = linkedEntryOf(MODEL, 'b:2');
+    expect(linked).toStrictEqual({ entry: 'Gain', section: 'Model Elements' });
+    expect(idOf(rowOfEntry(MODEL, linked!.entry, linked!.section))).toBe('b:2');
+  });
+
+  it('links a block nested under its subsystem\'s row by its key too, rather than by the subsystem', () => {
+    const tree = [...MODEL, block('b:5/9', 'In', '9', 'Sub', 'b:5')];
+    expect(linkedEntryOf(tree, 'b:5/9')).toStrictEqual({ entry: '9' });
+    expect(idOf(rowOfEntry(tree, '9'))).toBe('b:5/9');
+  });
+
+  it("goes by entryOf where the block's key would select another row: one labelled with it", () => {
+    const clash = [...MODEL, row('section:design', null, 'Design Data'), row('e:8', 'section:design', '8')];
+    expect(linkedEntryOf(clash, 'b:8')).toStrictEqual({ entry: 'Gain', section: 'Model Elements' });
+  });
+
+  it("is entryOf's answer for any other row", () => {
+    expect(linkedEntryOf(LINKED, 'e:Bus/Speed')).toStrictEqual({ entry: 'Bus', section: 'Design Data' });
+    expect(linkedEntryOf(MAT, 'm:P/x')).toStrictEqual({ entry: 'ParamMat' });
+    expect(linkedEntryOf(LINKED, 'section:design')).toBeUndefined();
+    expect(linkedEntryOf(LINKED, 'nope')).toBeUndefined();
   });
 });

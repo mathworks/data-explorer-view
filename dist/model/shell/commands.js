@@ -28,7 +28,7 @@
 // which runCommand turns back into its lines, and any other failure (the target's) becomes an
 // error line with its message, as the window has no one to catch it.
 import { ADD_CATALOG, matCatalog, sectionTile } from '../ids/addCatalog.js';
-import { isSectionRowId } from '../ids/sectionRowId.js';
+import { isEntryRow, isSectionRowId } from '../ids/sectionRowId.js';
 /**
  * What the Add gallery offers for a table's view, as `add` chooses among it: every tile of a
  * dictionary, each naming its section; for a view that lists its classes (a MAT-file, a model),
@@ -231,11 +231,6 @@ function valueOf(row) {
     const cls = classOf(row);
     return cls ? `<${cls}>` : '';
 }
-/**
- * A top-level entry, as selectByName decides one: its parent is a section heading or, in a table
- * with no section rows (a MAT-file's), it has no parent and is no heading itself.
- */
-const isEntry = (r) => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
 // Whether a row's label is `part`: as written, or, for a part with an index, with the spaces in
 // it ignored (`Mat(1, 1)` is the row labelled `Mat(1,1)`).
 function sameLabel(row, part) {
@@ -251,11 +246,11 @@ const baseOf = (part) => /^([A-Za-z_]\w*)[({]/.exec(part)?.[1] ?? null;
  * index (`Mat(1,1)` under Mat); any row; a block by its key.
  */
 function named(rows, name) {
-    const entry = rows.find((r) => isEntry(r) && sameLabel(r, name));
+    const entry = rows.find((r) => isEntryRow(r) && sameLabel(r, name));
     if (entry)
         return entry;
     const base = baseOf(name);
-    const holder = base === null ? undefined : rows.find((r) => isEntry(r) && labelOf(r) === base);
+    const holder = base === null ? undefined : rows.find((r) => isEntryRow(r) && labelOf(r) === base);
     const element = holder && rows.find((r) => r.parent === holder.ID && sameLabel(r, name));
     return element ?? rows.find((r) => sameLabel(r, name)) ?? rows.find((r) => r._blockKey === name);
 }
@@ -326,7 +321,7 @@ function findRow(rows, path, doc) {
 function suggestion(rows, path) {
     const lower = path.toLowerCase();
     const same = (r) => labelOf(r).toLowerCase() === lower;
-    const near = rows.find((r) => same(r) && isEntry(r)) ?? rows.find(same);
+    const near = rows.find((r) => same(r) && isEntryRow(r)) ?? rows.find(same);
     return near ? ` Did you mean "${labelOf(near)}"?` : '';
 }
 // The four columns every table has, settable where the row's cell is editable.
@@ -408,7 +403,7 @@ function list(target, name) {
             return [info(row._lazy ? notLoaded(row) : `"${name}" has no rows under it.`)];
         return capped(listing(under).map(out));
     }
-    const entries = rows.filter(isEntry);
+    const entries = rows.filter(isEntryRow);
     if (entries.length === 0)
         return [info(`${doc.name} has no entries.`)];
     // The table's order keeps each section's entries together, so a heading goes before the first
@@ -658,7 +653,7 @@ async function add(target, args) {
     }
     const before = new Set(target.rows().map((r) => r.ID));
     await target.addEntry({ section: choice.section, className: choice.className, rename: false });
-    const created = target.rows().find((r) => !before.has(r.ID) && isEntry(r));
+    const created = target.rows().find((r) => !before.has(r.ID) && isEntryRow(r));
     if (!created)
         return [error(`No ${choice.className} was added.`)];
     const made = labelOf(created);

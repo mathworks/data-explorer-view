@@ -22,6 +22,7 @@
 
 import { createRegisters } from '../../../model/edit/registers.js';
 import { parseLinkTarget, type LinkTarget } from '../../../model/ids/linkTarget.js';
+import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
 import { isEditable, type InspectorFeed } from '../../../model/source/tableSource.js';
 import { newDictionaryBytes } from '../../../model/source/newDictionary.js';
@@ -36,12 +37,14 @@ import type { LogLevel } from '../modules/dex-log-panel.js';
 import {
   clearSelection,
   connectDocument,
+  copyText,
   docTabOf,
   newTable,
   openingNote,
   repaintProjects,
   showProject,
   statusOf,
+  COPY_ENTRY_LINK,
   SHOW_IN_GRAPH,
   type OpenTab,
 } from './documents.js';
@@ -60,7 +63,7 @@ import { connectModules } from './modules.js';
 import { PaneRows, keepSplit, keptSplit, slotPanels } from './panes.js';
 import { buildShell } from './parts.js';
 import { connectRequests } from './requests.js';
-import { rowIn, sectionOf } from './rows.js';
+import { linkedEntryOf, rowIn, rowOfEntry, sectionOf } from './rows.js';
 import { connectShownFolder } from './shownFolder.js';
 import { connectPopovers, pageStorage } from './popovers.js';
 import { inPageQuestions, shellPrompts } from './questions.js';
@@ -72,7 +75,7 @@ import { toolbarItems, toolbarStateOf, type ToolbarState } from './toolbarItems.
 import { carryOut, showRootFrom, type CarryOutContext } from './carryOut.js';
 import { paletteCommands, type PaneCommands } from './paletteItems.js';
 import { viewOfCommand } from './views.js';
-import type { ConnectShellOptions, ShellCommand, ShellHandle } from './types.js';
+import type { ConnectShellOptions, OpenAtTarget, ShellCommand, ShellHandle } from './types.js';
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -592,9 +595,11 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
           const note = ranNote(run);
           if (note) say('info', note, 2000);
         }),
-        // Show in Graph: Root, what the row stands for (its item, the file it names, the file's box)
-        // brought forward, and the keyboard kept as Show Graph's is (showRootFrom).
+        // Copy Link to Entry: the host's link to the entry the row is in, on the clipboard. Show in
+        // Graph: Root, what the row stands for (its item, the file it names, the file's box) brought
+        // forward, and the keyboard kept as Show Graph's is (showRootFrom).
         handle.on('action', ({ actionId, rowId }) => {
+          if (actionId === COPY_ENTRY_LINK.id) return void copyEntryLink(tab, rowId);
           if (actionId !== SHOW_IN_GRAPH.id) return;
           showRootFrom(tab.panel, showRoot, rootTakesTheKeyboard);
           graph.showRow(uri, tab.table?.rows ?? [], rowId);
@@ -627,6 +632,77 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
     void open(uriPath(uri), { preview: true }).then((tab) => {
       if (name !== undefined) tab.handle?.selectByName(name);
     });
+  }
+
+  // A link from outside the shell (the desktop app's data-explorer:// link, a page's #entry=): the
+  // file opened for good, as openPaths opens one, since the user asked for it by name; then the
+  // entry the link names, by its name and its section's label, selected once the table has its
+  // rows, as select() selects a row (the history and the location follow). A link names in words
+  // what the file held when it was made: an entry it holds no more is said, in a warning that stays
+  // until its × (the user followed the link to see a row, and has to read why none is shown). The
+  // caller waits on nothing it could say a failure with, so what fails is said here.
+  async function openAt(path: string, at: OpenAtTarget = {}): Promise<void> {
+    // A page in plain JavaScript may hand anything: what is no string names nothing, and a path
+    // that is none names no file (nor a name for the catch below to say it by).
+    if (typeof path !== 'string' || path === '') return;
+    try {
+      const tab = await open(path);
+      const entry = typeof at?.entry === 'string' ? at.entry : '';
+      const section = typeof at?.section === 'string' ? at.section : '';
+      if (entry === '') return;
+      const rows = await paintedRows(tab);
+      if (!rows || !isOpen(tab)) return;
+      const row = rowOfEntry(rows, entry, section);
+      if (row) tab.handle?.select([row.ID]);
+      else say('warning', `No entry named ${entry}${section ? ` in ${section}` : ''}`);
+    } catch (err) {
+      failed(`Could not open ${basenameOf(path)}: ${message(err)}`);
+    }
+  }
+
+  // The rows of `tab`'s table once its first whole paint is in: at once for a table painted
+  // already, else at its first `painted`. Null for a tab with no table connected (a project's page,
+  // a file that could not be read, whose banner says why), for a table whose source could not open
+  // its file (`failed`: no paint answers that open, and the banner says why), and for a tab closed,
+  // before or while it waits: its close runs its stops, this one among them.
+  function paintedRows(tab: OpenTab): Promise<readonly TreeTableRow[] | null> {
+    const handle = tab.handle;
+    if (!isOpen(tab) || !handle) return Promise.resolve(null);
+    if (handle.view) return Promise.resolve(handle.table.rows);
+    // Neither painted nor still loading: its source failed already, as one that cannot parse its
+    // file does within the open that connected it, before `failed` could be heard here.
+    if (!handle.table.loading) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const done = (rows: readonly TreeTableRow[] | null): void => {
+        offPainted();
+        offFailed();
+        // Painted: no stop is left for the close to run. (A close empties the list before it runs them.)
+        const index = tab.stops.indexOf(stop);
+        if (index >= 0) tab.stops.splice(index, 1);
+        resolve(rows);
+      };
+      const offPainted = handle.on('painted', () => done(handle.table.rows));
+      const offFailed = handle.on('failed', () => done(null));
+      const stop = (): void => done(null);
+      tab.stops.push(stop);
+    });
+  }
+
+  // Copy Link to Entry, for a host that makes links: its link to the entry the row `rowId` is in (a
+  // block in a subsystem by its key, so that openAt selects that block again), put on the clipboard
+  // as Copy Name puts a name, and said briefly. A host that answers no link copies nothing; one
+  // whose clipboard refuses it, or that throws, is said, as a copy that failed is.
+  async function copyEntryLink(tab: OpenTab, rowId: string | null): Promise<void> {
+    const at = rowId === null ? undefined : linkedEntryOf(tab.table?.rows ?? [], rowId);
+    if (!at) return;
+    try {
+      const link = host.entryLink?.({ path: tab.path, entry: at.entry, ...(at.section ? { section: at.section } : {}) });
+      if (typeof link !== 'string' || link === '') return;
+      await copyText(host, link);
+      say('info', 'Link copied', 2000);
+    } catch (err) {
+      say('error', `Could not copy the link: ${message(err)}`);
+    }
   }
 
   // A link into another file: open it (or go to its tab) and select the row it names. `uri` is
@@ -886,6 +962,7 @@ export function connectShell(shell: DexAppShell, options: ConnectShellOptions): 
 
   return {
     openPaths: (paths) => (disposed ? Promise.resolve() : openPaths(paths)),
+    openAt: (path, at) => (disposed ? Promise.resolve() : openAt(path, at)),
     showFolder(root, port) {
       if (!disposed) folders.show(root, port);
     },
