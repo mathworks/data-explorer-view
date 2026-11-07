@@ -197,6 +197,31 @@ describe('the muted ink is text, readable on every surface it is drawn on', () =
       }
     });
   }
+
+  // A hovered table row is lighter than those surfaces in dark (bg-hover #333, where the muted ink
+  // is 3.76:1), so the row redeclares the muted ink as a mix of its own ink, as a selected row does:
+  // what a read-only cell on it reads in is that mix, laid over the hover surface.
+  const table = CODE.find(([file]) => file.endsWith(join('tree-table', 'dex-tree-table.ts')))![1];
+  const hoverMix = /tr\.data-row:hover\s*\{[^}]*--dex-color-text-muted:\s*color-mix\(in srgb, var\(--dex-color-text, #333\) (\d+)%, transparent\)/.exec(table);
+  // `ink` at `percent`% over `surface`: what color-mix with transparent paints there.
+  const over = (ink: string, percent: number, surface: string): string => {
+    const channels = (colour: string) => {
+      const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour)![1]!;
+      return (hex.length === 3 ? [...hex].map((h) => h + h) : hex.match(/../g)!).map((h) => parseInt(h, 16));
+    };
+    const [a, b] = [channels(ink), channels(surface)];
+    return `#${a.map((v, i) => Math.round((v * percent + b[i]! * (100 - percent)) / 100).toString(16).padStart(2, '0')).join('')}`;
+  };
+
+  it("is a mix of the row's ink on a hovered table row, at 4.5:1 or more on the hover surface in every set", () => {
+    expect(hoverMix, 'tr.data-row:hover redeclares no --dex-color-text-muted').not.toBeNull();
+    const percent = Number(hoverMix![1]);
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      const hover = tokens.get('--dex-bg-hover')!;
+      const ink = over(tokens.get('--dex-color-text')!, percent, hover);
+      expect(contrast(ink, hover), `${set}: ${percent}% of the row's ink (${ink}) on --dex-bg-hover ${hover}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
 
 describe('the theme is exported', () => {
