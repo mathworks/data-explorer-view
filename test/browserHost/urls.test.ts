@@ -129,6 +129,25 @@ describe('urlTargetOf', () => {
     expect(problemOf('samples/a.sldd')).toBe('samples/a.sldd is not a web address.');
   });
 
+  it('refuses an address with a user name or password in it, a GitHub file page\'s too, which a link would hand on', () => {
+    // A GitHub file page's raw address is built from its path alone, so a token in it would not
+    // even be sent: the file would open, and the token go out in every link to it.
+    for (const given of [
+      'https://user:tok@files.example/a.sldd',
+      'https://user:tok@github.com/acme/plant/blob/main/a.sldd',
+      'https://user@files.example/a.sldd',
+      'https://:pw@files.example/a.sldd',
+    ]) {
+      expect(problemOf(given)).toBe(`${given} holds a user name or password, which a link must not.`);
+    }
+  });
+
+  it('refuses a name with a slash in it, decoded from %2F or %5C', () => {
+    for (const given of ['https://files.example/x/a%2Fb.sldd', 'https://files.example/x/a%2fb.sldd', 'https://files.example/a%5Cb.sldd']) {
+      expect(problemOf(given)).toBe(`${given} names a file with a slash in its name.`);
+    }
+  });
+
   it('refuses an address that names no data file: a page, a repo, a project, a folder', () => {
     for (const given of ['https://files.example/readme.md', 'https://github.com/acme/plant', 'https://files.example/plant.prj', 'https://files.example/x/']) {
       expect(problemOf(given)).toBe(`${given} is not a file this app opens (.sldd, .slx, .mdl, .mat).`);
@@ -167,6 +186,15 @@ describe('fetchUrlBytes', () => {
     await expect(fetchUrlBytes(A, deps({ fetch: notFound.fetch }))).rejects.toThrow(/^404 Not Found$/);
     const failed = fakeFetch(() => new Response('', { status: 500, statusText: '' }));
     await expect(fetchUrlBytes(A, deps({ fetch: failed.fetch }))).rejects.toThrow(/^500$/);
+  });
+
+  it('lets go of the body of an answer it refuses, so the browser can drop the connection', async () => {
+    for (const init of [{ status: 404, statusText: 'Not Found' }, { headers: { 'content-type': 'text/html' } }]) {
+      const { stream, counts } = countedBody([bytesOf('<html>')]);
+      const { fetch } = fakeFetch(() => new Response(stream, init));
+      await expect(fetchUrlBytes(A, deps({ fetch }))).rejects.toThrow();
+      expect(counts).toEqual({ pulls: 0, cancelled: 1 });
+    }
   });
 
   it('refuses a web page, and takes plain text (GitHub raw answers it)', async () => {
@@ -214,6 +242,31 @@ describe('fetchUrlBytes', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     await settled;
+  });
+
+  it('keeps the message of a body that fails once the server has answered: no CORS refusal comes then', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytesOf('first'));
+      },
+      pull(controller) {
+        controller.error(new TypeError('network error'));
+      },
+    });
+    const { fetch } = fakeFetch(() => new Response(stream));
+    await expect(fetchUrlBytes(A, deps({ fetch }))).rejects.toThrow(/^network error$/);
+  });
+
+  it('gives up on a fetch that does not heed its signal, and lets go of its late answer', async () => {
+    vi.useFakeTimers();
+    const { stream, counts } = countedBody([bytesOf('late')]);
+    // Answers 10 s after the time is up, whatever the signal says.
+    const { fetch } = fakeFetch(() => new Promise<Response>((resolve) => setTimeout(() => resolve(new Response(stream)), URL_TIMEOUT_MS + 10_000)));
+    const settled = expect(fetchUrlBytes(A, deps({ fetch }))).rejects.toThrow(/^the server did not answer within 30 s$/);
+    await vi.advanceTimersByTimeAsync(URL_TIMEOUT_MS);
+    await settled;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(counts).toEqual({ pulls: 0, cancelled: 1 });
   });
 
   it('gives up on a body that stalls after its first chunk, within the same time', async () => {

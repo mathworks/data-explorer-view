@@ -7,8 +7,14 @@
 // - Only `https:`, or the page's own origin (which is how a page serves its samples in development,
 //   over `http://localhost`). A file fetched over plain http could be changed on the way, and a
 //   `file:`, `data:` or `javascript:` address is no server's file at all.
+// - No user name or password in the address: the address is what a link to the file writes back,
+//   so whatever it holds goes to everyone the link is shared with. (A GitHub file page's raw
+//   address is built from its path alone, so a token there would not even be sent: the file would
+//   open, and the token go out in its links.)
 // - Only a file this app opens: a dictionary, a model or a MAT-file. A project is refused too: its
-//   page reads the folder around it, which a single address does not give.
+//   page reads the folder around it, which a single address does not give. A name is the address's
+//   last part decoded, so one with an escaped slash in it (`%2F`, `%5C`) is refused: the page's
+//   paths would take it for a folder.
 // - GitHub's and GitLab's file pages are pages, the file shown in a web page of the site's. Their
 //   raw files are what is meant: github.com's `/<owner>/<repo>/blob/<ref>/<path>` (and its `/raw/`,
 //   which redirects there) is fetched from raw.githubusercontent.com, which answers any page with
@@ -77,8 +83,8 @@ function nameOf(url: string): string {
 
 /**
  * `given` (what the user typed, or a `?url=` value) as the address to fetch, or why it is not
- * fetched: an address that is not `https:` (unless it is on `origin`, the page's own), and one
- * that names no file this app opens, are refused. GitHub's and GitLab's file pages are rewritten
+ * fetched: an address that is not `https:` (unless it is on `origin`, the page's own), one with a
+ * user name or password in it, and one that names no file this app opens, are refused. GitHub's and GitLab's file pages are rewritten
  * to their raw files.
  */
 export function urlTargetOf(given: string, origin: string): UrlTarget | { problem: string } {
@@ -92,8 +98,10 @@ export function urlTargetOf(given: string, origin: string): UrlTarget | { proble
   }
   const own = parsed.protocol === 'http:' && parsed.origin === origin;
   if (parsed.protocol !== 'https:' && !own) return { problem: `${given} is not an https: address.` };
+  if (parsed.username || parsed.password) return { problem: `${given} holds a user name or password, which a link must not.` };
   const url = rawOf(parsed);
   const name = nameOf(url);
+  if (/[/\\]/.test(name)) return { problem: `${given} names a file with a slash in its name.` };
   if (!isGraphPath(name)) return { problem: `${given} is not a file this app opens (.sldd, .slx, .mdl, .mat).` };
   return { given, url, name, group: new URL('.', url).href };
 }
@@ -123,12 +131,19 @@ function drop(response: Response): void {
   response.body?.cancel().catch(() => undefined);
 }
 
+/** A promise that rejects as `signal` aborts, and never settles otherwise. */
+function abortOf(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+}
+
 /**
  * Every byte of `response`'s body, refused past `limit`, and given up when `signal` aborts. A
  * response's body is aborted with its fetch in a browser; a body that is not (a test's, a service
  * worker's) is cancelled here, so a read waiting on it ends either way.
  */
 async function readAll(response: Response, limit: number, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
+  // Aborted already, no abort is heard again: a read would wait on a body nothing cancels.
+  signal.throwIfAborted();
   if (!response.body) {
     const whole = new Uint8Array(await response.arrayBuffer());
     if (whole.length > limit) throw new Error(`the file is larger than ${sizeText(limit)}`);
@@ -185,13 +200,17 @@ export async function fetchUrlBytes(target: UrlTarget, deps: UrlFetchDeps): Prom
   // Called as a plain function: a window's fetch called as a method of `deps` would throw.
   const { fetch } = deps;
   try {
-    const response = await fetch(target.url, {
+    const asked = fetch(target.url, {
       credentials: 'omit',
       redirect: 'follow',
       mode: 'cors',
       referrerPolicy: 'no-referrer',
       signal: controller.signal,
     });
+    // A fetch that does not heed its signal (a page's own, a test's) is given up all the same, and
+    // an answer that comes after is let go.
+    asked.then((late) => controller.signal.aborted && drop(late), () => undefined);
+    const response = await Promise.race([asked, abortOf(controller.signal)]);
     answered = true;
     if (!response.ok) {
       drop(response);

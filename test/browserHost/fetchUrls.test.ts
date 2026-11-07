@@ -122,6 +122,25 @@ describe('browserHost.fetchUrls', () => {
     expect(host.files.urlOf(picked)).toBeUndefined();
   });
 
+  it('names the address whose file is there when two of one name in one folder take turns at its path', async () => {
+    // A group holds one file of a name, so `?v=1` and `?v=2` share a path: a link must name the
+    // one there now, and the other, asked for again, is fetched again rather than answered.
+    const one = 'https://files.example/x/a.sldd?v=1';
+    const two = 'https://files.example/x/a.sldd?v=2';
+    const { host, asked } = hostOf({ [one]: 'one', [two]: 'two' });
+    const [path] = (await host.fetchUrls([one])).paths;
+    expect((await host.fetchUrls([two])).paths).toEqual([path]);
+    expect(text(await host.readFile(path!))).toBe('two');
+    expect(host.files.urlOf(path!)).toBe(two);
+    expect((await host.fetchUrls([one])).paths).toEqual([path]);
+    expect(asked).toEqual([one, two, one]);
+    expect(text(await host.readFile(path!))).toBe('one');
+    expect(host.files.urlOf(path!)).toBe(one);
+    // The one there is answered without a fetch.
+    await host.fetchUrls([one]);
+    expect(asked).toHaveLength(3);
+  });
+
   it("downloads a fetched file's Save: the page holds its bytes, with nothing to write them through", async () => {
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:saved');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

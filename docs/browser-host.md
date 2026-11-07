@@ -152,8 +152,11 @@ An address may come from a link anyone wrote, so the host holds every one to the
 
 - Only `https:`, or an address on the page's own origin (the `origin` option, `location.origin` by
   default), which is how a page serves its samples over `http://localhost`.
+- No user name or password in the address (`https://user:token@…`): the address is what a link to
+  the file writes back, so whatever it holds would go to everyone the link is shared with.
 - Only a file this app opens: `.sldd`, `.slx`, `.mdl` or `.mat`. A project (`.prj`, `matlab.toml`)
-  is refused, since its page reads the folder around it, which one address does not give.
+  is refused, since its page reads the folder around it, which one address does not give. A name
+  with an escaped slash in it (`%2F`, `%5C`) is refused too.
 - A GitHub or GitLab file page is a web page around the file: the raw file behind it is fetched.
   github.com's `/<owner>/<repo>/blob/<ref>/<path>` and `/<owner>/<repo>/raw/<ref>/<path>` are
   fetched from `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`, and a GitLab
@@ -178,8 +181,11 @@ fetched), so a model and its dictionary from one repo folder sit beside each oth
 whichever was fetched first; files of two folders, or two hosts, are folders apart. Each address is
 fetched once, by the address fetched (a file page and its raw file are one): asked for again (twice
 in one call, by a later call, or while its first fetch still runs), it answers the path it has. One
-that failed is fetched afresh the next time it is asked for. `host.files.urlOf(path)` says the address a file
-was fetched from, as it was first given, for a page's links to write back.
+that failed is fetched afresh the next time it is asked for. `host.files.urlOf(path)` says the
+address the file at a path was fetched from, as it was first given, for a page's links to write
+back. Two addresses of one name in one folder (`a.sldd?v=1`, `a.sldd?v=2`) share a path, as two
+files of a name in a group do: the one fetched last is there, and is the one `urlOf` names; the
+other, asked for again, is fetched again and takes its place.
 
 A fetched file is bytes the page holds, with nothing to write them through: its Save is a download,
 as for a file the page has no handle to.

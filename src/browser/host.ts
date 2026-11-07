@@ -274,7 +274,10 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   // again (in another spelling, or while its first fetch runs) is fetched once. One that failed is
   // let go, to be fetched afresh when it is asked for again.
   const fromUrl = new Map<string, Promise<string>>();
-  // The address each fetched file's path was first given as: what a link to it writes back.
+  // By each fetched file's path, the URL whose file is there and that address as it was first
+  // given: what a link to it writes back. Two addresses of one name in one folder (`a.sldd?v=1`,
+  // `?v=2`) share a path, as two files of a name in a group do, and take turns at it.
+  const urlAt = new Map<string, string>();
   const givenAt = new Map<string, string>();
 
   // Fetch `fresh` (addresses not asked for before) together, then add the files fetched a group at a
@@ -293,7 +296,15 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     });
     for (const [group, got] of groups) {
       const paths = await addToGroup(group, got.map(({ target, bytes }) => ({ name: target.name, source: { kind: 'bytes', bytes } })));
-      got.forEach(({ target }, i) => answers.set(target.url, paths[i]));
+      got.forEach(({ target }, i) => {
+        const path = paths[i];
+        answers.set(target.url, path);
+        // Another address's file was there: that address, asked for again, is fetched again.
+        const before = urlAt.get(path);
+        if (before !== undefined && before !== target.url) fromUrl.delete(before);
+        urlAt.set(path, target.url);
+        givenAt.set(path, target.given);
+      });
     }
     return answers;
   }
@@ -330,9 +341,7 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
         continue;
       }
       try {
-        const path = await one.path;
-        if (!givenAt.has(path)) givenAt.set(path, one.target.given);
-        paths.push(path);
+        paths.push(await one.path);
       } catch (err) {
         paths.push(null);
         problems.push(`${one.target.given} could not be fetched: ${asError(err).message}`);
