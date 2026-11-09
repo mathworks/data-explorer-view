@@ -13,7 +13,9 @@ function bareImports(dir: string, found = new Set<string>()): Set<string> {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) bareImports(path, found);
     else if (entry.name.endsWith('.js')) {
-      for (const m of readFileSync(path, 'utf8').matchAll(/\bfrom\s+'([^'.][^']*)'/g)) found.add(m[1]);
+      // The code, not its comments: an entry's header shows an app's imports as an example.
+      const code = readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const m of code.matchAll(/\bfrom\s+'([^'.][^']*)'/g)) found.add(m[1]);
     }
   }
   return found;

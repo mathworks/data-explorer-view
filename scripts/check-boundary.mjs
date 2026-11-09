@@ -3,12 +3,15 @@
 // and its model stays loadable without a browser. A file that reaches past that is a file a
 // consumer cannot build, and it is cheapest to find on the PR that adds it.
 //
-// Two rules, each one the package's edge:
+// Three rules, each one the package's edge:
 //   * a file in src imports only src, `data-explorer-core`, `lit` and `lit/…` — not a Node
 //     built-in, not any other package, and not core's Node-only entry;
 //   * a file in src/model, src/host or src/serve imports neither src/widgets nor lit. The model
 //     is the DOM-free half, which a worker or a terminal UI can load without a browser page, and
-//     the host and serve entries are its ends for a host, which runs in Node.
+//     the host and serve entries are its ends for a host, which runs in Node;
+//   * a file in src/browser imports no lit, and of src/widgets only the shell's host types
+//     (src/widgets/app-shell/connect/types.ts). The browser host is DOM and no widget: an app
+//     that hosts a shell of its own, or none, loads it without lit or a widget coming too.
 //
 // Type-only imports count. A consumer has to resolve them too, and `import type` is how a type
 // from elsewhere quietly becomes something the package cannot be built without.
@@ -24,6 +27,8 @@ const MODEL = 'src/model/';
 const HOST = 'src/host/';
 const SERVE = 'src/serve/';
 const WIDGETS = 'src/widgets/';
+const BROWSER = 'src/browser/';
+const SHELL_HOST_TYPES = 'src/widgets/app-shell/connect/types.ts';
 const domFree = (file) => file.startsWith(MODEL) || file.startsWith(HOST) || file.startsWith(SERVE);
 
 const toPosix = (p) => p.split(sep).join('/');
@@ -50,7 +55,9 @@ function resolve(from, spec) {
 function violation(file, spec) {
   if (!spec.startsWith('.')) {
     if (spec === 'data-explorer-core') return null;
-    if (isLit(spec)) return domFree(file) ? 'the model is DOM-free and may not use lit' : null;
+    if (isLit(spec) && domFree(file)) return 'the model is DOM-free and may not use lit';
+    if (isLit(spec) && file.startsWith(BROWSER)) return 'the browser host draws nothing and may not use lit';
+    if (isLit(spec)) return null;
     if (spec.startsWith('data-explorer-core/')) return 'only core\'s browser entry, `data-explorer-core`, is allowed';
     return 'not a dependency of this package';
   }
@@ -58,6 +65,9 @@ function violation(file, spec) {
   if (!target) return 'resolves to no file';
   if (!target.startsWith(`${VIEW}/`)) return `reaches ${target}, outside ${VIEW}/`;
   if (domFree(file) && target.startsWith(WIDGETS)) return `the model may not import a widget (${target})`;
+  if (file.startsWith(BROWSER) && target.startsWith(WIDGETS) && target !== SHELL_HOST_TYPES) {
+    return `the browser host takes only the shell's host types from src/widgets (${target})`;
+  }
   return null;
 }
 

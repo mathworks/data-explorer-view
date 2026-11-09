@@ -3,14 +3,14 @@
 // element that schedules an update from inside the one finishing (change-in-update): an extra
 // render each time, and noise in every app's console. No widget does. The built gallery runs
 // Lit's production build, which warns of nothing, so there this passes by having nothing to say.
-import { expect, gridCells, PAGES, test } from './gallery';
+import { APP, expect, gridCells, PAGES, test } from './gallery';
 
 test('no widget updates from inside its own update', async ({ page }) => {
   const warnings: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'warning' && m.text().includes('change-in-update')) warnings.push(m.text());
   });
-  for (const path of PAGES) {
+  for (const path of [...PAGES, APP]) {
     await page.goto(path);
     await page.waitForLoadState('networkidle');
   }

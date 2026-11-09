@@ -19,6 +19,8 @@ import { buildSectionRowId } from '../ids/sectionRowId.js';
 import { InspectorSelection } from '../inspector/inspectorSelection.js';
 import { buildPropertyGroups } from '../inspector/piBuilder.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
+import { rawOfRow } from '../raw/rawOfRow.js';
+import { noRaw } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
 import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
@@ -1404,6 +1406,14 @@ export class JsonView {
         const show = { showNode: (node) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => { } };
         new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.uri, rowIds);
         return view;
+    }
+    // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree the text says now, as an edit
+    // finds it (liveFind): built again first where the text has moved on from it. Text that does not
+    // parse has no tree, and nothing to show.
+    async raw(rowId) {
+        if (this.disposed)
+            return noRaw();
+        return rawOfRow({ root: () => this.liveModel(), fileIds: [this.uri], find: this.findForRead }, rowId);
     }
     subscribe(listener) {
         this.listeners.add(listener);

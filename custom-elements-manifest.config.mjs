@@ -7,12 +7,14 @@
 //
 // The widgets are read from src/, where their decorators still are; the paths written are the
 // dist/ files a consumer loads. The icon-assets table is left out: a generated list of URLs,
-// with nothing in it a tool reads.
+// with nothing in it a tool reads. So are the app shell's internal parts (app-shell/connect/:
+// <dex-shell-docs>, <dex-shell-folder>, <dex-shell-note>), which connectShell makes and fills
+// and no page writes: they are not the package's API, and have no page in docs/widgets/.
 import { dexManifestPlugin } from './scripts/cem-plugin.mjs';
 
 export default {
   globs: ['src/widgets/**/*.ts'],
-  exclude: ['src/widgets/icon-assets/assets.ts'],
+  exclude: ['src/widgets/icon-assets/assets.ts', 'src/widgets/app-shell/connect/**'],
   outdir: '.',
   litelement: true,
   plugins: [dexManifestPlugin()],

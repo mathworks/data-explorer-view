@@ -25,6 +25,7 @@ export const PAGES = [
   { file: 'hierarchy.html', title: 'Hierarchy', about: 'A folder: its files, and the files each one references.' },
   { file: 'composed.html', title: 'Composed', about: 'Folder, table, inspector and variable editor together, as an app wires them.' },
   { file: 'folder.html', title: 'Served folder', about: 'A folder read across a channel, beside a table: links and the tree agree.' },
+  { file: 'app.html', title: 'App shell', about: 'A whole app in one element: connectShell over the browser host, files and a folder open.' },
 ];
 
 const STORAGE_KEY = 'dex-gallery-theme';

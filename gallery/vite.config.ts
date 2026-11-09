@@ -53,7 +53,7 @@ export default defineConfig({
     // Left out, the package is not scanned for what it imports either. Without this list the
     // dev server finds these as the first page asks for them, optimizes again and reloads the
     // page. tests/devServer.spec.ts holds it to what dist/ imports.
-    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/live.js'],
+    include: ['data-explorer-core', 'lit', 'lit/decorators.js', 'lit/directive.js', 'lit/directives/guard.js', 'lit/directives/live.js', 'lit/directives/repeat.js'],
   },
   build: {
     outDir: resolve(root, 'dist'),

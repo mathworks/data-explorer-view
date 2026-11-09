@@ -64,6 +64,14 @@
       "types": "./dist/widgets/hierarchy/index.d.ts",
       "default": "./dist/widgets/hierarchy/index.js"
     },
+    "./app-shell": {
+      "types": "./dist/widgets/app-shell/index.d.ts",
+      "default": "./dist/widgets/app-shell/index.js"
+    },
+    "./browser-host": {
+      "types": "./dist/browser/index.d.ts",
+      "default": "./dist/browser/index.js"
+    },
     "./icon": {
       "types": "./dist/widgets/icon/index.d.ts",
       "default": "./dist/widgets/icon/index.js"

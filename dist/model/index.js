@@ -51,6 +51,9 @@ export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
+// A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
+// dump of a value's bytes, and the tokens of a JSON or an XML text.
+export { formatHex, tokenizeJson, tokenizeXml } from './raw/rawView.js';
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
 export { projectPageMessage, readProjectPage } from './source/projectPage.js';
 // Usage: who uses each variable and where each block's parameters come from, as the Usage
@@ -66,12 +69,22 @@ export { createUsageRepostHub } from './usage/usageRepostHub.js';
 // over one listing and one cache, kept up to date by one change.
 export { createFolderSession } from './folder/folderSession.js';
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
-// blocks), read once over core's source cache, and what a search over them shows.
+// blocks), read once over core's source cache, an open document's, read off its table's rows, and
+// what a search over them shows.
 export { NameIndex } from './search/nameIndex.js';
 export { namesFromMat, namesFromSldd, namesFromSlx } from './search/nameExtract.js';
 export { namesOfFile } from './search/nameScan.js';
+export { namesOfRows } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
+// The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
+// edges built from files already read, where they are drawn, and the id a file's row reveals.
+export { buildRelationshipGraph } from './graph/relationshipGraph.js';
+export { graphIdOf } from './graph/graphTypes.js';
+export { layoutGraph } from './graph/layout.js';
+// The command window's interpreter (the app shell's Terminal): a line run over a document, through
+// a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.
+export { addChoicesOf, runCommand } from './shell/commands.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).

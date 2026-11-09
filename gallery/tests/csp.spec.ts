@@ -3,11 +3,11 @@
 // styles) and `img-src 'self'` (no data: images). The preview server sends it and every page
 // carries it, and each engine enforces it, so every other test, which fails on a console error,
 // also fails on a widget that writes an inline style or draws an icon from a data: URL.
-import { expect, PAGES, test } from './gallery';
+import { APP, expect, PAGES, test } from './gallery';
 
 const STRICT = ["style-src 'self';", "img-src 'self';"];
 
-for (const path of PAGES) {
+for (const path of [...PAGES, APP]) {
   test(`${path} is served and drawn under the strict policy`, async ({ page }) => {
     const response = await page.goto(path);
     await page.waitForLoadState('networkidle');

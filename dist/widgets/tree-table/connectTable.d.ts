@@ -160,6 +160,15 @@ export interface TableHandleEventMap {
      * until a copy succeeds or the table repaints.
      */
     copyFailed: CopyFailure;
+    /**
+     * A whole paint is drawn: the source's answer to open() (the first paint, and one asked again)
+     * or a `replaceAll`, the view it drew. Sent once its rows are in the table and `view` is it, so
+     * what an app reads off the handle (`view`, `can()`) is the paint's: for a toolbar to be enabled
+     * as the file stands from its first paint, before any selection or change. Not for a repaint of
+     * one entry, nor a selection. (A listener of any event that throws is said on the console, and
+     * the table goes on.)
+     */
+    painted: TableView;
 }
 /** A table wired to a source: what connectTable returns. */
 export interface TableHandle extends InspectorFeed {
@@ -195,6 +204,21 @@ export interface TableHandle extends InspectorFeed {
      * app's to do exactly what its item would, when it is enabled. Without `editing`, none.
      */
     menuFor(anchorRowId: string | null, selection?: readonly string[]): ContextMenuItem[];
+    /**
+     * With `editing`: whether the editing menu's item `actionId` ('copy', 'cut', 'paste', 'delete',
+     * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
+     * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
+     * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
+     * source says (its clipboard, a repaint). False where the document may not be edited, for Copy
+     * Name and Copy Value (`copyText`) and the items the app added (`menuItems`), which are not the
+     * editing menu's own, and without `editing`.
+     */
+    can(actionId: string): boolean;
+    /**
+     * With `editing`: do what that item does, as its chord would, on the current selection; false
+     * (nothing done) when `can` is false. For an app's toolbar button.
+     */
+    run(actionId: string): boolean;
     /**
      * Commit a cell editor still open in the table (a Name or Value editor) as Enter would, and settle
      * once the source has the edit, so that a save after it holds it: for an app's Save, and before it

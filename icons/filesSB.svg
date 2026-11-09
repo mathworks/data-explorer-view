@@ -1,0 +1,5 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M8.5 3.5H1.5V15.5L11.5 15.5V6.5L8.5 3.5Z" fill="var(--mw-sidebar-icon-fill, #ffffff)" stroke="var(--mw-sidebar-icon-stroke, #616161)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M11.5 0.5H4.5V12.5L14.5 12.5V3.5L11.5 0.5Z" fill="var(--mw-sidebar-icon-fill, #ffffff)" stroke="var(--mw-sidebar-icon-stroke, #616161)" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M6.5 2.5L8.5 2.5M8.5 4.5H10.5M10.5 6.5H12.5M8.5 8.5H10.5M6.5 10.5H8.5" stroke="var(--mw-sidebar-icon-stroke, #616161)" stroke-linecap="square" stroke-linejoin="round"/>
+</svg>

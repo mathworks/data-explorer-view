@@ -23,6 +23,13 @@ export const PAGES = [
   'folder.html',
 ] as const;
 
+/**
+ * The app shell's page, which the index lists too: the window is the app's, with no gallery header
+ * (its theme is the shell's own Settings), so the tests of the header's pages are not its; app.spec.ts
+ * is, and the policy and dev-mode checks take it as well.
+ */
+export const APP = 'app.html';
+
 /** The page's requests, for a test that must not cut one off (`network`). */
 export interface Network {
   /**
