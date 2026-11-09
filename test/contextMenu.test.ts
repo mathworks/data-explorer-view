@@ -137,6 +137,29 @@ describe('showing and dismissing the menu', () => {
     expect(ids).toEqual([]);
   });
 
+  it('a contextmenu with no mousedown before it, on another row, opens that row\'s menu, which stays open', async () => {
+    // A touch long-press, or an assistive tool's "show menu", sends a contextmenu alone. The row
+    // hears it first and shows its menu over the open one; the event then goes on up to the
+    // document, where the old menu's dismissal, were it still listening, would close the new one.
+    const el = await makeMenu(ITEMS);
+    const closed: number[] = [];
+    el.addEventListener('dex-menu-closed', () => closed.push(1));
+    const row = document.createElement('div');
+    document.body.appendChild(row);
+    row.addEventListener('contextmenu', (e) => el.show(e.clientX, e.clientY, [{ id: 'undo', label: 'Undo' }]));
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, clientX: 20, clientY: 20 }));
+    await frame();
+    await el.updateComplete;
+    expect(el.hasAttribute('open')).toBe(true);
+    expect(itemEls(el).map((i) => i.textContent!.trim())).toEqual(['Undo']);
+    // The old menu's items were said to go, once; the new menu is dismissed as any is.
+    expect(closed).toHaveLength(1);
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(closed).toHaveLength(2);
+    row.remove();
+  });
+
   it('reopening replaces the previous items rather than appending', async () => {
     const el = await makeMenu(ITEMS);
     el.show(5, 5, [{ id: 'undo', label: 'Undo' }]);
@@ -633,5 +656,148 @@ describe('a width that does not follow the selection', () => {
     const shortcut = ruleFor('.item-shortcut');
     expect(shortcut).toMatch(/flex-shrink:\s*0/);
     expect(shortcut).not.toMatch(/max-width/);
+  });
+});
+
+// A menu a KEY opened (Shift+F10 on a table's grid) left the keyboard on the grid: the first
+// ArrowDown both entered the menu and moved the table's selection, so Enter then acted on another
+// row, and after the menu closed the focus was on the page's body. `focusFirst` puts the keyboard
+// on the first item at once, and gives it back where it was on Escape or a choice. A right-click's
+// menu, and every caller that does not ask, is as it was.
+describe('focusFirst: a menu a key opened', () => {
+  /** A focusable element inside a shadow root, as a table's grid is, with the focus on it. */
+  function focusedInShadow(): { host: HTMLElement; inner: HTMLElement } {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const inner = document.createElement('div');
+    inner.tabIndex = 0;
+    host.attachShadow({ mode: 'open' }).append(inner);
+    inner.focus();
+    return { host, inner };
+  }
+  async function open(items: ContextMenuItem[], options?: { focusFirst?: boolean }): Promise<DexContextMenu> {
+    menu = new DexContextMenu();
+    document.body.appendChild(menu);
+    menu.show(10, 10, items, options);
+    await menu.updateComplete;
+    await frame();
+    await menu.updateComplete;
+    return menu;
+  }
+  // The element with the focus, down through the shadow roots that hold it. Read from the top, as a
+  // browser keeps it: happy-dom throws reading the activeElement of a shadow root the focus is not in.
+  const deepActive = (): Element | null => {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    return el;
+  };
+  const grid = deepActive;
+  /** The label of the menu's item that has the focus, if one has. */
+  const focusedItem = (): string | undefined => deepActive()?.closest('.item')?.querySelector('.item-label')?.textContent ?? undefined;
+
+  it('puts real focus on the first item at once, a disabled one included', async () => {
+    const { host } = focusedInShadow();
+    const el = await open([{ id: 'paste', label: 'Paste', disabled: true }, ...ITEMS], { focusFirst: true });
+    expect(focusedItem()).toBe('Paste');
+    // An arrow moves from there, and not from before the first item.
+    key('ArrowDown');
+    await el.updateComplete;
+    expect(focusedItem()).toBe('Cut');
+    host.remove();
+  });
+
+  it('gives the focus back where it was, inside its shadow root, on Escape', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    expect(focusedItem()).toBe('Cut');
+    key('Escape');
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(grid()).toBe(inner);
+    host.remove();
+  });
+
+  it('gives it back on a choice before the choice is sent, so what the choice opens may take it', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    const sent: { focus?: Element | null } = {};
+    el.addEventListener('dex-action', () => void (sent.focus = grid()));
+    key('ArrowDown');
+    await el.updateComplete;
+    key('Enter');
+    expect(sent.focus).toBe(inner);
+    expect(grid()).toBe(inner);
+    host.remove();
+  });
+
+  it('leaves the focus where a click outside put it', async () => {
+    const { host } = focusedInShadow();
+    const other = document.createElement('button');
+    document.body.append(other);
+    const el = await open(ITEMS, { focusFirst: true });
+    other.focus();
+    other.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }));
+    expect(el.hasAttribute('open')).toBe(false);
+    expect(document.activeElement).toBe(other);
+    other.remove();
+    host.remove();
+  });
+
+  // Chromium on Windows opens its own menu on the ContextMenu key's KEYUP, unless that keyup was
+  // spent, and that keyup lands in this menu now that it has the keyboard. Its own contextmenu
+  // event, should one come, is spent too: a native menu over this one is a second menu.
+  it("spends the ContextMenu key's keyup, and the browser's own menu event, on a menu a key opened", async () => {
+    const { host } = focusedInShadow();
+    const el = await open(ITEMS, { focusFirst: true });
+    const at = deepActive()!;
+    expect(at.closest('.item')).not.toBeNull();
+    const keyup = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(keyup);
+    expect(keyup.defaultPrevented).toBe(true);
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(native);
+    expect(native.defaultPrevented).toBe(true);
+    // Neither closed it.
+    expect(el.hasAttribute('open')).toBe(true);
+    // Another key's keyup is not the menu's to spend.
+    const other = new KeyboardEvent('keyup', { key: 'a', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+    host.remove();
+  });
+
+  it('gives the focus back however it closes while holding it: a scroll, a right-click outside, close()', async () => {
+    for (const how of ['scroll', 'contextmenu', 'close'] as const) {
+      const { host, inner } = focusedInShadow();
+      const el = await open(ITEMS, { focusFirst: true });
+      expect(focusedItem()).toBe('Cut');
+      if (how === 'scroll') window.dispatchEvent(new Event('scroll'));
+      else if (how === 'contextmenu') document.body.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true }));
+      else el.close();
+      expect(el.hasAttribute('open'), how).toBe(false);
+      expect(grid(), how).toBe(inner);
+      el.remove();
+      host.remove();
+    }
+  });
+
+  it('without it (a right-click), takes no focus until an arrow does, and gives none back', async () => {
+    const { host, inner } = focusedInShadow();
+    const el = await open(ITEMS);
+    expect(focusedItem()).toBeUndefined();
+    expect(grid()).toBe(inner);
+    key('ArrowDown');
+    await el.updateComplete;
+    expect(focusedItem()).toBe('Cut');
+    // A right-click's menu spends neither the ContextMenu keyup nor a right-click on it, as before.
+    const at = deepActive()!;
+    const keyup = new KeyboardEvent('keyup', { key: 'ContextMenu', bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(keyup);
+    const native = new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true });
+    at.dispatchEvent(native);
+    expect([keyup.defaultPrevented, native.defaultPrevented]).toEqual([false, false]);
+    key('Escape');
+    // Nothing was remembered, so nothing is given back.
+    expect(grid()).not.toBe(inner);
+    host.remove();
   });
 });

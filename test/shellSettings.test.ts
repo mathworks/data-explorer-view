@@ -1,8 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The app shell's settings (src/model/shell/settings.ts): the theme and the toolbar's density, read
-// from and written to a key-value store (an app passes its localStorage), and the theme a setting
-// of 'auto' comes to.
+// The app shell's settings (src/model/shell/settings.ts): the theme, the toolbar's density, the
+// icons' style, the tables' rules and the graph's layout, read from and written to a key-value store (an app passes its
+// localStorage), and the theme a setting of 'auto' comes to.
 //
 // What it protects: an app that starts whatever the store holds or does. A page where storage is
 // refused (a sandboxed frame, a privacy mode, a full quota) throws on every access; a store an
@@ -31,7 +31,9 @@ function memoryStore(entries: Record<string, string> = {}): KeyValueStore & { en
 
 describe('shell settings', () => {
   it('gives the defaults with no store, or nothing stored', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ theme: 'auto', toolbar: 'normal' });
+    // The prototype's defaults: single-colour icons, a table ruled in a grid as the table's own
+    // default is, and the graph's top-down trees, the graph's own default.
+    expect(DEFAULT_SETTINGS).toEqual({ theme: 'auto', toolbar: 'normal', iconStyle: 'minimal', tableStyle: 'grid', graphLayout: 'tree' });
     expect(readSettings(null, KEY)).toEqual(DEFAULT_SETTINGS);
     expect(readSettings(memoryStore(), KEY)).toEqual(DEFAULT_SETTINGS);
     // A copy: a caller that changes what it was handed does not change the defaults.
@@ -41,26 +43,45 @@ describe('shell settings', () => {
   });
 
   it('reads a stored valid value', () => {
-    const store = memoryStore({ [KEY]: JSON.stringify({ theme: 'high-contrast', toolbar: 'compact' }) });
-    expect(readSettings(store, KEY)).toEqual({ theme: 'high-contrast', toolbar: 'compact' });
+    const kept = { theme: 'high-contrast', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows', graphLayout: 'indented' };
+    const store = memoryStore({ [KEY]: JSON.stringify(kept) });
+    expect(readSettings(store, KEY)).toEqual(kept);
   });
 
   it('falls back field by field: an invalid theme becomes auto, a valid toolbar is kept', () => {
     const store = memoryStore({ [KEY]: JSON.stringify({ theme: 'solarized', toolbar: 'compact' }) });
-    expect(readSettings(store, KEY)).toEqual({ theme: 'auto', toolbar: 'compact' });
-    expect(readSettings(memoryStore({ [KEY]: JSON.stringify({ theme: 'dark', toolbar: 3 }) }), KEY)).toEqual({ theme: 'dark', toolbar: 'normal' });
+    expect(readSettings(store, KEY)).toEqual({ ...DEFAULT_SETTINGS, theme: 'auto', toolbar: 'compact' });
+    expect(readSettings(memoryStore({ [KEY]: JSON.stringify({ theme: 'dark', toolbar: 3 }) }), KEY)).toEqual({ ...DEFAULT_SETTINGS, theme: 'dark', toolbar: 'normal' });
+    // The prototype's own words for the two (monochrome, chromatic; normal, light) are not this
+    // version's, and come to the defaults like any other value it does not know.
+    const theirs = { theme: 'light', iconStyle: 'chromatic', tableStyle: 'light' };
+    expect(readSettings(memoryStore({ [KEY]: JSON.stringify(theirs) }), KEY)).toEqual({ ...DEFAULT_SETTINGS, theme: 'light' });
+    // A layout the graph has no name for (the prototype's other graphs' words) is the trees.
+    for (const graphLayout of ['radial', 'Indented', 2, null]) {
+      expect(readSettings(memoryStore({ [KEY]: JSON.stringify({ theme: 'dark', graphLayout }) }), KEY), String(graphLayout)).toEqual({ ...DEFAULT_SETTINGS, theme: 'dark' });
+    }
     expect(readSettings(memoryStore({ [KEY]: 'not json' }), KEY)).toEqual(DEFAULT_SETTINGS);
     expect(readSettings(memoryStore({ [KEY]: 'null' }), KEY)).toEqual(DEFAULT_SETTINGS);
     expect(readSettings(memoryStore({ [KEY]: '"dark"' }), KEY)).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('reads a record an earlier version kept, with the theme and the toolbar alone, on the new defaults', () => {
+    // What every app that ran the shell before the icons and the tables had settings has kept.
+    const store = memoryStore({ [KEY]: JSON.stringify({ theme: 'dark', toolbar: 'compact' }) });
+    expect(readSettings(store, KEY)).toEqual({ theme: 'dark', toolbar: 'compact', iconStyle: 'minimal', tableStyle: 'grid', graphLayout: 'tree' });
+    // And one kept before the graph had a setting: its layout is the trees.
+    const before = memoryStore({ [KEY]: JSON.stringify({ theme: 'light', toolbar: 'normal', iconStyle: 'colorful', tableStyle: 'rows' }) });
+    expect(readSettings(before, KEY).graphLayout).toBe('tree');
+  });
+
   it('writes what it reads back', () => {
     const store = memoryStore();
-    writeSettings(store, KEY, { theme: 'light', toolbar: 'compact' });
-    expect(readSettings(store, KEY)).toEqual({ theme: 'light', toolbar: 'compact' });
+    const settings = { theme: 'light', toolbar: 'compact', iconStyle: 'colorful', tableStyle: 'rows', graphLayout: 'indented' } as const;
+    writeSettings(store, KEY, settings);
+    expect(readSettings(store, KEY)).toEqual(settings);
     // Only the settings' own fields go in.
-    writeSettings(store, KEY, { theme: 'dark', toolbar: 'normal', extra: 1 } as never);
-    expect(JSON.parse(store.entries.get(KEY) ?? '')).toEqual({ theme: 'dark', toolbar: 'normal' });
+    writeSettings(store, KEY, { ...DEFAULT_SETTINGS, theme: 'dark', extra: 1 } as never);
+    expect(JSON.parse(store.entries.get(KEY) ?? '')).toEqual({ theme: 'dark', toolbar: 'normal', iconStyle: 'minimal', tableStyle: 'grid', graphLayout: 'tree' });
     expect(() => writeSettings(null, KEY, DEFAULT_SETTINGS)).not.toThrow();
   });
 
@@ -74,7 +95,7 @@ describe('shell settings', () => {
       },
     };
     expect(readSettings(refusing, KEY)).toEqual(DEFAULT_SETTINGS);
-    expect(() => writeSettings(refusing, KEY, { theme: 'dark', toolbar: 'compact' })).not.toThrow();
+    expect(() => writeSettings(refusing, KEY, { ...DEFAULT_SETTINGS, theme: 'dark', toolbar: 'compact' })).not.toThrow();
   });
 
   it("comes to the system's theme for auto, and to the setting's own otherwise", () => {

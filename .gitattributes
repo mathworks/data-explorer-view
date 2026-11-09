@@ -1,0 +1,4 @@
+# A data dictionary is compared byte for byte (with what MATLAB writes, and in the goldens), so a
+# text one reaches every checkout as committed, its line endings never converted. Models and
+# MAT-files are binary to git already.
+*.sldd -text

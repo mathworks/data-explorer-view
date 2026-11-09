@@ -1,5 +1,5 @@
 import { type RawView } from '../raw/rawView.js';
-import { type CellEdit, type ChildRows, type EditableTableSource, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
+import { type CellEdit, type ChildRows, type EditableTableSource, type EditHistory, type InspectOptions, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
 import type { JsonDocument, JsonTableOptions } from './jsonEngine.js';
 /** One table of a JSON dictionary: resolveCustomTextEditor's view, as an EditableTableSource. */
 export declare class JsonView implements EditableTableSource {
@@ -22,6 +22,14 @@ export declare class JsonView implements EditableTableSource {
     private wideEpoch;
     /** How many times this table changed its rows, or put its tree out of step, outside a wide repaint. */
     private rowsTouched;
+    /**
+     * Each entry's latest turn, by its row id, since the last wide repaint began: taken by a narrow
+     * repaint as it BEGINS (postEntryRows) and by a paint of the entry sent at once (postRowPatch).
+     * A repaint that waited on the Usage column lands only if it still holds its entry's latest turn:
+     * one begun or sent after it is the newer reading, whichever of them is done first.
+     */
+    private readonly entryTurns;
+    private entryTurn;
     /** This table has closed: set first in dispose, and asked by everything still running then. */
     private disposed;
     /** The table has asked for its rows (`open`). Until then a wide repaint paints nothing. */
@@ -83,6 +91,8 @@ export declare class JsonView implements EditableTableSource {
      * the rows: fresh rows clear the error banner, so a banner sent beside them has to come second.
      */
     private postEntryRows;
+    /** The next turn of the entry `entryRowId`: its latest, until another repaint or paint of it takes one. */
+    private takeTurn;
     /**
      * The same repaint, sent in THIS run, so an edit is on screen before the rest of its work. A cold
      * Usage graph is caught up in a second repaint.
@@ -178,7 +188,8 @@ export declare class JsonView implements EditableTableSource {
     delete(rowIds: readonly string[]): void;
     addChild(rowId: string): void;
     paste(rowId: string): void;
-    drop(rowId: string, mode: 'copy' | 'move'): void;
+    drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void;
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void;
     addEntry(msg: NewEntry): void;
     /**
      * Create ONE new default entry from the Add gallery: a paste with no source, always narrow. Through
@@ -225,10 +236,12 @@ export declare class JsonView implements EditableTableSource {
     opened(view?: TableView): void;
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
-    inspect(selection: string | readonly string[]): Promise<InspectorView>;
+    inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView>;
     raw(rowId: string): Promise<RawView>;
     private findForRead;
     subscribe(listener: (change: TableChange) => void): () => void;
+    /** Where the document's undo stack stands, the text's, as the engine was given it (its `history`). */
+    get history(): EditHistory | undefined;
     undo(): void;
     redo(): void;
     private liveFind;

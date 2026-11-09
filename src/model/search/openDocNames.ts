@@ -36,25 +36,53 @@ import type { TreeTableRow } from '../rows/tableRow.js';
 import type { DocKind } from '../source/readDocument.js';
 import type { EntryKind, NameRecord } from './nameExtract.js';
 
+/** A cell's text, as the table shows it: a string, or an object's `text`. */
+function cellText(cell: unknown): string {
+  if (typeof cell === 'string') return cell;
+  return typeof cell === 'object' && cell !== null && typeof (cell as { text?: unknown }).text === 'string' ? (cell as { text: string }).text : '';
+}
+
+/** What a record of an open document carries beyond the index's: none, or its row's cells. */
+export interface NamesOfRowsOptions {
+  /**
+   * Each record also carries what its row shows of the entry, where the row has it: its Value,
+   * Data Type and Class cells' text (`value`, `dataType`, `className`), which a ranked search
+   * matches on and shows. Default false: the records are exactly the folder index's.
+   */
+  cells?: boolean;
+}
+
 /**
  * The name records of an open document, from the rows its table shows (a TableView's `rows`):
  * the records the folder's index gives the same file (namesFromSldd, namesFromMat, namesFromSlx),
  * each named after `sourceUri`. `kind` is the document's (`Doc.kind`); a project has none. A row
  * with no name gives none, as the index drops an entry with none, and so does a block row with no
- * key, which a search could not reveal.
+ * key, which a search could not reveal. With `cells`, each also carries its row's cells.
  */
-export function namesOfRows(rows: readonly TreeTableRow[], sourceUri: string, kind: DocKind): NameRecord[] {
+export function namesOfRows(rows: readonly TreeTableRow[], sourceUri: string, kind: DocKind, options: NamesOfRowsOptions = {}): NameRecord[] {
   // The file's name by the index's own rule (nameExtract.ts's nameRecords), so a hit from either
   // list is grouped under the same heading.
   const sourceLabel = uriBasename(sourceUri);
-  const record = (name: string, entryKind: EntryKind): NameRecord => ({ name, sourceUri, sourceLabel, kind: entryKind });
+  // A cell is carried only where it says something: a section's entries and a block have no Value.
+  const cellsOf = (row: TreeTableRow): Partial<NameRecord> => {
+    if (!options.cells) return {};
+    const out: Partial<NameRecord> = {};
+    const value = cellText(row.Value);
+    const dataType = cellText(row.DataType);
+    const className = cellText(row.Class);
+    if (value) out.value = value;
+    if (dataType) out.dataType = dataType;
+    if (className) out.className = className;
+    return out;
+  };
+  const record = (name: string, entryKind: EntryKind, row: TreeTableRow): NameRecord => ({ name, sourceUri, sourceLabel, kind: entryKind, ...cellsOf(row) });
   const sectionOf = (row: TreeTableRow): string | null => (row.parent === null ? null : sectionNameFromRowId(row.parent));
 
   if (kind === 'mat') {
-    return rows.filter((row) => row.parent === null && row.Name.label).map((row) => record(row.Name.label, 'mat'));
+    return rows.filter((row) => row.parent === null && row.Name.label).map((row) => record(row.Name.label, 'mat', row));
   }
   if (kind === 'dictionary') {
-    return rows.filter((row) => sectionOf(row) !== null && row.Name.label).map((row) => record(row.Name.label, 'sldd'));
+    return rows.filter((row) => sectionOf(row) !== null && row.Name.label).map((row) => record(row.Name.label, 'sldd', row));
   }
   if (kind !== 'model') return [];
 
@@ -64,12 +92,12 @@ export function namesOfRows(rows: readonly TreeTableRow[], sourceUri: string, ki
   const blocks: NameRecord[] = [];
   for (const row of rows) {
     const section = sectionOf(row);
-    if (section === 'workspace' && row.Name.label) workspace.push(record(row.Name.label, 'workspace'));
+    if (section === 'workspace' && row.Name.label) workspace.push(record(row.Name.label, 'workspace', row));
     if (section !== 'blocks') continue;
     // The label is core's blockLabel (`<SID: 65>` for a block with no name), as the index's.
     const key = typeof row._blockKey === 'string' ? row._blockKey : '';
     if (!key) continue;
-    blocks.push({ ...record(row.Name.label, 'block'), selectName: key, blockPath: row._blockPath || row.Name.label });
+    blocks.push({ ...record(row.Name.label, 'block', row), selectName: key, blockPath: row._blockPath || row.Name.label });
   }
   return [...workspace, ...blocks];
 }

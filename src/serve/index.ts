@@ -18,6 +18,10 @@ export { serveTable } from '../model/source/serveTable.js';
 export type { ServeTableExtra, ServeTableOptions } from '../model/source/serveTable.js';
 export { listedFiles } from '../model/hierarchy/folderList.js';
 export type { FolderFileList } from '../model/hierarchy/folderList.js';
+// What FolderReads.entries answers, by type alone: what is data is the host's to ask of core
+// (`data-explorer-core/fileKinds`' isSupportedPath, as the model's entryKindOf does), so nothing
+// here loads core.
+export type { FolderEntry, FolderEntryKind } from '../model/hierarchy/folderEntries.js';
 export { sourceUri, uriPath } from '../model/source/sourceUri.js';
 export { portFromMainPort, portFromMessagePort } from '../model/source/ports.js';
 export type { MainPort } from '../model/source/ports.js';

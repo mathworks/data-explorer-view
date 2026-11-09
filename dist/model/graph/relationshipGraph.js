@@ -34,7 +34,7 @@
 // other data, its workspace's MAT-file, and each dictionary's references resolved from that
 // dictionary), and the two kinds of edge cannot disagree. Only the small index is rebuilt per
 // model; each file is still parsed and summarised once.
-import { buildUsageIndexFromSummaries, extractSlxStructure, identifiersIn, mergeFileSummaries, parseModel, refBasename, scanMat, scanSldd, sourceKind, structureFromParsed, summarizeMatScan, summarizeParsedModel, summarizeSlddScan, } from 'data-explorer-core';
+import { blockKey, blockLabel, buildUsageIndexFromSummaries, extractSlxStructure, identifiersIn, joinBlockPath, mergeFileSummaries, parseModel, refBasename, scanMat, scanSldd, sourceKind, structureFromParsed, summarizeMatScan, summarizeParsedModel, summarizeSlddScan, } from 'data-explorer-core';
 import { RelGraph } from '../hierarchy/graphModel.js';
 import { buildGraphSource } from '../hierarchy/graphSources.js';
 import { parseLinkTarget } from '../ids/linkTarget.js';
@@ -232,6 +232,12 @@ function scopeOf(model, tree, readByUri) {
 /**
  * The items, and the usage edges between them.
  *
+ * A model's blocks are every block a parameter of which names something (an identifier of its
+ * expression, as core reads one), whether or not what it names is open: the prototype listed them
+ * all, so a model opened alone opens onto its blocks and shows what they read, where only the
+ * blocks with a usage drawn left it with no items at all. A block is the same item, id included,
+ * as the usage of it gives once the data is open, so a box opened before keeps its items.
+ *
  * Model by model, each through an index over the model and its scope (scopeOf, and the header for
  * why). Read off the REVERSE direction of core's index (`usagesOf`: which blocks read this
  * variable), because that is the one that credits every name an expression reads: `Kp*Ki` is a
@@ -251,25 +257,38 @@ function usageEdges(reads, tree, boxById) {
     // The variables of each data file some block reads, and each model's workspace variables.
     const read = new Map();
     const readByUri = new Map(reads.map((r) => [r.file.uriString, r]));
-    const blockOf = (usage) => {
-        const model = boxById.get(usage.modelSrcId);
+    // A block by its model's id, its link target (`<key>@<model>`, as core's usages spell it), its
+    // path and its name.
+    const blockAt = (modelId, linkTarget, path, name) => {
+        const model = boxById.get(modelId);
         if (!model)
             return null;
-        const id = itemId(model.id, 'block', usage.linkTarget);
+        const id = itemId(model.id, 'block', linkTarget);
         let block = blocks.get(id);
         if (!block) {
             // The view's one reading of a block target (`blocks:<key>@<model>`), for the key a table
             // selects a block row by.
-            const target = parseLinkTarget(`blocks:${usage.linkTarget}`);
-            const revealName = target.kind === 'block' ? target.block : usage.blockName;
-            block = { id, boxId: model.id, name: usage.blockPath, revealName, iconId: ITEM_ICONS.block, group: 'data' };
+            const target = parseLinkTarget(`blocks:${linkTarget}`);
+            const revealName = target.kind === 'block' ? target.block : name;
+            block = { id, boxId: model.id, name: path, revealName, iconId: ITEM_ICONS.block, group: 'data' };
             blocks.set(id, block);
         }
         return block;
     };
+    const blockOf = (usage) => blockAt(usage.modelSrcId, usage.linkTarget, usage.blockPath, usage.blockName);
     for (const model of reads) {
         if (model.kind !== 'model' || !model.summary)
             continue;
+        // Every block naming something, first: its key, label, path and target are core's, built as
+        // its index builds a usage's, so the usage found below is this same block.
+        for (const m of model.summary.models) {
+            for (const p of m.blockParams) {
+                if (identifiersIn(p.expression).length === 0)
+                    continue;
+                const label = blockLabel(p.blockName, p.sid);
+                blockAt(m.srcId, `${blockKey(p.blockName, p.sid)}@${m.srcId}`, joinBlockPath(p.systemPath, label), label);
+            }
+        }
         const scope = scopeOf(model, tree, readByUri);
         const index = buildUsageIndexFromSummaries(mergeFileSummaries([model.summary, ...scope.flatMap((r) => (r.summary ? [r.summary] : []))]));
         // Each usage of a variable of `owner` an edge from the block to the variable's item.

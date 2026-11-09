@@ -1,6 +1,7 @@
 import type { SourceFile } from 'data-explorer-core';
 import type { DropFacts } from '../actions/dropFacts.js';
 import type { SectionRule } from '../actions/sectionRules.js';
+import type { FolderEntry } from '../hierarchy/folderEntries.js';
 import type { ProjectStore } from '../hierarchy/graphSources.js';
 import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
@@ -294,7 +295,7 @@ export interface EditTextMessage {
 }
 /** Every editing message a host sends a table's end. */
 export type TableEditHostMessage = SectionRulesMessage | ClipboardStateMessage | DragStateMessage | SelectRowsMessage | BeginRenameMessage | ValidationErrorMessage | RefusedMessage | EditTextMessage;
-/** What a `folderRequest` asks: the folder's files, or a version, the bytes or the project store of one of them. */
+/** What a `folderRequest` asks: the folder's files (or with a `dir`, one level of that folder), or a version, the bytes or the project store of one of them. */
 export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
 /**
  * A question about the folder (folderReader → serveFolder), answered by the `folderAnswer` with
@@ -302,6 +303,11 @@ export type FolderAsk = 'list' | 'version' | 'bytes' | 'projectStore';
  *
  * - `list`: the folder's files, as `SourceFile`s in the folder's order (FolderFiles.list). The
  *   host keeps this listing, and the questions below are about its files.
+ * - `list` with a `dir`: one level of the folder `dir`, answered in `entries` (the host's
+ *   FolderReads.entries), asked whether or not the folder is listed, and kept as no listing.
+ *   `refused` when the host lists no entries, or when `dir` is not a string; an error when the
+ *   host cannot list that folder, or will not. A host older than the field answers its listing of
+ *   files instead, with no `entries`: the page reads that as a host that lists none.
  * - `version`, `bytes`, `projectStore`: what the host's reader answers (GraphReader) for the file
  *   of its last listing whose uriString is `uri`, exactly. Any other uri, or none, is `refused`
  *   and nothing is read: a page can have the host read only the files the host listed. So is a
@@ -314,13 +320,15 @@ export interface FolderRequestMessage {
     ask: FolderAsk;
     /** The file asked about, by its uriString. Not on a `list`. */
     uri?: string;
+    /** On a `list`, the folder whose entries are asked for (its path, as the entries' paths are). Absent: the folder's files. */
+    dir?: string;
 }
 /**
  * The answer to the `folderRequest` with this `id`: a `value`, an `error`, or a refusal.
  *
  * The value of a `list` is its files (`SourceFile[]`); of a `version`, a string or null; of
  * `bytes`, an ArrayBuffer (a typed array is read as the bytes it views) or null; of a
- * `projectStore`, a ProjectStore or null.
+ * `projectStore`, a ProjectStore or null. A `list` with a `dir` is answered in `entries`.
  */
 export interface FolderAnswerMessage {
     type: 'folderAnswer';
@@ -330,10 +338,16 @@ export interface FolderAnswerMessage {
     error?: string;
     /**
      * Why the host did not answer: the question names no file of its last listing (or asks what the
-     * wire does not). Nothing was read. The page's call answers null, as a reader does for a file it
-     * was not given.
+     * wire does not), or asks for entries the host does not list. Nothing was read. The page's call
+     * answers null, as a reader does for a file it was not given.
      */
     refused?: string;
+    /**
+     * On the answer to a `list` with a `dir`: the folder's entries, each its name, path and kind
+     * alone, in the host's order (the page sorts them). Absent from the answer of a host older than
+     * the field, which answered its listing of files instead: the page reads that as no entries.
+     */
+    entries?: FolderEntry[];
     /**
      * On the answer to a `list`: true when the listing was cut short, the folder holding more
      * supported files than `value` (FolderFileList.truncated, which a structured clone of the array

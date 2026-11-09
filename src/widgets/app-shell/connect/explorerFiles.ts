@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The open files as the Explorer lists them, and the kind of file each is: the heading it goes
-// under, the icon its row and its tab draw, and the words the status bar says it in. Pure:
+// under, the icon its row and its tab draw, and the words the status bar's tooltip says it in. Pure:
 // connectShell hands the Explorer these again whenever a tab opens, closes, moves, takes an edit
 // or is painted.
 //
@@ -26,7 +26,7 @@ export const FILE_ICONS: Readonly<Record<FileKind, string>> = {
   project: 'simulink_project',
 };
 
-/** What the status bar calls each kind of file. */
+/** What each kind of file is called in words: the tooltip of the status bar's format pill. */
 export const FILE_FORMATS: Readonly<Record<FileKind, string>> = {
   model: 'Simulink model',
   sldd: 'Data dictionary',
@@ -49,6 +49,8 @@ export interface ExplorerTab {
   path: string;
   name: string;
   dirty?: boolean;
+  /** Its row's tooltip: its path, as the host says it (ShellHost.pathTitle). Default the path. */
+  title?: string;
   /** Its table's last whole paint (TableHandle.view's rows), for its sections; none before the first. */
   rows?: readonly TreeTableRow[];
 }
@@ -61,7 +63,7 @@ export function explorerFiles(tabs: readonly ExplorerTab[]): ExplorerFile[] {
     return {
       id: tab.id,
       label: tab.name,
-      title: tab.path,
+      title: tab.title ?? tab.path,
       group,
       ...(icon ? { icon } : {}),
       dirty: !!tab.dirty,

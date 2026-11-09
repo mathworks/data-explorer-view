@@ -1,9 +1,10 @@
 # `<dex-command-palette>`
 
-The shell's command palette: a box at the top of the window, over the page, in which a few typed
-letters find a command. show() opens it with the commands to offer. The list follows the typing:
-labels that begin with the query first, then those whose words it begins, then those that only
-hold its letters in order, the letters matched drawn in bold. The commands run lately come first
+The shell's command palette: a box at the top of the window, over the page (dimmed and a little
+blurred behind it), in which a few typed letters find a command. show() opens it with the
+commands to offer. The list follows the typing: labels that begin with the query first, then
+those whose words it begins, then those that only hold its letters in order, the letters matched
+drawn in bold. The commands run lately come first
 among equals, and first of all before anything is typed. ArrowUp and ArrowDown move through the
 list, wrapping; Enter or a click runs the command, which closes the palette and sends
 `dex-palette-run`. A disabled command is listed greyed and runs on neither. Escape, a click
@@ -51,12 +52,14 @@ Whether it is open: from show() until a command runs, Escape, a click outside it
 
 ## Methods
 
-### `show(commands: PaletteCommand[]): void`
+### `show(commands: PaletteCommand[], options?: PaletteShowOptions): void`
 
 Opens the palette over the page with `commands` (a list that is not an array is none), an
 empty query and the focus in its input, on the first command that can run. Open already, it
 takes the new commands and starts the query afresh, and the focus will still go back where it
-was before the first show(). Not on the page, it does not open.
+was before the first show(). Not on the page, it does not open. `options` says what its input
+reads before anything is typed and whether a row run from it joins the recent ones (a pick of a
+file does not: the shell's commands are what a later list puts first).
 
 ### `close(): void`
 

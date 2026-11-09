@@ -7,11 +7,19 @@
 // The open files' names are read off the rows their tables hold (namesOfRows), the same records the
 // folder's index takes from the same file, so a file is searched once, by whichever list has it,
 // and an open one by its own: what its table shows, unsaved edits and all, rather than what the
-// index read from its disk. The folder's index answers in its own time (a first build reads every
-// file), so the panel says it is searching meanwhile, and the answer to a query the typing has
-// moved past is dropped. An index that cannot be read says so once, not on every query, until it
-// answers again.
-import { searchEntries, sortNameRecords } from '../../../model/search/searchItems.js';
+// index read from its disk, with each entry's value and type beside its name. The matches are
+// ranked as the prototype's were (searchRanked: the name, the value or the type, a prefix before a
+// substring before the name's letters in order), so Enter on the first row takes the best; a
+// folder's entries, whose index reads names alone, match by name.
+//
+// The folder's index answers in its own time (a first build reads every file), so the panel says
+// it is searching meanwhile, and the answer to a query the typing has moved past is dropped. An
+// index that cannot be read says so once, not on every query, until it answers again. Once the
+// folder's names are read again after a change, the query in the box is asked again, so the
+// results on show are the folder's as it is now (as the folder's own search box, gone for this
+// view, kept them).
+import { sortNameRecords } from '../../../model/search/searchItems.js';
+import { searchRanked } from '../../../model/search/searchRank.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
 /**
  * The records a search runs over: every open file's, then the folder's of the files not open (an
@@ -22,13 +30,12 @@ export function mergeSearchRecords(open, folder) {
     const opened = new Set(open.map((r) => r.sourceUri));
     return sortNameRecords([...open, ...folder.filter((r) => !opened.has(r.sourceUri))]);
 }
-/** Wire `panel` to the open files and the folder; `scope(folderName)` says what it searches. */
+/** Wire `panel` to the open files and the folder. */
 export function connectSearchPane(panel, context) {
     let asked = 0;
     // The index whose last answer was a failure, said already.
     let refused = null;
-    const onQuery = (e) => {
-        const query = e.detail.query;
+    const run = (query) => {
         const ask = ++asked;
         if (query.trim() === '') {
             panel.searching = false;
@@ -39,7 +46,7 @@ export function connectSearchPane(panel, context) {
         const index = context.folderNames();
         if (!index) {
             panel.searching = false;
-            panel.results = searchEntries(mergeSearchRecords(open, []), query);
+            panel.results = searchRanked(mergeSearchRecords(open, []), query);
             return;
         }
         panel.searching = true;
@@ -48,7 +55,7 @@ export function connectSearchPane(panel, context) {
                 refused = null;
             if (ask !== asked)
                 return;
-            panel.results = searchEntries(mergeSearchRecords(open, folder), query);
+            panel.results = searchRanked(mergeSearchRecords(open, folder), query);
             panel.searching = false;
         }, (err) => {
             if (ask !== asked)
@@ -57,16 +64,22 @@ export function connectSearchPane(panel, context) {
             if (refused !== index)
                 context.failed(`Could not search the folder: ${message(err)}`);
             refused = index;
-            panel.results = searchEntries(mergeSearchRecords(open, []), query);
+            panel.results = searchRanked(mergeSearchRecords(open, []), query);
             panel.searching = false;
         });
     };
+    const onQuery = (e) => run(e.detail.query);
     const onOpen = (e) => context.open(e.detail.sourceUri, e.detail.revealName);
     panel.addEventListener('dex-search-query', onQuery);
     panel.addEventListener('dex-search-open', onOpen);
     return {
         scope(folderName) {
             panel.scope = folderName ? `Open files and ${folderName}` : 'Open files';
+        },
+        again() {
+            // An empty box shows no results, and has nothing to ask.
+            if (panel.query.trim() !== '')
+                run(panel.query);
         },
         dispose() {
             asked++;

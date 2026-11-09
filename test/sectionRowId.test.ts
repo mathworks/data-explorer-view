@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SECTION_ROW_PREFIX,
   buildSectionRowId,
+  isEntryRow,
   isSectionRowId,
   sectionNameFromRowId,
 } from '../src/model/ids/sectionRowId.js';
@@ -36,6 +37,21 @@ describe('sectionRowId', () => {
 
     it('returns false for an empty string', () => {
       expect(isSectionRowId('')).toBe(false);
+    });
+  });
+
+  describe('isEntryRow', () => {
+    it("is a row under a section row, a section's entry", () => {
+      expect(isEntryRow({ ID: 'e:Kp', parent: 'section:design' })).toBe(true);
+    });
+
+    it('is a top-level row that is no section row, in a table with none (a MAT-file variable)', () => {
+      expect(isEntryRow({ ID: 'm:P', parent: null })).toBe(true);
+    });
+
+    it("is not a section's own row, nor a row nested under an entry", () => {
+      expect(isEntryRow({ ID: 'section:design', parent: null })).toBe(false);
+      expect(isEntryRow({ ID: 'e:Bus/Speed', parent: 'e:Bus' })).toBe(false);
     });
   });
 

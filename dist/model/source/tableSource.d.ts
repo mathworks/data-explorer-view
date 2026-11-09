@@ -4,6 +4,7 @@ import type { WarningBanner } from '../rows/parseWarnings.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { MatrixPayload } from '../matrix/matrixPayload.js';
 import type { PropertyGroup } from '../inspector/piBuilder.js';
+import type { RawOptions } from '../raw/rawOfRow.js';
 import type { RawView } from '../raw/rawView.js';
 import type { ClipboardMode, DragDescriptor } from './wire.js';
 /** What the table shows for a document: its rows, its columns and the banners above them. */
@@ -92,6 +93,33 @@ export interface InspectorView {
     groups: PropertyGroup[];
 }
 /**
+ * What the inspector asks of a selection past its first row's properties (`TableSource.inspect`).
+ * Each is off by default, and a source across a message channel has no word for either: it answers
+ * as without them.
+ */
+export interface InspectOptions {
+    /**
+     * Pages for more than one row: the file itself, for no row selected or the document's own uri as
+     * the row (what it is, where, whether it holds edits, and the open files it references and is
+     * referenced by, as links); a section heading (its entries, counted by type); and a selection of
+     * several rows ("3 selected", counted by type). Each page's `rowId` is the row it is of: the
+     * document's uri, the section's row, the selection's first row.
+     */
+    pages?: boolean;
+    /**
+     * With `pages`: what the file's page says of where the file is (its File row), in the host's words
+     * for its path, where the host's paths mean nothing to the user (a browser host's are its own
+     * making). Default the path the document's uri names.
+     */
+    fileTitle?: string;
+    /**
+     * A row's properties editable where core offers an editor of them (PropertyGroupOptions'
+     * `editable`), each keyed by the property an edit names, for an inspector that writes a change
+     * back as a cell edit. For a document whose view may be edited; nothing else is.
+     */
+    editable?: boolean;
+}
+/**
  * What a property inspector follows: each page it should show, as the selection or the document
  * changes, and the cells of a matrix one of its rows describes. A connected table's handle is one
  * (its selection, inspected); `inspectorFeed(port)` is another (the pages a host sends).
@@ -104,6 +132,12 @@ export interface InspectorFeed {
     onPage(listener: (view: InspectorView) => void): () => void;
     /** The cells of the matrix an inspector row's `matrix` describes, by its `nodeId`. */
     matrix(nodeId: string): Promise<MatrixPage>;
+    /**
+     * Write back a change of an editable row of the page shown (`dex-property-changed`), as a cell
+     * edit of the page's row (`rowId`) is: `columnId` is the row's `key`. Optional: a feed whose pages
+     * have no editable rows has none, and the inspector writes nothing.
+     */
+    edit?(edit: CellEdit): void;
 }
 /**
  * What the clipboard holds, as every table is told whenever it changes: payload-free, the facts a
@@ -209,9 +243,10 @@ export interface TableSource {
     /**
      * What the property inspector shows for a table's selection: the properties of its FIRST row,
      * or nothing when that row is a section heading, or none is selected. A row id alone is a
-     * selection of one.
+     * selection of one. `options` asks for more (InspectOptions): pages for the file, a section and
+     * several rows, and editable rows; a source that has neither answers as without them.
      */
-    inspect(selection: string | readonly string[]): Promise<InspectorView>;
+    inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView>;
     /**
      * What the Raw pane shows for a row: the record the file holds for it, as JSON or as XML, the
      * bytes a value was read from, as a dump, or why there is none (a row that is not there among
@@ -220,9 +255,10 @@ export interface TableSource {
      *
      * Optional, and in the page alone: a workspace's documents answer it (raw/rawOfRow.ts says what,
      * for each kind of row); a source across a message channel has no message for it, and leaves it
-     * out.
+     * out. With `record`, a MAT-file's or a Model Workspace's variable answers the record a save
+     * writes rather than the bytes it was read from (RawOptions); a source may answer as without it.
      */
-    raw?(rowId: string): Promise<RawView>;
+    raw?(rowId: string, options?: RawOptions): Promise<RawView>;
     /** Hear every change after `open()`, until the returned function is called. */
     subscribe(listener: (change: TableChange) => void): () => void;
     /**
@@ -233,6 +269,16 @@ export interface TableSource {
      * Optional; a read-only source has nothing to add.
      */
     opened?(): void;
+    /**
+     * These rows are being dragged out of a table that may not edit the document, to be copied into
+     * another one (connectTable's `dragOut`): take their entries into the drag register, as an
+     * editable source's `dragStart` does, where nothing may take them out of this document. Optional,
+     * with `dragEnd`: a workspace's read-only documents have both, in a workspace made with `editing`;
+     * a source without them has no row dragged out of its table. An EditableTableSource always has them.
+     */
+    dragStart?(rowIds: readonly string[]): void;
+    /** The drag of rows `dragStart` took ended, dropped or not. Optional, with `dragStart`. */
+    dragEnd?(): void;
 }
 /** A committed cell edit, a rename among them (`columnId` 'Name'): what the cell held, and what it now says. */
 export interface CellEdit {
@@ -249,6 +295,24 @@ export interface NewEntry {
     section: string;
     className: string;
     rename: boolean;
+}
+/**
+ * Where a document's undo stack stands, as a table offers Undo and Redo by it: whether there is an
+ * edit to undo and one to redo, and when either changes. The page's own stacks have one (EditStack,
+ * and a JSON dictionary's text); an editor's stack that says nothing of itself to the table (the VS
+ * Code extension's: VS Code keeps the edits) has none.
+ */
+export interface EditHistory {
+    /** Whether there is an edit to undo. */
+    readonly canUndo: boolean;
+    /** Whether there is an undone edit to redo. */
+    readonly canRedo: boolean;
+    /**
+     * Hear `canUndo` or `canRedo` change, once the step that changed it is done (an edit, an undo, a
+     * redo, a reload that empties the stack), until the returned function is called. A step that
+     * changes neither is not told.
+     */
+    onChange(listener: () => void): () => void;
 }
 /**
  * A TableSource that also takes edits: one command per gesture, each the editing message of the
@@ -291,8 +355,24 @@ export interface EditableTableSource extends TableSource {
     dragStart(rowIds: readonly string[]): void;
     /** The drag of this table's rows ended, dropped or not. */
     dragEnd(): void;
-    /** The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries there. */
-    drop(rowId: string, mode: 'copy' | 'move'): void;
+    /**
+     * The drag was let go over `rowId` ('' for the table's empty body): move or copy what it carries
+     * there. A source whose drop finishes later (a JSON dictionary's waits its turn behind the edits
+     * queued before it) may return a promise, settled once the drop is done, refused or not, which
+     * `handle.drop()` waits for; one that has done it, or refused it, by the end of the task returns
+     * nothing.
+     */
+    drop(rowId: string, mode: 'copy' | 'move'): void | Promise<void>;
+    /**
+     * The drag register's entries let go over `rowId` as a copy, as `drop(rowId, 'copy')`, with the
+     * entries of `replacing` (rows of this document, each standing for its entry) taken out first in
+     * the same edit, so the copies keep their names: one undo step. Until core can paste in place, the
+     * copy goes last in its section. A compare's Copy to Right of a changed entry. Refused, changing nothing, where a row of `replacing` is no
+     * longer in the document, or names a variable another of the file shares its name with (a
+     * MAT-file's). A source whose copy finishes later returns a promise, as `drop` does. Optional: a
+     * source without it takes no replacing copy, and a compare offers none into it.
+     */
+    dropReplacing?(rowId: string, replacing: readonly string[]): void | Promise<void>;
     /** Ask for the whole text of `rowId`'s Value, answered by an `editText` change. */
     requestEditText(rowId: string): void;
     /**
@@ -300,6 +380,14 @@ export interface EditableTableSource extends TableSource {
      * and offers it on the rows it marks (`_canSetActive`).
      */
     setActiveConfigSet?(rowId: string): void;
+    /**
+     * Where the document's undo stack stands: a connected table offers Undo only where there is an
+     * edit to undo, and Redo one to redo (its menu, its handle's `can`, and so an app's toolbar).
+     * Optional: a source without it (one across a channel, as the VS Code extension's, whose stack is
+     * VS Code's) has Undo and Redo offered wherever the document may be edited. A workspace's
+     * documents the page edits have it.
+     */
+    readonly history?: EditHistory;
 }
 /**
  * Why an answer never came: the source was closed while it was being asked (a table of a document

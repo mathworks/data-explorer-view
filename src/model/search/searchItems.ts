@@ -35,6 +35,12 @@ export interface SearchItem {
   revealName: string;
   /** The record it shows. */
   entry: NameRecord;
+  /**
+   * What the entry is, where its record says (an open document's): its class, else its data type
+   * (`Simulink.Parameter`, `double`, a block's `Gain`). Absent for a record with neither, which a
+   * folder's index gives.
+   */
+  type?: string;
 }
 
 /** A record as a result row. */
@@ -45,12 +51,15 @@ export function searchItem(rec: NameRecord): SearchItem {
   // just repeat the label. The file name stays either way — it is the coarser fact, and the only
   // one a non-block hit has.
   const where = rec.blockPath && rec.blockPath !== rec.name ? rec.blockPath + ' · ' : '';
+  // What `ls` calls it in the command window: the class an object is, else the type a value has.
+  const type = rec.className || rec.dataType;
   return {
     label: rec.name,
     description: where + rec.sourceLabel,
     iconId: SEARCH_ICONS[rec.kind],
     revealName: rec.selectName ?? rec.name,
     entry: rec,
+    ...(type ? { type } : {}),
   };
 }
 

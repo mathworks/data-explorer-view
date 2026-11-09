@@ -79,6 +79,8 @@ describe('dex-gallery-panel: what it draws', () => {
     const el = await panel({ target: 'plant.sldd' });
     expect(gallery(el)).toBeInstanceOf(DexAddGallery);
     expect(gallery(el).inline).toBe(true);
+    // Small tiles, four to a row in a sidebar of the default width (addGalleryCompact.test.ts).
+    expect(gallery(el).compact).toBe(true);
     expect(gallery(el).shadowRoot!.querySelector('.gallery-pin, input[type="checkbox"]')).toBeNull();
     expect(tiles(el).map((t) => t.dataset.className)).toEqual(allTiles().map((t) => t.className));
   });

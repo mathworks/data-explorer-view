@@ -47,6 +47,10 @@ export class DexCommandPalette extends LitElement {
         this._query = '';
         // The active row's index in the ranked list; -1 with no rows.
         this._active = -1;
+        // What the input says before anything is typed, and whether a row run joins the recent ones: the
+        // last show()'s options.
+        this._placeholder = 'Type a command';
+        this._remember = true;
         // Latest first, ids. Not state: it changes the list only at the next show().
         this._recent = [];
         // The ranked list for the query and the commands it was ranked from, so a key press between
@@ -96,13 +100,18 @@ export class DexCommandPalette extends LitElement {
     }
 
     /* The host is the backdrop, lighter than the dialogs': the palette asks no question, and the
-       page under it is still what the commands act on. */
+       page under it is still what the commands act on. The page is blurred a little behind it, as
+       the prototype's was, so the box reads as above it rather than part of it; a rule of this
+       sheet, which a strict style-src allows, and no element of its own. Prefixed too, for the
+       Safari before 18 that knows it by that name alone. */
     :host([open]) {
       display: block;
       position: fixed;
       inset: 0;
       z-index: 10000;
       background: rgba(0, 0, 0, 0.3);
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
     }
 
     /* In the top third, centred, as the prototype placed it: under the toolbar, where the
@@ -270,9 +279,11 @@ export class DexCommandPalette extends LitElement {
      * Opens the palette over the page with `commands` (a list that is not an array is none), an
      * empty query and the focus in its input, on the first command that can run. Open already, it
      * takes the new commands and starts the query afresh, and the focus will still go back where it
-     * was before the first show(). Not on the page, it does not open.
+     * was before the first show(). Not on the page, it does not open. `options` says what its input
+     * reads before anything is typed and whether a row run from it joins the recent ones (a pick of a
+     * file does not: the shell's commands are what a later list puts first).
      */
-    show(commands) {
+    show(commands, options = {}) {
         // Off the page nobody could see it, and the key listener it puts on the document would trap
         // Tab for an element that is not there.
         if (!this.isConnected)
@@ -282,6 +293,8 @@ export class DexCommandPalette extends LitElement {
             document.addEventListener('keydown', this._onDocumentKeyDown, true);
         }
         this._commands = Array.isArray(commands) ? commands : [];
+        this._placeholder = options.placeholder ?? 'Type a command';
+        this._remember = options.remember ?? true;
         this._query = '';
         // Ranked afresh, even for the same commands and query as the last: what ran since reorders them.
         this._ranked = null;
@@ -347,7 +360,8 @@ export class DexCommandPalette extends LitElement {
     _run(command) {
         if (command.disabled)
             return;
-        this._recent = [command.id, ...this._recent.filter((id) => id !== command.id)].slice(0, RECENT_MAX);
+        if (this._remember)
+            this._recent = [command.id, ...this._recent.filter((id) => id !== command.id)].slice(0, RECENT_MAX);
         this.close();
         this.dispatchEvent(new CustomEvent('dex-palette-run', {
             detail: { id: command.id },
@@ -446,7 +460,7 @@ export class DexCommandPalette extends LitElement {
             aria-autocomplete="list"
             aria-controls="list"
             aria-activedescendant=${active ?? nothing}
-            placeholder="Type a command"
+            placeholder=${this._placeholder}
             autocomplete="off"
             spellcheck="false"
             .value=${live(this._query)}
@@ -501,6 +515,9 @@ __decorate([
 __decorate([
     state()
 ], DexCommandPalette.prototype, "_active", void 0);
+__decorate([
+    state()
+], DexCommandPalette.prototype, "_placeholder", void 0);
 /** Registers the widget as `<dex-command-palette>`, or under `tag`. */
 export function defineCommandPalette(tag = 'dex-command-palette') {
     defineElement(tag, DexCommandPalette);

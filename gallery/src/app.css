@@ -17,8 +17,5 @@ dex-app-shell {
   height: 100%;
 }
 
-/* While files are dragged over the window (installFileDrop marks the body). */
-body.drop-target dex-app-shell {
-  outline: 2px dashed var(--dex-color-accent);
-  outline-offset: -4px;
-}
+/* No rule for a drag of files over the window: installFileDrop marks the body, and the shell's
+   documents' area outlines itself while it is marked. */

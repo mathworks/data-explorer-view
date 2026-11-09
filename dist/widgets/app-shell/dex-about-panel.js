@@ -9,12 +9,15 @@ import { LitElement, html, css, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
+import { aboutSections } from '../../model/shell/about.js';
 import { PopoverController } from './popover.js';
 import { popoverStyles } from './popover.styles.js';
 /**
  * The shell's About popover, opened from the (i) button of an activity bar: a heading (the app's
  * name) and the lines the app hands it, each a label and its value (the app's version, the
- * versions it is built on). The app's words are drawn as text, never as markup.
+ * versions it is built on). A line may name a section (`section: 'Built on'`): the lines with none
+ * come first, under the app's name, then each section under its own heading, in the order its
+ * first line has. The app's words are drawn as text, never as markup.
  *
  * show() opens it beside the button that opened it, as `<dex-settings-panel>` opens; Escape, a
  * press outside it, or close() closes it, and focus goes back to the button. It sends nothing.
@@ -26,7 +29,11 @@ export class DexAboutPanel extends LitElement {
         super(...arguments);
         /** The heading, the app's name, drawn in capitals as the Settings title is; also the dialog's accessible name. */
         this.heading = 'Data Explorer';
-        /** The lines under the heading, in order: a label (Version) and its value (1.0.0). */
+        /**
+         * The lines under the heading, in order: a label (Version) and its value (1.0.0), and the heading
+         * of the section the line is in (`section`), if any. The lines with no section are drawn first;
+         * each section follows, once, where its first line is.
+         */
         this.lines = [];
         // Nothing in the card can take focus, so the card itself does: Escape is heard wherever focus
         // is, but a screen reader announces the dialog only once focus is in it.
@@ -60,6 +67,25 @@ export class DexAboutPanel extends LitElement {
     dd {
       margin: 0;
     }
+
+    /* A section's heading in the title's capitals, with a line above it that parts it from the
+       lines before; straight under the title it needs no line. */
+    .section {
+      margin: 10px 0 4px;
+      padding-top: 8px;
+      border-top: 1px solid var(--dex-border-color-light, #e0e0e0);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--dex-color-text-secondary, #555);
+    }
+
+    .title + .section {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
   `]; }
     /** Whether it is open: from show() until close(), Escape or a press outside it. The `open` attribute says the same, for styling. */
     get open() {
@@ -83,12 +109,13 @@ export class DexAboutPanel extends LitElement {
             return nothing;
         return html `
       <div class="popover" role="dialog" aria-label=${this.heading} tabindex="-1">
-        <div class="title">${this.heading}</div>
-        ${this.lines.length ? html `
+        <div class="title" role="heading" aria-level="2">${this.heading}</div>
+        ${aboutSections(this.lines).map((section) => html `
+          ${section.heading === null ? nothing : html `<div class="section" role="heading" aria-level="3">${section.heading}</div>`}
           <dl class="lines">
-            ${this.lines.map((line) => html `<div class="line"><dt>${line.label}</dt><dd>${line.value}</dd></div>`)}
+            ${section.lines.map((line) => html `<div class="line"><dt>${line.label}</dt><dd>${line.value}</dd></div>`)}
           </dl>
-        ` : nothing}
+        `)}
       </div>
     `;
     }

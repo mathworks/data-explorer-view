@@ -4,6 +4,7 @@ export { serveTable } from '../model/source/serveTable.js';
 export type { ServeTableExtra, ServeTableOptions } from '../model/source/serveTable.js';
 export { listedFiles } from '../model/hierarchy/folderList.js';
 export type { FolderFileList } from '../model/hierarchy/folderList.js';
+export type { FolderEntry, FolderEntryKind } from '../model/hierarchy/folderEntries.js';
 export { sourceUri, uriPath } from '../model/source/sourceUri.js';
 export { portFromMainPort, portFromMessagePort } from '../model/source/ports.js';
 export type { MainPort } from '../model/source/ports.js';

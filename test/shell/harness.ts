@@ -11,7 +11,7 @@
 // are: the same files, the same helpers, the DOM queries moved from the app's index.html to the
 // shell's parts (the tab row is <dex-doc-tabs>'s shadow root, the welcome <dex-shell-docs>'s, the
 // notice line the toast host's, the open files' list the Explorer's).
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll } from 'vitest';
@@ -20,7 +20,8 @@ import { createWorkspace } from '../../src/model/source/workspace.js';
 import { isEditable } from '../../src/model/source/tableSource.js';
 import { portFromMessagePort } from '../../src/model/source/ports.js';
 import type { TreeTableRow } from '../../src/model/rows/tableRow.js';
-import { listedFiles, serveFolder, type FolderReads } from '../../src/serve/index.js';
+import { listedFiles, serveFolder, type FolderEntry, type FolderReads } from '../../src/serve/index.js';
+import { entryKindOf } from '../../src/model/hierarchy/folderEntries.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import type { DexAppShell } from '../../src/widgets/app-shell/dex-app-shell.js';
 import type { DexToolbar } from '../../src/widgets/app-shell/dex-toolbar.js';
@@ -32,7 +33,9 @@ import type { DexAboutPanel } from '../../src/widgets/app-shell/dex-about-panel.
 import type { DexToastHost } from '../../src/widgets/app-shell/dex-toast-host.js';
 import type { DexConfirmDialog } from '../../src/widgets/app-shell/dex-confirm-dialog.js';
 import type { DexShellDocs } from '../../src/widgets/app-shell/connect/dex-shell-docs.js';
+import type { DexShellStatus } from '../../src/widgets/app-shell/connect/dex-shell-status.js';
 import type { DexShellFolder } from '../../src/widgets/app-shell/connect/dex-shell-folder.js';
+import type { DexFolderBar } from '../../src/widgets/app-shell/dex-folder-bar.js';
 import type { DexRawViewer } from '../../src/widgets/app-shell/modules/dex-raw-viewer.js';
 import type { DexSearchPanel } from '../../src/widgets/app-shell/modules/dex-search-panel.js';
 import type { DexGalleryPanel } from '../../src/widgets/app-shell/modules/dex-gallery-panel.js';
@@ -123,6 +126,8 @@ export interface PageOptions extends Omit<ConnectShellOptions, 'host'> {
   without?: (keyof ShellHost)[];
   /** The shell's own storage-key, set before connectShell. */
   shellStorageKey?: string;
+  /** Host members of a test's own, put over the in-memory host's (a MATLAB, say). */
+  host?: Partial<ShellHost>;
 }
 
 const pages: Page[] = [];
@@ -184,10 +189,11 @@ export function startPage(files: Record<string, string> = {}, options: PageOptio
     reveal: async (p) => void main.revealed.push(p),
   };
   for (const name of options.without ?? []) delete (host as Partial<ShellHost>)[name];
+  Object.assign(host, options.host);
   const shell = document.createElement('dex-app-shell');
   if (options.shellStorageKey) shell.storageKey = options.shellStorageKey;
   document.body.append(shell);
-  const { without: _without, shellStorageKey: _key, ...shellOptions } = options;
+  const { without: _without, shellStorageKey: _key, host: _host, ...shellOptions } = options;
   const handle = connectShell(shell, { ...shellOptions, host });
   const page: Page = {
     shell,
@@ -221,6 +227,7 @@ export const locationBar = () => document.querySelector<DexLocationBar>('dex-loc
 export const explorer = () => document.querySelector<DexExplorer>('dex-explorer')!;
 export const docsArea = () => document.querySelector<DexShellDocs>('dex-shell-docs')!;
 export const folderPart = () => document.querySelector<DexShellFolder>('dex-shell-folder')!;
+export const folderBar = () => document.querySelector<DexFolderBar>('dex-folder-bar')!;
 export const confirmDialog = () => document.querySelector<DexConfirmDialog>('dex-confirm-dialog')!;
 export const rawViewer = () => document.querySelector<DexRawViewer>('dex-raw-viewer')!;
 export const searchPanel = () => document.querySelector<DexSearchPanel>('dex-search-panel')!;
@@ -242,19 +249,24 @@ export const enabledItems = () => toolbar().items.filter((i) => !i.disabled).map
 export const errorDialog = () => document.querySelector('dex-error-dialog')!;
 export const variableEditor = () => document.querySelector('dex-variable-editor')!;
 export const inspectorNote = () => document.querySelector<HTMLElement>('.dex-inspector-empty')!;
-export const statusText = () => document.querySelector<HTMLElement>('[slot="status"]')?.textContent ?? '';
+/** What the status bar says: the file's kind, and `· Modified` while it holds edits (its format's pill is statusBar.test.ts's). */
+export const statusText = () => {
+  const status = document.querySelector<DexShellStatus>('[slot="status"]');
+  return status?.format ? `${status.kind}${status.modified ? ' · Modified' : ''}` : '';
+};
 
 const tabEls = () => [...(docTabs()?.shadowRoot?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-const labelOf = (el: Element) => el.querySelector('.label')?.textContent ?? '';
+// A tab by its file's name: its subtitle, while its label names the section its selection is in.
+const labelOf = (el: Element) => (el.querySelector('.subtitle') ?? el.querySelector('.label'))?.textContent ?? '';
 
-/** The tab row's tabs, by name. */
+/** The tab row's tabs, by their files' names. */
 export const tabNames = () => tabEls().map(labelOf);
 export const activeTab = () => tabEls().find((t) => t.getAttribute('aria-selected') === 'true') ?? null;
 export const tabNamed = (name: string) => tabEls().find((t) => labelOf(t) === name);
 export const dirtyTabs = () => tabEls().filter((t) => t.classList.contains('dirty')).map(labelOf);
 export const previewTabs = () => tabEls().filter((t) => t.classList.contains('preview')).map(labelOf);
 /** The id of the tab drawn for `name`: what the tab row's and the Explorer's requests name it by. */
-export const tabIdOf = (name: string) => docTabs().tabs.find((t) => t.label === name)!.id;
+export const tabIdOf = (name: string) => docTabs().tabs.find((t) => (t.subtitle ?? t.label) === name)!.id;
 
 /** The welcome in the documents' area is on screen. */
 export const welcomeShown = () => docsArea().shadowRoot?.querySelector<HTMLElement>('.welcome')?.hidden === false;
@@ -396,14 +408,34 @@ export function tempFolder(name: string, files: Record<string, string>): string 
   return dir;
 }
 
+/** How a test serves a folder: as a host that lists a folder's entries (FolderReads.entries), or one older than them. */
+export interface ServeOptions {
+  /** Answer one level of a folder, as the Folder view's tree asks: its folders, data files and other files. Default false, a host that lists none. */
+  entries?: boolean;
+}
+
+/**
+ * One level of `dir`, as main's served folder lists it: each entry's name, path and kind, read off
+ * disk. Only `root` and the folders under it, the host's rule (FolderReads.entries): any other
+ * folder is refused, as a page's question about it is.
+ */
+export async function entriesOf(root: string, dir: string): Promise<FolderEntry[]> {
+  if (dir !== root && !dir.startsWith(`${root}${path.sep}`)) throw new Error(`Not a folder of ${root}: ${dir}`);
+  return readdirSync(dir, { withFileTypes: true }).map((e) => {
+    const at = path.join(dir, e.name);
+    return { name: e.name, path: at, kind: e.isDirectory() ? 'folder' : entryKindOf(at) };
+  });
+}
+
 /** A folder and how to read it, as the Electron app's main process has them (its folderReads). */
-export function folderReads(root: string): FolderReads {
+export function folderReads(root: string, options: ServeOptions = {}): FolderReads {
   return {
     files: { list: async () => listedFiles(await listFolder(root)) },
     reader: (files) => ({
       ...nodeSourceReader(files),
       projectStore: (file) => readProjectStoreFromDisk(file.path),
     }),
+    ...(options.entries ? { entries: (dir: string) => entriesOf(root, dir) } : {}),
   };
 }
 
@@ -412,9 +444,9 @@ export function folderReads(root: string): FolderReads {
  * serveFolder), across a channel of the page's own: what main's port and the preload hand over.
  * `changed(uris)` is its watcher.
  */
-export function serveFolderTo(page: Page, root: string): { changed(uris?: string[]): void; dispose(): void } {
+export function serveFolderTo(page: Page, root: string, options: ServeOptions = {}): { changed(uris?: string[]): void; dispose(): void } {
   const { port1, port2 } = new MessageChannel();
-  const served = serveFolder(folderReads(root), portFromMessagePort(port1));
+  const served = serveFolder(folderReads(root, options), portFromMessagePort(port1));
   page.handle.showFolder(root, port2);
   return {
     changed: (uris) => served.changed(uris),

@@ -137,6 +137,11 @@ describe('sourceKeptMessage is one sentence whatever the reason ends in', () => 
   it('keeps a stop inside the reason', () => {
     expect(sourceKeptMessage(true, THERE, 1, 'v1.2 is read-only')).toContain(': v1.2 is read-only. Remove');
   });
+
+  it('reads a reason with a long run of whitespace inside it at once, not in time that grows with its square', () => {
+    const reason = `it is${'\t'.repeat(200_000)}gone`;
+    expect(sourceKeptMessage(true, THERE, 1, reason)).toContain('gone. Remove it there by hand.');
+  });
 });
 
 describe('fileNameOf', () => {

@@ -15,11 +15,13 @@ export type {
   TableMenuContext,
 } from './connectTable.js';
 export { isTypingInField } from './editingWire.js';
-export type { TableTextView } from './editingWire.js';
+export type { DropResult, EditingRun, TableDropDecision, TableTextView } from './editingWire.js';
 export type {
   AddEntryDetail,
+  DiffMark,
   EditCompletedDetail,
   EditTextRequestDetail,
+  ExpansionChangedDetail,
   LinkClickedDetail,
   RequestChildrenDetail,
   RowDragStartDetail,
@@ -27,6 +29,7 @@ export type {
   RowSelectedDetail,
   TableBanners,
   TableContextMenuDetail,
+  TableScrolledDetail,
   TreeTableEventMap,
   TreeTableRow,
 } from './dex-tree-table.js';

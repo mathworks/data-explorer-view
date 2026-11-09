@@ -41,13 +41,16 @@ function shown(dir: string): { view: FolderView; read: string[] } {
 
 const names = (sources: { path: string }[]) => sources.map((s) => path.basename(s.path)).sort();
 
-/** Once the tree has read what it shows (the host reads files for it too), the reads are the graph's alone. */
-async function quiet(read: string[]): Promise<void> {
-  for (let still = 0; still < 3; ) {
-    const before = read.length;
-    await new Promise((r) => setTimeout(r, 20));
-    still = read.length === before ? still + 1 : 0;
-  }
+/**
+ * Once the tree has read what it shows (the host reads files for it too), the reads are the graph's
+ * alone. The tree's reads are its hierarchy's, one build per listing, which every row is drawn from:
+ * asked for here, the hierarchy's roots wait for that build, or start the one the tree then draws
+ * from, and once they are answered the tree reads nothing more. Not a quiet spell: on a loaded
+ * machine the tree's first read can come after any spell a test would wait for, and be counted as
+ * the graph's.
+ */
+async function treeRead(view: FolderView, read: string[]): Promise<void> {
+  await view.session.hierarchy.roots();
   read.length = 0;
 }
 
@@ -55,7 +58,7 @@ describe("the folder's files for the graph", () => {
   it('reads a file again only once its version moved, and lists the folder each time', async () => {
     const dir = tempFolder('plant', { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
     const { view, read } = shown(dir);
-    await quiet(read);
+    await treeRead(view, read);
     expect(names(await view.graphSources())).toEqual(['params.sldd', 'shadow_ws.slx']);
     expect(read.sort()).toEqual(['params.sldd', 'shadow_ws.slx']);
     // Nothing changed: nothing read.

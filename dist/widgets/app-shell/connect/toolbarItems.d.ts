@@ -4,6 +4,8 @@ import type { ShellCommand } from './types.js';
 export type TableActionId = 'undo' | 'redo' | 'addChild' | 'cut' | 'copy' | 'paste' | 'delete';
 /** What the toolbar's buttons depend on. */
 export interface ToolbarState {
+    /** The host can make a new file (ShellHost.newFile): the New button is there. Absent: false. */
+    canNewFile?: boolean;
     /** The host can show a folder (ShellHost.pickFolder): the Folder button is there. */
     canOpenFolder: boolean;
     /**
@@ -36,6 +38,9 @@ interface StateTab {
         can(id: string): boolean;
     };
 }
-/** The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or not. */
-export declare function toolbarStateOf(active: StateTab | undefined, tabs: readonly StateTab[], canOpenFolder: boolean, mac: boolean): ToolbarState;
+/**
+ * The toolbar's state over `active` among `tabs`, for a host that shows folders or not, on macOS or
+ * not, and that makes new files or not.
+ */
+export declare function toolbarStateOf(active: StateTab | undefined, tabs: readonly StateTab[], canOpenFolder: boolean, mac: boolean, canNewFile?: boolean): ToolbarState;
 export {};

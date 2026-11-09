@@ -10,6 +10,23 @@ export interface LocationSegment {
      * a bar narrow enough to clip it. None, the default, shows none.
      */
     title?: string;
+    /**
+     * A place only looked at, not gone to (a file selected in a graph): drawn dimmed after the
+     * current place, which is the segment before it. A press on it asks to go there, as on any.
+     * Off, the default, is a place on the way to where the user is.
+     */
+    preview?: boolean;
+    /**
+     * What a screen reader hears of the segment past its label: why it is drawn as it is ('selected
+     * in the graph', for a preview). None, the default, says nothing more.
+     */
+    description?: string;
+    /**
+     * What a screen reader names the segment by, in place of its label, for a label that reads badly
+     * aloud: "<3 selected>" is heard as "less than 3 selected greater than", so the app says "3 rows
+     * selected". None, the default, names it by its label.
+     */
+    ariaLabel?: string;
 }
 /** What `dex-location-go` carries: where the user asked to go. */
 export interface LocationGoDetail {
@@ -36,6 +53,13 @@ export declare class DexLocationBar extends LitElement {
     canForward: boolean;
     /** Up can be used: the current place is inside another one. Off, the default, disables it. Attribute `can-up`. */
     canUp: boolean;
+    /**
+     * Draws the icons of Back, Forward and Up in one colour, the text's (`<dex-icon mono>`), as a
+     * toolbar's glyphs; off, the default, draws them in their files' colours. A segment's icon is a
+     * file's or an entry's kind, which its colours tell apart, and keeps them either way. Attribute
+     * `mono`, reflected so a page's stylesheet can follow it.
+     */
+    mono: boolean;
     private _go;
     private _segment;
     render(): import("lit-html").TemplateResult<1>;

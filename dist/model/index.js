@@ -40,7 +40,7 @@ export { insertEntryRows, spliceEntryRows } from './actions/rowUpdates.js';
 export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromRowId } from './ids/sectionRowId.js';
 export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
-export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
+export { basename, fileNameOf, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 // The hierarchy: the graph of which file references which, and the health marks on it; a
@@ -48,8 +48,15 @@ export { MSP_CONFIG, detectMsp } from './ids/mspProject.js';
 export { RelGraph } from './hierarchy/graphModel.js';
 export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
+// One level of a folder, every entry (the index above holds only the data files): its order, and
+// which files are data.
+export { entryKindOf, sortEntries } from './hierarchy/folderEntries.js';
+// The Folder view's tree: a folder's entries merged with the hierarchy's rows.
+export { FolderTree, rowPath } from './hierarchy/folderTree.js';
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
+// A document's sections and the entries right under each heading, read off its table.
+export { readEntries } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
@@ -68,6 +75,8 @@ export { createUsageRepostHub } from './usage/usageRepostHub.js';
 // A folder, read once for all of it: its hierarchy, its Usage graphs, its names and its reposts,
 // over one listing and one cache, kept up to date by one change.
 export { createFolderSession } from './folder/folderSession.js';
+// Checking a folder: what is wrong in its references and entries, over the same graph and usage index a folder session reads.
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, an open document's, read off its table's rows, and
 // what a search over them shows.
@@ -77,6 +86,14 @@ export { namesOfFile } from './search/nameScan.js';
 export { namesOfRows } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
+// Compare: two documents' rows matched by section and name path, how each stands and what differs,
+// by the text the table shows each cell in (numbers by value); every row of a side read through its
+// source, held-back rows fetched; and two open documents, or two files' bytes with no page (the
+// command line's `diff`), compared.
+export { cellTextOf, sameCellText } from './compare/cellText.js';
+export { DIFF_SKIPPED_COLUMNS, diffSides, diffSummary } from './compare/diff.js';
+export { readDiffSide } from './compare/readSide.js';
+export { diffDocuments, diffFiles } from './compare/diffDocuments.js';
 // The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
 // edges built from files already read, where they are drawn, and the id a file's row reveals.
 export { buildRelationshipGraph } from './graph/relationshipGraph.js';
@@ -85,6 +102,8 @@ export { layoutGraph } from './graph/layout.js';
 // The command window's interpreter (the app shell's Terminal): a line run over a document, through
 // a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.
 export { addChoicesOf, runCommand } from './shell/commands.js';
+// This package's version, for an app's About (written from package.json by scripts/gen-version.mjs).
+export { VIEW_VERSION } from './version.js';
 // A source across a message channel: the table's end (messageSource, and inspectorFeed for an
 // inspector whose host follows a table elsewhere), and the messages between it and the host's
 // end (serveTable, on data-explorer-view/serve).
@@ -92,7 +111,7 @@ export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
 // transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
 // (above), under a name of its own.
-export { TransferRefused, fileNameOf, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
+export { TransferRefused, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
 export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
 export { answerEditTextRequest } from './edit/editText.js';
 // A folder across a message channel, for a hierarchy where its files are not: the page's end

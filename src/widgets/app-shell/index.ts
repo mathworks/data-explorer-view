@@ -14,16 +14,19 @@ export { DexAppShell, defineAppShell } from './dex-app-shell.js';
 export type { AppShellEventMap, ShellActionDetail, ShellViewChangedDetail } from './dex-app-shell.js';
 export { DexShellAction, DexShellView, defineShellAction, defineShellView } from './dex-shell-view.js';
 
-// The shell's parts: the toolbar, the tab row, the location bar, the Explorer, the two popovers,
-// the toasts and the confirm dialog.
+// The shell's parts: the toolbar, the tab row, the location bar, the Explorer, the folder bar, the
+// two popovers, the toasts and the confirm dialog.
 export { DexToolbar, defineToolbar } from './dex-toolbar.js';
 export type { ToolbarActionDetail, ToolbarEventMap, ToolbarItem } from './dex-toolbar.js';
 export { DexDocTabs, defineDocTabs } from './dex-doc-tabs.js';
-export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
+export type { DocTab, DocTabsEventMap, TabCloseDetail, TabMenuDetail, TabMoveDetail, TabPinDetail, TabSelectDetail } from './dex-doc-tabs.js';
 export { DexLocationBar, defineLocationBar } from './dex-location-bar.js';
 export type { LocationBarEventMap, LocationGoDetail, LocationSegment } from './dex-location-bar.js';
 export { DexExplorer, defineExplorer } from './dex-explorer.js';
 export type {
+  ExplorerDropDetail,
+  ExplorerDropTarget,
+  ExplorerDropVerdict,
   ExplorerEventMap,
   ExplorerFile,
   ExplorerGroup,
@@ -32,13 +35,26 @@ export type {
   ExplorerSection,
   ExplorerSelection,
 } from './dex-explorer.js';
+export { DexFolderBar, defineFolderBar } from './dex-folder-bar.js';
+export type { FolderBarEventMap, FolderGoDetail, FolderMenuDetail, FolderSegment } from './dex-folder-bar.js';
 export { DexSettingsPanel, defineSettingsPanel } from './dex-settings-panel.js';
 export type { SettingsChangeDetail, SettingsPanelEventMap } from './dex-settings-panel.js';
 export { DexAboutPanel, defineAboutPanel } from './dex-about-panel.js';
 export { DexToastHost, defineToastHost } from './dex-toast-host.js';
 export type { Toast } from './dex-toast-host.js';
 export { DexConfirmDialog, defineConfirmDialog } from './dex-confirm-dialog.js';
-export type { ConfirmButton, ConfirmOptions } from './dex-confirm-dialog.js';
+export type { ConfirmButton, ConfirmOptions, PromptOptions } from './dex-confirm-dialog.js';
+
+// A compare: two files' tables side by side, kept line by line, under a header of what differs.
+export { DexCompareView, defineCompareView } from './dex-compare-view.js';
+export type {
+  CompareFilterChangedDetail,
+  CompareMenuDetail,
+  CompareSelectedDetail,
+  CompareSide,
+  CompareStepDetail,
+  CompareViewEventMap,
+} from './dex-compare-view.js';
 
 // The modules' views: Raw, Search, the Gallery, the relationship graph, the Terminal (a command
 // window), the Log, and the command palette.
@@ -55,11 +71,36 @@ export type { CommandRunDetail, CommandWindowEventMap } from './modules/dex-comm
 export { DexLogPanel, defineLogPanel } from './modules/dex-log-panel.js';
 export type { LogEntry, LogFilter, LogFilterChangedDetail, LogLevel, LogPanelEventMap } from './modules/dex-log-panel.js';
 export { DexCommandPalette, defineCommandPalette } from './modules/dex-command-palette.js';
-export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail } from './modules/dex-command-palette.js';
+export type { CommandPaletteEventMap, PaletteCommand, PaletteRunDetail, PaletteShowOptions } from './modules/dex-command-palette.js';
 
 // The app: every element connectShell draws defined in one call, connectShell itself, a page's
 // drop of files onto the window, and the host and handle types a page drives it by.
 export { defineShellWidgets } from './defineShellWidgets.js';
 export { connectShell } from './connect/connectShell.js';
 export { installFileDrop } from './connect/drop.js';
-export type { CloseAnswer, ConnectShellOptions, ShellCommand, ShellHandle, ShellHost } from './connect/types.js';
+export type {
+  CloseAnswer,
+  ConnectShellOptions,
+  OpenAtTarget,
+  ShellCommand,
+  ShellEntryTarget,
+  ShellHandle,
+  ShellHost,
+  ShellLink,
+  ShellLinkFile,
+  ShellLinkRequest,
+  ShellNotice,
+} from './connect/types.js';
+
+// A MATLAB a host may reach (ShellHost.matlab), and what its commands answer.
+export type {
+  MatlabDiagnostic,
+  MatlabEntryRef,
+  MatlabEvaluation,
+  MatlabOpenedIn,
+  MatlabStatus,
+  MatlabUpdate,
+  MatlabValue,
+  MatlabVariable,
+  ShellMatlab,
+} from './connect/types.js';

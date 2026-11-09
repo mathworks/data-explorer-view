@@ -13,7 +13,9 @@
 //                                  written as (`<P Name=…>`, or a cell's `<Element>`)
 //   a MAT-file's variable, and a   the bytes of its element as read (`_rawBytes`, as a dump),
 //   Model Workspace's              while they are what it holds; its record, as JSON, once it
-//                                  is edited, or where core keeps no bytes (an object)
+//                                  is edited, or where core keeps no bytes (an object), or
+//                                  where the record is asked for (`record`: the command
+//                                  window's json) and the bytes are few enough to write out
 //   a model's block, external      no record of its own (core's serialize() is null): what the
 //   data source or reference       model says of it, the facts core read from the file
 //
@@ -26,7 +28,7 @@
 // node core will not write says so.
 import { ModelBlockNode, entryRecord, sectionByName, serializeEntryToXml, textDictionaryJson } from 'data-explorer-core';
 import { isSectionRowId, sectionNameFromRowId } from '../ids/sectionRowId.js';
-import { noRaw, rawOfNode, rawOfValue, type RawView } from './rawView.js';
+import { HEX_LIMIT, noRaw, rawOfNode, rawOfValue, type RawView } from './rawView.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -54,12 +56,23 @@ export interface RawTree {
   find(rowId: string): unknown;
 }
 
+/** How a row's raw form is asked for: `TableSource.raw`'s options. */
+export interface RawOptions {
+  /**
+   * The record a save writes, as JSON, in place of the bytes a MAT-file's or a Model Workspace's
+   * variable was read from: what the command window's json prints, where the Raw pane dumps the
+   * bytes. A variable of more than HEX_LIMIT bytes, whose record would run to many times their
+   * size, and one whose record core will not write, still answer the bytes. Default false.
+   */
+  record?: boolean;
+}
+
 /**
  * The raw form of the row `rowId` of the document `tree` is of, for the Raw pane: see the head
  * of this file for each kind of row. Nothing to show for a row that is not there (NO_RAW_DATA),
  * and RAW_NOT_WRITTEN where core throws as it writes one.
  */
-export function rawOfRow(tree: RawTree, rowId: string): RawView {
+export function rawOfRow(tree: RawTree, rowId: string, options: RawOptions = {}): RawView {
   if (typeof rowId !== 'string' || rowId === '') return noRaw();
   try {
     const root = tree.root() as any;
@@ -78,9 +91,9 @@ export function rawOfRow(tree: RawTree, rowId: string): RawView {
         return xmlRaw(node);
       case 'slx':
       case 'mdl':
-        return modelRaw(node);
+        return modelRaw(node, !!options.record);
       default:
-        return variableRaw(node);
+        return variableRaw(node, !!options.record);
     }
   } catch {
     // A node core will not write, as its record or its XML, or a tree that cannot be had: said as
@@ -167,9 +180,21 @@ function outdented(text: string): string {
  * touched); the variable as read (`_matVar`) is what they spell, and it is gone, or stale
  * (`_varStale`), once anything in it moved. An undo puts both back, and the bytes are shown again.
  */
-function variableRaw(node: any): RawView {
+function variableRaw(node: any, record = false): RawView {
   const asRead = !!node._matVar && !node._varStale;
-  return node._rawBytes instanceof Uint8Array && !asRead ? rawOfValue(node.serialize()) : rawOfNode(node);
+  const bytes: unknown = node._rawBytes;
+  if (!(bytes instanceof Uint8Array)) return rawOfNode(node);
+  if (!asRead) return rawOfValue(node.serialize());
+  // Asked for the record of a variable as read: written out, unless it is large, or core will not.
+  if (record && bytes.length <= HEX_LIMIT) {
+    try {
+      const written = rawOfValue(node.serialize());
+      if (written.format !== 'none') return written;
+    } catch {
+      // Its bytes, then, as the pane has them.
+    }
+  }
+  return rawOfNode(node);
 }
 
 /**
@@ -178,8 +203,8 @@ function variableRaw(node: any): RawView {
  * have none in core (their serialize() is null): what the model says of each, as core read it,
  * stands for one.
  */
-function modelRaw(node: any): RawView {
-  const own = variableRaw(node);
+function modelRaw(node: any, record = false): RawView {
+  const own = variableRaw(node, record);
   if (own.format !== 'none') return own;
   if (node instanceof ModelBlockNode) {
     return rawOfValue({

@@ -26,8 +26,8 @@ import { sourceFiles } from './tools/moduleGraph.js';
 const ROOT = process.cwd();
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'custom-elements.json'), 'utf8'));
 const TAGS = ['dex-about-panel', 'dex-add-gallery', 'dex-app-shell', 'dex-column-filter', 'dex-command-palette',
-  'dex-command-window', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
-  'dex-filter-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
+  'dex-command-window', 'dex-compare-view', 'dex-confirm-dialog', 'dex-context-menu', 'dex-doc-tabs', 'dex-error-dialog', 'dex-explorer',
+  'dex-filter-bar', 'dex-folder-bar', 'dex-gallery-panel', 'dex-hierarchy', 'dex-icon', 'dex-location-bar', 'dex-log-panel',
   'dex-matrix-grid', 'dex-matrix-open', 'dex-project-page', 'dex-property-inspector', 'dex-raw-viewer',
   'dex-relationship-graph', 'dex-search-panel', 'dex-settings-panel', 'dex-shell-action', 'dex-shell-view',
   'dex-toast-host', 'dex-toolbar', 'dex-tree-table', 'dex-variable-editor'];
@@ -91,9 +91,9 @@ const own = (file: string, m: ModuleEvents): string[] => [...m.dispatched.keys()
 
 describe('every dispatched event is declared, in its own module, with its detail', () => {
   it('finds the events this test thinks it does', () => {
-    // 47 events from 34 widgets: a parse that found none would pass everything below.
+    // 65 events from 36 widgets: a parse that found none would pass everything below.
     const names = MODULES.flatMap(([, m]) => [...m.dispatched.keys()]);
-    expect(new Set(names).size).toBe(47);
+    expect(new Set(names).size).toBe(65);
     expect(names.every((n) => n.startsWith('dex-'))).toBe(true);
   });
 
@@ -108,7 +108,9 @@ describe('every dispatched event is declared, in its own module, with its detail
     expect(html?.length).toBe(1);
     expect(m.extended.get('DocumentEventMap')).toEqual(html);
     expect(m.extended.get('WindowEventMap')).toEqual(html);
+    // Its own: a part's event it sends for the part (the documents' area's welcome) is the next test's.
     for (const [name, typeArgs] of m.dispatched) {
+      if (resent(file, m).includes(name)) continue;
       for (const t of typeArgs) expect(m.declared.get(name), name).toBe(`CustomEvent<${t}>`);
     }
   });
@@ -116,10 +118,12 @@ describe('every dispatched event is declared, in its own module, with its detail
   it("lets connectShell's internal parts send a part's event only as the part declares it", () => {
     const declared = new Map(MODULES.flatMap(([, m]) => [...m.declared]));
     const sent = MODULES.flatMap(([file, m]) => resent(file, m).flatMap((name) => m.dispatched.get(name)!.map((t) => [file, name, t] as const)));
-    // The welcome's buttons, which share one dispatch, and a table's selection cleared as a click
-    // on no row clears it: a check that found none would pass for nothing.
+    // The welcome's buttons, which share one dispatch, the Folder view's Open Folder… with no
+    // folder shown, and a table's selection cleared as a click on no row clears it: a check that
+    // found none would pass for nothing.
     expect(sent.map(([file, name]) => `${file} ${name}`).sort()).toEqual([
       'src/widgets/app-shell/connect/dex-shell-docs.ts dex-toolbar-action',
+      'src/widgets/app-shell/connect/dex-shell-folder.ts dex-toolbar-action',
       'src/widgets/app-shell/connect/documents.ts dex-row-selected',
     ]);
     for (const [, name, t] of sent) expect(declared.get(name), name).toBe(`CustomEvent<${t}>`);
@@ -238,7 +242,7 @@ describe('an app written in TypeScript, against the built package', () => {
     import { folderReader, type FolderReader, type FolderHostMessage, type FolderRequestMessage } from 'data-explorer-view/model';
     import { serveFolder, serveTable, type FolderReads, type FolderServer } from 'data-explorer-view/serve';
     import { folderFileList, portFromMessagePort, type FolderFileList } from 'data-explorer-view/model';
-    import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell, type GraphOpenDetail, type ShellHandle } from 'data-explorer-view/app-shell';
+    import { connectShell, defineShellWidgets, installFileDrop, type DexAppShell, type GraphOpenDetail, type OpenAtTarget, type ShellEntryTarget, type ShellHandle } from 'data-explorer-view/app-shell';
     import { browserHost, type BrowserHost } from 'data-explorer-view/browser-host';
     import { buildRelationshipGraph, graphIdOf, layoutGraph, runCommand, type CommandTarget, type OutputLine, type RelationshipGraph } from 'data-explorer-view/model';
     import * as serve from 'data-explorer-view/serve';
@@ -364,6 +368,7 @@ describe('an app written in TypeScript, against the built package', () => {
       handle.on('select', (rowIds) => rowIds.map(s));
       handle.on('copyFailed', ({ text, message }) => s(text + message));
       handle.on('painted', (painted: TableView) => b(painted === handle.view));
+      handle.on('failed', (message: string) => s(message));
       const copying = connectTable(table, doc.table, { copy: async (text) => void s(text) });
       connectTable(table, doc.table, { copy: (text) => void s(text) }).dispose();
       connectTable(table, doc.table, { columns: (column, v: TableView) => column !== 'UsedBy' || v.rows.length > 0 }).dispose();
@@ -489,6 +494,13 @@ describe('an app written in TypeScript, against the built package', () => {
       app.command('show-graph');
       // @ts-expect-error no such command
       app.command('show-nothing');
+      // A file opened at an entry, as a link names it; and a host that makes such links.
+      await app.openAt('/w/a.sldd', { entry: 'Kp', section: 'Design Data' });
+      const where: OpenAtTarget = { entry: '8' };
+      await app.openAt('/w/a.slx', where);
+      // @ts-expect-error an entry is named by a string
+      app.openAt('/w/a.sldd', { entry: 1 });
+      connectShell(document.createElement('dex-app-shell'), { host: { ...host, entryLink: (t: ShellEntryTarget) => t.path } }).dispose();
       b(await app.requestClose());
       const graph: RelationshipGraph = buildRelationshipGraph([]);
       const drawn = document.createElement('dex-relationship-graph');

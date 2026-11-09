@@ -9,14 +9,14 @@
 // glyph, a row of a folder's hierarchy, a search result, and a table row, whose icon is its core
 // node's (rowBuilder passes it through). The last one is read out of core's code
 // (tools/coreIcons.ts) rather than off fixture rows, because no fixture holds every class.
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { allTiles } from '../src/model/ids/addCatalog.js';
 import { HIERARCHY_ICONS } from '../src/model/hierarchy/folderHierarchy.js';
 import { SEARCH_ICONS } from '../src/model/search/searchItems.js';
 import { widgetSources } from './tools/cssTokens.js';
-import { coreIconIds } from './tools/coreIcons.js';
+import { coreIconIds, type CoreIcons } from './tools/coreIcons.js';
 
 const ROOT = process.cwd();
 const FILES = readdirSync(join(ROOT, 'icons')).sort();
@@ -30,6 +30,13 @@ const NOT_DRAWN: Record<string, string> = {
 };
 
 describe('every icon id the widgets and the model can ask for ships in icons/', () => {
+  // Core's ids, scanned once for the two cases that read them: the scan reads every file of
+  // core's dist, a second or more on a loaded machine.
+  let core: CoreIcons;
+  beforeAll(() => {
+    core = coreIconIds();
+  }, 20_000);
+
   it('each id dex-icon maps a data-model kind onto', () => {
     const src = readFileSync(join(ROOT, 'src', 'widgets', 'shared', 'dex-icon.ts'), 'utf8');
     const table = /const ALIASES[^=]*=\s*\{([\s\S]*?)\};/.exec(src);
@@ -46,7 +53,8 @@ describe('every icon id the widgets and the model can ask for ships in icons/', 
     expect(missing(tiles.map((t) => t.iconId))).toEqual([]);
   });
 
-  it('each glyph a widget template names itself', () => {
+  // Reads every widget's source: a second or more on a loaded machine.
+  it('each glyph a widget template names itself', { timeout: 20_000 }, () => {
     const named = widgetSources().flatMap(([, src]) =>
       [...src.matchAll(/\.?iconId=(?:\$\{'([\w-]+)'\}|"([\w-]+)")/g)].map((m) => m[1] ?? m[2]),
     );
@@ -70,14 +78,14 @@ describe('every icon id the widgets and the model can ask for ships in icons/', 
   });
 
   it("each id core's nodes can answer with, which is what a row draws", () => {
-    const { getters, ids } = coreIconIds();
+    const { getters, ids } = core;
     expect(getters, "get icon() getters read from core's dist").toBeGreaterThan(30);
     expect(ids.size).toBeGreaterThan(50);
     expect(missing([...ids].filter((id) => !(id in NOT_DRAWN)))).toEqual([]);
   });
 
   it('excuses only ids core still writes and that really have no file', () => {
-    const { ids } = coreIconIds();
+    const { ids } = core;
     for (const id of Object.keys(NOT_DRAWN)) {
       expect(ids.has(id), `${id} is no longer in core: drop it from NOT_DRAWN`).toBe(true);
       expect(SHIPPED.has(id), `${id} ships now: drop it from NOT_DRAWN`).toBe(false);
@@ -93,9 +101,10 @@ describe('the icons ship with the package', () => {
     expect(pkg.files).toContain('icons');
   });
 
-  it('as SVG files and nothing else', () => {
+  // Reads every icon: one assertion over all of them, not one per file.
+  it('as SVG files and nothing else', { timeout: 20_000 }, () => {
     expect(FILES.length).toBeGreaterThan(100);
     expect(FILES.filter((f) => !f.endsWith('.svg'))).toEqual([]);
-    for (const f of FILES) expect(readFileSync(join(ROOT, 'icons', f), 'utf8'), f).toMatch(/^<svg[\s>]/);
+    expect(FILES.filter((f) => !/^<svg[\s>]/.test(readFileSync(join(ROOT, 'icons', f), 'utf8')))).toEqual([]);
   });
 });

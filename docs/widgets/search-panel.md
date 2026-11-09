@@ -46,8 +46,8 @@ focusInput() puts the focus in the box with its text selected, for a chord that 
 
 type `SearchItem[]` · default `[]` · property only
 
-The matches to show for the query in the box, in the order the app gives them (searchEntries'
-items: by name, then by file). They are drawn grouped by file, each file where its first
+The matches to show for the query in the box, in the order the app gives them (searchRanked's
+items: the best match first). They are drawn grouped by file, each file where its first
 result is. Shown only while the box holds a query. Default none. Property only.
 
 ### `query`

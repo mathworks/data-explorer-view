@@ -1,14 +1,20 @@
 import type { DexAppShell } from '../dex-app-shell.js';
 /** The parts connectShell builds, as it wires them; `remove()` takes every one of them away again. */
 export type ShellParts = ReturnType<typeof buildShell>;
-/** Fill `shell` with the app's parts, and put the shared overlays in the body. */
+/**
+ * Fill `shell` with the app's parts, and put the shared overlays in the body. `folders`: the host
+ * shows folders, and the shell has a Folder view; without, its parts are made all the same (a
+ * folder shown still feeds Used By, the graph and Search), and drawn nowhere.
+ */
 export declare function buildShell(shell: DexAppShell, options: {
     appName: string;
+    folders?: boolean;
 }): {
     toolbar: import("../dex-toolbar.js").DexToolbar;
     location: import("../dex-location-bar.js").DexLocationBar;
     explorer: import("../dex-explorer.js").DexExplorer;
     folderPart: import("./dex-shell-folder.js").DexShellFolder;
+    folderBar: import("../dex-folder-bar.js").DexFolderBar;
     tree: import("../../hierarchy/dex-hierarchy.js").DexHierarchy;
     docs: import("./dex-shell-docs.js").DexShellDocs;
     strip: import("../dex-doc-tabs.js").DexDocTabs;
@@ -16,7 +22,7 @@ export declare function buildShell(shell: DexAppShell, options: {
     graph: import("../index.js").DexRelationshipGraph;
     inspectorEmpty: import("./dex-shell-note.js").DexShellNote;
     inspector: import("../../property-inspector/dex-property-inspector.js").DexPropertyInspector;
-    status: HTMLSpanElement;
+    status: import("./dex-shell-status.js").DexShellStatus;
     gallery: import("../index.js").DexGalleryPanel;
     search: import("../index.js").DexSearchPanel;
     raw: import("../index.js").DexRawViewer;

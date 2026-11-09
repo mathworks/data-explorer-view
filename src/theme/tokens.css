@@ -123,7 +123,9 @@
   /* The relationship graph (dex-relationship-graph): each kind of box's surface, border and
      selected border, each kind of edge (the legend's swatches too), the items inside a box (a
      model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues
-     darkened until every line and border is 3:1 against the canvas. */
+     darkened until every line and border is 3:1 against the canvas. A data link is drawn in the
+     border colour of the file it links (a dictionary's, a MAT-file's), so the data-link edge token
+     colours only a link to a file of neither kind, which core's extraction never names. */
   --dex-graph-model-bg: #e8f0f7;
   --dex-graph-model-border: #6c8899;
   --dex-graph-model-selected: #436e8a;
@@ -143,13 +145,25 @@
   --dex-graph-ws-item-bg: rgba(107, 155, 139, 0.08);
   --dex-graph-ws-item-border: rgba(107, 155, 139, 0.25);
   --dex-graph-ghost-fg: #666;
+  /* A compare's marks (dex-tree-table's `diffMarks`): each kind's bar at a row's left edge (3:1
+     against the rows), its wash, a differing cell's deeper wash, and a gap row's hatching. */
+  --dex-diff-added: #2e7d32;
+  --dex-diff-removed: #c62828;
+  --dex-diff-changed: #b45309;
+  --dex-diff-added-bg: rgba(46, 125, 50, 0.1);
+  --dex-diff-removed-bg: rgba(198, 40, 40, 0.09);
+  --dex-diff-changed-bg: rgba(180, 83, 9, 0.08);
+  --dex-diff-cell-bg: rgba(180, 83, 9, 0.2);
+  --dex-diff-gap-stripe: rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
   --dex-color-text: #e0e0e0;
   --dex-color-text-secondary: #b0b0b0;
-  --dex-color-text-muted: #888;
+  /* Text: every read-only cell, the status bar's own words. 4.5:1 on the panes, the panels and the
+     bars, the lightest of them #252526 (4.55); #888 was 4.32 there. The same grey, a step lighter. */
+  --dex-color-text-muted: #8c8c8c;
   --dex-color-text-disabled: #666;
   --dex-color-accent: #4ba3e3;
   --dex-color-accent-hover: #6db8ed;
@@ -241,8 +255,17 @@
   --dex-graph-item-border: rgba(255, 255, 255, 0.14);
   --dex-graph-ws-item-bg: rgba(111, 179, 160, 0.12);
   --dex-graph-ws-item-border: rgba(111, 179, 160, 0.35);
-  /* The muted ink is 3.9:1 on these boxes; a ghost's name is text, and needs 4.5. */
+  /* The muted ink is 4.2:1 on these boxes; a ghost's name is text, and needs 4.5. */
   --dex-graph-ghost-fg: #a0a0a0;
+  /* A compare's marks (dex-tree-table's `diffMarks`). */
+  --dex-diff-added: #81c784;
+  --dex-diff-removed: #e57373;
+  --dex-diff-changed: #e2c08d;
+  --dex-diff-added-bg: rgba(129, 199, 132, 0.14);
+  --dex-diff-removed-bg: rgba(229, 115, 115, 0.14);
+  --dex-diff-changed-bg: rgba(226, 192, 141, 0.1);
+  --dex-diff-cell-bg: rgba(226, 192, 141, 0.24);
+  --dex-diff-gap-stripe: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="high-contrast"] {
@@ -337,4 +360,13 @@
   --dex-graph-ws-item-bg: #fff;
   --dex-graph-ws-item-border: #00695c;
   --dex-graph-ghost-fg: #333;
+  /* A compare's marks (dex-tree-table's `diffMarks`): opaque washes, as every surface here is. */
+  --dex-diff-added: #1b5e20;
+  --dex-diff-removed: #b71c1c;
+  --dex-diff-changed: #7a4800;
+  --dex-diff-added-bg: #e8f5e9;
+  --dex-diff-removed-bg: #ffebee;
+  --dex-diff-changed-bg: #fff3e0;
+  --dex-diff-cell-bg: #ffe0b2;
+  --dex-diff-gap-stripe: #767676;
 }

@@ -94,6 +94,57 @@ describe('a folder hierarchy', () => {
     expect(await all(hierarchy())).toEqual(['w', '  top.sldd', '    mid.sldd', '      leaf.sldd', '    gone.sldd']);
   });
 
+  it('draws dictionaries that reference each other, and what they miss, beside one nothing references', async () => {
+    // Neither a nor b is unreferenced, so neither was a root of the folder once c was there: the
+    // tree drew c alone, and b's unresolved gone.sldd with nothing to say so.
+    folder = new Map();
+    put('/w/a.sldd', sldd('b.sldd'));
+    put('/w/b.sldd', sldd('a.sldd', 'gone.sldd'));
+    put('/w/c.sldd', sldd());
+    expect(await all(hierarchy())).toEqual([
+      'w',
+      '  a.sldd',
+      '    b.sldd',
+      '      a.sldd',
+      '      gone.sldd',
+      '  b.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '    gone.sldd',
+      '  c.sldd',
+    ]);
+  });
+
+  it('draws such dictionaries as rows of their folder too when a file elsewhere reaches them', async () => {
+    // c → /v/y.sldd → a ⇄ b. A folder's rows are decided by the references inside it alone, as which
+    // of its files nothing references always was: c reaches a and b only through v, so in w they are
+    // still rows of their own, beside c, and under c by way of y as well.
+    folder = new Map();
+    put('/w/a.sldd', sldd('b.sldd'));
+    put('/w/b.sldd', sldd('a.sldd'));
+    put('/w/c.sldd', sldd('y.sldd'));
+    put('/v/y.sldd', sldd('a.sldd'));
+    expect(await all(hierarchy())).toEqual([
+      'v',
+      '  y.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '        a.sldd',
+      'w',
+      '  a.sldd',
+      '    b.sldd',
+      '      a.sldd',
+      '  b.sldd',
+      '    a.sldd',
+      '      b.sldd',
+      '  c.sldd',
+      '    y.sldd',
+      '      a.sldd',
+      '        b.sldd',
+      '          a.sldd',
+    ]);
+  });
+
   it('reads the folder once, however many rows are asked for', async () => {
     const h = hierarchy();
     await all(h);
@@ -255,6 +306,62 @@ describe('a folder hierarchy', () => {
       path![0]!.key,
       ...(await Promise.all(path!.slice(0, -1).map(async (item, i) => (await h.children(item)).find((c) => c.key === path![i + 1]!.key)!.key))),
     ]);
+  });
+
+  it("answers a file's own row, as at the top of its folder, a file only ever referenced too", async () => {
+    const h = hierarchy();
+    // mid.sldd is no row of its folder's own: top.sldd references it.
+    expect((await h.children((await h.roots())[0]!)).map((i) => i.label)).toEqual(['top.sldd']);
+    const mid = await h.rowOf('file:///w/mid.sldd');
+    expect(mid).toEqual({
+      label: 'mid.sldd',
+      kind: 'sldd',
+      id: 'file:///w/mid.sldd',
+      health: null,
+      collapsible: 'collapsed',
+      icon: 'simulink_database',
+      key: `/${encodeURIComponent('file:///w/mid.sldd')}`,
+    });
+    // Its references under it, each keyed under it, as under any row.
+    const under = await h.children(mid!);
+    expect(under.map((i) => i.label)).toEqual(['leaf.sldd']);
+    for (const item of under) expect(item.key.startsWith(`${mid!.key}/`)).toBe(true);
+    // A file that references nothing has nothing to open.
+    expect((await h.rowOf('file:///w/leaf.sldd'))?.collapsible).toBe('none');
+  });
+
+  it("marks a file's own row as a top-level expansion does: unsaved, and a cycle only where it closes", async () => {
+    // mid → leaf → mid. Under top.sldd, leaf's references close the cycle at mid.
+    put('/w/leaf.sldd', sldd('mid.sldd'));
+    const h = hierarchy((uri) => uri === 'file:///w/leaf.sldd');
+    const leaf = await h.rowOf('file:///w/leaf.sldd');
+    expect(leaf).toMatchObject({ label: 'leaf.sldd', health: 'modified', collapsible: 'collapsed' });
+    expect(leaf).not.toHaveProperty('description');
+    const [mid] = await h.children(leaf!);
+    expect(mid).toMatchObject({ label: 'mid.sldd', health: null, collapsible: 'collapsed' });
+    const [again] = await h.children(mid!);
+    expect(again).toMatchObject({ label: 'leaf.sldd', health: 'cycle', collapsible: 'none', description: '↻ circular reference' });
+  });
+
+  it("answers no row for a file the folder does not hold, a reference no file answers, or a project's marker", async () => {
+    put('/p/p.prj', new Uint8Array(0));
+    const h = hierarchy();
+    expect(await h.rowOf('file:///w/nowhere.sldd')).toBeUndefined();
+    expect(await h.rowOf('gone.sldd')).toBeUndefined();
+    // A marker heads its project's group, and is no file row.
+    expect((await h.roots()).map((r) => [r.kind, r.groupKind, r.id])).toContainEqual(['group', 'project', 'file:///p/p.prj']);
+    expect(await h.rowOf('file:///p/p.prj')).toBeUndefined();
+  });
+
+  it("answers a file's row from the graph it holds, and after a rebuild from the folder as it is now", async () => {
+    const h = hierarchy();
+    await h.roots();
+    await h.rowOf('file:///w/mid.sldd');
+    expect(lists).toBe(1);
+    put('/w/mid.sldd', sldd());
+    h.rebuild();
+    expect((await h.rowOf('file:///w/mid.sldd'))?.collapsible).toBe('none');
+    expect(lists).toBe(2);
   });
 
   it('ends a folder whose listing was cut short with a row that says so, and only then', async () => {

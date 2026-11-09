@@ -2,8 +2,8 @@
 // @vitest-environment happy-dom
 //
 // The shell's chords (connect/keys.ts): which key does which command, on either platform, heard on
-// the window wherever the focus is, but for what a field is typing (where only Save and Open still
-// work, as in any editor) and what a widget has taken for itself (a table's own Cmd/Ctrl+Z). With
+// the window wherever the focus is, but for what a field is typing (where only New, Open and Save
+// still work, as in any editor) and what a widget has taken for itself (a table's own Cmd/Ctrl+Z). With
 // a native menu, which owns the File and Edit chords and fires them itself, only those it cannot
 // have are answered here. Each chord answered is spent (preventDefault), so the browser does not
 // also print, or open its own Open dialog. Undo and Redo are answered outside a table and a field
@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SHELL_CHORDS, installKeys } from '../../src/widgets/app-shell/connect/keys.js';
 import type { ShellCommand } from '../../src/widgets/app-shell/connect/types.js';
 import { defineTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
-import { at, dirtyTabs, docTabs, edit, open, rowOf, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
+import { at, dirtyTabs, docTabs, edit, graphShown, open, rowOf, selectRow, settingsPanel, settled, startPage, tabIdOf, tabNames, tableOf, textOf, until } from './harness.js';
 
 const stops: (() => void)[] = [];
 afterEach(() => {
@@ -42,6 +42,7 @@ describe('the shell answers its chords', () => {
     onPlatform('Win32');
     const ran = listen();
     const all: [KeyboardEventInit, ShellCommand][] = [
+      [{ key: 'n', ctrlKey: true }, 'new-file'],
       [{ key: 'o', ctrlKey: true }, 'open-file'],
       [{ key: 'O', ctrlKey: true, shiftKey: true }, 'open-folder'],
       [{ key: 's', ctrlKey: true }, 'save'],
@@ -50,11 +51,15 @@ describe('the shell answers its chords', () => {
       [{ key: 'w', ctrlKey: true }, 'close-tab'],
       [{ key: 'Tab', ctrlKey: true }, 'next-tab'],
       [{ key: 'Tab', ctrlKey: true, shiftKey: true }, 'previous-tab'],
+      [{ key: '\\', ctrlKey: true }, 'split-right'],
+      [{ key: '1', ctrlKey: true }, 'focus-pane-1'],
+      [{ key: '2', ctrlKey: true }, 'focus-pane-2'],
       [{ key: 'f', ctrlKey: true }, 'focus-filter'],
       [{ key: 'ArrowLeft', altKey: true }, 'back'],
       [{ key: 'ArrowRight', altKey: true }, 'forward'],
       [{ key: 'ArrowUp', altKey: true }, 'up'],
       [{ key: ',', ctrlKey: true }, 'settings'],
+      [{ key: 'H', ctrlKey: true, shiftKey: true }, 'show-graph'],
     ];
     for (const [init] of all) expect(press(init), JSON.stringify(init)).toBe(true);
     expect(ran).toEqual(all.map(([, c]) => c));
@@ -66,9 +71,12 @@ describe('the shell answers its chords', () => {
     press({ key: 's', metaKey: true });
     press({ key: 'ß', code: 'KeyS', metaKey: true, altKey: true });
     press({ key: 'Tab', ctrlKey: true });
+    press({ key: 'H', metaKey: true, shiftKey: true });
     // Ctrl+S is not Save on a Mac.
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
-    expect(ran).toEqual(['save', 'save-all', 'next-tab']);
+    // Shift+Command+G is a browser's Find Previous there, which the graph's chord keeps clear of.
+    expect(press({ key: 'G', metaKey: true, shiftKey: true })).toBe(false);
+    expect(ran).toEqual(['save', 'save-all', 'next-tab', 'show-graph']);
   });
 
   it('leaves a press with a modifier more, or a key no chord names, alone', () => {
@@ -80,7 +88,7 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual([]);
   });
 
-  it('while a field takes the typing, answers only Save and Open', () => {
+  it('while a field takes the typing, answers only New, Open and Save', () => {
     onPlatform('Win32');
     const ran = listen();
     const input = document.createElement('input');
@@ -88,9 +96,12 @@ describe('the shell answers its chords', () => {
     expect(press({ key: 'w', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 'f', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 'ArrowLeft', altKey: true }, input)).toBe(false);
+    expect(press({ key: '2', ctrlKey: true }, input)).toBe(false);
+    expect(press({ key: '\\', ctrlKey: true }, input)).toBe(false);
     expect(press({ key: 's', ctrlKey: true }, input)).toBe(true);
     expect(press({ key: 'o', ctrlKey: true }, input)).toBe(true);
-    expect(ran).toEqual(['save', 'open-file']);
+    expect(press({ key: 'n', ctrlKey: true }, input)).toBe(true);
+    expect(ran).toEqual(['save', 'open-file', 'new-file']);
   });
 
   it('reads the field off the composed path, through a shadow root', () => {
@@ -124,11 +135,13 @@ describe('the shell answers its chords', () => {
     expect(ran).toEqual(['next-tab', 'back']);
   });
 
-  it('with a native menu, answers only Back, Forward, Up, Save All, Settings and the palette', () => {
+  it("with a native menu, answers only Back, Forward, Up, Save All, Settings, the palette, Root's graph, the panes' and a compare's", () => {
     onPlatform('Win32');
     const ran = listen({ nativeMenu: true });
     expect(press({ key: 's', ctrlKey: true })).toBe(false);
     expect(press({ key: 'o', ctrlKey: true })).toBe(false);
+    // New is the menu's File > New.
+    expect(press({ key: 'n', ctrlKey: true })).toBe(false);
     expect(press({ key: 'w', ctrlKey: true })).toBe(false);
     expect(press({ key: 'Tab', ctrlKey: true })).toBe(false);
     press({ key: 'ArrowUp', altKey: true });
@@ -136,8 +149,38 @@ describe('the shell answers its chords', () => {
     press({ key: ',', ctrlKey: true });
     press({ key: 'P', ctrlKey: true, shiftKey: true });
     press({ key: 'F1' });
-    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette']);
-    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual(['save-all', 'back', 'forward', 'up', 'settings', 'palette', 'palette']);
+    press({ key: 'H', ctrlKey: true, shiftKey: true });
+    // The panes' chords: a native menu has no item for them.
+    press({ key: '\\', ctrlKey: true });
+    press({ key: '2', ctrlKey: true });
+    expect(ran).toEqual(['up', 'save-all', 'settings', 'palette', 'palette', 'show-graph', 'split-right', 'focus-pane-2']);
+    expect(SHELL_CHORDS.filter((c) => c.withNativeMenu).map((c) => c.command)).toEqual([
+      'save-all',
+      'split-right',
+      'focus-pane-1',
+      'focus-pane-2',
+      'back',
+      'forward',
+      'up',
+      'show-graph',
+      'next-change',
+      'previous-change',
+      'settings',
+      'palette',
+      'palette',
+    ]);
+  });
+
+  it('leaves the chord of a command the shell does not offer now to the page, asked at each press', () => {
+    onPlatform('Win32');
+    let offered = false;
+    const ran: ShellCommand[] = [];
+    stops.push(installKeys((c) => ran.push(c), { offers: (c) => c !== 'new-file' || offered }));
+    expect(press({ key: 'n', ctrlKey: true })).toBe(false);
+    expect(press({ key: 'o', ctrlKey: true })).toBe(true);
+    offered = true;
+    expect(press({ key: 'n', ctrlKey: true })).toBe(true);
+    expect(ran).toEqual(['open-file', 'new-file']);
   });
 
   it("opens the palette on F1 as on Mod+Shift+P, which Firefox keeps for its private window", () => {
@@ -288,6 +331,33 @@ describe('the chords, connected', () => {
     await settled();
     expect(textOf(tableOf('params.sldd')!.rows.find((r) => r.Name?.label === 'Kp'))).toBe('5');
     expect(dirtyTabs()).toEqual(['params.sldd']);
+  });
+
+  it("Ctrl+Shift+H shows Root's graph from a tab, the tab kept", async () => {
+    onPlatform('Win32');
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    expect(ctrl('H', { shiftKey: true })).toBe(true);
+    await until(() => docTabs().hidden && graphShown());
+    expect(tabNames()).toEqual(['params.sldd', 'ParamMat.mat']);
+  });
+
+  it("'+' in a table adds a child to the selected struct, as Add Child does; typed in its search box, it is the box's", async () => {
+    // The prototype's chord, which the shell asks the table for (connectTable's addChildChord).
+    const page = startPage({ 'rt_bin.sldd': 'rt_bin.sldd' });
+    await open(page, 'rt_bin.sldd');
+    const specs = await selectRow('rt_bin.sldd', 'Specs');
+    const table = tableOf('rt_bin.sldd')!;
+    const children = () => table.rows.filter((r) => r.parent === specs.ID).length;
+    const before = children();
+    const search = document.createElement('input');
+    table.append(search);
+    expect(press({ key: '+', shiftKey: true }, search)).toBe(false);
+    await settled();
+    expect(children()).toBe(before);
+    expect(press({ key: '+', shiftKey: true }, table)).toBe(true);
+    await until(() => children() > before);
+    await until(() => dirtyTabs().join() === 'rt_bin.sldd');
   });
 
   it('with a native menu, leaves Save to the menu, which sends it through the handle', async () => {

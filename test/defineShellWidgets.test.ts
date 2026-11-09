@@ -3,7 +3,7 @@
 //
 // defineShellWidgets(): every element connectShell draws, defined in one call, in a page that has
 // defined none of them (this file's registry is its own). The shell, its views and actions; its
-// parts; the modules' views; the three internal elements; and the widgets a document is shown in.
+// parts; the modules' views; the four internal elements; and the widgets a document is shown in.
 // A second call changes nothing and throws nothing. That the list is all connectShell draws is
 // the shell tests' to say: their harness defines nothing else (test/shell/connect.test.ts walks
 // what a shell drew).
@@ -20,11 +20,13 @@ const TAGS = [
   'dex-toolbar',
   'dex-location-bar',
   'dex-explorer',
+  'dex-folder-bar',
   'dex-doc-tabs',
   'dex-settings-panel',
   'dex-about-panel',
   'dex-toast-host',
   'dex-confirm-dialog',
+  'dex-compare-view',
   // The modules' views.
   'dex-raw-viewer',
   'dex-search-panel',
@@ -37,6 +39,7 @@ const TAGS = [
   'dex-shell-docs',
   'dex-shell-folder',
   'dex-shell-note',
+  'dex-shell-status',
   // What a document, the folder and a project are shown in.
   'dex-tree-table',
   'dex-property-inspector',

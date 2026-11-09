@@ -1,7 +1,7 @@
 import { type SourceCache, type SourceFile } from 'data-explorer-core';
 import type { LinkTarget } from '../ids/linkTarget.js';
 import { type FolderFileList } from './folderList.js';
-import { type GraphNode, type GroupKind, type NodeKind } from './graphModel.js';
+import { type GraphNode, type GroupKind, type NodeKind, type SourceType } from './graphModel.js';
 import { type GraphReader } from './graphSources.js';
 import type { HealthState } from './health.js';
 /** A folder's supported files, as the app lists them. */
@@ -41,9 +41,10 @@ export interface HierarchyItem {
     /**
      * A file's kind, `group` for a project, a folder or a model's External Data, `missing` for a
      * reference no file answers, or `notice` for the row that says something of the folder rather
-     * than being in it (that only its first files are shown).
+     * than being in it (that only its first files are shown). `other` only on a FolderTree's row of
+     * a file the app does not open (`dimmed`): FolderHierarchy never makes one.
      */
-    kind: NodeKind | 'notice';
+    kind: NodeKind | 'notice' | 'other';
     /** What a group is (`kind` is `group`). */
     groupKind?: GroupKind;
     /** The uri of the file the row opens: a file's own, a project's marker. None on a row that is no file. */
@@ -66,9 +67,24 @@ export interface HierarchyItem {
      * rebuild, so a tree keeps what was open.
      */
     key: string;
+    /** A file the app does not open (FolderTree's other files): drawn dimmed, opens nothing. */
+    dimmed?: boolean;
+    /**
+     * The row's path in the host's scheme: a folder's (for re-rooting) or a file's (for Reveal and
+     * Copy Path). Only on a FolderTree's rows: an entry's path, and a reference's file's spelled as
+     * the root is. FolderHierarchy's rows have none: `rowPath(item)` reads a file's from its uri.
+     */
+    path?: string;
+    /** What a reference row is to its parent, in words ("model reference", "data dictionary", "referenced dictionary"). */
+    relation?: string;
 }
-/** Every icon id a hierarchy row can name, for the check that each one ships in icons/. */
+/** Every icon id FolderHierarchy's rows can name, for the check that each one ships in icons/ (a FolderTree's own rows name more: its test checks those). */
 export declare const HIERARCHY_ICONS: readonly string[];
+/**
+ * The icon of a file's row, by its kind: the one table, so a FolderTree's row of a file the graph
+ * has no node for (past the index's cap) draws as the graph's row of it would.
+ */
+export declare function fileIconOf(kind: SourceType): string;
 /**
  * The single most severe health state of a file row, or null when it is healthy. A cycle before
  * an unsaved change. `missing` is a kind of node of its own, with no file to be dirty.
@@ -129,6 +145,18 @@ export declare class FolderHierarchy {
      * is. For a tree to show a file (connectHierarchy's `reveal`).
      */
     pathTo(uri: string): Promise<HierarchyItem[] | undefined>;
+    /**
+     * The row of the file `uri` as the top of its own expansion: the row a group lists it as when
+     * nothing there references it, whether or not something does. Collapsible by its references,
+     * marked as such a row is (unsaved; no cycle, which only a repeat under it closes), and keyed as
+     * a row of the top level, `/` and its uri encoded. Undefined for a uri no file of the folder
+     * has, and for a project's marker, which heads its group and is no file row.
+     *
+     * For a tree that draws every file in its own folder rather than under what references it
+     * (FolderTree), which keys the row again under its own; its rows are this hierarchy's
+     * children(), from the graph as it is then. Answered from the graph there is: no listing, no read.
+     */
+    rowOf(uri: string): Promise<HierarchyItem | undefined>;
     /** Draw the rows again from the graph there is: for a file's unsaved changes. */
     refresh(): void;
     /** Read the folder again, for what changes it: a file created, deleted or saved. */

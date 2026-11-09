@@ -15,6 +15,13 @@ export interface PaletteCommand {
     /** Greyed, and neither Enter nor a click runs it. It is still listed, and the arrows reach it. */
     disabled?: boolean;
 }
+/** How show() opens the palette for a list that is not the shell's commands (a pick of a file). */
+export interface PaletteShowOptions {
+    /** The input's placeholder. Default 'Type a command'. */
+    placeholder?: string;
+    /** Whether a row run from this list joins the recently run ones, which a later list puts first. Default true. */
+    remember?: boolean;
+}
 /** What `dex-palette-run` carries: the `id` of the command run. */
 export interface PaletteRunDetail {
     id: string;
@@ -47,6 +54,8 @@ export declare class DexCommandPalette extends LitElement {
     private _commands;
     private _query;
     private _active;
+    private _placeholder;
+    private _remember;
     private _recent;
     private _ranked;
     private _returnFocusTo;
@@ -58,9 +67,11 @@ export declare class DexCommandPalette extends LitElement {
      * Opens the palette over the page with `commands` (a list that is not an array is none), an
      * empty query and the focus in its input, on the first command that can run. Open already, it
      * takes the new commands and starts the query afresh, and the focus will still go back where it
-     * was before the first show(). Not on the page, it does not open.
+     * was before the first show(). Not on the page, it does not open. `options` says what its input
+     * reads before anything is typed and whether a row run from it joins the recent ones (a pick of a
+     * file does not: the shell's commands are what a later list puts first).
      */
-    show(commands: PaletteCommand[]): void;
+    show(commands: PaletteCommand[], options?: PaletteShowOptions): void;
     /** Closes the palette, sending nothing; does nothing while closed. */
     close(): void;
     connectedCallback(): void;

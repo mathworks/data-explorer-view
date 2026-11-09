@@ -20,6 +20,11 @@ export declare function projectPathSegments(relPath: string): string[];
 /** Basename of a URI string, stripping any `?query` or `#hash` first. */
 export declare function uriBasename(uriString: string): string;
 /**
+ * The file name a uri string ends in, decoded, for a message: what a transfer's refusals name a
+ * document by (transfer.ts), and a table's editing answers too (editingWire.ts), so both say it alike.
+ */
+export declare function fileNameOf(uriString: string): string;
+/**
  * The last segment of a uri's path, decoded: what `basename(uri.path)` gives for a VS Code uri, whose
  * `path` is decoded. The path is the uri after its scheme and authority, before any `?query` or
  * `#fragment`; decoded first and split after (on both separators, as `basename` splits), so an

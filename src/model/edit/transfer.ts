@@ -2,9 +2,11 @@
 //
 // Copied from data-explorer-vscode src/host/transfer.ts at c73da3c. The extension keeps its own
 // copy until its editors move onto view's sources; keep the two alike (view's CI reports a vscode
-// commit to that file). One difference: TransferRefused is core's (v1.53.0), not a class of its
+// commit to that file). Two differences: TransferRefused is core's (v1.53.0), not a class of its
 // own, since core's paste rules (refuseDisallowedPaste) throw it, and the policy below tells a
-// refusal by it.
+// refusal by it; and a copy may name entries of the target it replaces (TransferRequest.replacing,
+// a compare's Copy to Right), which the extension has no gesture for. And fileNameOf is pathUtil's,
+// where a table's own messages find it too.
 //
 // What a paste or a drop MEANS, said once for every editable table.
 //
@@ -37,7 +39,7 @@
 // this module neither knows nor imports any of it. That is also why it is vscode-free: every
 // branch above is unit-tested with a fake adapter (test/transfer.test.ts).
 import { TransferRefused, entrySelectorOf, type EntrySelector } from 'data-explorer-core';
-import { uriBasename } from '../ids/pathUtil.js';
+import { fileNameOf } from '../ids/pathUtil.js';
 
 /** One entry a transfer carries: what to paste, and the section it was taken from. */
 export interface TransferItem {
@@ -111,7 +113,8 @@ export interface TransferCommit<T extends TransferTarget> {
   /**
    * The entries to take out of THIS document first, in the same edit, so the pasted ones keep
    * their names (a source still standing in the namespace would push its copy to `Name1`).
-   * Non-empty only for a same-document move.
+   * Non-empty for a same-document move, and for a copy that replaces entries
+   * (TransferRequest.replacing): those selectors, after the move's.
    */
   removeFirst: EntrySelector[];
   /** What the edit is called, for an undo stack that names its steps. */
@@ -133,7 +136,8 @@ export interface TransferAdapter<T extends TransferTarget = TransferTarget> {
    * False for a document that cannot remove-and-paste in one edit because it never has to: a
    * MAT-file is one section, so a same-file move is always the same-section no-op. Should the
    * policy ever need it anyway, the transfer is refused rather than made as something else.
-   * Default true.
+   * Default true. Asked of a move's removals only: the entries a copy replaces
+   * (TransferRequest.replacing) reach `commit` either way, for it to take out or refuse.
    */
   readonly takesRemoveFirst?: boolean;
   /**
@@ -195,6 +199,14 @@ export interface TransferRequest {
    * aim at). Passed to the adapter as it is: `''` is a target to resolve, not a missing one.
    */
   rowId: string;
+  /**
+   * Entries of THIS document the transferred ones take the place of (a compare's Copy to Right of a
+   * changed entry), by their selectors in this document: taken out in the same edit before the
+   * paste, so the copies keep their names and the whole is one undo step. Until core can paste in
+   * place, each copy goes last in its section, not where the entry it replaces was. A copy only: a
+   * register holding a move is refused with it. Absent or empty: none.
+   */
+  replacing?: readonly EntrySelector[];
 }
 
 /**
@@ -273,8 +285,12 @@ async function transfer<T extends TransferTarget>(
     return { kind: 'empty' };
   }
 
+  const replacing = req.replacing ?? [];
   let target: T | null;
   try {
+    // A move has a place of its own to leave: what it would replace and what it leaves behind are
+    // two edits of two documents, which one undo step cannot hold.
+    if (replacing.length > 0 && contents.move) throw new TransferRefused('Only a copy replaces entries.');
     target = adapter.resolveTarget(req.rowId);
     if (!target) {
       adapter.report('Could not resolve the target section.');
@@ -300,7 +316,10 @@ async function transfer<T extends TransferTarget>(
   const selectors: SourceSelector[] = contents.items
     .map((it) => (it.origin ? { ...entrySelectorOf(it.payload), origin: it.origin } : entrySelectorOf(it.payload)))
     .filter((s) => s.name.length > 0);
-  const removeFirst = contents.move && sameDoc ? selectors : [];
+  const moveFirst = contents.move && sameDoc ? selectors : [];
+  // What a copy replaces goes out in the same edit as what a move takes out: both make room for
+  // the pasted entries under their own names.
+  const removeFirst = [...moveFirst, ...replacing];
   const label: TransferLabel = isPaste ? 'Paste' : contents.move ? 'Move' : 'Copy';
 
   try {
@@ -308,7 +327,7 @@ async function transfer<T extends TransferTarget>(
     if (shared) {
       throw new TransferRefused(sharedNameRefusal(isPaste ? 'cut' : 'move', String(shared.payload.name ?? ''), contents.sourceDocUri));
     }
-    if (removeFirst.length > 0 && adapter.takesRemoveFirst === false) {
+    if (moveFirst.length > 0 && adapter.takesRemoveFirst === false) {
       throw new TransferRefused(`Cannot move entries within ${fileNameOf(adapter.docUri)}.`);
     }
     const payloads = contents.items.map((it) => it.payload);
@@ -388,19 +407,14 @@ export function sourceKeptMessage(
 ): string {
   const what = count === 1 ? 'the original' : 'the originals';
   const where = sourceDocUri ? ` in ${fileNameOf(sourceDocUri)}` : '';
-  const why = (reason ?? 'the source did not say why').replace(/[.\s]+$/, '');
+  // Its trailing dots and spaces cut by index, not by /[.\s]+$/, which backtracks over a long run
+  // of them that something else follows (quadratic in a reason the source wrote).
+  const said = reason ?? 'the source did not say why';
+  let end = said.length;
+  while (end > 0 && /[.\s]/.test(said[end - 1]!)) end--;
+  const why = said.slice(0, end);
   const verb = isPaste ? 'Pasted' : 'Moved';
   // Nothing to remove by hand: what holds the original's name there now is something else.
   if (gone) return `${verb} here; ${what}${where} ${count === 1 ? 'is' : 'are'} no longer there to remove: ${why}.`;
   return `${verb} here, but ${what}${where} could not be removed: ${why}. Remove ${count === 1 ? 'it' : 'them'} there by hand.`;
-}
-
-/** The file name a uri string ends in, decoded, for a message. */
-export function fileNameOf(uriString: string): string {
-  const raw = uriBasename(uriString);
-  try {
-    return decodeURIComponent(raw) || raw;
-  } catch {
-    return raw;
-  }
 }

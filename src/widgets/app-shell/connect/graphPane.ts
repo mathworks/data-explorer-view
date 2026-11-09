@@ -12,11 +12,16 @@
 // What the graph asks: a double-click opens a box's file, or an item's on its row (the shell opens
 // it as a preview); a ghost, a file referenced and not open, is looked for as a link to it would
 // be, through the folder, from the file that references it, and said not to be open where it is
-// not found. A box's +/− asks to show or hide its items, which the shell answers by `expanded`.
+// not found. A box's +/− asks to show or hide its items, which the shell answers by `expanded`. A
+// click selects a box (or an item), whose file's page the shell shows in the inspector, and a
+// dimmed segment for it in the location bar (`selectedFile`), until the background is clicked.
 
 import { isGraphPath } from 'data-explorer-core';
+import { graphFilePage } from '../../../model/inspector/inspectorPages.js';
+import type { PropertyGroup } from '../../../model/inspector/piBuilder.js';
 import { buildRelationshipGraph } from '../../../model/graph/relationshipGraph.js';
-import { graphIdOf, type GraphEdgeKind, type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import { graphIdOf, type GraphBox, type GraphEdgeKind, type RelationshipGraph } from '../../../model/graph/graphTypes.js';
+import type { GraphLayoutStyle } from '../../../model/graph/layout.js';
 import { buildSectionRowId } from '../../../model/ids/sectionRowId.js';
 import type { TreeTableRow } from '../../../model/rows/tableRow.js';
 import { sourceUri } from '../../../model/source/sourceUri.js';
@@ -36,6 +41,14 @@ export const REBUILD_MS = 300;
 export interface GraphTab {
   path: string;
   bytes?: Uint8Array;
+  /** Whether it holds unsaved edits, which its box's page says. */
+  dirty?: boolean;
+}
+
+/** The file of the box selected in the graph (or of the selected item's box), and its page for the inspector. */
+export interface SelectedFile {
+  box: GraphBox;
+  groups: PropertyGroup[];
 }
 
 /** What the graph is drawn from, and what its requests do. */
@@ -52,6 +65,13 @@ export interface GraphPaneContext {
   notOpen(ref: string): void;
   /** Say that the graph could not be built: why. */
   failed(message: string): void;
+  /**
+   * What the graph has selected changed, or was drawn again: a click on a box, an item or the
+   * background, an arrow key, a reveal, a build. For the shell to show `selectedFile()` again.
+   */
+  selected?(): void;
+  /** What a selected file's page says of where it is: its path in the host's words (ShellHost.pathTitle). Default the path. */
+  titleOf?(path: string): string;
 }
 
 /** The graph pane, as connectShell drives it. */
@@ -60,15 +80,36 @@ export interface GraphPane {
   stale(): void;
   /** Something changed (a tab, Root shown): build again, REBUILD_MS after the first change, if the graph is shown and out of date. */
   refresh(): void;
-  /** Select and bring forward the box of the file `uri`, or its item `name` (opening its box), once the graph holds it. */
+  /**
+   * Select the box of the file `uri`, or its item `name`, once the graph holds it, its box opened
+   * onto its items, and zoom onto it and what it reaches.
+   */
   reveal(uri: string, name?: string): void;
   /**
-   * Select and bring forward what the row `rowId` of the file `uri` stands for, `rows` its table's:
-   * for a row of a model's External Data or Model References, the file it names (its box, or its
-   * ghost); for another row, its item (graphNameOf: a block by its key, anything in a variable by
-   * the variable), else the file's box; for none, the file's box. For a table's Show in Graph.
+   * Select and zoom onto what the row `rowId` of the file `uri` stands for, and what it reaches,
+   * `rows` its table's: for a row of a model's External Data or Model References, the file it names
+   * (its box, or its ghost, as it is); for another row, its item (graphNameOf: a block by its key,
+   * anything in a variable by the variable) in its box opened, else the file's box opened; for
+   * none, the file's box opened. For a table's Show in Graph.
    */
   showRow(uri: string, rows: readonly TreeTableRow[], rowId: string | null): void;
+  /**
+   * The file of the box selected (or of the selected item's box), with its page, or null for none:
+   * the same object until the graph, the selection or a tab's state changes.
+   */
+  selectedFile(): SelectedFile | null;
+  /** Open the selected box's file, as a double-click on the box does. */
+  openSelected(): void;
+  /**
+   * Open the file a link on the selected file's page names: a box's file by its uri, or a file
+   * referenced by `target`, its name, looked for from the selected file as a ghost is.
+   */
+  openLink(target: string): void;
+  /**
+   * Draw the graph in `layout`: 'tree', the prototype's top-down trees (the element's default), or
+   * 'indented'. For a setting to choose; the element lays the graph out again and fits it.
+   */
+  setLayout(layout: GraphLayoutStyle): void;
   dispose(): void;
 }
 
@@ -136,14 +177,22 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   const showRevealed = (graph: RelationshipGraph | null): void => {
     if (!pendingReveal || !graph) return;
     const { uri, name, ref } = pendingReveal;
-    const id = (ref === undefined ? null : referencedId(graph, uri, ref.name, ref.section)) ?? graphIdOf(graph, uri, name);
+    const referenced = ref === undefined ? null : referencedId(graph, uri, ref.name, ref.section);
+    const id = referenced ?? graphIdOf(graph, uri, name);
     pendingReveal = null;
     if (!id) return;
-    // An item is drawn in its box only while the box is open.
-    const box = graph.boxes.find((b) => b.items.some((i) => i.id === id));
+    // An item is drawn in its box only while the box is open. A file's own box is opened onto its
+    // items too, as the prototype's Show in Graph opened a model onto its blocks and what they read;
+    // the file a reference row names is shown as it is, being where the reference leads.
+    const box =
+      graph.boxes.find((b) => b.items.some((i) => i.id === id)) ??
+      (referenced === null ? graph.boxes.find((b) => b.id === id && b.items.length > 0) : undefined);
     if (box && !el.expanded.includes(box.id)) el.expanded = [...el.expanded, box.id];
     el.selected = id;
-    el.reveal(id);
+    // The view onto it and what it reaches, as its selection lights them, rather than onto it alone
+    // at whatever scale the view had.
+    el.zoomToReach(id);
+    context.selected?.();
   };
 
   // One build at a time: asked for while one runs, the graph is out of date, and is built once more
@@ -174,6 +223,8 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       // A box gone from the graph is open no more.
       const ids = new Set(graph.boxes.map((b) => b.id));
       if (el.expanded.some((id) => !ids.has(id))) el.expanded = el.expanded.filter((id) => ids.has(id));
+      // What is selected is drawn anew: its page may say other things of it.
+      if (el.selected !== null) context.selected?.();
       // Its inputs changed while it ran (the folder): the build after it, which draws them, reveals.
       if (!outOfDate) showRevealed(graph);
     } catch (err) {
@@ -208,21 +259,26 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
     }, REBUILD_MS);
   };
 
-  const onOpen = (e: CustomEvent<{ uri: string; name?: string; ref?: string }>): void => {
-    const { uri, name, ref } = e.detail;
-    if (uri) return context.open(uri, name);
-    if (!ref) return;
-    // Looked for from the file that wrote the reference: a box with an edge to the ghost.
+  // A file by the name `ref` a file of the graph references it by, looked for as a link to it would
+  // be, through the folder, from `fromUri`: by default the file that wrote the reference, a box with
+  // an edge to its ghost.
+  const openRef = (ref: string, fromUri?: string): void => {
     const graph = el.graph;
     const ghost = graph?.boxes.find((b) => b.ghost && b.ref === ref);
     const from = graph?.edges.find((edge) => edge.to === ghost?.id)?.from;
-    const fromUri = graph?.boxes.find((b) => b.id === from)?.uri ?? '';
+    const referrer = fromUri ?? graph?.boxes.find((b) => b.id === from)?.uri ?? '';
     const folder = context.folder();
-    void Promise.resolve(folder?.resolveLink({ kind: 'file', file: ref }, fromUri)).then(
+    void Promise.resolve(folder?.resolveLink({ kind: 'file', file: ref }, referrer)).then(
       (found) => (found ? context.open(found) : context.notOpen(ref)),
       () => context.notOpen(ref),
     );
   };
+  const onOpen = (e: CustomEvent<{ uri: string; name?: string; ref?: string }>): void => {
+    const { uri, name, ref } = e.detail;
+    if (uri) return context.open(uri, name);
+    if (ref) openRef(ref);
+  };
+  const onSelected = (): void => context.selected?.();
   const onExpand = (e: CustomEvent<{ id: string; expanded: boolean }>): void => {
     const { id, expanded } = e.detail;
     const rest = el.expanded.filter((x) => x !== id);
@@ -230,6 +286,25 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
   };
   el.addEventListener('dex-graph-open', onOpen);
   el.addEventListener('dex-graph-expand', onExpand);
+  el.addEventListener('dex-graph-selected', onSelected);
+
+  // The selected file's page, kept while what it is drawn from is as it was: the graph, the
+  // selection, and the open tabs with their unsaved state.
+  let page: { graph: RelationshipGraph | null; selected: string | null; open: string; file: SelectedFile | null } | null = null;
+  const selectedFile = (): SelectedFile | null => {
+    const graph = el.graph;
+    const selected = el.selected;
+    const tabs = context.tabs();
+    const open = tabs.map((t) => `${sourceUri(t.path)}${t.dirty ? '*' : ''}`).join('|');
+    if (page && page.graph === graph && page.selected === selected && page.open === open) return page.file;
+    const state = (uri: string) => {
+      const tab = tabs.find((t) => sourceUri(t.path) === uri);
+      return tab ? { dirty: !!tab.dirty } : undefined;
+    };
+    const file = graph && selected !== null ? graphFilePage(graph, selected, state, context.titleOf) : null;
+    page = { graph, selected, open, file };
+    return file;
+  };
 
   return {
     stale() {
@@ -249,11 +324,27 @@ export function connectGraphPane(el: DexRelationshipGraph, context: GraphPaneCon
       const name = rowId === null ? undefined : graphNameOf(rows, rowId);
       revealWhenDrawn({ uri, ...(name === undefined ? {} : { name }) });
     },
+    selectedFile,
+    openSelected() {
+      const box = selectedFile()?.box;
+      if (box && !box.ghost) context.open(box.uri);
+      else if (box?.ref) openRef(box.ref);
+    },
+    openLink(target) {
+      const box = el.graph?.boxes.find((b) => !b.ghost && b.uri === target);
+      if (box) return context.open(box.uri);
+      const from = selectedFile()?.box;
+      openRef(target, from && !from.ghost ? from.uri : undefined);
+    },
+    setLayout(layout) {
+      el.layout = layout;
+    },
     dispose() {
       disposed = true;
       if (timer !== undefined) clearTimeout(timer);
       el.removeEventListener('dex-graph-open', onOpen);
       el.removeEventListener('dex-graph-expand', onExpand);
+      el.removeEventListener('dex-graph-selected', onSelected);
     },
   };
 }

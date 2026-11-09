@@ -77,8 +77,48 @@ describe('locationOf', () => {
     expect(at.up).toEqual({ tabId: 't1', rowId: 'missing' });
   });
 
+  it('at Root with a file previewed: Root, then the file dimmed, which is no place to go up from', () => {
+    const at = locationOf(null, null, rowOf, 'Root', { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', title: '/w/plant.sldd' });
+    expect(at.segments).toEqual([
+      { label: 'Root', icon: 'simulink_folder', place: { tabId: null, rowId: null } },
+      { label: 'plant.sldd', icon: 'simulinkDataDictionary_FT', title: '/w/plant.sldd', preview: true, place: { tabId: null, rowId: null } },
+    ]);
+    expect(at.up).toBeNull();
+    // A tab shown has no preview: it is where the user is.
+    expect(locationOf(TAB, null, rowOf, 'Root', { label: 'plant.sldd' }).segments.map((s) => s.label)).toEqual(['Root', 'params.sldd']);
+  });
+
   it('names Root as the app does', () => {
     expect(locationOf(null, null, rowOf, 'Workspace').segments[0]!.label).toBe('Workspace');
+  });
+
+  it('on several rows: the parents they all share, then how many are selected; up is the deepest shared parent', () => {
+    // Bus is a parent of a, not one they share: a selected row is no place the others are in.
+    const at = locationOf(TAB, ['e:Bus', 'e:Bus/a'], rowOf);
+    expect(at.segments.map((s) => [s.label, s.icon])).toEqual([
+      ['Root', 'simulink_folder'],
+      ['params.sldd', 'simulinkDataDictionary_FT'],
+      ['Design Data', 'dictionary_section'],
+      ['<2 selected>', 'wsMultiple'],
+    ]);
+    // The count's segment is where the user is: it names the rows, which a press on it keeps.
+    expect(at.segments[3]).toMatchObject({ place: { tabId: 't1', rowId: 'e:Bus' }, selection: ['e:Bus', 'e:Bus/a'] });
+    // Heard as words, not as "less than 2 selected greater than".
+    expect(at.segments[3]!.ariaLabel).toBe('2 rows selected');
+    expect(at.up).toEqual({ tabId: 't1', rowId: 'section:design' });
+  });
+
+  it('on several rows that share no parent, or one it cannot find: the file, then the count; up is the file', () => {
+    for (const rows of [['section:design', 'e:Bus'], ['e:Bus', 'gone']]) {
+      const at = locationOf(TAB, rows, rowOf);
+      expect(at.segments.map((s) => s.label)).toEqual(['Root', 'params.sldd', '<2 selected>']);
+      expect(at.up).toEqual({ tabId: 't1', rowId: null });
+    }
+  });
+
+  it('takes a selection of one row, or of none, as that row, or the file', () => {
+    expect(locationOf(TAB, ['e:Bus/a'], rowOf)).toEqual(locationOf(TAB, 'e:Bus/a', rowOf));
+    expect(locationOf(TAB, [], rowOf)).toEqual(locationOf(TAB, null, rowOf));
   });
 });
 
@@ -158,6 +198,23 @@ describe('the location bar, connected', () => {
     await until(() => selected('params.sldd') === 'section:design');
     go(0);
     await until(graphShown);
+  });
+
+  it('says how many rows a selection of several holds, keeps them at a press on it, and goes up to their parent', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const table = tableOf('params.sldd')!;
+    const ids = ['Kp', 'Ki'].map((name) => table.rows.find((r) => r.Name?.label === name)!.ID);
+    table.selectedRowIds = ids;
+    table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: ids }, bubbles: true, composed: true }));
+    await until(() => labels() === 'Root › params.sldd › Design Data › <2 selected>');
+    go(3);
+    // Still both, and still the count: a press on where the user is changes nothing.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(selected('params.sldd')).toBe(ids.join());
+    expect(labels()).toBe('Root › params.sldd › Design Data › <2 selected>');
+    go('up');
+    await until(() => selected('params.sldd') === 'section:design' && labels().endsWith('› Design Data'));
   });
 
   it("forgets a closed tab's places: Back does not go to it", async () => {

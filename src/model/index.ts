@@ -35,7 +35,7 @@ export type { WarningBanner } from './rows/parseWarnings.js';
 
 // The property inspector's pages, and which row it shows.
 export { buildPropertyGroups } from './inspector/piBuilder.js';
-export type { PropertyGroup, PropertyRow } from './inspector/piBuilder.js';
+export type { PropertyGroup, PropertyGroupOptions, PropertyRow } from './inspector/piBuilder.js';
 export { InspectorSelection } from './inspector/inspectorSelection.js';
 export type { FindNode, Inspector } from './inspector/inspectorSelection.js';
 
@@ -60,7 +60,7 @@ export { WHOLE_FILE_SECTION, buildSectionRowId, isSectionRowId, sectionNameFromR
 export { srcIdToUriString } from './ids/srcId.js';
 export { localLinkName, parseLinkTarget } from './ids/linkTarget.js';
 export type { LinkTarget } from './ids/linkTarget.js';
-export { basename, projectPathSegments, uriBasename } from './ids/pathUtil.js';
+export { basename, fileNameOf, projectPathSegments, uriBasename } from './ids/pathUtil.js';
 export { ADD_CATALOG, allTiles, matCatalog } from './ids/addCatalog.js';
 export type { GalleryCategory, GalleryTile, SectionKey } from './ids/addCatalog.js';
 export type { MspDictionary, MspProject, MspRole } from './ids/msp.js';
@@ -75,6 +75,13 @@ export { buildGraphSource, graphSourcesOf } from './hierarchy/graphSources.js';
 export type { GraphReader, ProjectStore, RawFile } from './hierarchy/graphSources.js';
 export { FolderHierarchy, HIERARCHY_ICONS } from './hierarchy/folderHierarchy.js';
 export type { FolderFiles, FolderHierarchyOptions, HierarchyItem } from './hierarchy/folderHierarchy.js';
+// One level of a folder, every entry (the index above holds only the data files): its order, and
+// which files are data.
+export { entryKindOf, sortEntries } from './hierarchy/folderEntries.js';
+export type { FolderEntry, FolderEntryKind } from './hierarchy/folderEntries.js';
+// The Folder view's tree: a folder's entries merged with the hierarchy's rows.
+export { FolderTree, rowPath } from './hierarchy/folderTree.js';
+export type { FolderTreeOptions } from './hierarchy/folderTree.js';
 
 // Sources: a document as a table shows it (the rows, the children of a row, a matrix's cells,
 // the inspector's page, and what changes after), and the workspace that opens documents in the
@@ -84,6 +91,8 @@ export type {
   ChildRows,
   ClipboardStatus,
   EditableTableSource,
+  EditHistory,
+  InspectOptions,
   InspectorFeed,
   InspectorView,
   MatrixPage,
@@ -95,11 +104,15 @@ export type {
 export { SourceClosed, isEditable, isSourceClosed } from './source/tableSource.js';
 export { createWorkspace } from './source/workspace.js';
 export type { Doc, DocKind, SaveToken, UsageReposts, UsageSource, Workspace, WorkspaceOptions } from './source/workspace.js';
+// A document's sections and the entries right under each heading, read off its table.
+export { readEntries } from './source/entries.js';
+export type { EntrySection } from './source/entries.js';
 export { sourceUri, uriPath } from './source/sourceUri.js';
 // A row's raw form, as `TableSource.raw` answers it, and what the Raw pane makes of one: the hex
 // dump of a value's bytes, and the tokens of a JSON or an XML text.
 export { formatHex, tokenizeJson, tokenizeXml } from './raw/rawView.js';
 export type { RawToken, RawTokenKind, RawView } from './raw/rawView.js';
+export type { RawOptions } from './raw/rawOfRow.js';
 
 // A project's page: the message its page is drawn from (<dex-project-page>), from its store.
 export { projectPageMessage, readProjectPage } from './source/projectPage.js';
@@ -130,6 +143,10 @@ export type { UsageRepostHub, UsageRepostHubOptions, WatchModelSet } from './usa
 export { createFolderSession } from './folder/folderSession.js';
 export type { FolderSession, FolderSessionOptions, WatchFolder } from './folder/folderSession.js';
 
+// Checking a folder: what is wrong in its references and entries, over the same graph and usage index a folder session reads.
+export { CHECK_FINDING_KINDS, UNUSED_SKIPPED_CLASSES, checkFolder } from './check/folderCheck.js';
+export type { CheckFinding, CheckFindingKind, CheckFolderOptions, FolderCheck, ReferenceRelation } from './check/folderCheck.js';
+
 // Search: a folder's entry names (dictionary and MAT-file variables, model-workspace variables,
 // blocks), read once over core's source cache, an open document's, read off its table's rows, and
 // what a search over them shows.
@@ -140,9 +157,22 @@ export type { EntryKind, NameRecord } from './search/nameExtract.js';
 export { namesOfFile } from './search/nameScan.js';
 export type { NameReader } from './search/nameScan.js';
 export { namesOfRows } from './search/openDocNames.js';
+export type { NamesOfRowsOptions } from './search/openDocNames.js';
 export { filterEntries } from './search/searchFilter.js';
 export { MAX_SEARCH_RESULTS, SEARCH_ICONS, searchEntries, searchItem, sortNameRecords } from './search/searchItems.js';
 export type { SearchItem } from './search/searchItems.js';
+
+// Compare: two documents' rows matched by section and name path, how each stands and what differs,
+// by the text the table shows each cell in (numbers by value); every row of a side read through its
+// source, held-back rows fetched; and two open documents, or two files' bytes with no page (the
+// command line's `diff`), compared.
+export { cellTextOf, sameCellText } from './compare/cellText.js';
+export { DIFF_SKIPPED_COLUMNS, diffSides, diffSummary } from './compare/diff.js';
+export type { DiffCounts, DiffOptions, DiffStatus, DocumentDiff, PropertyDiff, RowDiff, SectionDiff } from './compare/diff.js';
+export { readDiffSide } from './compare/readSide.js';
+export type { DiffSide, ReadSideOptions } from './compare/readSide.js';
+export { diffDocuments, diffFiles } from './compare/diffDocuments.js';
+export type { DiffFile } from './compare/diffDocuments.js';
 
 // The relationship graph the app shell draws (<dex-relationship-graph>): its boxes, items and
 // edges built from files already read, where they are drawn, and the id a file's row reveals.
@@ -150,16 +180,19 @@ export { buildRelationshipGraph } from './graph/relationshipGraph.js';
 export { graphIdOf } from './graph/graphTypes.js';
 export type { GraphBox, GraphBoxKind, GraphEdge, GraphEdgeKind, GraphItem, RelationshipGraph } from './graph/graphTypes.js';
 export { layoutGraph } from './graph/layout.js';
-export type { BoxLayout, EdgeLayout, GraphLayout, GraphPoint, GraphRect, ItemLayout } from './graph/layout.js';
+export type { BoxLayout, EdgeLayout, GraphLayout, GraphLayoutStyle, GraphPoint, GraphRect, ItemLayout } from './graph/layout.js';
 
 // The command window's interpreter (the app shell's Terminal): a line run over a document, through
 // a CommandTarget (its rows and its source's own commands), and the classes its `add` offers.
 export { addChoicesOf, runCommand } from './shell/commands.js';
 export type { AddChoice, CommandDoc, CommandOutput, CommandRaw, CommandTarget, OutputLine } from './shell/commands.js';
 
-// What the app shell's elements name in their public types: its settings and theme, the layout of
-// its sides, and the box a popover opens against.
+// What the app shell's elements name in their public types: its settings and theme, About's lines,
+// the layout of its sides, and the box a popover opens against.
 export type { ShellSettings, Theme } from './shell/settings.js';
+export type { AboutLine } from './shell/about.js';
+// This package's version, for an app's About (written from package.json by scripts/gen-version.mjs).
+export { VIEW_VERSION } from './version.js';
 export type { ShellLayoutState, ShellSide, SideState } from './shell/shellLayout.js';
 export type { Rect } from './shell/placement.js';
 
@@ -237,7 +270,6 @@ export type {
 // (above), under a name of its own.
 export {
   TransferRefused,
-  fileNameOf,
   isNoopMove as isNoopTransfer,
   runTransfer,
   sharedNameRefusal,

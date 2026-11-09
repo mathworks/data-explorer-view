@@ -29,6 +29,12 @@ export interface TableContextMenuDetail {
     y: number;
     rowId: string | null;
     graphTarget?: string;
+    /**
+     * A key opened it (`keyboardMenu`), not a right-click: the menu is to take the keyboard at once,
+     * and give it back to the grid when it closes (the context menu's `focusFirst`). Absent for a
+     * right-click.
+     */
+    keyboard?: true;
 }
 /**
  * What `dex-row-drag-start` carries: the rows dragged — the selection when the row grabbed is in
@@ -83,6 +89,26 @@ export interface TableBanners {
     notice?: string;
     /** What the read could not read, and what the paint held back (TableView.warnings). */
     warnings?: WarningBanner;
+}
+/** How a compare marks a row (`diffMarks`): what its file holds of the line, and which cells differ. */
+export interface DiffMark {
+    /**
+     * 'added': only this table's file has the row, the other draws a gap; 'removed': likewise, from
+     * the other point of view (the row's file lost it); 'changed': both have it, `columns` differing;
+     * 'gap': this table's file has no such row, the line is the other side's.
+     */
+    kind: 'added' | 'removed' | 'changed' | 'gap';
+    /** With 'changed': the column keys whose cells differ. */
+    columns?: readonly string[];
+}
+/** What `dex-expansion-changed` carries: every row shown open now. */
+export interface ExpansionChangedDetail {
+    expandedIds: string[];
+}
+/** What `dex-table-scrolled` carries: where the rows are scrolled to, in pixels. */
+export interface TableScrolledDetail {
+    top: number;
+    left: number;
 }
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
@@ -167,19 +193,76 @@ export declare class DexTreeTable extends LitElement {
      */
     rowDrag: boolean;
     /**
+     * Whether rows are dragged out of the table, onto another part of the page that takes them (the
+     * app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+     * (`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+     * drag allows no move, so the document never loses an entry by it, and no row of this table takes
+     * a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+     * icon and name) follows the pointer over the rest of the page too, until the drag is let go
+     * anywhere, saying there what the part under the pointer says a drop would do: the words of the
+     * nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+     * as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+     * false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+     * `drag-out`.
+     */
+    dragOut: boolean;
+    /**
      * A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
      * No cell editor opens — not on a double-click, not on Enter, not for beginRename or
      * openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-     * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-     * the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-     * dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+     * whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+     * `dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+     * (dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+     * sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
      * what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
      * False, the default, is the table as it always was, each cell's own flags deciding. Reflected
      * to the attribute `readonly`.
      */
     readonly: boolean;
+    /**
+     * Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+     * `dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+     * the selection's last, whichever the table shows), placed under that row as a right-click on it
+     * is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+     * the space under the rows. Both keys are spent, so the browser's own menu event for them does
+     * not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+     * cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+     * they always were. Attribute `keyboard-menu`.
+     */
+    keyboardMenu: boolean;
+    /**
+     * Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
+     * a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
+     * differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+     * under it follow `expandedIds`). The focused cell is ringed only while the table has the
+     * keyboard: a compare's other table selects the same line. Default null: no marks, the table as
+     * it always was. Property only.
+     */
+    diffMarks: ReadonlyMap<string, DiffMark> | null;
+    /**
+     * The rows as given, in their order, all of them: a header press sorts nothing and draws no sort
+     * mark, and there is no search box and no column filter (the Columns button stays). For two tables
+     * kept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.
+     */
+    fixedRows: boolean;
+    /** What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`. */
+    gridLabel: string;
+    /** Where the rows are scrolled to now, in pixels (the grid's own scroll position). */
+    get bodyScroll(): {
+        top: number;
+        left: number;
+    };
+    /** Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows. */
+    scrollBodyTo(top: number, left?: number): void;
+    /**
+     * Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,
+     * and the menu keys open a row's menu. An empty table's body takes it where there are no rows.
+     * Nothing while the table is loading. Called before the table is drawn, once it is.
+     */
+    focusGrid(): void;
     private get _addsEntries();
     private get _dragsRows();
+    private get _dragsOut();
     /**
      * Where the user's column choices (which are shown, and their order) are kept: the page's
      * localStorage, under `<storageKey>-column-order`, `<storageKey>-hidden-columns` and
@@ -209,6 +292,7 @@ export declare class DexTreeTable extends LitElement {
      */
     get expandedIds(): Set<string>;
     set expandedIds(ids: Iterable<string>);
+    private _expansionByHolder;
     /**
      * Opens these rows as a click on each one's twisty does: a row with nothing under it stays
      * closed, and a row whose children the payload held back (`_lazy`) asks for them once
@@ -243,6 +327,7 @@ export declare class DexTreeTable extends LitElement {
     private _scrollTop;
     private _viewportHeight;
     private _focusedCol;
+    private _gridFocused;
     private _lastClickedId;
     private _focusedRowId;
     private _dragSourceId;
@@ -370,7 +455,6 @@ export declare class DexTreeTable extends LitElement {
     private _sortSiblings;
     private _getCellText;
     private _getCellSortText;
-    firstUpdated(): void;
     private _resizeObserver;
     updated(changedProps: Map<string, unknown>): void;
     private _lastStartIdx;
@@ -395,6 +479,10 @@ export declare class DexTreeTable extends LitElement {
      *
      * The second way is a deferred row, whose children exist in the file and not in the
      * table (host: lazyRows.ts).
+     *
+     * A compare's gap row (diffMarks) opens nothing: its file has no such row, so it has no
+     * twisty, no aria-expanded and no Space. The gaps under it show and hide with the other
+     * side's row, which its holder opens and closes through expandedIds.
      */
     private _canExpand;
     private _toggleExpand;
@@ -402,11 +490,19 @@ export declare class DexTreeTable extends LitElement {
     private _expandAncestors;
     private _onContainerContextMenu;
     private _onRowContextMenu;
+    private _openMenu;
+    private _onMenuKey;
+    private _keyboardRow;
     private _onCellClick;
     private _onRowClick;
     private _dragModeFrom;
     private _onRowDragStart;
     private _setDragImage;
+    private _boundFollow;
+    private _hintFrame;
+    private _followDrag;
+    private _cancelHint;
+    private _stopFollowingDrag;
     private _onRowDragEnd;
     private _onRowDragOver;
     private _isRowOrHeaderEvent;
@@ -493,6 +589,7 @@ export declare class DexTreeTable extends LitElement {
     private _renderMatrixGlyph;
     private _renderParamLinks;
     private _renderEditor;
+    private _renderDiffGlyph;
     private _renderCellValue;
     willUpdate(changedProps: Map<string, unknown>): void;
     private _scrollToSelectedRow;
@@ -546,8 +643,9 @@ export interface TreeTableEventMap {
      */
     'dex-request-children': CustomEvent<RequestChildrenDetail>;
     /**
-     * A right-click on a row (after selecting it) or on the space under the rows: open a context
-     * menu there.
+     * A right-click on a row (after selecting it) or on the space under the rows, or with
+     * `keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a
+     * context menu there.
      */
     'dex-table-context-menu': CustomEvent<TableContextMenuDetail>;
     /** The user started dragging rows. */
@@ -570,6 +668,13 @@ export interface TreeTableEventMap {
     'dex-link-clicked': CustomEvent<LinkClickedDetail>;
     /** A tile of the `+ Add` gallery was clicked: add one entry of that class, renaming it if `rename`. */
     'dex-add-entry': CustomEvent<AddEntryDetail>;
+    /**
+     * The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection
+     * whose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`.
+     */
+    'dex-expansion-changed': CustomEvent<ExpansionChangedDetail>;
+    /** The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`). */
+    'dex-table-scrolled': CustomEvent<TableScrolledDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

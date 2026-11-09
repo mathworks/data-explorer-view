@@ -15,7 +15,8 @@ export interface SearchOpenDetail {
 /**
  * The app shell's Search panel: a search box, the scope it searches under it, and the matches
  * grouped by file (each group headed by the file's name and how many it holds, each row an
- * entry's icon, its name with the match marked, and where it is in the file). It asks and
+ * entry's icon, its name with the match marked, where it is in the file, and what it is where its
+ * result says: SearchItem's `type`). It asks and
  * draws: a pause in the typing sends `dex-search-query`, the app sets `results` in answer, and
  * Enter or a click on a result sends `dex-search-open`.
  *
@@ -32,8 +33,8 @@ export interface SearchOpenDetail {
 export declare class DexSearchPanel extends LitElement {
     static styles: import("lit").CSSResult[];
     /**
-     * The matches to show for the query in the box, in the order the app gives them (searchEntries'
-     * items: by name, then by file). They are drawn grouped by file, each file where its first
+     * The matches to show for the query in the box, in the order the app gives them (searchRanked's
+     * items: the best match first). They are drawn grouped by file, each file where its first
      * result is. Shown only while the box holds a query. Default none. Property only.
      */
     results: SearchItem[];

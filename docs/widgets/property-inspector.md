@@ -34,8 +34,52 @@ const inspector = connectInspector(element, null, { empty: placeholder, variable
 inspector.follow(activeTab ? activeTab.handle : null);
 ```
 
+Beside a table connected with `inspectorPages` (see the [tree table](tree-table.md)), it shows
+more than one row's properties: the file's own page while no row is selected (what the file is,
+where it is, whether it holds edits, and the open files it references and is referenced by, each
+a link), a section heading's (its entries counted by type), "3 selected" for several rows, and a
+row's Usage links as a group of their own.
+
+With `editing` and `inspectorEditing` too, a row is editable where the document takes an edit of
+it. Such a row carries its property's `key`, and is drawn as a field: a list where it has
+`options`, a field of several lines where it is `multiline`, a text field otherwise. A change of
+one is `dex-property-changed`, with the row's `key`, and connectInspector hands it to the feed's
+`edit` (a table's handle has one), which writes it as a cell edit of the page's row: a refusal
+opens the table's error dialog, and the field is put back. A field the user is typing in keeps
+what they typed while a page is pushed again. `connected.commit()` (the inspector's `commit()`)
+sends what is typed in the field the focus is in, as leaving it would, for an app's Save to call
+before the table's `commitEdit()`, which then waits for it.
+
+```js
+const handle = connectTable(table, doc.table, { editing: true, inspectorPages: true, inspectorEditing: true });
+const connected = connectInspector(inspector, handle, { empty: placeholder });
+// The file's page says whether the document holds edits, which the table does not hear of.
+doc.onDirty(() => handle.refreshInspector());
+
+async function save() {
+  connected.commit(); // a field the focus is still in, on a Save chord
+  await handle.commitEdit();
+  write(doc.serialize());
+}
+```
+
 Without connectInspector, set `groups` yourself: `(await source.inspect(rowIds)).groups`, or the
-model's buildPropertyGroups of a node.
+model's buildPropertyGroups of a node. `source.inspect(rowIds, { pages: true, editable: true })`
+asks a document opened in the page for the same pages and editable rows; a source across a
+channel answers as it would without them.
+
+A read-only row marked `multiline` is a text of several lines as it was written: its line breaks
+and spaces kept, in the theme's monospace face (`--dex-font-mono`), on a framed box that scrolls
+past a height. The box is a tab stop, a region named by its row (`role="region"`, `tabindex="0"`,
+`aria-label`), ringed with `--dex-focus-ring` while it has the keyboard, so a keyboard user can
+reach it and scroll it with the arrow keys in any browser, not only in Chromium, where a box that
+scrolls is one already. The shell's MATLAB group shows MATLAB's display of a value this way, a
+matrix's columns lined up as MATLAB laid them out. buildPropertyGroups marks only editable rows
+`multiline` (their field of several lines), so its read-only rows read as they always did.
+
+```js
+inspector.groups = [{ title: 'MATLAB', properties: [{ name: 'In MATLAB', value: '    16     2\n     5    11', multiline: true }] }];
+```
 
 The inspector's matrix rows draw [`<dex-matrix-open>`](matrix-open.md), which opens the same
 [variable editor](variable-editor.md) as the table's.
@@ -58,7 +102,11 @@ The groups shown, in order; none, the default, draws an empty panel. Property on
 
 ## Methods
 
-None.
+### `commit(): void`
+
+Commit the field the focus is in, as leaving it would: `dex-property-changed`, if what it holds
+is not its row's value. For an app's Save, which a chord gives with the focus still in the field,
+to take what was typed there. Nothing when the focus is in no field.
 
 ## Events
 
@@ -76,6 +124,11 @@ An editable row's field was changed and committed (its change event).
 /** What `dex-property-changed` carries: the property's name, its new text and the text it had. */
 export interface PropertyChangedDetail {
   propName: string;
+  /**
+   * The property's key (its row's `key`), which an edit of it names as its column; absent for a
+   * row that has none.
+   */
+  key?: string;
   newValue: string;
   oldValue: string;
 }
@@ -109,9 +162,12 @@ Each falls back to the light default when the page sets none (see `data-explorer
 
 | Token | Light default | |
 |---|---|---|
+| `--dex-bg-secondary` | `#f8f8f8` |  |
 | `--dex-border-color` | `#d0d0d0` |  |
 | `--dex-border-color-light` | `#e0e0e0` |  |
 | `--dex-color-accent` | `#0078d4` |  |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-secondary` | `#555` |  |
+| `--dex-focus-ring` | `0 0 0 2px rgba(0, 120, 212, 0.4)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |

@@ -639,3 +639,43 @@ describe("Set as Active Configuration, on a model's configuration set", () => {
     expect(byId(on(['m/config/Fast', 'u/design/A'], { rows: [...CONFIG, ...ROWS] }), 'setActiveConfigSet')).toBeUndefined();
   });
 });
+
+// Gap: Undo and Redo were enabled on a file just opened, where there is nothing to undo. A source
+// whose stack is the page's says where it stands (EditableTableSource.history), and the menu offers
+// each only where there is a step; a source that says nothing (the VS Code extension's, whose stack
+// is VS Code's) keeps both enabled wherever the document may be edited, as before.
+describe('Undo and Redo, by the history the source gives', () => {
+  const NONE = { canUndo: false, canRedo: false };
+
+  it('are greyed, saying so, where the history has no step', () => {
+    const items = menu({ history: NONE });
+    expect(byId(items, 'undo')).toMatchObject({ disabled: true, reason: 'Nothing to undo' });
+    expect(byId(items, 'redo')).toMatchObject({ disabled: true, reason: 'Nothing to redo' });
+  });
+
+  it('are each enabled where the history has a step of its kind, and give no reason then', () => {
+    const undoOnly = menu({ history: { canUndo: true, canRedo: false } });
+    expect(byId(undoOnly, 'undo')!.disabled).toBe(false);
+    expect(byId(undoOnly, 'undo')!.reason).toBeUndefined();
+    expect(byId(undoOnly, 'redo')!.disabled).toBe(true);
+    const redoOnly = menu({ history: { canUndo: false, canRedo: true } });
+    expect([byId(redoOnly, 'undo')!.disabled, byId(redoOnly, 'redo')!.disabled]).toEqual([true, false]);
+  });
+
+  it('are greyed in a document that may not be edited, whatever the history says, as before', () => {
+    const items = menu({ editable: false, history: { canUndo: true, canRedo: true } });
+    expect([byId(items, 'undo')!.disabled, byId(items, 'redo')!.disabled]).toEqual([true, true]);
+  });
+
+  it('without a history are enabled wherever the document may be edited, exactly as before', () => {
+    const items = menu();
+    expect(byId(items, 'undo')).toEqual({ id: 'undo', label: 'Undo', shortcut: expect.any(String), disabled: false });
+    expect(byId(items, 'redo')).toEqual({ id: 'redo', label: 'Redo', shortcut: expect.any(String), disabled: false });
+  });
+
+  it("follow it on a section's menu too, which is Paste and Undo/Redo alone", () => {
+    const items = menu({ selectedRowIds: ['section:design'], anchorRowId: 'section:design', history: NONE });
+    expect(labels(items)).toEqual(['Paste', 'Undo', 'Redo']);
+    expect([byId(items, 'undo')!.disabled, byId(items, 'redo')!.disabled]).toEqual([true, true]);
+  });
+});

@@ -19,12 +19,15 @@ const page = (tag: string) => `${tag.replace(/^dex-/, '')}.md`;
 
 describe('docs/widgets', () => {
   it('has a page for every widget, and none for a widget there is not', () => {
-    expect(TAGS.length).toBe(31);
+    expect(TAGS.length).toBe(33);
     expect(readdirSync(DOCS).sort()).toEqual(TAGS.map(page).sort());
   });
 
-  it('is what custom-elements.json says (npm run build writes it)', () => {
-    const result = spawnSync(process.execPath, [join(ROOT, 'scripts', 'gen-widget-docs.mjs'), '--check'], { cwd: ROOT, encoding: 'utf8' });
+  // The generator in a Node process of its own: a second or more alone, several on a loaded
+  // machine. Killed at 30 s, so a process that hangs fails the case rather than holding the worker.
+  it('is what custom-elements.json says (npm run build writes it)', { timeout: 45_000 }, () => {
+    const result = spawnSync(process.execPath, [join(ROOT, 'scripts', 'gen-widget-docs.mjs'), '--check'], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+    expect(result.error).toBeUndefined();
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
   });
@@ -56,7 +59,7 @@ describe('docs/widgets', () => {
 
   it("is linked from the README's table of entries, a page for each entry's widget", () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
-    const shell = ['dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette'];
+    const shell = ['dex-app-shell', 'dex-shell-view', 'dex-shell-action', 'dex-toolbar', 'dex-doc-tabs', 'dex-location-bar', 'dex-explorer', 'dex-folder-bar', 'dex-settings-panel', 'dex-about-panel', 'dex-toast-host', 'dex-confirm-dialog', 'dex-raw-viewer', 'dex-search-panel', 'dex-gallery-panel', 'dex-relationship-graph', 'dex-command-window', 'dex-log-panel', 'dex-command-palette'];
     for (const tag of ['dex-tree-table', 'dex-property-inspector', 'dex-variable-editor', 'dex-context-menu', 'dex-error-dialog', 'dex-hierarchy', 'dex-project-page', 'dex-icon', ...shell]) {
       expect(readme, tag).toContain(`](docs/widgets/${page(tag)})`);
     }
@@ -66,7 +69,8 @@ describe('docs/widgets', () => {
   // A type printed on a page is what an app reads to learn what a detail holds, so its doc comment
   // goes with it: a declaration's own text leaves the comment out, and LinkClickedDetail's four
   // target forms were then readable only in an editor's hover.
-  it('prints each type with the doc comment written above it', () => {
+  // Parses every source file of the widgets and the model: a second or more on a loaded machine.
+  it('prints each type with the doc comment written above it', { timeout: 20_000 }, () => {
     const documented = new Set<string>();
     for (const dir of ['widgets', 'model']) {
       for (const rel of sourceFiles(join(ROOT, 'src', dir))) {

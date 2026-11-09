@@ -115,29 +115,47 @@ export class EditStackIndex {
  * An undo stack in the page: each pushed edit is a step, undone and redone in stack order, and a
  * push drops the steps undone after the last one, as an editor's stack does. Its `undo()` and
  * `redo()` do nothing at either end of it.
+ *
+ * It is the history its document's table offers Undo and Redo by (EditHistory): what it can do, and
+ * when that changes. A listener's throw goes to `report` (by default the console), never back into
+ * the gesture that moved the stack.
  */
 export class EditStack {
-    constructor() {
+    constructor(report = (err) => console.error(err)) {
+        this.report = report;
         this.edits = [];
         /** How many of `edits` are applied. */
         this.applied = 0;
+        this.listeners = new Set();
     }
     push(edit) {
+        const was = this.can();
         this.edits.length = this.applied;
         this.edits.push(edit);
         this.applied++;
+        this.moved(was);
     }
     undo() {
         if (this.applied === 0)
             return;
+        const was = this.can();
         this.applied--;
-        this.edits[this.applied].undo();
+        // Told even where the step throws: the stack moved past it all the same.
+        try {
+            this.edits[this.applied].undo();
+        }
+        finally {
+            this.moved(was);
+        }
     }
     redo() {
         if (this.applied === this.edits.length)
             return;
+        const was = this.can();
+        // A step that throws is not made again, and the stack stays where it was.
         this.edits[this.applied].redo();
         this.applied++;
+        this.moved(was);
     }
     /** Whether there is a step to undo, and one to redo. */
     get canUndo() {
@@ -155,7 +173,36 @@ export class EditStack {
     }
     /** Forget every step: the document now holds something no step was made on (a reload). */
     clear() {
+        const was = this.can();
         this.edits.length = 0;
         this.applied = 0;
+        this.moved(was);
+    }
+    /** Hear `canUndo` or `canRedo` change, once the push, undo, redo or clear that changed it is done. */
+    onChange(listener) {
+        this.listeners.add(listener);
+        return () => void this.listeners.delete(listener);
+    }
+    /** What the stack can do now, as `moved` compares it. */
+    can() {
+        return `${this.canUndo} ${this.canRedo}`;
+    }
+    /** Tell each listener, each on its own terms, if what the stack can do is not what it `was`. */
+    moved(was) {
+        if (this.can() === was)
+            return;
+        for (const listener of [...this.listeners]) {
+            try {
+                listener();
+            }
+            catch (err) {
+                try {
+                    this.report(err);
+                }
+                catch {
+                    // A report that fails has nowhere left to go.
+                }
+            }
+        }
     }
 }

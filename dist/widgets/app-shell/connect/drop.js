@@ -9,7 +9,11 @@
 // window, or the element the files may be dropped on) rather than on the window always, hands over
 // the drop's DataTransfer whole rather than its files (a browser host may want its items, to tell a
 // folder from a file), and can be taken away again. While a file drag is over it, the target (the
-// body, for the window) has the class `drop-target`, for the page's own stylesheet to mark it.
+// body, for the window) has the class `drop-target`, for the page's own stylesheet to mark it; the
+// shell's documents follow that class too (followDropMark), on themselves and on the elements around
+// them, read again at each drag, and outline the area the files open in.
+// The class a target has while files are dragged over it.
+const MARK = 'drop-target';
 /** Send the files dropped on `target` to `drop`; returns what takes the listeners away again. */
 export function installFileDrop(target, drop) {
     const isFileDrag = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
@@ -21,14 +25,14 @@ export function installFileDrop(target, drop) {
         drag.preventDefault();
         drag.stopPropagation();
         drag.dataTransfer.dropEffect = 'copy';
-        marked().classList.add('drop-target');
+        marked().classList.add(MARK);
     };
     // Off the window (no element entered), or, for an element, onto one outside it: a move between
     // its own children is a dragleave too, and the mark stays.
     const leave = (e) => {
         const to = e.relatedTarget;
         if (!to || (target instanceof HTMLElement && !target.contains(to)))
-            marked().classList.remove('drop-target');
+            marked().classList.remove(MARK);
     };
     const dropped = (e) => {
         const drag = e;
@@ -36,7 +40,7 @@ export function installFileDrop(target, drop) {
             return;
         drag.preventDefault();
         drag.stopPropagation();
-        marked().classList.remove('drop-target');
+        marked().classList.remove(MARK);
         if (drag.dataTransfer.files.length)
             drop(drag.dataTransfer);
     };
@@ -47,6 +51,58 @@ export function installFileDrop(target, drop) {
         target.removeEventListener('dragover', over, true);
         target.removeEventListener('dragleave', leave);
         target.removeEventListener('drop', dropped, true);
-        marked().classList.remove('drop-target');
+        marked().classList.remove(MARK);
     };
+}
+/**
+ * Tell `mark` whether files are being dragged over `el`, to be dropped where installFileDrop takes
+ * them: whether `el` or an element around it, up to the page's root and through any shadow root it
+ * is in, has the class it marks its target with (the body, for a drop installed on the window).
+ * Told once at once, then at each change, and false when stopped; returns what stops it.
+ */
+export function followDropMark(el, mark) {
+    let around = [];
+    let now = false;
+    const read = () => {
+        const dragging = around.some((at) => at.classList.contains(MARK));
+        if (dragging !== now)
+            mark((now = dragging));
+    };
+    // Each element's own class, not the page's subtree: what the widgets inside change is not read.
+    const observer = new MutationObserver(read);
+    // The elements around `el` are read again at each drag over the page: one connected before it was
+    // put in the page, or moved since, is inside others than it was.
+    const watch = () => {
+        const next = aroundOf(el);
+        if (next.length === around.length && next.every((at, i) => at === around[i]))
+            return;
+        observer.disconnect();
+        around = next;
+        for (const at of around)
+            observer.observe(at, { attributes: true, attributeFilter: ['class'] });
+    };
+    const onDrag = () => {
+        watch();
+        read();
+    };
+    window.addEventListener('dragenter', onDrag, true);
+    window.addEventListener('dragover', onDrag, true);
+    onDrag();
+    return () => {
+        window.removeEventListener('dragenter', onDrag, true);
+        window.removeEventListener('dragover', onDrag, true);
+        observer.disconnect();
+        if (now)
+            mark((now = false));
+    };
+}
+// `el` and the elements around it, out to the page's root, a shadow root's host after its children.
+function aroundOf(el) {
+    const around = [];
+    for (let at = el; at;) {
+        around.push(at);
+        const root = at.getRootNode();
+        at = at.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+    }
+    return around;
 }

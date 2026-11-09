@@ -15,6 +15,11 @@
 // Pure and DOM-free: the element measures the room and owns the storage, so every rule here is a
 // unit test away. State objects are never changed in place; each function hands back a new one,
 // or the same one when nothing changed, so a Lit element can hold the state as a @state field.
+//
+// The documents' split is kept with the layout, in the same entry: the share of the documents'
+// width the first (left) of two panes takes. The sides are the shell element's to keep, and the
+// split connectShell's, which draws the panes; each writes its own field and copies the other's
+// as it was, so neither loses what the other kept.
 
 /** A side of the shell that holds views: the two sidebars and the bottom panel. */
 export type ShellSide = 'left' | 'right' | 'bottom';
@@ -33,7 +38,7 @@ export interface SideState {
 export type ShellLayoutState = Record<ShellSide, SideState>;
 
 /** The size a side starts at, in px, before anyone drags its sash: the prototype's sizes. */
-export const SIDE_DEFAULTS: Record<ShellSide, number> = Object.freeze({ left: 220, right: 240, bottom: 150 });
+export const SIDE_DEFAULTS: Record<ShellSide, number> = Object.freeze({ left: 200, right: 200, bottom: 150 });
 
 /**
  * The least size a side can be dragged to, in px: the prototype's. Below it a sidebar's names
@@ -45,6 +50,15 @@ export const SIDE_MIN: Record<ShellSide, number> = Object.freeze({ left: 140, ri
 const CENTER_MIN = 200;
 
 const SIDES: readonly ShellSide[] = ['left', 'right', 'bottom'];
+
+/** The share of the documents' width the first of two panes takes at least: a fifth, so the second is never more than four fifths. */
+export const SPLIT_MIN = 0.2;
+
+/** The share the first of two panes takes at most: four fifths, so the second keeps a fifth. */
+export const SPLIT_MAX = 0.8;
+
+/** The share the first of two panes takes before anyone drags the divider between them: half. */
+export const SPLIT_DEFAULT = 0.5;
 
 /**
  * The layout for these views (by side, in order), from what was kept (may be null or junk).
@@ -67,6 +81,18 @@ export function initialLayout(views: Record<ShellSide, readonly string[]>, kept:
     layout[side] = { view, open, size };
   }
   return layout;
+}
+
+/**
+ * The view `side` was left on, as `kept` says it (what keepLayout wrote, or its parsed object, read
+ * as initialLayout reads it), or null where it says none: nothing kept, nothing for the side, or a
+ * view the side no longer has among `views` (initialLayout falls back to the side's first there,
+ * which no one chose). For a page that asks whether the user left a side on a view of their own.
+ */
+export function keptView(kept: unknown, side: ShellSide, views: readonly string[]): string | null {
+  const record = asRecord(typeof kept === 'string' ? parseJson(kept) : kept);
+  const view = asRecord(record?.[side])?.view;
+  return typeof view === 'string' && views.includes(view) ? view : null;
 }
 
 /**
@@ -150,7 +176,37 @@ export function keepLayoutOver(state: ShellLayoutState, before: unknown, sides: 
       kept[side] = was[side];
     }
   }
+  // The documents' split is connectShell's to write (keepSplitOver): kept as it was.
+  if (was && Object.hasOwn(was, 'split')) kept.split = was.split;
   return JSON.stringify(kept);
+}
+
+/**
+ * The split `ratio` held to [SPLIT_MIN, SPLIT_MAX], in thousandths (a drag's pointer gives any
+ * fraction, and what is kept stays short); a ratio that is not a number is SPLIT_DEFAULT.
+ */
+export function clampSplit(ratio: number): number {
+  if (!Number.isFinite(ratio)) return SPLIT_DEFAULT;
+  return Math.round(Math.max(SPLIT_MIN, Math.min(SPLIT_MAX, ratio)) * 1000) / 1000;
+}
+
+/**
+ * The documents' split from what was kept (the layout's entry, as the store hands it back, or
+ * already parsed): its `split`, held to the bounds, or SPLIT_DEFAULT for none or junk.
+ */
+export function initialSplit(kept: unknown): number {
+  const split = asRecord(typeof kept === 'string' ? parseJson(kept) : kept)?.split;
+  return typeof split === 'number' ? clampSplit(split) : SPLIT_DEFAULT;
+}
+
+/**
+ * What is kept with the documents' split at `ratio` (held to the bounds): `before` (what the
+ * layout's entry holds, as the store hands it back or already parsed) with its `split` written,
+ * and every side copied as it was, for initialLayout to read field by field.
+ */
+export function keepSplitOver(ratio: number, before: unknown): string {
+  const was = asRecord(typeof before === 'string' ? parseJson(before) : before);
+  return JSON.stringify({ ...was, split: clampSplit(ratio) });
 }
 
 /** JSON text parsed, or `undefined` for text that is not JSON. */

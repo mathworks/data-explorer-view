@@ -7,6 +7,8 @@
 // and Root shows no document at all. Its row marked selected follows the active tab and the
 // section the table's selection is in; a file's right-click menu saves or closes that file.
 import { describe, expect, it } from 'vitest';
+import { chordLabel, parseChord } from '../../src/model/shell/chords.js';
+import { chordOf, onMac } from '../../src/widgets/app-shell/connect/keys.js';
 import {
   activeTab,
   choose,
@@ -37,7 +39,7 @@ const openRequest = (detail: { fileId: string | null; sectionId?: string; pin: b
 const fileOf = (label: string) => explorer().files.find((f) => f.label === label);
 
 describe('the Explorer', () => {
-  it('sits in the left side as its Explorer view, above the folder', async () => {
+  it('sits in the left side as its Explorer view, the open files alone: the folder is a view of its own', async () => {
     const page = startPage(FILES);
     const view = explorer().parentElement!;
     expect([view.localName, view.getAttribute('side'), view.getAttribute('view'), view.getAttribute('label'), view.getAttribute('icon'), view.getAttribute('shortcut')]).toEqual([
@@ -48,7 +50,7 @@ describe('the Explorer', () => {
       'filesSB',
       'Mod+Shift+E',
     ]);
-    expect([...view.children].map((c) => c.localName)).toEqual(['dex-explorer', 'dex-shell-folder']);
+    expect([...view.children].map((c) => c.localName)).toEqual(['dex-explorer']);
     expect(view.parentElement).toBe(page.shell);
   });
 
@@ -134,7 +136,7 @@ describe('the Explorer', () => {
     await until(() => JSON.stringify(inspector.groups) === shown && inspectorNote().hidden);
   });
 
-  it("a file's menu saves it, saves it elsewhere, or closes it, whichever tab is active", async () => {
+  it("a file's menu saves it, saves it elsewhere, compares it, or closes it, whichever tab is active", async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'ParamMat.mat');
     await edit('params.sldd', 'Kp', '5');
@@ -146,7 +148,7 @@ describe('the Explorer', () => {
     const ask = (label: string) =>
       explorer().dispatchEvent(new CustomEvent('dex-explorer-menu', { detail: { fileId: tabIdOf(label), x: 10, y: 20 }, bubbles: true, composed: true }));
     ask('params.sldd');
-    expect(shown).toEqual(['Save', 'Save As…', 'Close']);
+    expect(shown).toEqual(['Save', 'Save As…', 'Compare With…', 'Close']);
     choose('save');
     await until(() => dirtyTabs().length === 0);
     expect(savedTo(page.main, 'params.sldd')).toBeTruthy();
@@ -160,5 +162,26 @@ describe('the Explorer', () => {
     choose('close-tab');
     await settled();
     expect(tabNames()).toEqual(['ParamMat.mat']);
+  });
+
+  it("labels a file's menu items with their chords, as the toolbar's tooltips name them", async () => {
+    // The prototype's menu showed them; the shell's had none, though the chords work.
+    const page = startPage(FILES);
+    await open(page, 'params.sldd');
+    const menu = document.querySelector('dex-context-menu')!;
+    let shown: [string, string | undefined][] = [];
+    const show = menu.show.bind(menu);
+    menu.show = (x, y, items) => ((shown = items.filter((i) => !i.separator).map((i) => [i.id, i.shortcut])), show(x, y, items));
+    explorer().dispatchEvent(new CustomEvent('dex-explorer-menu', { detail: { fileId: tabIdOf('params.sldd'), x: 10, y: 20 }, bubbles: true, composed: true }));
+    const label = (command: 'save' | 'save-as' | 'close-tab') => chordLabel(parseChord(chordOf(command)!), onMac());
+    // Compare With… has no chord: it asks which file first.
+    expect(shown).toEqual([
+      ['save', label('save')],
+      ['save-as', label('save-as')],
+      ['compare-with', undefined],
+      ['close-tab', label('close-tab')],
+    ]);
+    expect(shown.map(([, chord]) => chord)).toEqual(onMac() ? ['⌘S', '⇧⌘S', undefined, '⌘W'] : ['Ctrl+S', 'Ctrl+Shift+S', undefined, 'Ctrl+W']);
+    menu.close();
   });
 });

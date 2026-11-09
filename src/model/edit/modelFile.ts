@@ -37,6 +37,20 @@ function workspaceOf(root: any): any {
 // refused (_fileRefusal), which a section of what was read does not.
 const editsAsMatFile = (variables: any): boolean => typeof variables?._fileRefusal === 'function';
 
+// The parts every package Simulink writes holds, which name its other parts.
+const NAMING_PARTS = ['[Content_Types].xml', '_rels/.rels'];
+
+// Whether `why`, why the workspace takes no edit, is core's verdict on the model's package (the one
+// ModelWorkspaceNode keeps once it has found one) for a package that lacks a naming part, which the
+// verdict names, quoted: a file Simulink did not save as it saves a model. Its other verdicts (a
+// part that could not be read, or is no longer held) say which part, and keep core's words.
+function lacksNamingPart(variables: any, why: string): boolean {
+  if (why !== variables._packageVerdict) return false;
+  const entries = variables.parent?._zipEntries;
+  const missing = entries ? NAMING_PARTS.find((part) => !Object.prototype.hasOwnProperty.call(entries, part)) : undefined;
+  return missing !== undefined && why.includes(`"${missing}"`);
+}
+
 // Whether the model's configuration sets take an edit: core's answer (ModelNode.configEditRefusal),
 // which a core that edits none does not give.
 function setsTakeEdits(root: any): boolean {
@@ -119,12 +133,19 @@ export const MODEL_FILE: EngineFile = {
     return rowId === buildSectionRowId(CONFIG_SECTION) || rowId.startsWith(id + '/') ? { sectionName: CONFIG_SECTION, containerId: id } : null;
   },
   readOnly: (variables) => !editsAsMatFile(variables) || !!variables.readOnly,
-  // Core's words, which say why: a workspace made anew from another source as the model opens, a
-  // package a save could not put back together.
+  // Why, for the banner. Core's words where they are a user's: a workspace made anew from another
+  // source as the model opens ("…is loaded from the MAT-file "init.mat" each time the model
+  // opens…"), a part of the package that could not be read, a MAT-file's own refusal. A package with
+  // no [Content_Types].xml or _rels/.rels, which core's verdict names ('it holds no
+  // "[Content_Types].xml"'), is said as what it means to the user: a file Simulink did not save as it
+  // saves a model. A core that keeps no verdict, or names no part, gets its own words.
   readOnlyWhy(name, variables) {
     if (!editsAsMatFile(variables)) return `Read-only: ${name}'s Model Workspace is held in a way this editor does not save, so it opens for viewing only.`;
     if (!variables.readOnly) return undefined;
     const why = variables._fileRefusal();
+    if (why && lacksNamingPart(variables, why)) {
+      return `Read-only: ${name} is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.`;
+    }
     return `Read-only: ${why ?? `${name} takes no edit of its Model Workspace.`}`;
   },
 };

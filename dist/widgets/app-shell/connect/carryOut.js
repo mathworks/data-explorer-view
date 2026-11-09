@@ -7,6 +7,40 @@
 // connectShell's, before any of this.
 import { tableActionOf } from './toolbarItems.js';
 const message = (err) => (err instanceof Error ? err.message : String(err));
+/** The element the focus is on, through the shadow roots on the way: a table's grid, not it. */
+function focusedElement() {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement)
+        el = el.shadowRoot.activeElement;
+    return el;
+}
+/**
+ * Show Root (`show`), which hides the active tab's `panel`. A browser drops a focus inside the panel
+ * (a table's, Show Graph's chord or Show in Graph used there) to the page's body: that one goes to
+ * `toRoot`, where the tab row's does as Root shows. Read before the panel hides, by the shadow host
+ * the focus is in, which :focus-within matches the panel by; and let go of first, as the tab row's
+ * is, so a graph still being drawn takes it once it is.
+ */
+export function showRootFrom(panel, show, toRoot) {
+    const held = !!panel && !!document.activeElement && panel.contains(document.activeElement);
+    show();
+    if (!held)
+        return;
+    focusedElement()?.blur();
+    toRoot();
+}
+/**
+ * The name New offers for a new dictionary: `untitled.sldd`, or while a tab has that name,
+ * `untitled1.sldd` and on, as Simulink names a new model, so two new files are told apart.
+ */
+export function untitledName(taken) {
+    const names = new Set(taken);
+    for (let n = 0;; n++) {
+        const name = `untitled${n === 0 ? '' : n}.sldd`;
+        if (!names.has(name))
+            return name;
+    }
+}
 /** Carry out the command `id` on `tab`, the tab active when it was given. */
 export function carryOut(id, tab, on) {
     const action = tableActionOf(id);
@@ -18,14 +52,35 @@ export function carryOut(id, tab, on) {
     // NotAllowedError) says why; one the user cancelled (AbortError) is an answer, and says nothing.
     const pickFailed = (what) => (err) => {
         if (!(err instanceof Error && err.name === 'AbortError'))
-            on.failed(`Could not open ${what}: ${message(err)}`);
+            on.failed(`Could not ${what}: ${message(err)}`);
     };
     switch (id) {
+        case 'new-file': {
+            // Where it goes, a name no tab has offered; null is a cancel.
+            const suggested = untitledName(on.tabs.items.map((t) => t.name));
+            void on.host
+                .newFile?.(suggested)
+                .then((path) => (path === null ? undefined : on.openNew(path)), pickFailed('make a new file'))
+                .catch((err) => on.failed(`Could not make a new file: ${message(err)}`));
+            break;
+        }
         case 'open-file':
-            void on.host.pickFiles().then(on.openPaths, pickFailed('a file'));
+            void on.host.pickFiles().then(on.openPaths, pickFailed('open a file'));
             break;
         case 'open-folder':
-            void on.host.pickFolder?.().catch(pickFailed('a folder'));
+            void on.host.pickFolder?.().catch(pickFailed('open a folder'));
+            break;
+        case 'open-url':
+            // Asked only of a host that fetches, and its fetch read again once the address is typed, as
+            // every member is read when it is needed. What it says of an address it did not fetch is the
+            // user's to read as it is.
+            if (!on.host.fetchUrl)
+                break;
+            void on.askUrl().then((url) => {
+                if (url === null || !on.host.fetchUrl)
+                    return;
+                return on.host.fetchUrl(url).then((path) => on.openPaths([path]), (err) => on.failed(message(err)));
+            });
             break;
         case 'save':
         case 'save-as':
@@ -39,14 +94,28 @@ export function carryOut(id, tab, on) {
             if (tab)
                 on.close(tab);
             break;
+        case 'copy-link':
+            on.copyLink(tab);
+            break;
         case 'undo':
         case 'redo':
             tab?.handle?.[id]();
             break;
         case 'next-tab':
         case 'previous-tab':
+            // Round the focused pane's tabs: the other pane's are a Mod+1 or Mod+2 away.
             if (on.tabs.cycle(id === 'next-tab' ? 1 : -1))
                 on.shown();
+            break;
+        case 'split-right':
+        case 'move-to-other-pane':
+            // The tab moves, and is shown and focused where it went; a pane's only tab makes no new pane.
+            if (tab)
+                on.rearrange(() => on.tabs.split(tab, id === 'split-right' ? 'right' : on.tabs.otherSide(tab)));
+            break;
+        case 'focus-pane-1':
+        case 'focus-pane-2':
+            on.goToPane(id === 'focus-pane-1' ? 0 : 1);
             break;
         case 'focus-filter':
             tab?.table?.focusFilter();
@@ -57,10 +126,26 @@ export function carryOut(id, tab, on) {
             on.nav[id]();
             on.later();
             break;
+        case 'folder-up':
+            on.folder.up();
+            break;
+        case 'folder-refresh':
+            on.folder.refresh();
+            break;
+        case 'compare-with':
+            if (tab)
+                on.compareWith(tab);
+            break;
+        case 'next-change':
+        case 'previous-change':
+            tab?.compare?.step(id === 'next-change' ? 1 : -1);
+            break;
         case 'show-graph':
-            // The Explorer's Root, where the relationship graph is drawn.
-            if (on.tabs.deactivate())
-                on.shown();
+            // The Explorer's Root, where the relationship graph is drawn, the keyboard kept (showRootFrom).
+            showRootFrom(on.tabs.active?.panel, () => {
+                if (on.tabs.deactivate())
+                    on.shown();
+            }, on.keyboardToRoot);
             break;
     }
 }

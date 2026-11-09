@@ -45,6 +45,14 @@ export declare class DexAddGallery extends LitElement {
      */
     inline: boolean;
     /**
+     * Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app
+     * shell's sidebar), with no frame until one is pointed at or focused, and each badge under its
+     * label: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole
+     * palette is on screen. Default false: the popover's 96px tiles, as the table draws them.
+     * Attribute `compact`, reflected, which the layout's rules select on.
+     */
+    compact: boolean;
+    /**
      * The classes a MAT-file can take a new variable of, as core lists them, or null for a
      * dictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has
      * no sections, so no tile names one, and nothing is offered that the file cannot take.

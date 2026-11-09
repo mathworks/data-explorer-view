@@ -11,7 +11,8 @@
 // read the released tree back into the registry), what a write that throws or is refused costs the
 // edits behind it (nothing: they land over the text as it is, and the banner says the failure once),
 // and two moves the opposite ways between two documents at once, which must both finish (each lets
-// its own document's queue go once its paste half is written, before it waits on the other's).
+// its own document's queue go once its paste half is written, before it waits on the other's). And a
+// replacing copy (a compare's Copy to Right, dropReplacing), which takes its turn as a drop does.
 import * as assert from 'node:assert';
 import { createSession } from 'data-explorer-core';
 import { describe, it } from 'vitest';
@@ -257,5 +258,38 @@ describe('A move out of a JSON dictionary', () => {
     heardA.stop();
     heardB.stop();
     assert.deepStrictEqual([...errors(heardA.said), ...errors(heardB.said)], [], 'neither said a word');
+  });
+});
+
+describe("A replacing copy into a JSON dictionary (a compare's Copy to Right)", () => {
+  it("with an edit of it in another table on its way: the copy waits for that write, and both land", async () => {
+    const registers = createRegisters();
+    const registry = new DocumentRegistry(createSession());
+    const from = await open(WORKSPACE_PARAMS, undefined, { as: 'copied_from.sldd', registers, registry });
+    await from.view.source.edit({ rowId: entryRow(from.view.posts, 'gravity').ID, columnId: 'Value', oldValue: '9.81', newValue: '9.5' });
+    await settle();
+    const text = lateStore(WORKSPACE_PARAMS);
+    const target = await tableOver(text, 'copied_over.sldd', WORKSPACE_PARAMS, { registers, registry });
+    const other = viewOf(target.engine);
+    other.send({ type: 'ready' });
+    await waitFor("the other table's rows", () => other.posts.some((p) => p.type === 'setRows'));
+    await settle();
+    const here = hear(target.view);
+    const there = hear(other);
+    const names = entryNames(text.store.text);
+    from.view.send({ type: 'dragStart', rowIds: [entryRow(from.view.posts, 'gravity').ID] });
+    // An edit of the target in its other table, on its way to the text; and, at once, the copy of
+    // the source's gravity over the target's.
+    const edited = other.source.edit({ rowId: entryRow(other.posts, 'negD').ID, columnId: 'Value', oldValue: '-1', newValue: '-2' });
+    const copied = target.view.source.dropReplacing('section:design', [entryRow(target.view.posts, 'gravity').ID]);
+    from.view.send({ type: 'dragEnd' });
+    await Promise.all([edited, copied]);
+    await settle();
+    here.stop();
+    there.stop();
+    assert.deepStrictEqual([...errors(here.said), ...errors(there.said)], [], 'neither table said a word in its banner');
+    assert.deepStrictEqual([...entryNames(text.store.text)].sort(), [...names].sort(), 'the copy took the place of the entry of its name');
+    assert.strictEqual((await rowIn(text.store.text, 'gravity')).Value, '9.5', 'the copy is in the text');
+    assert.strictEqual((await rowIn(text.store.text, 'negD')).Value, '-2', "and the other table's edit");
   });
 });

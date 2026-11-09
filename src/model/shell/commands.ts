@@ -28,7 +28,7 @@
 // which runCommand turns back into its lines, and any other failure (the target's) becomes an
 // error line with its message, as the window has no one to catch it.
 import { ADD_CATALOG, matCatalog, sectionTile } from '../ids/addCatalog.js';
-import { isSectionRowId } from '../ids/sectionRowId.js';
+import { isEntryRow, isSectionRowId } from '../ids/sectionRowId.js';
 import type { TreeTableRow } from '../rows/tableRow.js';
 import type { CellEdit, InspectorView, NewEntry, TableView } from '../source/tableSource.js';
 
@@ -97,8 +97,12 @@ export interface CommandTarget {
   rows(): TreeTableRow[];
   /** The property inspector's page for a row (`TableSource.inspect`). */
   inspect(rowId: string): Promise<InspectorView>;
-  /** A row's raw data. Absent: `json` says there is none for this document. */
-  raw?(rowId: string): Promise<CommandRaw>;
+  /**
+   * A row's raw data (`TableSource.raw`). `json` asks with `record`: the record a save writes, as
+   * JSON, in place of the bytes a MAT-file's variable was read from. Absent: `json` says there is
+   * none for this document.
+   */
+  raw?(rowId: string, options?: { record?: boolean }): Promise<CommandRaw>;
   /** Write a cell edit back (`EditableTableSource.edit`). Absent: the document is read-only. */
   edit?(edit: CellEdit): void | Promise<void>;
   /** Create a new default entry (`EditableTableSource.addEntry`). */
@@ -188,8 +192,8 @@ const HELP: readonly OutputLine[] = [
   out("  info <name>                    an entry's properties"),
   out("  json <name>                    an entry's raw data"),
   out('  set <name>[.<Column>] <value>  set a cell of the table'),
-  out('  add <class> [<name>]           add an entry of a class, by that name,'),
-  out('      [--section <key>]          in that section: design, arch or config'),
+  out('  add <class> [<name>]           add an entry of a class (Simulink.Parameter, or Parameter),'),
+  out('      [--section <key>]          by that name, in that section: design, arch or config'),
   out('  rm <name>                      delete an entry'),
   out('  save                           save the document'),
   info('MATLAB syntax:'),
@@ -338,12 +342,6 @@ function valueOf(row: TreeTableRow): string {
   return cls ? `<${cls}>` : '';
 }
 
-/**
- * A top-level entry, as selectByName decides one: its parent is a section heading or, in a table
- * with no section rows (a MAT-file's), it has no parent and is no heading itself.
- */
-const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
-
 // Whether a row's label is `part`: as written, or, for a part with an index, with the spaces in
 // it ignored (`Mat(1, 1)` is the row labelled `Mat(1,1)`).
 function sameLabel(row: TreeTableRow, part: string): boolean {
@@ -360,10 +358,10 @@ const baseOf = (part: string): string | null => /^([A-Za-z_]\w*)[({]/.exec(part)
  * index (`Mat(1,1)` under Mat); any row; a block by its key.
  */
 function named(rows: readonly TreeTableRow[], name: string): TreeTableRow | undefined {
-  const entry = rows.find((r) => isEntry(r) && sameLabel(r, name));
+  const entry = rows.find((r) => isEntryRow(r) && sameLabel(r, name));
   if (entry) return entry;
   const base = baseOf(name);
-  const holder = base === null ? undefined : rows.find((r) => isEntry(r) && labelOf(r) === base);
+  const holder = base === null ? undefined : rows.find((r) => isEntryRow(r) && labelOf(r) === base);
   const element = holder && rows.find((r) => r.parent === holder.ID && sameLabel(r, name));
   return element ?? rows.find((r) => sameLabel(r, name)) ?? rows.find((r) => r._blockKey === name);
 }
@@ -442,7 +440,7 @@ function findRow(rows: readonly TreeTableRow[], path: string, doc: CommandDoc): 
 function suggestion(rows: readonly TreeTableRow[], path: string): string {
   const lower = path.toLowerCase();
   const same = (r: TreeTableRow) => labelOf(r).toLowerCase() === lower;
-  const near = rows.find((r) => same(r) && isEntry(r)) ?? rows.find(same);
+  const near = rows.find((r) => same(r) && isEntryRow(r)) ?? rows.find(same);
   return near ? ` Did you mean "${labelOf(near)}"?` : '';
 }
 
@@ -532,7 +530,7 @@ function list(target: CommandTarget, name: string): OutputLine[] {
     if (under.length === 0) return [info(row._lazy ? notLoaded(row) : `"${name}" has no rows under it.`)];
     return capped(listing(under).map(out));
   }
-  const entries = rows.filter(isEntry);
+  const entries = rows.filter(isEntryRow);
   if (entries.length === 0) return [info(`${doc.name} has no entries.`)];
   // The table's order keeps each section's entries together, so a heading goes before the first
   // entry of each; a section with none has no heading, and a document with none (a MAT-file) none.
@@ -571,13 +569,17 @@ async function properties(target: CommandTarget, name: string): Promise<OutputLi
   return groups.flatMap((g) => [info(g.title), ...g.properties.map((p) => out(`  ${p.name.padEnd(width)}  ${p.value}`.trimEnd()))]);
 }
 
-/** `json <name>`: the row's raw text, line by line, or why there is none to show. */
+/**
+ * `json <name>`: the row's raw text, line by line, or why there is none to show. Its record, as the
+ * prototype printed a node's serialized form: a MAT-file's variable is its value as JSON, not the
+ * bytes the Raw pane dumps (which only a variable too large to write out still is).
+ */
 async function rawOf(target: CommandTarget, name: string): Promise<OutputLine[]> {
   if (!name) return [error('Usage: json <name>')];
   const doc = activeDoc(target);
   const row = findRow(target.rows(), name, doc);
   if (!target.raw) return [error(`Raw data is not available for ${doc.name}.`)];
-  const raw = await target.raw(row.ID);
+  const raw = await target.raw(row.ID, { record: true });
   if (typeof raw.text === 'string' && raw.text !== '') {
     const lines = raw.text.split(/\r?\n/);
     if (lines.at(-1) === '') lines.pop();
@@ -738,9 +740,15 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
   // Refused before anything is added: a rename to it would be, and leave a default-named entry.
   if (/\s/.test(name)) return [error(`"${name}" has a space in it, which a name cannot.`)];
   // The tiles of the class, in the gallery's order (Design Data's before Architectural Data's); a
-  // class typed in another case is still the class.
+  // class typed in another case is still the class, and so is its short name, the last part of its
+  // dotted name, as the prototype took `add Parameter x`: where two classes end in it, which.
   let tiles = choices.filter((c) => c.className === asked);
   if (tiles.length === 0) tiles = choices.filter((c) => c.className.toLowerCase() === asked.toLowerCase());
+  if (tiles.length === 0) {
+    tiles = choices.filter((c) => shortName(c.className) === asked.toLowerCase());
+    const meant = [...new Set(tiles.map((c) => c.className))];
+    if (meant.length > 1) return [error(`"${asked}" could be ${meant.join(' or ')}: give the class in full.`)];
+  }
   if (tiles.length === 0) return [error(`${doc.name} cannot take a "${asked}".`), takes];
   let choice = tiles[0]!;
   const section = option?.[1];
@@ -753,7 +761,7 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
   }
   const before = new Set(target.rows().map((r) => r.ID));
   await target.addEntry({ section: choice.section, className: choice.className, rename: false });
-  const created = target.rows().find((r) => !before.has(r.ID) && isEntry(r));
+  const created = target.rows().find((r) => !before.has(r.ID) && isEntryRow(r));
   if (!created) return [error(`No ${choice.className} was added.`)];
   const made = labelOf(created);
   if (!name || name === made) return [out(`Created "${made}" (${choice.className}).`)];
@@ -764,6 +772,9 @@ async function add(target: CommandTarget, args: string): Promise<OutputLine[]> {
     ? [out(`Created "${name}" (${choice.className}).`)]
     : [error(`Created "${made}" (${choice.className}), but could not name it "${name}".`)];
 }
+
+/** A class's short name, in lower case: the last part of its dotted name (`parameter` of `Simulink.Parameter`). */
+const shortName = (className: string): string => className.slice(className.lastIndexOf('.') + 1).toLowerCase();
 
 /** `rm <name>`: delete the row, an entry or a row inside one, as the table's Delete would. */
 async function remove(target: CommandTarget, name: string): Promise<OutputLine[]> {

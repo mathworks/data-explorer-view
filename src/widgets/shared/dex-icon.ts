@@ -91,10 +91,23 @@ function iconUrl(id: string): string {
   return (iconUrls && Object.hasOwn(iconUrls, id) ? iconUrls[id] : undefined) ?? `${iconBase}${id}.svg`;
 }
 
+// The mono glyph's alpha, from the luma of each pixel of the icon (Rec. 709's weights, those of
+// SVG's luminanceToAlpha, on the colour as written: the filter's colour-interpolation is sRGB):
+// 3.75 - 5 * luma, which a filter clamps to 0..1. Every pixel at luma 0.55 or darker is whole ink,
+// every one at 0.75 or lighter none, the rest between. The icons are drawn in two bands that this
+// splits: their strokes and glyphs in mid greys and deep colours (#616161 to #888888, green
+// #008013, blue #1656A7, red #902622, at most 0.55), their tiles and fills in white, light grey and
+// pastels (#D9D9D9 and lighter, at least 0.84). Two are drawn between and come out part ink: the
+// gear's middle disc (settings.svg, #A6A6A6, luma 0.65, alpha 0.5), which reads as a ring, and
+// Delete's red tile (#FF9D9A, 0.70, alpha 0.27), a faint fill. The colour rows are zero: the flood
+// colours it.
+const INK_MATRIX = '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1.0625 -3.577 -0.3605 0 3.75';
+
 /**
  * One icon of the package's `icons/` folder, drawn as an `<img>` of `<base><id>.svg` (see
  * setIconBase), or of the URL useIconAssets gave it. A data-model kind (`struct`, `bus`, …) is
- * drawn as the icon that stands for it. Decorative: hidden from assistive technology, so the
+ * drawn as the icon that stands for it. With `mono` it is drawn in one colour, the element's own
+ * (`color`), as a glyph of a toolbar is. Decorative: hidden from assistive technology, so the
  * element beside it carries the name.
  *
  * @tagname dex-icon
@@ -108,8 +121,12 @@ export class DexIcon extends LitElement {
       vertical-align: middle;
     }
 
-    img {
+    img,
+    svg {
       display: block;
+    }
+
+    img {
       /* The icons are drawn for a light background (white tiles, grey and blue strokes), and an
          <img> cannot restyle the SVG inside it. A dark theme sets this token to turn them over:
          theme.css inverts their lightness and rotates the hue back, so a blue stroke stays blue. */
@@ -124,12 +141,41 @@ export class DexIcon extends LitElement {
   @property({ type: String, attribute: 'icon-id' }) iconId = '';
   /** Its width and height in CSS pixels. Default 16. Attribute `size`. */
   @property({ type: Number }) size = 16;
+  /**
+   * Draws the icon in one colour, the element's `color` (currentColor), as a toolbar's or an
+   * activity bar's glyph: its strokes and dark shapes in that colour, its light fills left out, so
+   * the button's own background shows through them. The dark set's `--dex-icon-filter` is not
+   * applied: the colour is the theme's already. Each mono icon runs an SVG filter of its own, so
+   * it is for the handful of glyphs an app's chrome draws, not for every row of a long list. An id
+   * with no file draws nothing, where the `<img>` draws a broken image. Off, the default, draws the
+   * icon in the colours its file has. Attribute `mono`.
+   */
+  @property({ type: Boolean }) mono = false;
 
   override render() {
     if (!this.iconId) {
       return html``;
     }
     const resolved = resolveId(this.iconId);
+    // The file as an SVG <image>, through a filter (INK_MATRIX) that turns its dark pixels into
+    // the alpha of a flood of currentColor. An <image> is fetched as an <img> is, under the page's
+    // img-src and from file:// too; a CSS mask, the other way to paint an image in currentColor,
+    // is fetched in CORS mode, which a page on file:// (an Electron app's) is refused, and an alpha
+    // mask fills every white tile of an icon solid. The filter's id is this shadow root's own, which
+    // is where `url(#ink)` is looked up, so every icon on the page may use the same one.
+    if (this.mono) {
+      return html`
+        <svg width="${this.size}" height="${this.size}" aria-hidden="true" focusable="false">
+          <filter id="ink" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
+            <feColorMatrix in="SourceGraphic" type="matrix" values="${INK_MATRIX}" result="dark"></feColorMatrix>
+            <feComposite in="dark" in2="SourceAlpha" operator="in" result="shape"></feComposite>
+            <feFlood flood-color="currentColor"></feFlood>
+            <feComposite in2="shape" operator="in"></feComposite>
+          </filter>
+          <image href="${iconUrl(resolved)}" width="${this.size}" height="${this.size}" filter="url(#ink)"></image>
+        </svg>
+      `;
+    }
     return html`
       <img
         src="${iconUrl(resolved)}"

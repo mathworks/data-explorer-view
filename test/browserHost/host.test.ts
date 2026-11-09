@@ -162,8 +162,39 @@ describe('browserHost', () => {
     // A copy written elsewhere is no change to the open file.
     await vi.advanceTimersByTimeAsync(POLL_MS);
     expect(changed).toEqual([]);
-    const blocked = await files.addPicked('c.sldd', { kind: 'bytes', bytes: bytesOf('held') });
-    await expect(host.saveFile(blocked, bytesOf('x'))).rejects.toThrow(/Use Save As/);
+    // A file with no handle to write it through is downloaded, and the page holds what it downloaded.
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:saved');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const held = await files.addPicked('c.sldd', { kind: 'bytes', bytes: bytesOf('held') });
+    expect(await host.saveFile(held, bytesOf('x'))).toEqual({ overwritten: false, downloaded: true });
+    expect(clicked).toHaveBeenCalledTimes(1);
+    expect(text(await host.readFile(held))).toBe('x');
+  });
+
+  it("gives a Save As or a New written into the shown folder the folder's path, so its tree and its tab are one file", async () => {
+    // Chromium's save picker may name a file in the folder the Explorer shows, one the folder has
+    // not listed yet. Under a pick's path, the folder's next look listed it a second time, and
+    // opening it there opened a second tab.
+    const proj = fakeDir('proj', { 'a.sldd': 'one' });
+    let next: FakeFileHandle | undefined;
+    const { host, files, folders } = hostOf({
+      showSaveFilePicker: async () => {
+        next!.writePermission = 'granted';
+        return asFile(next!);
+      },
+    });
+    await host.openFolder({ kind: 'handle', handle: asDir(proj) });
+    const picked = await files.addPicked('x.sldd', { kind: 'bytes', bytes: bytesOf('x') });
+    next = proj.add('sub/copy.sldd');
+    expect(await host.saveFileAs(picked, bytesOf('copied'))).toEqual({ path: '/proj/sub/copy.sldd', overwritten: false });
+    expect(text(proj.file('sub/copy.sldd').bytes)).toBe('copied');
+    next = proj.add('made.sldd');
+    expect(await host.newFile!('untitled.sldd')).toBe('/proj/made.sldd');
+    // A new dictionary written there at once, read back through the folder's path.
+    expect((await host.readFile('/proj/made.sldd')).length).toBeGreaterThan(0);
+    // The folder lists each under the path it opened at.
+    expect(await listed(folders[0].port)).toEqual(['/proj/a.sldd', '/proj/made.sldd', '/proj/sub/copy.sldd']);
   });
 
   it('looks at the shown folder again when the page is shown or its window focused, at most once every LOOK_EVERY_MS', async () => {
@@ -265,16 +296,67 @@ describe('browserHost', () => {
 
   it('gives an app the files it may add to and ask about, and nothing of the rest', async () => {
     const { host } = hostOf();
-    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'get', 'has']);
+    expect(Object.keys(host.files).sort()).toEqual(['addPicked', 'addToGroup', 'get', 'has', 'urlOf']);
     const path = await host.files.addPicked('a.sldd', { kind: 'bytes', bytes: bytesOf('fetched') });
     expect(host.files.has(path)).toBe(true);
     expect(host.files.get(path)?.name).toBe('a.sldd');
     expect(text(await host.readFile(path))).toBe('fetched');
   });
 
+  it("adds an app's files to a group it names, one folder whenever each comes, the paths to open", async () => {
+    const { host } = hostOf();
+    const first = await host.files.addToGroup('site', [{ name: 'plant.slx', source: { kind: 'bytes', bytes: bytesOf('model') } }]);
+    const later = await host.files.addToGroup('site', [{ name: 'plant.sldd', source: { kind: 'bytes', bytes: bytesOf('dictionary') } }]);
+    expect([first, later]).toEqual([['/files/1/plant.slx'], ['/files/1/plant.sldd']]);
+    expect(text(await host.readFile(later[0]!))).toBe('dictionary');
+  });
+
+  it("tells a file the group's newer one replaced as a change on disk, if it is open, and once", async () => {
+    vi.useFakeTimers();
+    const { host, changed } = hostOf();
+    const [open] = await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'handle', handle: asFile(new FakeFileHandle('a.sldd', 'one')) } }]);
+    const [shut] = await host.files.addToGroup('site', [{ name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);
+    await host.readFile(open!);
+    await host.files.addToGroup('site', [
+      { name: 'a.sldd', source: { kind: 'handle', handle: asFile(new FakeFileHandle('a.sldd', 'two')) } },
+      { name: 'b.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } },
+    ]);
+    // The open one is told; the other, which no tab reads, is read anew when it is opened.
+    expect(changed).toEqual([open]);
+    expect(text(await host.readFile(open!))).toBe('two');
+    expect(text(await host.readFile(shut!))).toBe('two');
+    // Known by the new file's stamp: the next look finds no change to tell again.
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    expect(changed).toEqual([open]);
+  });
+
+  it('tells nothing of an open file added to its group again as it was, as a second press of a Samples button does', async () => {
+    const { host, changed } = hostOf();
+    const fetched = () => [{ name: 'a.sldd', source: { kind: 'bytes' as const, bytes: bytesOf('same') } }];
+    const [path] = await host.files.addToGroup('site', fetched());
+    await host.readFile(path!);
+    expect(await host.files.addToGroup('site', fetched())).toEqual([path]);
+    expect(changed).toEqual([]);
+  });
+
+  it('without onChanged replaces a file in a group and tells nothing', async () => {
+    const { host } = hostOf({}, { onChanged: undefined });
+    const [path] = await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('one') } }]);
+    await host.readFile(path!);
+    expect(await host.files.addToGroup('site', [{ name: 'a.sldd', source: { kind: 'bytes', bytes: bytesOf('two') } }])).toEqual([path]);
+    expect(text(await host.readFile(path!))).toBe('two');
+  });
+
   it('passes over a dropped folder without onFolder', async () => {
     const { host } = hostOf({}, { onFolder: undefined });
     expect(await host.openDropped(dataTransferOf([{ handle: fakeDir('proj', { 'a.sldd': '' }) }]).data)).toEqual([]);
+  });
+
+  it("names a file in the shell's tooltips by what its path means to the user, not the path it made up", async () => {
+    const { host, files } = hostOf();
+    const picked = await files.addPicked('plant.sldd', { kind: 'bytes', bytes: bytesOf('{}') });
+    expect(picked).toBe('/files/1/plant.sldd');
+    expect(host.pathTitle!(picked)).toBe('plant.sldd');
   });
 
   it('sets the page\'s title', () => {

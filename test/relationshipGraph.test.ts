@@ -142,8 +142,9 @@ describe('a file referenced and not given', () => {
   it('is a ghost box, of the kind the reference says, with no uri, no items, and the reference as written', () => {
     const g = buildRelationshipGraph([file(CASEREFS, 'caseRefs.slx')]);
     expect(g.boxes.map((b) => [b.label, b.kind, b.ghost, b.uri, b.items.length, b.ref])).toEqual([
-      // A file given has no reference to carry: it is named by its uri.
-      ['caseRefs.slx', 'model', false, 'mem:///w/caseRefs.slx', 0, undefined],
+      // A file given has no reference to carry: it is named by its uri. Its four blocks are its
+      // items though nothing they read is open (the next describe block).
+      ['caseRefs.slx', 'model', false, 'mem:///w/caseRefs.slx', 4, undefined],
       // Labelled as the model spells them, and carrying that spelling for an app to resolve as it
       // resolves a link: it is the only name there is for a file not read.
       ['caseparams.sldd', 'sldd', true, '', 0, 'caseparams.sldd'],
@@ -180,6 +181,35 @@ describe('a file referenced and not given', () => {
       'data-link ctrlA.slx -> sharedParams.sldd',
       'data-link plantB.slx -> sharedParams.sldd',
     ]);
+  });
+});
+
+describe('a model whose data is not open', () => {
+  // The prototype listed every block of a model that names something in a parameter, whether or
+  // not what it names was open: a model opened alone still opened onto its blocks, and its box had
+  // a + to do it with. Listing only the blocks with a usage drawn left such a model with no items,
+  // so no +, and nothing to show of what it reads.
+  it('lists every block whose parameter names something, read from an open file or not', () => {
+    const g = buildRelationshipGraph([file(CASEREFS, 'caseRefs.slx')]);
+    expect(box(g, 'caseRefs.slx').items.map((i) => [i.name, i.group, i.revealName])).toEqual([
+      ['Const1', 'data', '4'],
+      ['Gain1', 'data', '1'],
+      ['Gain2', 'data', '2'],
+      ['Gain3', 'data', '3'],
+    ]);
+    // The same items, ids included, as when the data is open and the usages are drawn: a box opened
+    // before the dictionary was keeps its items open after.
+    const open = buildRelationshipGraph(caseRefs());
+    expect(box(g, 'caseRefs.slx').items).toEqual(box(open, 'caseRefs.slx').items);
+    expect(edgesOf(g, ['param-usage', 'ws-usage'])).toEqual([]);
+  });
+
+  it('lists no block whose parameters name nothing', () => {
+    const blocks =
+      '<Block BlockType="Gain" Name="Fixed" SID="1"><P Name="Gain">[1 2 3]</P></Block>' +
+      '<Block BlockType="Gain" Name="Named" SID="2"><P Name="Gain">Kp</P></Block>';
+    const g = buildRelationshipGraph([raw('/w/m.slx', slx({ blocks }))]);
+    expect(box(g, 'm.slx').items.map((i) => i.name)).toEqual(['Named']);
   });
 });
 
@@ -306,8 +336,11 @@ describe('a mask and a workspace in a MAT-file', () => {
       `<System><Block BlockType="Gain" Name="Gain" SID="154"><P Name="Gain">g1</P></Block></System>` +
       `</Block>`;
     const g = buildRelationshipGraph([raw('/w/plant.slx', slx({ blocks, workspaceMat: new Uint8Array(ND()) }))]);
+    // The inner Gain is an item, as every block naming something is, with no edge: what it reads
+    // is the mask's, no file's and no workspace's.
     expect(box(g, 'plant.slx').items.map((i) => [i.name, i.group, i.revealName])).toEqual([
       ['MulAdd', 'data', '158'],
+      ['MulAdd/Gain', 'data', '154'],
       ['Vec', 'workspace', 'Vec'],
     ]);
     expect(edgesOf(g)).toEqual(['ws-usage plant.slx:MulAdd -> plant.slx:Vec (g1)']);

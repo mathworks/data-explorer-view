@@ -12,6 +12,7 @@ import { parseLinkTarget } from '../../src/model/ids/linkTarget.js';
 import { sourceUri, uriPath } from '../../src/model/source/sourceUri.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import { linkDestination } from '../../src/widgets/app-shell/connect/links.js';
+import { DexShellNote } from '../../src/widgets/app-shell/connect/dex-shell-note.js';
 import { activeTab, at, choose, fixture, inspectorNote, menuOn, open, rowOf, settled, startPage, tabNames, tableOf, until, welcomeShown } from './harness.js';
 
 const ALL = {
@@ -34,9 +35,12 @@ describe('the shell opens files as tabs', () => {
     expect(['params.sldd', 'rt_bin.sldd', 'ParamMat.mat', 'shared_gain.slx'].map((n) => tableOf(n)!.readonly)).toEqual([false, false, false, false]);
     expect(tableOf('legacy_ctrl.mdl')!.readonly).toBe(true);
     // shared_gain.slx was made by hand and names none of its parts: its Model Workspace opens for
-    // viewing only, as a MAT-file a save could not keep does, and says why.
+    // viewing only, as a MAT-file a save could not keep does, and says why in a user's words, not
+    // the package's part names (core's reason was 'it holds no "[Content_Types].xml"').
     await until(() => !!tableOf('shared_gain.slx')!.banners?.notice);
-    expect(tableOf('shared_gain.slx')!.banners?.notice).toMatch(/^Read-only: Cannot edit "shared_gain\.slx": it holds no "\[Content_Types\]\.xml"/);
+    expect(tableOf('shared_gain.slx')!.banners?.notice).toBe(
+      'Read-only: shared_gain.slx is not packaged the way Simulink saves a model, so it opens for viewing only: a save from here could lose part of it.',
+    );
   });
 
   it('a file already open is its tab again, not a second one', async () => {
@@ -75,6 +79,41 @@ describe('the shell opens files as tabs', () => {
     expect(tableOf('broken.sldd')!.rows).toEqual([]);
   });
 
+  it('says "Opening NAME…" in the tab while its file is read and parsed, as a status, and not once it is shown or failed', async () => {
+    // The tab was blank meanwhile. The note says it once the read has taken a moment (its own
+    // stylesheet holds it back a little), so a file read at once never flashes it.
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    const read = page.host.readFile;
+    const held: (() => void)[] = [];
+    page.host.readFile = (p) => new Promise((resolve, reject) => held.push(() => read(p).then(resolve, reject)));
+    const panel = (name: string) => document.querySelector<HTMLElement>(`.doc-panel[data-path="${at(name)}"]`);
+    const noteIn = (name: string) => panel(name)?.querySelector<HTMLElement>('dex-shell-note');
+    // Put in the page empty, its words a task later: a live region says what changes in it once it
+    // is there, and one put in with its words already is not always said.
+    const atInsert: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.localName === 'dex-shell-note') atInsert.push(n.textContent ?? '');
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    void page.handle.openPaths([at('params.sldd')]);
+    await until(() => noteIn('params.sldd')?.textContent === 'Opening params.sldd…');
+    watch.disconnect();
+    expect(atInsert).toEqual(['']);
+    expect(noteIn('params.sldd')!.getAttribute('role')).toBe('status');
+    held.shift()!();
+    await until(() => (tableOf('params.sldd')?.rows.length ?? 0) > 0);
+    expect(noteIn('params.sldd')).toBeNull();
+    // A read that fails takes the note away too, and its banner says why.
+    void page.handle.openPaths([at('gone.sldd')]);
+    await until(() => noteIn('gone.sldd')?.textContent === 'Opening gone.sldd…');
+    held.shift()!();
+    await until(() => !!tableOf('gone.sldd')?.banners?.error);
+    expect(noteIn('gone.sldd')).toBeNull();
+    // Held back by a delayed fade in, not hidden: in the accessibility tree from the start.
+    const css = [DexShellNote.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(css).toMatch(/:host\(\[role='status'\]\) \{ animation: [\w-]+ 0s \d+ms both; \}/);
+  });
+
   it('each file keeps its own column choices, under a key of its own', async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'rt_bin.sldd': 'rt_bin.sldd' });
     await open(page, 'params.sldd', 'rt_bin.sldd');
@@ -88,23 +127,26 @@ describe('the shell opens files as tabs', () => {
     expect(tableOf('params.sldd')!.storageKey).toBe(`my-app:${sourceUri(at('params.sldd'))}`);
   });
 
-  it('a dictionary outside a folder has no Usage column; a model has its own', async () => {
+  it('with no folder shown, a dictionary has a Usage column as a model does (openUsage.test.ts says what fills it)', async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx' });
     await open(page, 'params.sldd', 'shadow_ws.slx');
     await until(() => !!tableOf('shadow_ws.slx')!.columns?.includes('UsedBy'));
-    expect(tableOf('params.sldd')!.columns).not.toContain('UsedBy');
+    await until(() => !!tableOf('params.sldd')!.columns?.includes('UsedBy'));
   });
 
-  it('closing a tab activates its neighbour and the inspector shows its empty text', async () => {
+  it("closing a tab activates its neighbour and the inspector shows that file's page; none is left, its empty text", async () => {
     const page = startPage({ 'params.sldd': 'params.sldd', 'rt_bin.sldd': 'rt_bin.sldd' });
     await open(page, 'params.sldd', 'rt_bin.sldd');
     page.command('close-tab');
     await until(() => tabNames().length === 1);
     await until(() => !!activeTab()?.textContent?.includes('params.sldd'));
-    expect(inspectorNote().hidden).toBe(false);
+    const inspector = document.querySelector('dex-property-inspector')!;
+    await until(() => inspector.groups[0]?.properties[0]?.value === 'params.sldd');
+    expect(inspectorNote().hidden).toBe(true);
     page.command('close-tab');
     await until(() => tabNames().length === 0);
     await until(welcomeShown);
+    expect(inspectorNote().hidden).toBe(false);
     expect(document.title).toBe('Data Explorer');
   });
 
@@ -152,14 +194,15 @@ describe('the shell opens files as tabs', () => {
   it('a link into another file opens it, beside the file it is in, and selects the row it names', async () => {
     const page = startPage({ 'shadow_ws.slx': 'shadow_ws.slx', 'params.sldd': 'params.sldd' });
     await open(page, 'shadow_ws.slx');
-    // The WsGain block's Usage, Gain=Kp: Kp in the dictionary the model names.
-    const block = await rowOf('shadow_ws.slx', 'WsGain');
-    const link = (block.UsedBy as { linkTarget?: string }).linkTarget;
-    expect(link).toBe('Kp@params.sldd');
+    // The DictOnly block's Usage, Value=Uo: Uo in the dictionary the model names, not open, by its
+    // name. (WsGain's Kp is the model workspace's, which shadows the dictionary's.)
+    const block = await rowOf('shadow_ws.slx', 'DictOnly');
+    const link = (block.UsedBy as { paramLinks?: { linkTarget: string }[] }).paramLinks?.[0]?.linkTarget;
+    expect(link).toBe('Uo@params.sldd');
     tableOf('shadow_ws.slx')!.dispatchEvent(new CustomEvent('dex-link-clicked', { detail: { target: link }, bubbles: true, composed: true }));
     await until(() => tabNames().includes('params.sldd') && (tableOf('params.sldd')?.selectedRowIds.length ?? 0) > 0);
-    const kp = await rowOf('params.sldd', 'Kp');
-    expect(tableOf('params.sldd')!.selectedRowIds).toEqual([kp.ID]);
+    const uo = await rowOf('params.sldd', 'Uo');
+    expect(tableOf('params.sldd')!.selectedRowIds).toEqual([uo.ID]);
     await until(() => !!activeTab()?.textContent?.includes('params.sldd'));
   });
 

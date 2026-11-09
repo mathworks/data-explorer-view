@@ -2,10 +2,11 @@
 // What every gallery test shares: it fails on anything the page reports going wrong (a console
 // error, an uncaught exception, a request that failed or was answered with an error status, a
 // page served by another checkout's gallery); every navigation after its first waits for the
-// page's requests to settle; and it knows the gallery's pages and how to pick a theme.
+// page's requests to settle; and it knows the gallery's pages, how to pick a theme, how to open the
+// app page's compare, and how to keep a screenshot to look at.
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 /** The gallery these tests are of: what its servers say in X-Dex-Gallery (vite.config.ts). */
 const GALLERY = realpathSync(resolve(import.meta.dirname, '..'));
@@ -146,4 +147,29 @@ export function gridCells(page: Page) {
 /** One frame later: a widget that listens from the next frame on (a menu, an editor) is listening. */
 export async function nextFrame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
+}
+
+/**
+ * On the app page, its files open: Compare With… on the text dictionary's tab, and the zip one
+ * picked among the open files in the palette. Done once the compare's tab is the active one.
+ */
+export async function compareDictionaries(page: Page): Promise<void> {
+  const tab = (name: string) => page.locator('dex-doc-tabs').getByRole('tab', { name, exact: true });
+  await expect(tab('numeric_json.sldd')).toHaveAttribute('aria-selected', 'true');
+  await tab('object_props_text.sldd').click({ button: 'right' });
+  await page.locator('dex-context-menu').getByRole('menuitem', { name: 'Compare With…' }).click();
+  await expect(page.locator('dex-command-palette [role="combobox"]')).toBeFocused();
+  await page.locator('dex-command-palette [role="option"]').filter({ has: page.locator('.label', { hasText: exactly('object_props_binary.sldd') }) }).click();
+  await expect(tab('object_props_text.sldd ↔ object_props_binary.sldd')).toHaveAttribute('aria-selected', 'true');
+}
+
+/**
+ * Keep a screenshot of `target` (the page, or an element of it) as `name` in the test's output
+ * folder, for a person to look at. Not in WebKit: its screenshot first adds a <style> to the page,
+ * to line up its animations, the page's policy refuses it, and the refusal is a console error that
+ * fails the test.
+ */
+export async function keepScreenshot(page: Page, name: string, target: Page | Locator = page): Promise<void> {
+  if (page.context().browser()?.browserType().name() === 'webkit') return;
+  await target.screenshot({ path: test.info().outputPath(name) });
 }

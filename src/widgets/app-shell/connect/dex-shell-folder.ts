@@ -1,169 +1,128 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// The folder in the shell's Explorer, under the open files: its name, the search over its names,
-// its tree, and the note that says it holds nothing or could not be read. An internal part, made
-// and filled by connectShell only: what index.html's #folder-section was, and app.css drew
-// (data-explorer-app at 0983920).
+// The shell's Folder view: the workspace folder's path bar, its tree, a line that says what is
+// being read, and the note that says the folder holds nothing or could not be read; and with no
+// folder shown, that none is open, with Open Folder… and a drop, as the documents' welcome
+// offers files. An internal part, made and filled by connectShell only: what index.html's
+// #folder-section was, and app.css drew (data-explorer-app at 0983920), moved out of the
+// Explorer into a view of its own.
 //
-// The search box and its results list are made once, with the element, and drawn into its shadow
-// root by the template: installSearch (folderSearch.ts) wires them as it wired the app's, and they
-// exist from the start, before the first render, so connectShell can wire them at once.
+// The app's folder had a search box of its own over the folder's names. The shell has the Search
+// view, which searches those names and the open files' (Cmd/Ctrl+Shift+F): one search, so the box
+// is gone. The folder's name is the bar's last segment, so the title is gone too.
 
 import { LitElement, html, css, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
-import { basename } from '../../../model/ids/pathUtil.js';
 import { defineElement } from '../../shared/define.js';
-import { buttonFocusRingStyles } from '../../shared/focus.styles.js';
 import { hiddenStyles } from '../../shared/hidden.styles.js';
-import { highContrastStyles } from '../../shared/high-contrast.styles.js';
+import type { ToolbarActionDetail } from '../dex-toolbar.js';
 
 /**
- * The shell's folder: a title with the folder's name (its path the tooltip), a search box over the
- * folder's names, the list of matches that stands in for the tree while the box holds a query, the
- * `<dex-hierarchy>` it is given as its child, and `note` under it.
+ * The shell's Folder view: its children (the `<dex-folder-bar>` and the `<dex-hierarchy>` it is
+ * given), the `status` under them while a folder is read, and `note`. With no `root`, none of
+ * them: it says no folder is open, offers Open Folder… (where `canOpenFolder`) and a drop. Open
+ * Folder… sends `dex-toolbar-action` with `open-folder`, as the documents' welcome does.
  *
  * @tagname dex-shell-folder
  */
 export class DexShellFolder extends LitElement {
-  static override styles = [hiddenStyles, buttonFocusRingStyles, highContrastStyles, css`
-    /* Under the open files, and the rest of the side below them; never less than 40% of it, so a
-       long list of open files does not squeeze the folder out (the side scrolls instead). */
+  static override styles = [hiddenStyles, css`
+    /* The whole of its view: the bar, then the tree, which takes the rest and scrolls. */
     :host {
       display: flex;
       flex-direction: column;
       flex: 1 1 0;
-      min-height: 40%;
-      border-top: 1px solid var(--dex-border-color-light, #e0e0e0);
+      min-height: 0;
       font-family: var(--dex-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: var(--dex-font-size, 13px);
       color: var(--dex-color-text, #333);
     }
 
-    .title {
-      flex-shrink: 0;
-      padding: 8px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--dex-color-text-secondary, #555);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    input {
-      flex-shrink: 0;
-      margin: 0 8px 6px;
-      padding: 4px 6px;
-      font: inherit;
-      color: var(--dex-input-fg, #333);
-      background: var(--dex-input-bg, #fff);
-      border: 1px solid var(--dex-input-border, #c8c8c8);
-      border-radius: 3px;
-    }
-
-    input::placeholder {
-      color: var(--dex-input-placeholder-fg, #767676);
-    }
-
-    input:focus-visible {
-      outline: none;
-      border-color: var(--dex-color-accent, #0078d4);
-      box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
-    }
-
-    .results {
+    ::slotted(dex-hierarchy) {
       flex: 1 1 0;
       min-height: 0;
-      overflow: auto;
-      list-style: none;
-      margin: 0;
-      padding: 0;
     }
 
-    .results[hidden] {
-      display: none;
-    }
-
-    .search-result {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      padding: 3px 12px;
-      font: inherit;
-      text-align: left;
-      color: inherit;
-      background: transparent;
-      border: 0;
-      cursor: pointer;
-    }
-
-    .search-result:hover,
-    .search-result:focus-visible {
-      background: var(--dex-bg-hover, #e8e8e8);
-    }
-
-    .search-label {
-      flex: none;
-    }
-
-    .search-where {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--dex-color-text-muted, #666);
-    }
-
-    .search-none,
-    .note {
+    .note,
+    .status {
       padding: 4px 12px;
       color: var(--dex-color-text-muted, #666);
     }
 
-    ::slotted(*) {
-      flex: 1 1 0;
-      min-height: 0;
+    /* A live region that is always there, so the words put in it are said: empty, it takes no room. */
+    .status:empty {
+      padding: 0;
+    }
+
+    /* No folder: the documents' welcome, as small as a side is. */
+    .welcome {
+      padding: 24px 12px;
+      color: var(--dex-color-text-muted, #666);
+      text-align: center;
+    }
+
+    .welcome p {
+      margin: 0 0 8px;
+    }
+
+    /* White on the accent, as the welcome's buttons: the primary surface is white in the light
+       theme and the ink that reads on the accent in the others. */
+    button {
+      font: inherit;
+      padding: 4px 12px;
+      color: var(--dex-bg-primary, #fff);
+      background: var(--dex-color-accent, #0078d4);
+      border: 0;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--dex-color-accent-hover, #005a9e);
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--dex-color-accent, #0078d4);
+      outline-offset: 2px;
+    }
+
+    .hint {
+      font-size: 12px;
+    }
+
+    @media (forced-colors: active) {
+      button {
+        border: 1px solid ButtonText;
+      }
     }
   `];
 
-  /** The folder's path: its name is the title, the path the title's tooltip. Attribute `root`. */
+  /** The workspace folder's path; empty, the default, for none shown: the view then says so. Attribute `root`. */
   @property() root = '';
   /** What is said under the tree (it holds no data files, or could not be read); empty, the default, says nothing. Attribute `note`. */
   @property() note = '';
+  /** What is being read (`Reading models…`), in a live region over the note; empty, the default, says nothing. Attribute `status`. */
+  @property() status = '';
+  /** With no folder shown, offer Open Folder…: the host can show a folder. Attribute `can-open-folder`. */
+  @property({ type: Boolean, attribute: 'can-open-folder' }) canOpenFolder = false;
 
-  private readonly _input = Object.assign(document.createElement('input'), {
-    type: 'search',
-    placeholder: 'Search names',
-    spellcheck: false,
-  });
-  private readonly _results = Object.assign(document.createElement('ul'), { className: 'results', hidden: true });
-
-  constructor() {
-    super();
-    this._input.setAttribute('aria-label', "Search the folder's names");
-    this._results.setAttribute('aria-label', 'Search results');
-  }
-
-  /** The search box, for installSearch. */
-  get searchInput(): HTMLInputElement {
-    return this._input;
-  }
-
-  /** The list the matches are drawn in, for installSearch: hidden while the box holds no query. */
-  get searchResults(): HTMLUListElement {
-    return this._results;
+  private _openFolder(): void {
+    this.dispatchEvent(new CustomEvent<ToolbarActionDetail>('dex-toolbar-action', { detail: { actionId: 'open-folder' }, bubbles: true, composed: true }));
   }
 
   override render() {
-    // A trailing separator names the folder too (a root picked as `/work/plant/`).
-    const name = basename(this.root.replace(/[\\/]+$/, '')) || this.root;
+    if (!this.root) {
+      return html`
+        <div class="welcome">
+          <p>No folder is open.</p>
+          ${this.canOpenFolder ? html`<p><button type="button" @click=${() => this._openFolder()}>Open Folder…</button></p>` : nothing}
+          <p class="hint">or drop a folder onto this window</p>
+        </div>
+      `;
+    }
     return html`
-      <header class="title" title=${this.root || nothing}>${name || 'Folder'}</header>
-      ${this._input} ${this._results}
       <slot></slot>
+      <div class="status" role="status">${this.status}</div>
       ${this.note ? html`<div class="note">${this.note}</div>` : nothing}
     `;
   }

@@ -70,7 +70,7 @@ defineVariableEditor();
 | `data-explorer-view/error-dialog` | [`<dex-error-dialog>`](docs/widgets/error-dialog.md) |
 | `data-explorer-view/project-page` | [`<dex-project-page>`](docs/widgets/project-page.md), a project's page, and the HTML renderer and stylesheet it draws with |
 | `data-explorer-view/hierarchy` | [`<dex-hierarchy>`](docs/widgets/hierarchy.md), a folder's files and what each references, and `connectHierarchy` |
-| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
+| `data-explorer-view/app-shell` | [`<dex-app-shell>`](docs/widgets/app-shell.md), an app's window, with its [views](docs/widgets/shell-view.md) and [actions](docs/widgets/shell-action.md); its parts ([toolbar](docs/widgets/toolbar.md), [tabs](docs/widgets/doc-tabs.md), [location bar](docs/widgets/location-bar.md), [Explorer](docs/widgets/explorer.md), [folder bar](docs/widgets/folder-bar.md), [Settings](docs/widgets/settings-panel.md), [About](docs/widgets/about-panel.md), [toasts](docs/widgets/toast-host.md), [confirm dialog](docs/widgets/confirm-dialog.md)) and modules ([Raw](docs/widgets/raw-viewer.md), [Search](docs/widgets/search-panel.md), [Gallery](docs/widgets/gallery-panel.md), [relationship graph](docs/widgets/relationship-graph.md), [command window](docs/widgets/command-window.md), [Log](docs/widgets/log-panel.md), [command palette](docs/widgets/command-palette.md)); `connectShell`, which builds the app in it over a `ShellHost`, `defineShellWidgets`, which defines every element it draws, and `installFileDrop` |
 | `data-explorer-view/browser-host` | `browserHost`, a `ShellHost` for a plain browser page with no backend (see [docs/browser-host.md](docs/browser-host.md)) |
 | `data-explorer-view/icon` | [`<dex-icon>`](docs/widgets/icon.md) and `setIconBase` |
 | `data-explorer-view/icon-assets` | `useIconAssets`, the icons as assets of your bundle (see below) |
@@ -220,6 +220,18 @@ async function save() {
   `handle.redo()` do what the items do, for an app's Edit menu, and
   `isTypingInField(event)` tells a key typed in one of the table's fields (its
   search box, a column filter, a cell editor), which the table leaves alone.
+  With `addChildChord: true` it answers `+` too, with Add Child on the selected
+  row, which the menu then labels; off, as the VS Code extension leaves it, `+`
+  does nothing on the grid.
+- A document's table says where its undo stack stands (`doc.table.history`:
+  `canUndo`, `canRedo`, and `onChange` when either moves), so Undo and Redo
+  are offered only where there is a step: in the menu, by `handle.can('undo')`
+  for an app's toolbar, and by `handle.undo()`. A source that does not say (a
+  host's across a channel) has both offered wherever the document may be edited.
+- The handle's `ran` says each editing menu gesture the source took, from the
+  menu, a chord or `handle.run()`: its `actionId`, the `rowIds` it carried and
+  how many it acted on (`count`), a task later and not where the source refused
+  it, for an app's "Copied to clipboard" or "2 entries deleted".
 - A host that watches the file hears its own saves too. `writeAndStamp`
   answers the file's mtime+size as its write left them, read off the written
   file, so no other program's write can pass for it. On a change, stat the
@@ -237,6 +249,11 @@ async function save() {
   document over the file. **In a MAT-file, a variable changed only on disk is
   not marked, and the next save writes the kept value over it.** A document the
   page does not edit reads `bytes`, as `reload` does.
+- `ws.create(name, uri)` opens a new, empty data dictionary that no file holds
+  yet (the app shell's New): what MATLAB writes for a new dictionary, a text
+  one, edited as any JSON dictionary is (checked with MATLAB R2027a; older
+  releases are unverified). It is dirty from the start, whatever is undone,
+  until a save of it lands; that save writes the file.
 - A file laid out in a way a save could not keep opens read-only, and its
   `notice` says why. Its table has no menu under `editing`, unless
   `connectTable` is given `readOnlyMenu: true`: then it has the read-only
@@ -246,6 +263,26 @@ async function save() {
 - The documents of a workspace share one clipboard and drag register
   (`registers`, `createRegisters()` by default), so a cut in one pastes into
   another and the original goes.
+- `dragOut: true` lets a table's rows be dragged out of it, onto another part of
+  the page that takes them (the app shell's Explorer, onto an open file): the
+  box at the pointer goes with them, saying what the element under it says a
+  drop would do (its `data-drop-hint`, a refusal with `data-drop-refused`), and
+  a document that may not be edited lets its rows go too, as a copy (a
+  workspace's read-only documents can). What takes
+  them drops them through the target document's handle, as its own rows would:
+  `handle.dropDecision(rowId, mode)` predicts the drop there (`rowId` null is
+  the document as a whole: the section the entries came from, else the first
+  that takes them), and `handle.drop(rowId, mode)` makes it, one edit of that
+  document, settling once the document is done with it, with whether it was
+  refused and why.
+- `handle.dropReplacing(rowId, replacing)` is that drop as a copy that takes
+  the place of entries the document already has (`replacing`, rows of the
+  target table), as a compare's Copy to Right does: they go out in the same
+  edit as the paste, so the copies keep their names (no `Kp1`), and one Undo
+  puts the old entries back. Until core can paste in place, the copy goes last
+  in its section, not where the entry it replaces was. It is judged and settled as `handle.drop` is; a
+  source without `dropReplacing` (one across a channel) refuses it, saying the
+  file does not replace entries.
 - What a table does not show (a move that left its original behind, an undo of
   an edit made before a reload) goes to `notify`.
 - A JSON dictionary's text is the document: an edit patches the entry's own
@@ -472,11 +509,67 @@ usageReposts)`, which repaints every open table it shows (dictionaries, MAT-file
 and models) refilled; `doc.repaint()` repaints one table. `folder.dispose()` stops it all. See
 [the folder session's page](docs/folder-session.md).
 
+## Check a folder
+
+`checkFolder` reads a folder as a folder session does and says what is wrong in
+it, by the rules the Folder view and the Usage column draw with: references no
+file of the folder answers, files that reference each other round in a circle,
+entries no block of a model in the folder uses, model workspace variables that
+hide a definition of the model's data from its blocks, and names two
+dictionaries define where Simulink reads them together. In Node or Electron's
+main process, over core's node readers:
+
+```js
+import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+import { checkFolder } from 'data-explorer-view/model';
+import { listedFiles } from 'data-explorer-view/serve';
+
+const check = await checkFolder({
+  files: { list: async () => listedFiles(await listFolder(root)) },
+  reader: (files) => ({ ...nodeSourceReader(files), projectStore: (f) => readProjectStoreFromDisk(f.path) }),
+  // cache: folder.cache, // a folder session's, so a folder the app shows is not read twice
+});
+for (const finding of check.findings) console.log(finding.kind, finding);
+```
+
+Each of `findings` is one of five kinds, listed in this order
+(`CHECK_FINDING_KINDS`), and names files by their uris:
+
+- `unresolved-reference`: a model's model reference, data dictionary or other
+  external data, or a dictionary's referenced dictionary (`relation`), that no
+  file answers: the Folder view's missing row. A block parameter whose name
+  nothing defines is not one: a base-workspace variable, a function and a
+  constant read the same from a file.
+- `cycle`: files that reference each other round in a circle, the shortest
+  circle through the first of them by uri (code-unit order, JavaScript's `<`),
+  which `files` ends with again.
+- `unused`: a dictionary's Design Data entry, a MAT-file's variable or a model's
+  workspace variable (`section` 'design', '' or 'workspace') whose Usage cell
+  would be empty. Data types and signals are never unused
+  (`UNUSED_SKIPPED_CLASSES`): a model names them where the usage index does not
+  look.
+- `shadowed`: a model workspace variable whose name the model's dictionaries or
+  MAT-files define too (`hidden`), by core's resolution order. A workspace kept
+  in a MAT-file has that file's variables.
+- `duplicate`: a Design Data name two or more dictionaries define, within one
+  dictionary and those it references or the dictionaries one model links, the
+  dictionaries in code-unit order. Two unrelated dictionaries sharing a name are
+  not one.
+
+`notChecked` lists the data files no model of the folder links, directly or
+through a dictionary: none of their entries is called unused. `unreadable` lists
+the files that did not read, with why, and the check goes on with the rest. `files`
+counts what the folder listed, projects too, and `truncated` says the listing
+stopped at its limit. Every model and data file is opened whole, one at a time,
+for its entries; the promise rejects only when the listing does. Where two
+dictionaries share a name, the check counts what the Usage column shows: the
+last in folder order.
+
 ## Build an app on the shell
 
 `data-explorer-view/app-shell` is the window of a whole app. A toolbar and a
-location bar run across the top. Each side has an activity bar and a sidebar: the Explorer (the open files,
-and a folder's hierarchy under them), the Gallery (the Add gallery's tiles) and
+location bar run across the top. Each side has an activity bar and a sidebar: the Explorer (the open files),
+the Folder view (the workspace folder, for a host that shows folders), the Gallery (the Add gallery's tiles) and
 Search on the left, the Properties and the Raw pane on the right. The open
 files are tabs in the middle, and Root shows the relationship graph of them
 all. The Terminal (a MATLAB-style command window) and the Log share the bottom
@@ -485,7 +578,12 @@ command palette opens over it all. `connectShell` builds all of it in an empty
 `<dex-app-shell>` and runs it over one editing workspace: it opens files in
 tabs, saves them, asks before unsaved edits are lost, reloads a file that
 changed on disk, follows links from file to file, and shows a folder with its
-Usage and search, each as the sections above describe.
+Usage and search, each as the sections above describe. With no folder shown,
+the Usage column is answered over the files open. Search ranks what it finds
+by name, value and type, best first, and says what each entry is. Rows dragged
+from a table onto a file in the Explorer, or onto one of its sections, move
+there, whichever tab is on screen; they are copied with Ctrl (Option on macOS),
+and always from a file that is not edited.
 
 ```js
 import 'data-explorer-view/theme.css';
@@ -504,6 +602,7 @@ const app = connectShell(shell, {
 
 // What the host hears, it hands to the shell:
 app.openPaths(paths);       // files to open, each in a tab of its own (a command line, a drop)
+app.openAt(path, { entry: 'Kp', section: 'Design Data' }); // a link's file, at its entry
 app.showFolder(root, port); // a folder picked, served across `port` by serveFolder
 app.fileChanged(path);      // a watcher saw an open file change
 onWindowClose(async () => {
@@ -512,11 +611,39 @@ onWindowClose(async () => {
 ```
 
 Nothing opens until the host says so: the window starts on a welcome with Open
-File… and Open Folder… buttons. `app.command(id)` carries out a command
-(`'save'`, `'undo'`, `'show-search'`, …) as its button or its chord does, for a
-native menu's items, and `app.dispose()` takes the app down. The settings, the
-layout the user left and each file's column choices are kept in localStorage
-under connectShell's `storageKey` (`'dex-shell'` by default).
+File… and Open Folder… buttons. While files dragged from the desktop are over a
+page that takes them with `installFileDrop` (below), the documents' area is
+outlined, and a tab says "Opening plant.sldd…" while its file is read.
+`app.command(id)` carries out a command (`'new-file'`, `'save'`, `'undo'`,
+`'show-search'`, …) as its button or its chord does, for a native menu's items,
+and `app.dispose()` takes the app down. The settings, the layout the user left
+(the divider between two panes with it) and each file's column choices are kept
+in localStorage under connectShell's `storageKey` (`'dex-shell'` by default).
+
+`app.openAt(path, at)` is for a link from outside the page, such as a desktop
+app's link in a mail or a ticket, or a page's `#entry=`. It opens the file as
+`openPaths` does, in a tab it keeps, or goes to the file's tab. Once the table
+has its rows, it selects the entry named by its Name (`Kp`) or a block's key.
+With a `section`, only a top-level entry under the section row of that label
+counts. A file that holds no such entry stays open, and a warning that stays
+until it is closed says "No entry named Kp" ("… in Model Elements" with a
+section). It never rejects: what fails is said in the window, as any open's
+failure is.
+
+The documents split in two panes side by side, as VS Code's editor groups do. A
+tab dragged onto the left or right fifth of the documents makes a pane there
+with it (the area shows where it would land); one dropped on the other pane's
+tab row, or among its documents, moves there; Split Right (Cmd/Ctrl+\\) and
+Move to Other Pane do the same from the keyboard and the command palette. A
+file is open in one tab only, so a tab moves and is never copied. Each pane has
+its own tab row, its own preview tab and the tab it shows. The pane the user is
+in (by a click, the keyboard's focus, or Cmd/Ctrl+1 and Cmd/Ctrl+2) is the one
+everything else follows, the toolbar, the location bar, the Properties, Raw, the
+status bar, a save and a close, and the one a new file opens in; the other
+pane's tab row marks its tab in grey. A pane whose last tab closes or moves out
+goes. The divider is dragged, or moved by the arrow keys, between a fifth and
+four fifths of the width. Which tabs are in which pane is not kept, as the open
+files are not.
 
 ### The host
 
@@ -528,18 +655,28 @@ shell runs.
 | Member | When the shell calls it | Without it |
 |---|---|---|
 | `pickFiles()` | Open, Cmd/Ctrl+O, the welcome's Open File…; the paths chosen open | needed |
+| `newFile(suggestedName)` | New, Cmd/Ctrl+N, the palette's New Data Dictionary…: where a new dictionary goes (`'untitled.sldd'` offered), or null; it opens there unsaved, and its first Save writes it through `saveFile` (MATLAB R2027a opens what it writes; older releases are unverified) | no New: the host makes no files |
 | `readFile(path)` | a file opens (from the host, a link, the folder's tree, a search), and when it changed on disk | needed; a rejection is shown in the file's table |
-| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close | needed |
-| `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place | needed |
-| `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's Open Folder…; the folder comes back by `app.showFolder` | no Folder button: the host shows no folders |
+| `saveFile(path, bytes)` | Save, Save All, and a Save chosen before a close; an answer with `downloaded` (a browser's download, for a file it cannot write) is said "Downloaded NAME" | needed |
+| `saveFileAs(path, bytes)` | Save As; the file written opens in the tab's place; an answer of `path` itself with `downloaded` is said "Downloaded NAME", as for `saveFile` | needed |
+| `pickFolder()` | Folder, Cmd/Ctrl+Shift+O, the welcome's and the Folder view's Open Folder…; the folder comes back by `app.showFolder` | no Folder button and no Folder view: the host shows no folders |
+| `folderParent(path)` | each folder shown: the folder above `path` (null at the top: `/`, a browser's picked folder), for the Folder view's path and its ↑ | the path is the folder alone, and there is no ↑ |
+| `openFolderAt(path)` | ↑, a segment of the Folder view's path, a recent folder, a folder row's Use as Folder: make `path` the workspace folder, served and shown by `app.showFolder` as for Open Folder; `true` promises that `app.showFolder` call, before or after it resolves, and the bar stays busy until it comes; false (or a rejection) leaves the folder shown, and says why | no moves: the folder changes only by Open Folder |
+| `recentFolders()` | the Folder view's ⋯: the folders opened before, newest first (paths) | no Recent Folders |
+| `folderRefresh` | read for the Folder view's ⟳: `'read'` reads the folder again, `'pick'` asks the user to pick it again (a browser's snapshot of a folder) | `'read'` |
 | `closeFile(path)` | a file's tab closed, for the host to stop watching it | nothing |
 | `confirmClose(names)` | a tab, or the window, is to close with unsaved edits: save, discard or cancel | the shell's own dialog in the page |
 | `confirmReload(name)` | a file with unsaved edits changed on disk, or another program wrote over a save of it: reload, or keep the edits | the shell's own dialog in the page |
 | `setEdited(edited)` | each repaint: whether any open file has unsaved edits (the window's edited mark, a prompt before it closes) | nothing |
 | `setTitle(title)` | each repaint: `● plant.sldd — My app` | `document.title` |
 | `copyText(text)` | Copy Name, Copy Value | `navigator.clipboard` |
-| `reveal(path)` | a project page's link to what the shell does not open (a folder, a script) | the link does nothing |
-| `revealIn` | read for a project page's links: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
+| `reveal(path)` | a project page's link to what the shell does not open (a folder, a script), and the Folder view's Reveal | the link does nothing, and there is no Reveal |
+| `revealIn` | read for a project page's links and the Folder view's Reveal: what the file manager is called | `'Finder'` on macOS, `'the file manager'` elsewhere |
+| `pathTitle(path)` | each repaint: what a file's tooltips (its tab's, its Explorer row's, its location bar segment's) say of its path, for a host whose paths are its own making | the path itself |
+| `entryLink(target)` | a document row's menu: Copy Link to Entry puts its answer on the clipboard (`target.entry` is the entry's name, or a block's key for a block in a subsystem, as `app.openAt` takes it) | no such item |
+| `fetchUrl(url)` | Open from URL… (the palette, the welcome): the path the address's file opens by; a rejection is said in a toast | no Open from URL |
+| `linkFor(request)` | the palette and a tab's menu as they open (to enable Copy Link), and Copy Link: the address that opens the open files again at the selected entry; the shell copies it, and names the files left out | no Copy Link |
+| `matlab` | a MATLAB the host reaches (`ShellMatlab`): the status bar's MATLAB, and its row menus' and palette's commands while connected (see "MATLAB") | no MATLAB anywhere |
 
 An Electron app writes its own host: each member a call over IPC to its main
 process, which answers with a native dialog, the disk (core's
@@ -551,6 +688,7 @@ each item calls `app.command(id)`:
 ```js
 // The page; window.api is the preload's bridge to main.
 const host = {
+  newFile: (name) => window.api.newFile(name), // a native Save dialog: the path, or null; main writes nothing yet
   pickFiles: () => window.api.openFile(),
   pickFolder: () => window.api.openFolder(), // main serves it, and posts its port for app.showFolder
   readFile: (path) => window.api.readFile(path),
@@ -588,37 +726,220 @@ addEventListener('beforeunload', (e) => {
 });
 ```
 
+### The Folder view
+
+The Folder view shows the workspace folder, the one `app.showFolder` gave, whose files feed
+Used By, the graph and Search, as a file browser does: its folders first, then its files, by
+name. A data file opens in a tab (a click: a preview; its menu's Open: kept) and expands to the
+files it references, each saying what it is ("model reference", "data dictionary"); any other
+file is drawn dimmed and opens nothing. A folder's entries are read as its row opens, for a
+served folder that lists them (`FolderReads.entries`); one that lists none shows the hierarchy's
+tree. The rows of the files open in tabs carry the tabs' marks: a bar for an open file, the
+active tab's row highlighted (and revealed as the tab changes), ● for unsaved edits, italics for
+a preview.
+
+Its path bar moves the workspace folder: ↑, a segment of the path, ⋯'s Recent Folders and a
+folder row's Use as Folder each ask the host (`openFolderAt`), which serves the folder and shows
+it as it shows one picked; the bar says "Reading NAME…" until it comes, and a folder the host
+cannot open leaves the one shown, with a toast that says why. ⟳ reads the folder again, and ⋯
+holds Open Folder…, the recent folders and Reveal. A row's menu (a right click, Shift+F10 or the
+ContextMenu key) opens a data file, beside the others too, closes it, reveals a row's file or
+folder and copies its path. The view comes forward with the first folder shown, unless the
+layout kept from before shows another view there (an app that reopens its last folder at launch
+leaves the user's view as it was); with none, it says so and offers Open Folder… and a drop. The command palette has Show Folder, Folder: Up One
+Level and Folder: Read Again.
+
+```js
+const host = {
+  // …the members above, and the Folder view's moves:
+  folderParent: (path) => (path === '/' ? null : dirname(path)),
+  openFolderAt: (path) => window.api.openFolderAt(path), // main serves it, and posts its port for app.showFolder
+  recentFolders: () => window.api.recentFolders(),
+};
+```
+
+### What a page adds
+
+A page tells the user something of its own with `app.notify`: a toast in the
+window's corner, and the same line in the Log. An `'info'` notice (the
+default) goes by itself; a `'warning'` or an `'error'` stays until it is closed.
+
+```js
+app.notify({ level: 'warning', text: 'samples/plant.slx could not be fetched: 404 Not Found' });
+```
+
+#### Open from URL and Copy Link
+
+A host that fetches files from web addresses gives the shell Open from URL… with
+`fetchUrl(url)`. The palette's File group (after Open Folder…) and the welcome
+offer it; it asks for the address in the shell's dialog, and the file opens at
+the path `fetchUrl` answers. A rejection is the user's to read: its message is
+said in a toast and the Log as the host words it ("… could not be fetched: 404
+Not Found"). The browser host has it with `browserHost({ openFromUrl: true })`,
+for a page whose Content-Security-Policy lets it fetch from `https:`
+([docs/browser-host.md](docs/browser-host.md) says which addresses it takes).
+
+```js
+const host = browserHost({ onFolder, onChanged, openFromUrl: true });
+const app = connectShell(shell, { host }); // Open from URL… in the palette and on the welcome
+```
+
+A host that makes links to its files gives the shell Copy Link with
+`linkFor(request)`: the palette's File group and a tab's menu (a right-click on
+a tab, or Shift+F10 on it: Close, Close Others, Copy Link) offer it. The
+request names every open file, pane by pane, and the entry the link is to
+select: the active tab's selection (the tab's own, from its menu), as
+`app.openAt` takes an entry, by its name and its section's label. The host
+answers at once, reading nothing, with the address (or null, when no open file
+has one) and the names of the files it leaves out; the shell copies the
+address and says "Link copied", naming those files. The browser host passes on
+the page's own (`browserHost({ linkFor })`), since only the page knows its
+address and how its files are named in it.
+
+A button of its own goes on an activity bar as a `<dex-shell-action>` the page
+adds to the shell after `connectShell`. The shell draws it after Settings and
+About (on the right bar with `side="right"`), and a press of it, or of its
+`shortcut`, sends `dex-shell-action` from the shell with the action's id and
+the button's box, for the page to answer; the shell answers only its own.
+`settings` and `about` are the shell's ids: an action of the page's with one
+of them is not drawn. The page's actions stay its own, and `app.dispose()`
+leaves them in the shell.
+
+```js
+shell.insertAdjacentHTML('beforeend', '<dex-shell-action side="left" action="samples" label="Samples" icon="documentList"></dex-shell-action>');
+shell.addEventListener('dex-shell-action', (e) => {
+  if (e.detail.actionId === 'samples') openSamples(); // e.detail.anchor: the button's box, for a popover
+});
+```
+
+The Settings' Auto follows the system's theme: the page's media queries
+(`prefers-color-scheme`, `prefers-contrast`, `forced-colors`), or the
+`systemTheme` source the host passes (`{ now(), on(listener) }`). A host that
+hears the theme only once the page is up, as an Electron page hears
+`nativeTheme` over IPC, tells it with `app.setSystemTheme(theme)` (`'light'`,
+`'dark'` or `'high-contrast'`), at once and on each change: from its first
+call the shell follows what the host tells, and no longer the source.
+
+```js
+window.api.ready().then(({ theme }) => app.setSystemTheme(theme));
+window.api.onTheme((theme) => app.setSystemTheme(theme));
+```
+
+About's lines can go under a heading, by `section`: the lines with none come
+first, under the app's name, then each section under its heading. This
+package's version is `VIEW_VERSION`, from `data-explorer-view/model`. Core
+exports no version of its own: an app that shows it reads it at its build,
+as it reads its own.
+
+```js
+import { VIEW_VERSION } from 'data-explorer-view/model';
+
+const app = connectShell(shell, {
+  host,
+  appName: 'My app',
+  about: [
+    { label: 'Version', value: '1.0.0' },
+    { label: 'data-explorer-view', value: VIEW_VERSION, section: 'Built on' },
+  ],
+});
+```
+
+#### MATLAB
+
+A host that reaches a MATLAB (an Electron app's link to the MATLAB session the
+user connected) hands it in as `host.matlab`, a `ShellMatlab`: its status
+(`status()`, and `on(listener)` for each change), `showConnect()`, the host's
+way to connect, and one call per command, each mirroring the request the
+host's link sends. The status bar names the MATLAB connected (`MATLAB R2027a`,
+`(busy)` while it runs something, as it answers only once it is done); a press
+of it, the palette's Connect to MATLAB… and `app.command('matlab-connect')`
+call `showConnect()`. While one is connected, a row's menu, an open file's menu
+in the Explorer and the palette's MATLAB group (for the active tab's selected
+row, or its file) offer what the row or file takes:
+
+| Command | Offered for | What the shell does with the answer |
+|---|---|---|
+| Open in Simulink (`matlab-open`) | a model, or a block of one, highlighted | a toast |
+| Update Diagram (`matlab-update-diagram`) | a model | its errors and warnings counted in a toast, each in the Log |
+| Evaluate in MATLAB (`matlab-evaluate`) | a row's value, evaluated in its dictionary section, its model's workspace, or (a MAT-file's) the base workspace | Properties comes forward with a MATLAB group: the value as MATLAB displays it, its class and size, or the expression's error; kept while the row's value stands |
+| Send to Workspace (`matlab-to-workspace`) | a dictionary's entry, a MAT-file's variable, a model workspace's variable | a toast |
+| Get from Workspace (`matlab-from-workspace`) | a dictionary's entry, a MAT-file's variable | a toast; the host's watcher then tells `app.fileChanged`, and the clean tab reloads |
+| Open in MATLAB's Data Explorer (`matlab-data-explorer`) | a file, at the row's entry; Open in Model Explorer before R2027a, which opens no MAT-file | a toast, saying when the entry could not be selected |
+
+MATLAB reads and writes the saved file, not what a tab holds: Send and Get wait,
+disabled with the reason, while the tab holds unsaved edits. What needs Simulink
+is not offered by a MATLAB without it. The shell sends nothing unasked: each
+call is a user's choice, and a rejection (the link's failure) is said as an
+error, in a toast and the Log. A host with no `matlab` (the browser host, the
+VS Code extension) shows none of it.
+
+### Compare two files
+
+Compare With… (the command palette, `compare-with`, a tab's menu and the
+Explorer's file menu) asks which file to compare that file with: another open
+file, or one the host's picker gives (Browse…). The two are compared entry by
+entry, matched by section and name, in a tab of their own (`a.sldd ↔ b.sldd`):
+a header saying what differs ("1 changed, 1 added, 1 removed"), over the two
+files' tables side by side, line by line, a blank line where one file lacks an
+entry. An added, removed or changed
+entry is marked, and so is each cell that differs; "Show only differences" (on
+at first) leaves out the lines that are alike. A row opened, scrolled to or
+selected in one table is in the other, and the Properties view shows the
+selected line's differences, before → after. F7 and Shift+F7, the palette's
+Next and Previous Change and the header's arrows go from difference to
+difference, an entry only one file has being one. A line's menu copies its
+entry to the other file (Copy to Right, Copy to Left), replacing the entry of
+its name there, or adding it where that file lacks it: one edit of the file
+copied into for each section copied, undone there by one Undo. A file that may
+not be edited takes no copy. Show in <file> goes to the line's row in that
+file's tab. The compare is drawn again as either file is edited or saved. Both
+files stay open in their own tabs, and closing either closes the compare.
+
 ### Keyboard shortcuts
 
 Cmd on macOS is Ctrl elsewhere. The shell answers each chord wherever the focus
-is, but leaves it to a text field that has the focus, except Open and Save,
+is, but leaves it to a text field that has the focus, except New, Open and Save,
 and leaves Undo and Redo to a table, which undoes its own document.
 
 | Keys | |
 |---|---|
+| Cmd/Ctrl+N | New Data Dictionary… (a host with `newFile`) |
 | Cmd/Ctrl+O, Cmd/Ctrl+Shift+O | Open File…, Open Folder… |
 | Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Alt+S | Save, Save As…, Save All |
 | Cmd/Ctrl+W | close the tab |
-| Ctrl+Tab, Ctrl+Shift+Tab | the next tab, the one before |
+| Ctrl+Tab, Ctrl+Shift+Tab | the next tab of the pane, the one before |
+| Cmd/Ctrl+\\ | Split Right: the tab into the pane on the right |
+| Cmd/Ctrl+1, Cmd/Ctrl+2 | the first pane, the second (while the documents are in two) |
 | Cmd/Ctrl+F | the active table's search |
 | Cmd/Ctrl+Z; Cmd/Ctrl+Shift+Z, and Ctrl+Y off macOS | Undo; Redo |
+| + (in a table) | Add Child, on the selected row |
+| Shift+F10, the ContextMenu key | the menu of the table's selected row |
 | Alt+Left, Alt+Right, Alt+Up | Back, Forward, Up |
+| Cmd/Ctrl+Shift+H | Root's relationship graph (Show Graph) |
+| F7, Shift+F7 | the next difference of the compare tab, the one before (while one is active) |
 | Cmd/Ctrl+, | Settings |
 | Cmd/Ctrl+Shift+P, F1 | the command palette |
-| Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Explorer, the Gallery, Search |
+| Cmd/Ctrl+Shift+E, Cmd/Ctrl+Shift+K | the Explorer, the Folder view (a host that shows folders) |
+| Cmd/Ctrl+Shift+L, Cmd/Ctrl+Shift+F | the Gallery, Search |
 | Cmd/Ctrl+Shift+I, Cmd/Ctrl+Shift+U | the Properties, Raw |
 | Ctrl+\` (on macOS too), Cmd/Ctrl+Shift+D | the Terminal, the Log |
 
 A view's chord shows it, or closes its side when it is the one shown. With
-`nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Settings,
-the command palette and the views' chords, and the menu the rest. In a browser
-tab, a few chords are the browser's whatever the page does: Chromium keeps
-Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own tabs, and there the
-toolbar, the tab row and the command palette do the same. The shell's own
-chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
+`nativeMenu: true` the shell answers only Save All, Back, Forward, Up, Root's
+graph, Settings, the command palette, the panes', a compare's and the views'
+chords, and the menu the rest. In a browser tab, a few chords are the browser's whatever the
+page does: a browser keeps Cmd/Ctrl+N for a new window (Chromium and Firefox
+both do), and Chromium keeps Cmd/Ctrl+W, Ctrl+Tab and Ctrl+Shift+Tab for its own
+tabs; there the toolbar, the tab row and the command palette do the same.
+Cmd/Ctrl+1 and Cmd/Ctrl+2 are the shell's only while the documents are in two
+panes: with one, they are left to the browser, which switches its own tabs by
+them. F7 and Shift+F7 are the shell's only while a compare tab is active: F7 is
+caret browsing in Chromium and Firefox everywhere else. The shell's own chords keep clear of such keys: Raw is Cmd/Ctrl+Shift+U because
 Cmd/Ctrl+Shift+W closes a Chromium window before the page hears it, the
 Terminal is Ctrl+\` on macOS too because Cmd+\` moves between an app's windows
-there, and F1 opens the command palette wherever a browser keeps
+there, Root's graph is Cmd/Ctrl+Shift+H because Cmd+Shift+G is Find Previous in
+a Mac's browsers, the Folder view is Cmd/Ctrl+Shift+K because Cmd/Ctrl+Shift+J is
+Chromium's console or its Downloads, and F1 opens the command palette wherever a browser keeps
 Ctrl+Shift+P for itself.
 
 ### Every part on its own
@@ -630,6 +951,7 @@ with its [views](docs/widgets/shell-view.md) and
 the [tab row](docs/widgets/doc-tabs.md), the
 [location bar](docs/widgets/location-bar.md), the
 [Explorer](docs/widgets/explorer.md), the
+[folder bar](docs/widgets/folder-bar.md), the
 [Settings](docs/widgets/settings-panel.md) and
 [About](docs/widgets/about-panel.md) popovers, the
 [toasts](docs/widgets/toast-host.md), the
@@ -682,6 +1004,7 @@ app turns parts of it off or over:
 |---|---|---|
 | `readonly` (`readonly`) | `false` | no cell editor, no `+ Add`, no row drag or drop |
 | `canAdd`, `rowDrag` | `false`, `true` | the `+ Add` button; dragging rows |
+| `dragOut` (`drag-out`) | `false` | rows dragged out onto the page, from a table that takes no row drag too (as a copy) |
 | `expandTopLevel` (`expand-top-level`) | `false` | open the top level of the first rows, then keep what the user opened |
 | `expandedIds`, `expand(ids)`, `collapse(ids)` | | which rows are open |
 | `storageKey` (`storage-key`) | `'dex'` | the prefix of the localStorage keys the column choices are kept under; `null` keeps them out of storage |
@@ -720,8 +1043,10 @@ defaults, and `[data-theme="dark"]` and `[data-theme="high-contrast"]` sets
 (put the attribute on `<html>`). Each widget falls back to the light value of
 every token it reads, so a widget is readable on a page that loads no theme at
 all. The icons are drawn for a light background, and the dark set turns them
-over with `--dex-icon-filter`. To match your app, declare the `--dex-*` tokens
-after this file, or map them onto your own design system's variables.
+over with `--dex-icon-filter`; a `<dex-icon mono>` (the shell's Minimal icons)
+is drawn in its text colour instead, with no filter. To match your app, declare
+the `--dex-*` tokens after this file, or map them onto your own design system's
+variables.
 
 ```js
 import 'data-explorer-view/theme.css';

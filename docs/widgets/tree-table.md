@@ -8,7 +8,11 @@ rows, so a dictionary of a hundred thousand entries scrolls as a small one does.
 It holds no document. The app gives it rows and answers what it asks for; every user action
 goes out as a `dex-*` event, and the table never changes the document itself. Its defaults are a
 full editor: `readonly` makes it a viewer, `canAdd` and `rowDrag` turn the `+ Add` button and
-dragging on and off.
+dragging on and off. `keyboardMenu` gives the keyboard the row menu: Shift+F10 and the ContextMenu
+key on the grid send `dex-table-context-menu` for the keyboard's row, placed under it, with
+`keyboard: true`, and `connectTable` shows that menu with the keyboard on its first item, given
+back to the grid as it closes (off by default, which leaves both keys to the browser, whose own
+event names no row).
 
 `connectTable` feeds it from a table source: a document opened in the page
 (`createWorkspace().open(bytes, name)`), or a host across a channel (`messageSource(port)`). It
@@ -70,6 +74,10 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
 - **The menu and its chords:** the right-click menu is the editing one (Copy, Cut, Paste, Add
   Child, Delete, Undo, Redo), with its chords (Cmd/Ctrl+C, X and V, Delete), each enabled as its
   item is.
+- **Undo and Redo:** a source that says where its undo stack stands (its `history`, which a
+  workspace's documents have) gets each only where there is a step to take back or make again. A
+  source that does not (a host's across a channel, whose stack is its editor's) gets both wherever
+  the document may be edited.
 - **What the source sends back:** a selection, a rename to begin, and the clipboard, drag and
   drop rules the menu and the drop predictor are built from. A refused edit opens the error
   dialog (`errorDialog`, or one connectTable makes).
@@ -83,7 +91,10 @@ handle.on('navigate', ({ link, uri }) => openTarget(uri ?? link)); // uri: the f
   with the row's reason (`_setActiveWhy`) where the set is not made active; a reference's row says
   what making it active cannot check (`_setActiveCaution`), as the item's tooltip.
 - **On the handle:** `toggleAddGallery()` is the `+ Add` button for an accelerator of the app's,
-  and `menuFor(anchorRowId)` is the editing menu a right-click there would show.
+  and `menuFor(anchorRowId)` is the editing menu a right-click there would show. `ran` says each
+  of the menu's gestures the source took, from the menu, a chord or `run()`: which item, the rows
+  it carried and how many it acted on, a task later, and not where the source refused it, for an
+  app's "Copied to clipboard" or "2 entries deleted".
 
 ```js
 const handle = connectTable(table, messageSource(port), {
@@ -91,6 +102,44 @@ const handle = connectTable(table, messageSource(port), {
   textView: { available: () => hasText, locate: (rowId) => revealInText(rowId) },
 });
 ```
+
+`inspectorPages` and `inspectorEditing` decide what an inspector following the handle
+(connectInspector) is sent. Both are off by default, and the inspector shows the first selected
+row's properties, read-only, and nothing for no row or a section heading.
+- **`inspectorPages`:** the file's own page while no row is selected, a section heading's, "3
+  selected" for several rows, and a row's Usage links as a group of their own.
+- **`inspectorEditing`, with `editing`:** rows are editable where the document may be edited and
+  takes an edit of the property. A change of one comes back through `handle.edit()`, which writes
+  it as a cell edit is: a refusal opens the error dialog, and the page is sent again so the field
+  shows what the document holds. `commitEdit()` waits for it.
+- **`handle.refreshInspector()`:** asks for the page again, for a change the table does not hear
+  of. The file's page says whether the document holds edits: call it whenever that changes (the
+  document's `onDirty`, a save among them). A page that is the one last sent is not sent again.
+
+```js
+const handle = connectTable(table, doc.table, { editing: true, inspectorPages: true, inspectorEditing: true });
+connectInspector(inspector, handle);
+doc.onDirty(() => handle.refreshInspector());
+```
+
+### Comparing
+
+Two tables given the same row ids, in the same order and tree, stay line by line beside each
+other: a compare's two files, with a blank row on a side where its file lacks the line. `diffMarks`
+marks each line on a side (added, removed, changed with the columns that differ, or a gap): a bar
+at the row's left edge, a wash, a glyph before the name with the word for a screen reader, and in
+forced colours an outline round each differing cell. A gap row has no twisty and no
+`aria-expanded`, and Space opens nothing on it: the gaps under it show and hide as the holder opens
+and closes the other side's row, through `expandedIds`. A section's row counts its file's entries:
+its `_entryCount` where it has one (a compare's heading, whose lines leave some entries out and hold
+the other file's gaps), and on a gap heading no count. The two tables select the same line, and
+only the one with the keyboard rings its focused cell. `fixedRows` keeps the rows as given, as a
+sort or a search on one side alone would break the lines: a header press sorts nothing, and there
+is no search box and no column filter. To keep the two together, each table says what it did of
+itself: `dex-expansion-changed` (not for `expandedIds`, `expand()` or `collapse()`, which a holder
+copying one table's expansion onto the other uses, so nothing echoes) and `dex-table-scrolled`,
+with `bodyScroll` and `scrollBodyTo(top, left)` to read and set the other's. `gridLabel` names each
+grid for a screen reader. [`<dex-compare-view>`](compare-view.md) holds two tables this way.
 
 See also the [context menu](context-menu.md) (its items for a selection come from
 `buildContextMenuItems`, exported here), the [error dialog](error-dialog.md) and the
@@ -199,6 +248,22 @@ Whether a row can be dragged, or a dragged row let go over one. Set it false whe
 document cannot be changed: no row is draggable, and a drag from another table draws no drop
 target here, on a row or on the empty body. Default true. Attribute `row-drag`.
 
+### `dragOut`
+
+type `boolean` · default `false` · attribute `drag-out`
+
+Whether rows are dragged out of the table, onto another part of the page that takes them (the
+app shell's Explorer, onto an open file). Where the table takes no row drag of its own
+(`rowDrag` false, or `readonly`) its rows can still be dragged out then, as a copy alone: the
+drag allows no move, so the document never loses an entry by it, and no row of this table takes
+a drop. And while a row drag of this table's is on, the box at the pointer (the dragged row's
+icon and name) follows the pointer over the rest of the page too, until the drag is let go
+anywhere, saying there what the part under the pointer says a drop would do: the words of the
+nearest element under it with a `data-drop-hint` attribute (an Explorer row the drag is over),
+as a refusal where that element has `data-drop-refused` too; nothing where none has. Default
+false: a table that takes no row drag drags none, and the box stays over the table. Attribute
+`drag-out`.
+
 ### `readonly`
 
 type `boolean` · default `false` · attribute `readonly`, reflected
@@ -206,12 +271,57 @@ type `boolean` · default `false` · attribute `readonly`, reflected
 A viewer: the user selects, opens, searches, sorts, filters and copies, and changes nothing.
 No cell editor opens — not on a double-click, not on Enter, not for beginRename or
 openWholeValueEditor — and no cell is drawn as editable; the `+ Add` button is not drawn
-whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says. So none of
-the events those gestures send (dex-edit-completed, dex-edit-text-request, dex-add-entry,
-dex-row-drag-start, dex-row-drop) is sent. A right-click still sends dex-table-context-menu:
+whatever canAdd says, and no row is dragged or takes a drop whatever rowDrag says (with
+`dragOut`, a row is still dragged out, to be copied). So none of the events those gestures send
+(dex-edit-completed, dex-edit-text-request, dex-add-entry, dex-row-drag-start, dex-row-drop) is
+sent, but dex-row-drag-start for a row dragged out. A right-click still sends dex-table-context-menu:
 what a read-only menu offers is the app's to say (buildContextMenuItems with editable false).
 False, the default, is the table as it always was, each cell's own flags deciding. Reflected
 to the attribute `readonly`.
+
+### `keyboardMenu`
+
+type `boolean` · default `false` · attribute `keyboard-menu`
+
+Whether Shift+F10 and the ContextMenu key, pressed on the grid, open the row menu: they send
+`dex-table-context-menu` for the keyboard's current row (the row the arrows last moved to, else
+the selection's last, whichever the table shows), placed under that row as a right-click on it
+is, with `keyboard: true` (connectTable then gives the menu the keyboard); with no such row, for
+the space under the rows. Both keys are spent, so the browser's own menu event for them does
+not follow, and the grid names them (`aria-keyshortcuts`). A field's keys stay the field's (a
+cell editor, a header's filter button). False, the default, leaves both keys to the browser, as
+they always were. Attribute `keyboard-menu`.
+
+### `diffMarks`
+
+type `ReadonlyMap<string, DiffMark> | null` · default `null` · property only
+
+Each row's compare mark, by row id: a bar at the row's left edge and a wash in its kind's colour,
+a glyph before its name (+ added, − removed, ~ changed) with the word for a screen reader, the
+differing cells washed deeper, and a gap row hatched, with no twisty (it opens nothing; the gaps
+under it follow `expandedIds`). The focused cell is ringed only while the table has the
+keyboard: a compare's other table selects the same line. Default null: no marks, the table as
+it always was. Property only.
+
+### `fixedRows`
+
+type `boolean` · default `false` · attribute `fixed-rows`, reflected
+
+The rows as given, in their order, all of them: a header press sorts nothing and draws no sort
+mark, and there is no search box and no column filter (the Columns button stays). For two tables
+kept line by line beside each other, a compare's. Default false. Reflected to `fixed-rows`.
+
+### `gridLabel`
+
+type `string` · default `'Data entries'` · attribute `grid-label`
+
+What a screen reader calls the grid. Default 'Data entries'. Attribute `grid-label`.
+
+### `bodyScroll`
+
+type `{ top: number; left: number }` · read-only
+
+Where the rows are scrolled to now, in pixels (the grid's own scroll position).
 
 ### `storageKey`
 
@@ -269,6 +379,16 @@ say" is not "yes". With none, the default, any row takes a drop and the space un
 takes none. Property only.
 
 ## Methods
+
+### `scrollBodyTo(top: number, left?: number): void`
+
+Scroll the rows to `top`, and across to `left` where given, as the user would: `dex-table-scrolled` follows.
+
+### `focusGrid(): void`
+
+Give the keyboard to the grid, as a click on its rows does: the arrows then move over the rows,
+and the menu keys open a row's menu. An empty table's body takes it where there are no rows.
+Nothing while the table is loading. Called before the table is drawn, once it is.
 
 ### `expand(ids: Iterable<string>): void`
 
@@ -347,6 +467,34 @@ export interface AddTileDetail {
 }
 ```
 
+### `dex-expansion-changed`
+
+The rows shown open changed, by the user or by the table itself (a twisty, a key, a selection
+whose parents it opened, `expandTopLevel`): not by `expandedIds`, `expand()` or `collapse()`.
+
+`detail` is a `ExpansionChangedDetail`:
+
+```ts
+/** What `dex-expansion-changed` carries: every row shown open now. */
+export interface ExpansionChangedDetail {
+  expandedIds: string[];
+}
+```
+
+### `dex-table-scrolled`
+
+The rows were scrolled, by the user or by the table (a row brought into view, `scrollBodyTo`).
+
+`detail` is a `TableScrolledDetail`:
+
+```ts
+/** What `dex-table-scrolled` carries: where the rows are scrolled to, in pixels. */
+export interface TableScrolledDetail {
+  top: number;
+  left: number;
+}
+```
+
 ### `dex-request-children`
 
 A row whose children the payload held back (`_lazy`) was opened: answer with its rows,
@@ -364,8 +512,9 @@ export interface RequestChildrenDetail {
 
 ### `dex-table-context-menu`
 
-A right-click on a row (after selecting it) or on the space under the rows: open a context
-menu there.
+A right-click on a row (after selecting it) or on the space under the rows, or with
+`keyboardMenu` Shift+F10 or the ContextMenu key on the grid, for the keyboard's row: open a
+context menu there.
 
 `detail` is a `TableContextMenuDetail`:
 
@@ -380,6 +529,12 @@ export interface TableContextMenuDetail {
   y: number;
   rowId: string | null;
   graphTarget?: string;
+  /**
+   * A key opened it (`keyboardMenu`), not a right-click: the menu is to take the keyboard at once,
+   * and give it back to the grid when it closes (the context menu's `focusFirst`). Absent for a
+   * right-click.
+   */
+  keyboard?: true;
 }
 ```
 
@@ -535,7 +690,16 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-muted` | `#666` |  |
 | `--dex-color-text-secondary` | `#555` |  |
+| `--dex-diff-added` | `#2e7d32` | A compare's marks (dex-tree-table's `diffMarks`): each kind's bar at a row's left edge (3:1 against the rows), its wash, a differing cell's deeper wash, and a gap row's hatching. |
+| `--dex-diff-added-bg` | `rgba(46, 125, 50, 0.1)` |  |
+| `--dex-diff-cell-bg` | `rgba(180, 83, 9, 0.2)` |  |
+| `--dex-diff-changed` | `#b45309` |  |
+| `--dex-diff-changed-bg` | `rgba(180, 83, 9, 0.08)` |  |
+| `--dex-diff-gap-stripe` | `rgba(0, 0, 0, 0.1)` |  |
+| `--dex-diff-removed` | `#c62828` |  |
+| `--dex-diff-removed-bg` | `rgba(198, 40, 40, 0.09)` |  |
 | `--dex-font-family` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` |  |
+| `--dex-font-mono` | `'SF Mono', 'Menlo', 'Monaco', monospace` |  |
 | `--dex-frozen-shade` | `8px 0 6px -3px rgba(0, 0, 0, 0.28)` | The shade the table's columns slide under once the frozen Name column holds content back: one whole box-shadow layer (x, y, blur, spread, colour), with a spread of minus half the blur so the shade stays a band to the right of the column. |
 | `--dex-row-height` | `28px` |  |
 | `--dex-selection-fg` | `#333` | The ink on a selected row, whose surface is --dex-color-accent-bg. |

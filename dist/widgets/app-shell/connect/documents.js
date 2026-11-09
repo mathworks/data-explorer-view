@@ -9,13 +9,16 @@
 // (newTable, newProjectPage, paintProject, and the connectTable options of its open()).
 import { projectPageMessage } from '../../../model/source/projectPage.js';
 import { sourceUri, uriPath } from '../../../model/source/sourceUri.js';
-import { isSupportedPath } from 'data-explorer-core';
+import { extOf, isSupportedPath } from 'data-explorer-core';
 import { connectTable } from '../../tree-table/connectTable.js';
 import { FILE_FORMATS, FILE_ICONS, fileGroupOf } from './explorerFiles.js';
 import { onMac } from './keys.js';
 import { folderOf, projectLinkPath } from './links.js';
+import { linkedEntryOf, rowIn, sectionOf } from './rows.js';
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
 export const SHOW_IN_GRAPH = { id: 'showInGraph', label: 'Show in Graph' };
+/** A document row's link, for a host that makes links (ShellHost.entryLink): before Show in Graph. */
+export const COPY_ENTRY_LINK = { id: 'copyEntryLink', label: 'Copy Link to Entry' };
 const message = (err) => (err instanceof Error ? err.message : String(err));
 /** The page's clipboard, as connectTable's own default writes to it: a page without one fails the copy, saying so. */
 function pageClipboard(text) {
@@ -27,22 +30,42 @@ function pageClipboard(text) {
 export function copyText(host, text) {
     return host.copyText ? host.copyText(text) : pageClipboard(text);
 }
-/** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
-export function docTabOf(tab) {
+/**
+ * How the tab row draws `tab`: its name and its kind's icon, `title` as the tooltip (its path, as the
+ * host says it), its marks. While its selection is in a section of its file (a dictionary's Design
+ * Data, a model's Model Workspace), the section's name and icon, with the file's name as the
+ * subtitle: the section the Explorer marks for the same selection, and what the prototype's tab
+ * read for a section it showed.
+ */
+export function docTabOf(tab, title = tab.path) {
+    // A comparison: the pair's names, the compare's icon; nothing of it is unsaved or a preview.
+    if (tab.compare)
+        return { id: tab.id, label: tab.name, icon: 'compareUI', title, dirty: false, preview: false };
+    const rows = tab.table?.rows ?? [];
+    const rowId = tab.selection[0];
+    const section = rowId === undefined ? undefined : sectionOf(rows, rowId);
+    const row = section === undefined ? undefined : rowIn(rows, section);
     const group = fileGroupOf(tab.path);
-    return {
-        id: tab.id,
-        label: tab.name,
-        ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }),
-        title: tab.path,
-        dirty: !!tab.dirty,
-        preview: !!tab.preview,
-    };
+    const shown = row
+        ? { label: row.Name.label, subtitle: tab.name, ...(row.Name.iconId ? { icon: row.Name.iconId } : {}) }
+        : { label: tab.name, ...(group === 'other' ? {} : { icon: FILE_ICONS[group] }) };
+    return { id: tab.id, ...shown, title, dirty: !!tab.dirty, preview: !!tab.preview };
 }
-/** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
+/**
+ * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
+ * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
+ * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
+ * shell names. A compare tab is a Comparison, of no format, holding no edits of its own.
+ */
 export function statusOf(tab) {
+    if (tab?.compare)
+        return { format: '', kind: 'Comparison', modified: false };
     const group = tab ? fileGroupOf(tab.path) : 'other';
-    return group === 'other' ? '' : `${FILE_FORMATS[group]}${tab?.dirty ? ' · Modified' : ''}`;
+    if (!tab || group === 'other')
+        return { format: '', kind: '', modified: false };
+    const format = group === 'project' ? FILE_FORMATS.project.toUpperCase() : extOf(tab.path).slice(1).toUpperCase();
+    return { format, kind: FILE_FORMATS[group], modified: !!tab.dirty };
 }
 /**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
@@ -57,10 +80,27 @@ export function clearSelection(tab) {
     table.dispatchEvent(new CustomEvent('dex-row-selected', { detail: { rowIds: [] }, bubbles: true, composed: true }));
 }
 // --- The widgets ---------------------------------------------------------------------------------
-/** A table in `tab`'s panel, its column choices kept under `storageKey`. */
-export function newTable(tab, storageKey, editable = false) {
+/**
+ * The note `tab`'s panel shows while its file is read and parsed, which for a large file takes a
+ * while: "Opening plant.sldd…", as a status. Remove it once the file is shown, or failed.
+ */
+export function openingNote(tab) {
+    const note = document.createElement('dex-shell-note');
+    note.className = 'doc-opening';
+    note.setAttribute('role', 'status');
+    tab.panel.append(note);
+    // Put in the page empty, its words a task later: a live region says what changes in it once it
+    // is there, and one put in with its words already is not always said. Removed by then, nothing.
+    setTimeout(() => (note.textContent = `Opening ${tab.name}…`), 0);
+    return note;
+}
+/** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
+export function newTable(tab, storageKey, editable = false, tableStyle = 'normal') {
     const table = document.createElement('dex-tree-table');
     table.readonly = !editable;
+    table.tableStyle = tableStyle;
+    // Shift+F10 and the ContextMenu key open the selected row's menu, as a right-click on it does.
+    table.keyboardMenu = true;
     // Before it is connected: the table reads its column choices from the key it has then.
     table.storageKey = storageKey;
     tab.panel.append(table);
@@ -70,26 +110,48 @@ export function newTable(tab, storageKey, editable = false) {
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export function connectDocument(tab, doc, storageKey, wiring) {
     const { host } = wiring;
-    const handle = connectTable(newTable(tab, storageKey, doc.editable), doc.table, {
+    const handle = connectTable(newTable(tab, storageKey, doc.editable, wiring.tableStyle()), doc.table, {
         variableEditor: wiring.editor,
         contextMenu: wiring.menu,
         // Every document wired for editing: one that takes no edits (a .mdl, a .slx or MAT-file
         // kept for viewing only) gets the read-only menu, and an editing menu ends with Copy Name
-        // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself.
+        // and Copy Value. The table answers Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z itself, and '+' with Add
+        // Child, the prototype's chord.
         editing: true,
         readOnlyMenu: true,
         copyText: true,
         undoChords: true,
+        addChildChord: true,
+        // Its rows can be dragged onto the Explorer, to a file or a section of one (explorerDrop.ts): from
+        // a document that may not be edited too, to be copied.
+        dragOut: true,
+        // The inspector beside it shows the file's page while no row is selected, a section's, several
+        // rows' and a row's Usage links; and edits a row where the document takes an edit of it.
+        inspectorPages: true,
+        inspectorEditing: true,
+        // Where the file's page says it is: the host's words for its path, where it has them.
+        ...(host.pathTitle ? { inspectorFileTitle: host.pathTitle(tab.path) } : {}),
         errorDialog: wiring.dialog,
         // The host's clipboard, or the page's for a host without one, asked at each copy.
         copy: (text) => copyText(host, text),
-        // Usage is core's in a model; in a dictionary or a MAT-file the shown folder's usage
-        // graphs fill it, so a file outside the folder has none.
-        columns: (column) => column !== 'UsedBy' || doc.kind === 'model' || !!wiring.folder()?.lists(doc.uri),
+        // Usage is answered over the open tabs until a folder is shown, and from then on over the
+        // folder: a model's is its own blocks' and workspace's either way, but a dictionary or a
+        // MAT-file outside the folder shown has none.
+        columns: (column) => {
+            const folder = wiring.folder();
+            return column !== 'UsedBy' || doc.kind === 'model' || !folder || folder.lists(doc.uri);
+        },
         // A name a link holds means the file the folder's tree shows for it.
         resolveLink: (link, fromUri) => wiring.folder()?.resolveLink(link, fromUri),
-        // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file).
-        menuItems: () => [{ ...SHOW_IN_GRAPH }],
+        // Every file a table shows is one the graph draws (a model, a dictionary, a MAT-file). A row in
+        // an entry has a link to it where the host makes links, asked at each menu; a section's own row,
+        // and the space under the rows, name no entry. A connected MATLAB's commands for the row come
+        // after, asked at each menu.
+        menuItems: (context) => [
+            ...(host.entryLink && context.rowId !== null && linkedEntryOf(context.rows, context.rowId) ? [{ ...COPY_ENTRY_LINK }] : []),
+            { ...SHOW_IN_GRAPH },
+            ...(wiring.matlabItems?.(tab, context) ?? []),
+        ],
     });
     tab.handle = handle;
     return handle;

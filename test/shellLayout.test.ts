@@ -7,14 +7,23 @@
 // What it protects: a shell that comes back as it was left, and comes back at all when what was
 // kept no longer fits the app (a view the app dropped, a value a hand-edited or older store holds);
 // the activity button's toggle, which is the only way to close a side; and a sash that can neither
-// squeeze a side to nothing nor push the center out of the window.
+// squeeze a side to nothing nor push the center out of the window. And the documents' split, kept
+// in the same entry: the share of the width the first of two panes takes, never less than a fifth
+// for either, and kept across a write of the sides as the sides are across a write of the split.
 import { describe, expect, it } from 'vitest';
 import {
   SIDE_DEFAULTS,
   SIDE_MIN,
+  SPLIT_DEFAULT,
+  SPLIT_MAX,
+  SPLIT_MIN,
+  clampSplit,
   initialLayout,
+  initialSplit,
   keepLayout,
   keepLayoutOver,
+  keepSplitOver,
+  keptView,
   resizeSide,
   showView,
   toggleView,
@@ -33,7 +42,7 @@ const FIRST: ShellLayoutState = {
 describe('initialLayout', () => {
   it('shows and opens the first view of each side by default', () => {
     expect(initialLayout(VIEWS, null)).toEqual(FIRST);
-    expect(SIDE_DEFAULTS).toEqual({ left: 220, right: 240, bottom: 150 });
+    expect(SIDE_DEFAULTS).toEqual({ left: 200, right: 200, bottom: 150 });
     expect(SIDE_MIN).toEqual({ left: 140, right: 120, bottom: 60 });
   });
 
@@ -76,6 +85,24 @@ describe('initialLayout', () => {
     // Even when the last session kept it open with a view: there is nothing to show.
     const kept = JSON.stringify({ right: { view: 'properties', open: true, size: 200 } });
     expect(initialLayout({ left: ['explorer'], right: [], bottom: [] }, kept).right).toEqual({ view: null, open: false, size: 200 });
+  });
+});
+
+describe('keptView', () => {
+  it('reads the view a side was left on, from what was kept, as initialLayout reads it back', () => {
+    const kept = keepLayout(showView(FIRST, 'left', 'search'));
+    expect(keptView(kept, 'left', VIEWS.left)).toBe('search');
+    expect(keptView(JSON.parse(kept), 'left', VIEWS.left)).toBe('search');
+    expect(keptView(kept, 'bottom', VIEWS.bottom)).toBe('log');
+  });
+
+  it('is null where nothing was kept for the side, or what was is no view the side has now', () => {
+    for (const kept of [null, undefined, '', 'not json', '[]', '{}', '{"left":7}', '{"left":{"view":3}}']) {
+      expect(keptView(kept, 'left', VIEWS.left), String(kept)).toBeNull();
+    }
+    // A view the side no longer has: initialLayout falls back to the side's first; this says none was chosen.
+    expect(keptView('{"left":{"view":"gallery"}}', 'left', VIEWS.left)).toBeNull();
+    expect(initialLayout(VIEWS, '{"left":{"view":"gallery"}}').left.view).toBe('explorer');
   });
 });
 
@@ -167,5 +194,37 @@ describe('keepLayoutOver', () => {
 
   it("is keepLayout's text with every side named", () => {
     expect(keepLayoutOver(FIRST, EARLIER, ['left', 'right', 'bottom'])).toBe(keepLayout(FIRST));
+  });
+});
+
+describe("the documents' split", () => {
+  it('holds a ratio between a fifth and four fifths, in thousandths, and a ratio that is no number to the default', () => {
+    expect([SPLIT_MIN, SPLIT_DEFAULT, SPLIT_MAX]).toEqual([0.2, 0.5, 0.8]);
+    expect(clampSplit(0.3)).toBe(0.3);
+    expect(clampSplit(0.05)).toBe(SPLIT_MIN);
+    expect(clampSplit(0.95)).toBe(SPLIT_MAX);
+    expect(clampSplit(0.33333)).toBe(0.333);
+    expect(clampSplit(Number.NaN)).toBe(SPLIT_DEFAULT);
+    expect(clampSplit(Number.POSITIVE_INFINITY)).toBe(SPLIT_DEFAULT);
+  });
+
+  it('reads the split kept with the layout, and the default for none or junk', () => {
+    expect(initialSplit(JSON.stringify({ split: 0.7 }))).toBe(0.7);
+    expect(initialSplit({ split: 0.9 })).toBe(SPLIT_MAX);
+    for (const junk of [null, 'not json', '[0.3]', '{"split": "wide"}', 42, JSON.stringify(FIRST)]) expect(initialSplit(junk)).toBe(SPLIT_DEFAULT);
+  });
+
+  it('writes the split over what was kept, the sides as they were', () => {
+    const text = keepSplitOver(0.65, keepLayout(FIRST));
+    expect(JSON.parse(text)).toEqual({ ...JSON.parse(keepLayout(FIRST)), split: 0.65 });
+    expect(initialLayout(VIEWS, text)).toEqual(FIRST);
+    expect(initialSplit(text)).toBe(0.65);
+    expect(JSON.parse(keepSplitOver(0.1, 'not json'))).toEqual({ split: SPLIT_MIN });
+  });
+
+  it('is kept by a write of the sides, which the shell makes at each of its own changes', () => {
+    const text = keepLayoutOver(toggleView(FIRST, 'left', 'explorer'), keepSplitOver(0.3, keepLayout(FIRST)), ['left', 'right', 'bottom']);
+    expect(initialSplit(text)).toBe(0.3);
+    expect(initialLayout(VIEWS, text).left.open).toBe(false);
   });
 });

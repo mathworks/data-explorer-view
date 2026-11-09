@@ -4,23 +4,30 @@
 // Files are picked, dropped, read, saved and watched through one WebFiles; a picked or dropped
 // folder is served in the page and handed to the shell as an Electron main process hands its page a
 // port, and looked at again when the page is shown or its window focused, since a browser says
-// nothing of a folder's changes. There are no native prompts: with no confirmClose or
-// confirmReload, the shell asks about unsaved edits and changes on disk in its own dialog.
+// nothing of a folder's changes. The Folder view moves within a picked folder, and only there: a
+// page reaches no folder the user did not pick, so the folder above the picked one is none, and a
+// folder of it shown is served with its files at the paths they had, for a tab open on one. There
+// are no native prompts: with no confirmClose or confirmReload, the shell asks about unsaved edits
+// and changes on disk in its own dialog.
 //
 // Lifted from data-explorer-app src/web/host.ts (`webHost`) at b13a860. Since: every dependency
 // defaults to the page's own; without `onFolder` the host shows no folders and without `onChanged`
-// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; and a drop opens
-// through openDropped.
+// watches no files; a folder is looked at again at most once every LOOK_EVERY_MS; a drop opens
+// through openDropped; and New's files are made in newFile.ts. A page may open files from web
+// addresses (fetchUrls, and Open from URL with `openFromUrl`), fetched under urls.ts's rules, and
+// pass on its links to its files (`linkFor`, Copy Link).
 
 import { isSupportedPath } from 'data-explorer-core';
-import type { ShellHost } from '../widgets/app-shell/connect/types.js';
+import type { ShellHost, ShellLink, ShellLinkRequest } from '../widgets/app-shell/connect/types.js';
 import { dropSources, type DroppedItem } from './drop.js';
 import { folderLooks, serveWebFolder, type WebFolderServer } from './folder.js';
-import { WebFiles, type BrowserFile, type BrowserSource } from './files.js';
+import { titleOfPath, WebFiles, type BrowserFile, type BrowserSource } from './files.js';
 import type { FilePickers, UserActivation } from './fsAccess.js';
+import { NewFiles } from './newFile.js';
 import { pickDirectory, pickFiles } from './pick.js';
 import { saveFile, saveFileAs } from './save.js';
-import type { BrowserDir } from './walk.js';
+import { fetchUrlBytes, urlTargetOf, type UrlFetchDeps, type UrlTarget } from './urls.js';
+import { subDir, type BrowserDir } from './walk.js';
 import { watchOpenFiles, type OpenFileWatch } from './watch.js';
 
 /**
@@ -41,10 +48,24 @@ export interface BrowserFiles {
    * by (the shell's `openPaths`). A handle to a file the host has a path for already keeps that path.
    */
   addPicked(name: string, source: BrowserSource): Promise<string>;
+  /**
+   * Add files of the app's own to the group named `group` (any name the app chooses: `'samples'`):
+   * the paths to open them by, in order. A group is one folder, made when its first file comes, and
+   * every file added to it later sits beside the ones it has, so files fetched at different times
+   * still find each other (a model's link to a dictionary, which names it alone). Two groups, and
+   * every pick, are folders apart. A group holds one file of a name: a file of a name it has takes
+   * that file's place, at its path, and a tab open on it takes the new file as it takes a change on
+   * disk (through `onChanged`). The same file again (equal bytes, or a File of the same size and
+   * date) changes nothing; still, a page adds a file once and keeps the paths it is answered, to
+   * open again. A handle to a file the host has a path for already keeps that path.
+   */
+  addToGroup(group: string, files: readonly BrowserFile[]): Promise<string[]>;
   /** The file at `path`, or undefined for a path the host never made. */
   get(path: string): BrowserFile | undefined;
   /** Whether the host made `path`. */
   has(path: string): boolean;
+  /** The web address the file at `path` was fetched from (fetchUrls), as it was first given; undefined for any other file. */
+  urlOf(path: string): string | undefined;
 }
 
 /** What browserHost runs over. Each is the page's own unless given (a test gives fakes). */
@@ -53,8 +74,8 @@ export interface BrowserHostOptions {
   window?: FilePickers & Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
   /** Where file inputs and download links are made, and whose `visibilitychange` and title the host uses. Default `document`. */
   document?: Document;
-  /** Whether a click or a key press led to a dialog, and the clipboard. Default `navigator`. */
-  navigator?: UserActivation & { clipboard?: Pick<Clipboard, 'writeText'> };
+  /** Whether a click or a key press led to a dialog, the clipboard, and whether the browser is online. Default `navigator`. */
+  navigator?: UserActivation & { clipboard?: Pick<Clipboard, 'writeText'>; onLine?: boolean };
   /**
    * Show the folder served on `port` as `root`: the shell's `showFolder`. Absent: the host shows no
    * folders; it has no `pickFolder` (the shell then offers no Folder button), a dropped folder is
@@ -63,6 +84,25 @@ export interface BrowserHostOptions {
   onFolder?(root: string, port: MessagePort): void;
   /** An open file changed on disk: the shell's `fileChanged`. Absent: open files are not watched. */
   onChanged?(path: string): void;
+  /** The page's fetch, for web addresses. Default the page's own (called as `fetch(url, init)`). */
+  fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  /** The page's origin, whose `http:` addresses are fetched too. Default `location.origin`. */
+  origin?: string;
+  /**
+   * Give the shell Open from URL… (the host's `fetchUrl`), for a page whose Content-Security-Policy
+   * lets it fetch from `https:` (`connect-src https:`). Default false.
+   */
+  openFromUrl?: boolean;
+  /** The page's links to its files (Copy Link), answered as the host's `linkFor`. Absent: no Copy Link. */
+  linkFor?(request: ShellLinkRequest): ShellLink;
+}
+
+/** What fetchUrls answers. */
+export interface FetchedUrls {
+  /** The path to open each address's file by, in the addresses' order; null for one not fetched. */
+  paths: (string | null)[];
+  /** Why each null is, one line each, in the same order ("https://x/a.sldd could not be fetched: 404 Not Found"). */
+  problems: string[];
 }
 
 /** The browser's ShellHost, and what a page drives it by beside connectShell. */
@@ -81,14 +121,26 @@ export interface BrowserHost extends ShellHost {
    * then), as `installFileDrop(window, async (dt) => app.openPaths(await host.openDropped(dt)))` does.
    */
   openDropped(data: DataTransfer): Promise<string[]>;
+  /**
+   * Fetch the files at these web addresses (urlTargetOf's rules) and add each to the group of its
+   * address's folder, so a model and its dictionary from one repo folder link. Each address (by the
+   * URL fetched) is fetched once: asked again, it answers the path it has; one that failed is
+   * fetched afresh. The files are bytes the page holds, so a Save downloads. Never rejects.
+   */
+  fetchUrls(urls: readonly string[]): Promise<FetchedUrls>;
   /** Whether a file has unsaved edits, as the shell last said: for `beforeunload` to ask. */
   readonly edited: boolean;
   /** Stop watching, looking and serving, and take the host's listeners away. */
   dispose(): void;
 }
 
-/** The folder shown: how it is served, how it is looked at again, and when it last was. */
+/** `err` as an Error, its message what a problem line says. */
+const asError = (err: unknown): Error => (err instanceof Error ? err : new Error(String(err)));
+
+/** The folder shown: what it is, how it is served, how it is looked at again, and when it last was. */
 interface Shown {
+  /** The folder as it is served: a picked one, or a folder of one. */
+  dir: BrowserDir;
   served: WebFolderServer;
   look: () => Promise<string[]>;
   looking: boolean;
@@ -102,10 +154,10 @@ interface Shown {
 
 /**
  * A ShellHost for a browser page: Open File and Open Folder through Chromium's pickers or file
- * inputs, reads and saves through WebFiles (in place where the browser gives a handle, a download
- * where it does not), open files watched, a folder served in the page, and drops. The shell gets
- * its folder and its files' changes back through `onFolder` and `onChanged`; docs/browser-host.md
- * says what works in which browser.
+ * inputs, New through its save picker or as a file the page keeps, reads and saves through WebFiles
+ * (in place where the browser gives a handle, a download where it does not), open files watched, a
+ * folder served in the page, and drops. The shell gets its folder and its files' changes back
+ * through `onFolder` and `onChanged`; docs/browser-host.md says what works in which browser.
  */
 export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const files = new WebFiles();
@@ -116,8 +168,22 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   const deps = { window: win, document: doc, navigator: nav };
   const { onFolder, onChanged } = options;
   const watcher: OpenFileWatch | undefined = onChanged ? watchOpenFiles(files, onChanged, deps) : undefined;
+  const made = new NewFiles(files, deps);
+  // The files the shell has open, as it says: each it reads, and each New it is given, until it
+  // closes it. A New over one is not written: the emptied file is the shell's to write back.
+  const opened = new Set<string>();
   let shown: Shown | undefined;
   let edited = false;
+  // The folders picked or dropped this session, each by the root it is shown at, newest first: the
+  // folders the Folder view moves within, and its recent ones.
+  const picked: { root: string; dir: BrowserDir }[] = [];
+  // The picked folder `path` is, or is in: the one whose root is the path, or begins it and a `/`.
+  const pickedOf = (path: string) => picked.find((p) => path === p.root || path.startsWith(`${p.root}/`));
+  // A folder of a picked one, as the host spells it (FolderEntry paths): no trailing `/`, no empty,
+  // `.` or `..` segment. Any other spelling is no folder of it: served there, its files would be at
+  // paths they never had (`/proj//a.sldd`), and a tab open on one would not find it.
+  const spelledIn = (path: string, root: string): boolean =>
+    path === root || !path.slice(root.length + 1).split('/').some((part) => part === '' || part === '.' || part === '..');
 
   // A look at the shown folder: the files it touched the page reads again. One at a time; one asked
   // while another runs follows it.
@@ -170,8 +236,20 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
   async function showFolder(dir: BrowserDir): Promise<{ looked: Promise<void> }> {
     if (!onFolder) return { looked: Promise.resolve() };
     const root = await files.folderRoot(dir);
+    // Picked again: first again, at the root it took back.
+    const was = picked.findIndex((p) => p.root === root);
+    if (was >= 0) picked.splice(was, 1);
+    picked.unshift({ root, dir });
+    return serve(root, dir);
+  }
+
+  // Serve the folder `dir` at `root`, a picked folder's or a folder of one, in place of the folder
+  // shown before. A folder of a picked one is served at the picked root and its path in it, so each
+  // of its files is listed at the path it had under the picked folder.
+  function serve(root: string, dir: BrowserDir): { looked: Promise<void> } {
     stopShowing();
     const folder: Shown = {
+      dir,
       served: serveWebFolder(root, dir, files),
       look: folderLooks(root, dir),
       looking: false,
@@ -180,7 +258,7 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       timer: undefined,
     };
     shown = folder;
-    onFolder(root, folder.served.port);
+    onFolder!(root, folder.served.port);
     return { looked: lookAt(folder) };
   }
 
@@ -201,20 +279,166 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     }
   }
 
+  // Files of the app's own, or fetched from web addresses, into a group. A file replaced under a tab
+  // is a change on disk to it, told once: the watcher knows it by the new file's stamp, so its next
+  // look does not tell it again.
+  async function addToGroup(group: string, added: readonly BrowserFile[]): Promise<string[]> {
+    const { paths, replaced } = await files.addToGroup(group, added);
+    for (const path of replaced) {
+      if (!watcher?.has(path)) continue;
+      watcher.watch(path, await files.stamp(path));
+      onChanged?.(path);
+    }
+    return paths;
+  }
+
+  // The page's own fetch is looked up at each fetch, so one a page or a test puts in later is the one called.
+  const fetchDeps: UrlFetchDeps = {
+    fetch: options.fetch ?? ((url, init) => fetch(url, init)),
+    online: () => nav.onLine !== false,
+  };
+  // Each web address's file by the URL fetched: its path once it is added, so an address asked for
+  // again (in another spelling, or while its first fetch runs) is fetched once. One that failed is
+  // let go, to be fetched afresh when it is asked for again.
+  const fromUrl = new Map<string, Promise<string>>();
+  // By each fetched file's path, the URL whose file is there and that address as it was first
+  // given: what a link to it writes back. Two addresses of one name in one folder (`a.sldd?v=1`,
+  // `?v=2`) share a path, as two files of a name in a group do, and take turns at it.
+  const urlAt = new Map<string, string>();
+  const givenAt = new Map<string, string>();
+
+  // Fetch `fresh` (addresses not asked for before) together, then add the files fetched a group at a
+  // time, each group's in one call and the groups in the order they first come, so the folders are
+  // numbered as the addresses run: each address's path by its URL, or why it has none.
+  async function addFetched(fresh: readonly UrlTarget[]): Promise<Map<string, string | Error>> {
+    const fetched = await Promise.allSettled(fresh.map((target) => fetchUrlBytes(target, fetchDeps)));
+    const answers = new Map<string, string | Error>();
+    const groups = new Map<string, { target: UrlTarget; bytes: Uint8Array }[]>();
+    fresh.forEach((target, i) => {
+      const result = fetched[i];
+      if (result.status === 'rejected') return void answers.set(target.url, asError(result.reason));
+      let group = groups.get(target.group);
+      if (!group) groups.set(target.group, (group = []));
+      group.push({ target, bytes: result.value });
+    });
+    for (const [group, got] of groups) {
+      const paths = await addToGroup(group, got.map(({ target, bytes }) => ({ name: target.name, source: { kind: 'bytes', bytes } })));
+      got.forEach(({ target }, i) => {
+        const path = paths[i];
+        answers.set(target.url, path);
+        // Another address's file was there: that address, asked for again, is fetched again.
+        const before = urlAt.get(path);
+        if (before !== undefined && before !== target.url) fromUrl.delete(before);
+        urlAt.set(path, target.url);
+        givenAt.set(path, target.given);
+      });
+    }
+    return answers;
+  }
+
+  async function fetchUrls(urls: readonly string[]): Promise<FetchedUrls> {
+    const origin = options.origin ?? location.origin;
+    const targets = urls.map((given) => urlTargetOf(given, origin));
+    const fresh = new Map<string, UrlTarget>();
+    for (const target of targets) {
+      if (!('problem' in target) && !fromUrl.has(target.url) && !fresh.has(target.url)) fresh.set(target.url, target);
+    }
+    if (fresh.size) {
+      const added = addFetched([...fresh.values()]);
+      for (const url of fresh.keys()) {
+        const path = added.then((answers) => {
+          const answer = answers.get(url)!;
+          if (answer instanceof Error) throw answer;
+          return answer;
+        });
+        fromUrl.set(url, path);
+        path.catch(() => {
+          if (fromUrl.get(url) === path) fromUrl.delete(url);
+        });
+      }
+    }
+    // Each address's answer as this call found it, taken before a failure lets it go.
+    const asked = targets.map((target) => ('problem' in target ? target : { target, path: fromUrl.get(target.url)! }));
+    const paths: (string | null)[] = [];
+    const problems: string[] = [];
+    for (const one of asked) {
+      if ('problem' in one) {
+        paths.push(null);
+        problems.push(one.problem);
+        continue;
+      }
+      try {
+        paths.push(await one.path);
+      } catch (err) {
+        paths.push(null);
+        problems.push(`${one.target.given} could not be fetched: ${asError(err).message}`);
+      }
+    }
+    return { paths, problems };
+  }
+
   return {
     // The registry's few members an app needs, and none of the rest.
     files: {
       addPicked: (name, source) => files.addPicked(name, source),
+      addToGroup,
       get: (path) => files.get(path),
       has: (path) => files.has(path),
+      urlOf: (path) => givenAt.get(path),
+    },
+    async newFile(suggestedName) {
+      // The open files are not looked at while the picker is up: the one it names is made or emptied
+      // as it closes, which is no other program's change, and a look meanwhile would report it.
+      const paused = [...opened];
+      for (const p of paused) watcher?.saving(p);
+      let path: string | null = null;
+      try {
+        path = await made.make(suggestedName, (p) => opened.has(p));
+      } finally {
+        // A file on disk is watched from now on, as one read is, known by what is there now: the new
+        // dictionary, or an open file as the picker left it, which is then no change to reload from.
+        // The others are known as they were.
+        const stamp = path !== null && !made.keeps(path) ? await files.stamp(path) : null;
+        for (const p of paused) watcher?.ownWrite(p, p === path ? stamp : null);
+        if (path !== null && !made.keeps(path)) watcher?.watch(path, stamp);
+      }
+      if (path !== null) opened.add(path);
+      return path;
     },
     pickFiles: () => pickFiles(files, deps),
+    fetchUrls,
+    ...(options.openFromUrl && {
+      async fetchUrl(url: string) {
+        const { paths, problems } = await fetchUrls([url]);
+        if (paths[0] === null) throw new Error(problems[0]);
+        return paths[0];
+      },
+    }),
     ...(onFolder && {
       async pickFolder() {
         const dir = await pickDirectory(deps);
         if (dir) await openFolder(dir);
       },
+      // The Folder view's moves: up to the folder picked and no further, and to a folder of a
+      // folder picked this session. A folder outside them all is none of the page's.
+      folderParent(path: string) {
+        const of = pickedOf(path);
+        return !of || path === of.root || !spelledIn(path, of.root) ? null : path.slice(0, path.lastIndexOf('/'));
+      },
+      async openFolderAt(path: string) {
+        const of = pickedOf(path);
+        if (!of || !spelledIn(path, of.root)) return false;
+        const rel = path === of.root ? '' : path.slice(of.root.length + 1);
+        await serve(path, await subDir(of.dir, rel)).looked;
+        return true;
+      },
+      recentFolders: async () => picked.map((p) => p.root),
     }),
+    // A folder the browser listed as it was picked is that list for good: ⟳ picks it again. A
+    // handle's folder is read again.
+    get folderRefresh(): 'read' | 'pick' {
+      return shown?.dir.kind === 'list' ? 'pick' : 'read';
+    },
     openFolder,
     async openDropped(data) {
       // Asked of the drop before anything is awaited.
@@ -230,14 +454,22 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
     async readFile(path) {
       // Only data files are read, as a desktop host reads only those.
       if (!isSupportedPath(path)) throw new Error('Not a data file this app opens.');
+      opened.add(path);
       // The stamp before the bytes: a write between the two is a change the next look reports.
       const stamp = await files.stamp(path);
       const bytes = await files.bytes(path);
       watcher?.watch(path, stamp);
       return bytes;
     },
-    closeFile: (path) => watcher?.unwatch(path),
-    saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes), () => true),
+    closeFile(path) {
+      opened.delete(path);
+      watcher?.unwatch(path);
+    },
+    // The paths are this host's making: a tooltip says what each means to the user.
+    pathTitle: titleOfPath,
+    // A file with no handle to write it through (a new file the page keeps, one picked as a File,
+    // the app's own bytes) is downloaded.
+    saveFile: (path, bytes) => writing(path, () => saveFile(files, path, bytes, doc), () => true),
     saveFileAs: (path, bytes) => writing(path, () => saveFileAs(files, path, bytes, deps), (to) => to?.path === path),
     setEdited(value) {
       edited = value;
@@ -252,6 +484,8 @@ export function browserHost(options: BrowserHostOptions = {}): BrowserHost {
       if (!nav.clipboard) throw new Error('This browser gives the page no clipboard.');
       await nav.clipboard.writeText(text);
     },
+    // The page's own links: it knows its address and how its files are named in one.
+    ...(options.linkFor && { linkFor: options.linkFor }),
     dispose() {
       if (onFolder) {
         doc.removeEventListener('visibilitychange', lookAgain);

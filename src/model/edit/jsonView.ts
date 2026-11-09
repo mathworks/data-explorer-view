@@ -67,8 +67,7 @@ import {
 } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildSectionRowId } from '../ids/sectionRowId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
@@ -84,6 +83,8 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -100,6 +101,7 @@ import type { JsonDocState, JsonDocument, JsonTableOptions } from './jsonEngine.
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
 import { baselineOwed, diskBaselineUsable, sameDiskStamp, type DiskStamp } from './slddBaseline.js';
+import { replacingOrRefuse } from './replacing.js';
 import { runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
 import { wideLanding } from './wideRepaint.js';
 import type { Release } from './writeQueue.js';
@@ -148,6 +150,14 @@ export class JsonView implements EditableTableSource {
   private wideEpoch = 0;
   /** How many times this table changed its rows, or put its tree out of step, outside a wide repaint. */
   private rowsTouched = 0;
+  /**
+   * Each entry's latest turn, by its row id, since the last wide repaint began: taken by a narrow
+   * repaint as it BEGINS (postEntryRows) and by a paint of the entry sent at once (postRowPatch).
+   * A repaint that waited on the Usage column lands only if it still holds its entry's latest turn:
+   * one begun or sent after it is the newer reading, whichever of them is done first.
+   */
+  private readonly entryTurns = new Map<string, number>();
+  private entryTurn = 0;
   /** This table has closed: set first in dispose, and asked by everything still running then. */
   private disposed = false;
   /** The table has asked for its rows (`open`). Until then a wide repaint paints nothing. */
@@ -270,6 +280,7 @@ export class JsonView implements EditableTableSource {
   private postRowPatch(change: TableChange): void {
     if (this.disposed) return;
     this.rowsTouched++;
+    if (change.kind === 'updateEntry') this.takeTurn(change.entryRowId);
     this.emit(change);
     this.changed();
   }
@@ -326,6 +337,8 @@ export class JsonView implements EditableTableSource {
     // Counted before the text is read: a write painted before this point is never again taken for
     // one whose rows are on screen, and a repaint begun before it is no longer the newest.
     const epoch = ++this.wideEpoch;
+    // Every narrow repaint still waiting is older than this one, which drops it (postEntryRows).
+    this.entryTurns.clear();
     this.latestPost = this.paintWide(epoch);
     return this.latestPost;
   }
@@ -466,11 +479,25 @@ export class JsonView implements EditableTableSource {
    */
   private postEntryRows(entryRowId: string, entry: any): Promise<void> {
     const rows = this.entryRowsOf(entry);
+    const turn = this.takeTurn(entryRowId);
+    const epoch = this.wideEpoch;
     return this.fillUsage(rows)
       .catch(() => false)
       .then(() => {
+        // Overtaken while the Usage column was filled: a repaint of the same entry began since (a
+        // refused edit's take-back, after the edit's own), a paint of it went out (an undo pressed
+        // straight after an edit, while the edit's echo waits here), or a wide one began. Their rows
+        // are newer than these, which would put back what they took.
+        if (this.wideEpoch !== epoch || this.entryTurns.get(entryRowId) !== turn) return;
         this.postRowPatch({ kind: 'updateEntry', entryRowId, rows });
       });
+  }
+
+  /** The next turn of the entry `entryRowId`: its latest, until another repaint or paint of it takes one. */
+  private takeTurn(entryRowId: string): number {
+    const turn = ++this.entryTurn;
+    this.entryTurns.set(entryRowId, turn);
+    return turn;
   }
 
   /**
@@ -1180,11 +1207,32 @@ export class JsonView implements EditableTableSource {
 
   // A drop reads its register when the message ARRIVES, not when its turn comes: the source's
   // dragEnd follows it at once and clears the register.
-  drop(rowId: string, mode: 'copy' | 'move'): void {
+  // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
+  drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void {
     if (this.disposed) return;
     const registers = this.doc.options.registers;
     const register = registers.dragRegister(mode, () => registers.broadcastDragState());
-    void this.queueWrite((release) => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps(release)));
+    return this.queueWrite((release) => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps(release))).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // A copy that takes the place of entries of this document (a compare's Copy to Right): read on
+  // arrival as a drop is, the register and the entries it replaces both, and queued as a drop is.
+  // The entries go out in the commit's text, before the paste, as a same-document move's do.
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void {
+    if (this.disposed) return;
+    const registers = this.doc.options.registers;
+    const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+    const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+    if (!selectors) return;
+    return this.queueWrite((release) =>
+      runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps(release)),
+    ).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   addEntry(msg: NewEntry): void {
@@ -1455,12 +1503,12 @@ export class JsonView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the tree the text says now, as the Raw pane's: the file's
+  // page says it holds edits while its text does.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.disposed) return { groups: [] };
+    const tree = { root: () => this.liveModel(), fileIds: [this.uri], find: this.findForRead, name: this.name, sources: this.session, dirty: () => this.doc.text.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree the text says now, as an edit
@@ -1486,6 +1534,11 @@ export class JsonView implements EditableTableSource {
   }
 
   // --- Undo, redo, the whole text of a Value, and Location in Text ---------------------------------
+
+  /** Where the document's undo stack stands, the text's, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   // One stack, the text's own: an undo here is an undo of the text, which every table and text view
   // of the document hears. Not queued behind the edits (queueWrite): it takes back what the text

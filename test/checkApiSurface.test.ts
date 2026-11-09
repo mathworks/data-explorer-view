@@ -4,7 +4,7 @@
 // export map, every entry's names, the event details, the wire, the theme's tokens, the icons,
 // what each widget observes, and package.json's promises. Each is read out of a small built
 // package written here, a release and an edit of it, and the rule is run on the two.
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -48,23 +48,29 @@ const RELEASE: Files = {
   'icons/b.svg': '<svg/>',
 };
 
-const dirs: string[] = [];
-afterAll(() => {
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
-});
-
-/** The release with `edit` applied to its files, written out and read. */
+/**
+ * The release with `edit` applied to its files, written out and read, then taken away: each
+ * case's own folder goes with the case, rather than every case's in one hook at the end, which
+ * on a loaded machine took longer than a hook is given.
+ */
 function surface(edit: (files: Files) => void = () => {}) {
   const files = structuredClone(RELEASE);
   edit(files);
   const dir = mkdtempSync(join(tmpdir(), 'api-surface-'));
-  dirs.push(dir);
-  for (const [name, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, name)), { recursive: true });
-    writeFileSync(join(dir, name), text);
+  try {
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), text);
+    }
+    return surfaceOf(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  return surfaceOf(dir);
 }
+
+// Each case reads a package with TypeScript, its lib files included: under a second alone, and
+// several on a loaded machine.
+const READS = { timeout: 20_000 };
 const BASE = surface();
 
 const pkgEdit = (change: (pkg: any) => void) => (files: Files) => {
@@ -78,7 +84,7 @@ const replace = (file: string, from: string, to: string) => (files: Files) => {
 };
 const check = (head: ReturnType<typeof surface>, headVersion = '1.0.1') => checkApi({ base: BASE, baseVersion: '1.0.0', head, headVersion });
 
-describe('what the surface holds', () => {
+describe('what the surface holds', READS, () => {
   it('reads each part out of the built package', () => {
     const keys = BASE.map((i: any) => i.key).sort();
     expect(keys).toEqual([
@@ -122,7 +128,7 @@ describe('what the surface holds', () => {
   });
 });
 
-describe('what breaks, at a minor release after 1.0', () => {
+describe('what breaks, at a minor release after 1.0', READS, () => {
   const breaks: [string, (files: Files) => void, string][] = [
     ['an export map key gone', pkgEdit((p) => delete p.exports['./theme.css']), 'export map ./theme.css'],
     ['an entry name gone', replace('dist/model/index.d.ts', 'export interface Row { id: string }\n', ''), './model Row (type)'],
@@ -154,7 +160,7 @@ describe('what breaks, at a minor release after 1.0', () => {
   });
 });
 
-describe('what is reported and passes', () => {
+describe('what is reported and passes', READS, () => {
   const passes: [string, (files: Files) => void, string][] = [
     ['a name added', replace('dist/model/index.d.ts', 'export interface Row', 'export interface Col { id: string }\nexport interface Row'), 'New since v1.0.0:\n  ./model Col (type)'],
     ['a detail field added', replace('dist/widgets/x/index.d.ts', 'id: string;', 'id: string; at?: string;'), '<dex-x> event dex-x-done detail at'],

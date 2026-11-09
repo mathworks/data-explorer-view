@@ -33,11 +33,26 @@ export interface ContextMenuItem {
 export interface ActionDetail {
     actionId: string;
 }
+/** How show() opens the menu. */
+export interface ContextMenuShowOptions {
+    /**
+     * Put the keyboard on the first item at once, and give it back to the element that had it (inside
+     * a shadow root too: a table's grid) when the menu closes holding it (Escape, a choice, a scroll, a
+     * right-click outside, close()): for a menu a key opened, whose arrows must move along it and not
+     * along what is under it. A click outside moves the focus where the click puts it. The browser's
+     * own menu for that key is spent while the menu is open (Chromium on Windows opens one on the
+     * ContextMenu key's keyup). Default false: the keyboard stays where it is until an arrow moves
+     * into the menu, as for a menu a right-click opened, and a right-click on it is the browser's.
+     */
+    focusFirst?: boolean;
+}
 /**
  * A context menu of the items an app hands it, at a point of the viewport: show() opens it,
  * a choice sends `dex-action` and closes it, and Escape, a click or a right-click outside it,
  * or a scroll close it. Whichever way it closes, it sends `dex-menu-closed`. Arrow keys move
  * along the items, disabled ones included (their `reason` is their tooltip), and Enter chooses.
+ * A menu a key opened is shown with `focusFirst`: the keyboard is on its first item at once, and
+ * goes back where it was when the menu closes holding it.
  * The tree table's items for a selection are buildContextMenuItems'
  * (`data-explorer-view/tree-table`).
  *
@@ -50,18 +65,29 @@ export declare class DexContextMenu extends LitElement {
     private _x;
     private _y;
     private _focusedIndex;
+    private _returnFocus;
+    private _byKey;
     private _dismissHandler;
     private _contextMenuHandler;
     private _keyHandler;
     private _scrollHandler;
+    private _menuKeyUpHandler;
+    private _onMenuContextMenu;
+    private _holdsFocus;
     /**
      * Opens the menu with these items, its top-left corner at (`x`, `y`) in viewport pixels
      * (a contextmenu event's clientX and clientY), moved in to fit the viewport. A menu already
-     * open is replaced: it closes first, and says so (`dex-menu-closed`).
+     * open is replaced: it closes first, and says so (`dex-menu-closed`). With `focusFirst`, the
+     * keyboard is on the first item at once, and goes back where it was as the menu closes.
      */
-    show(x: number, y: number, items: ContextMenuItem[]): void;
-    /** Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). */
+    show(x: number, y: number, items: ContextMenuItem[], options?: ContextMenuShowOptions): void;
+    /**
+     * Closes the menu, choosing nothing. An open menu says so (`dex-menu-closed`). A menu opened with
+     * `focusFirst` that holds the keyboard as it closes (Escape, a scroll, a right-click outside,
+     * close()) gives it back where it was.
+     */
     close(): void;
+    private _detach;
     private _sendClosed;
     private _clampPosition;
     private _getActionItems;

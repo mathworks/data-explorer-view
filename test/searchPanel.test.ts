@@ -246,6 +246,23 @@ describe('dex-search-panel: the results', () => {
     expect(options(el)[0]!.title).toBe('in the controller');
   });
 
+  it('says what each entry is at the end of its row, where its result says: its class, else its data type', async () => {
+    const el = await panel({
+      query: 'k',
+      results: [
+        searchItem({ ...dict('Kp'), value: '1', dataType: 'double', className: 'Simulink.Parameter' }),
+        searchItem({ ...block('Kick', '9', 'Controller/Kick'), dataType: 'Gain' }),
+        searchItem(dict('Ki')),
+      ],
+    });
+    // Drawn by file: params.sldd's two, then ctrl.slx's block.
+    const types = options(el).map((row) => row.querySelector('.type')?.textContent ?? null);
+    expect(types).toEqual(['Simulink.Parameter', null, 'Gain']);
+    // After the name and its place in the file, so the names line up.
+    const kick = options(el)[2]!;
+    expect([...kick.querySelectorAll('span')].map((s) => s.className)).toEqual(['label', 'where', 'type']);
+  });
+
   it("draws each row's icon, and its whole description as its tooltip", async () => {
     const el = await panel({ query: 'k', results: RESULTS });
     const icons = options(el).map((row) => (row.querySelector('dex-icon') as unknown as { iconId: string }).iconId);

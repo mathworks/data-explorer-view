@@ -21,11 +21,13 @@ import { defineVariableEditor, type DexVariableEditor } from '../variable-editor
 import { defineErrorDialog, type DexErrorDialog } from '../error-dialog/dex-error-dialog.js';
 import { insertEntryRows, mergeChildRows, pendingSelectionToApply, spliceEntryRows } from '../../model/actions/rowUpdates.js';
 import { resolveOperands } from '../../model/actions/operands.js';
-import { isSectionRowId } from '../../model/ids/sectionRowId.js';
+import { isEntryRow } from '../../model/ids/sectionRowId.js';
 import { localLinkName, parseLinkTarget, type LinkTarget } from '../../model/ids/linkTarget.js';
 import {
   isEditable,
   isSourceClosed,
+  type CellEdit,
+  type InspectOptions,
   type InspectorFeed,
   type InspectorView,
   type MatrixPage,
@@ -33,8 +35,18 @@ import {
   type TableSource,
   type TableView,
 } from '../../model/source/tableSource.js';
+import { usedByGroup } from '../../model/inspector/inspectorPages.js';
 import type { DexTreeTable, TableBanners, TreeTableRow } from './dex-tree-table.js';
-import { wireEditing, type EditingWire, type TableTextView } from './editingWire.js';
+import {
+  wireEditing,
+  type DragOutSource,
+  type DropResult,
+  type EditingRun,
+  type EditingWire,
+  type TableDropDecision,
+  type TableTextView,
+} from './editingWire.js';
+import type { DragMode } from '../../model/actions/dropDecision.js';
 import type { MenuRow } from './menuItems.js';
 
 /** What a right-click is on, for the items an app adds to the menu (`menuItems`). */
@@ -58,7 +70,8 @@ export interface ConnectTableOptions {
   /**
    * Whether a right-click opens a context menu: by default it does, with Copy Name and Copy
    * Value for the selection, then `menuItems`. False for none, for an app that answers
-   * `dex-table-context-menu` itself.
+   * `dex-table-context-menu` itself. The menu the table's `keyboardMenu` keys open takes the
+   * keyboard at once, and gives it back to the grid when it closes holding it.
    */
   menu?: boolean;
   /**
@@ -131,6 +144,12 @@ export interface ConnectTableOptions {
    */
   undoChords?: boolean;
   /**
+   * With `editing`: the table answers '+' (with Shift or without, as the layout types it) with Add
+   * Child, on the selected row, outside its fields and where the editing menu offers the item, which
+   * then labels it. Default false: the VS Code extension's table has no such chord.
+   */
+  addChildChord?: boolean;
+  /**
    * With `editing`: the dialog a refused edit is shown in. Default: one connectTable makes, in
    * `<body>`, and takes away again on dispose().
    */
@@ -148,6 +167,38 @@ export interface ConnectTableOptions {
    * They add no chord: Cmd/Ctrl+C stays the editing menu's Copy. Default false.
    */
   copyText?: boolean;
+  /**
+   * With `editing`: rows are dragged out of the table onto other parts of the page that take them
+   * (the app shell's Explorer, which drops them onto an open file through that file's handle:
+   * `dropDecision` and `drop`). The table's `dragOut` is set: its box at the pointer follows a row
+   * drag over the page. And a document that may not be edited lets its rows be dragged out too, as a
+   * copy alone, where its source can put them in the drag register (an editable source, or a read-only
+   * one with `dragStart` and `dragEnd`, as a workspace's read-only documents have). Default false: a
+   * document that may not be edited drags nothing, as the VS Code extension's read-only views.
+   */
+  dragOut?: boolean;
+  /**
+   * The pages an inspector following this table (its handle) is sent past the first selected
+   * row's properties: the file's own page while no row is selected (what it is, where, whether it
+   * holds edits, and the open files it references and is referenced by, as links), a section
+   * heading's (its entries counted by type), a selection of several rows' ("3 selected"), and a
+   * row's Usage links as a group of their own. Default false: the first row's properties alone,
+   * and nothing for no row or a section heading, as the VS Code extension's inspector shows them.
+   */
+  inspectorPages?: boolean;
+  /**
+   * With `inspectorPages`: what the file's page says of where the file is (its File row), the host's
+   * words for its path where its paths mean nothing to the user (the browser host's are its own
+   * making: ShellHost.pathTitle). Default the path the document's uri names.
+   */
+  inspectorFileTitle?: string;
+  /**
+   * With `editing`: the inspector's rows are editable where the document takes an edit of the
+   * property, and a change of one (`dex-property-changed`, which connectInspector hands to
+   * `handle.edit`) is written back as a cell edit is, a refusal shown in the table's dialog. Not
+   * where the document may not be edited. Default false: every row is read-only.
+   */
+  inspectorEditing?: boolean;
 }
 
 /** A link the table does not answer itself: a row of another document, or a file. */
@@ -206,6 +257,23 @@ export interface TableHandleEventMap {
    * the table goes on.)
    */
   painted: TableView;
+  /**
+   * The source's answer to open() was an error, which the table's error banner says (the detail
+   * is its message): no `painted` answers that open(), though a later `replaceAll` may still paint.
+   * For an app that waits on a paint (the app shell's openAt, to select the entry a link names) to
+   * stop waiting. Not for a source closed while it was asked, which has nothing to show and no
+   * banner to say it in.
+   */
+  failed: string;
+  /**
+   * With `editing`: an editing menu item's gesture was handed to the source, from the menu, its
+   * chord, `run()` or `undo()`/`redo()`, with the rows it carried and how many it acted on: for an
+   * app to say "Copied to clipboard" or "2 entries deleted". Told a task later, and not at all where
+   * the source refused it or said an error meanwhile, as a source in the page does before then; a
+   * source across a channel (the VS Code extension's) answers later, and its gesture is told before
+   * any refusal arrives. A disabled item hands nothing, and tells nothing.
+   */
+  ran: EditingRun;
 }
 
 /** A table wired to a source: what connectTable returns. */
@@ -247,7 +315,8 @@ export interface TableHandle extends InspectorFeed {
    * 'addChild', 'undo', 'redo', …) is offered and enabled for the current selection, anchored at its
    * first row as the chords are. For an app's toolbar button to be enabled exactly when that item
    * is. It is asked, not told: the answer moves with the selection (`select`) and with what the
-   * source says (its clipboard, a repaint). False where the document may not be edited, for Copy
+   * source says (its clipboard, a repaint, and where its undo stack stands: its `history`, whose
+   * `onChange` says when Undo and Redo move). False where the document may not be edited, for Copy
    * Name and Copy Value (`copyText`) and the items the app added (`menuItems`), which are not the
    * editing menu's own, and without `editing`.
    */
@@ -268,10 +337,61 @@ export interface TableHandle extends InspectorFeed {
   commitEdit(): Promise<void>;
   /**
    * With `editing`: Undo (or Redo) the document's last edit, as the editing menu's item does, for an
-   * app's Edit menu. Nothing where the document may not be edited, or without `editing`.
+   * app's Edit menu. Nothing where the document may not be edited, where its source's `history` says
+   * there is nothing to undo (or redo), or without `editing`.
    */
   undo(): void;
   redo(): void;
+  /**
+   * With `editing` and `inspectorEditing`: write back a change of an inspector's editable row, as
+   * a cell edit of `rowId` is (connectInspector calls it); a refusal is shown in the table's
+   * dialog, and the page is sent again either way, so a field the source refused shows what the
+   * document holds. `commitEdit()` waits for it. Nothing without the options, or where the
+   * document may not be edited.
+   */
+  edit(edit: CellEdit): void;
+  /**
+   * With `editing`: what a drop of the row drag in flight would do on `rowId` of this table's
+   * document, as the table predicts a drop on its own row there (its cursor and its tooltip), with
+   * the row it lands on; `rowId` null is the document as a whole, which lands in the section every
+   * dragged entry came from where the document has it and it takes them, else the first section that
+   * takes them (a MAT-file, which is one target, in itself: ''). For a part of the page outside the
+   * table that drops onto its document, such as an app's list of its open files, so that it invites
+   * exactly the drops the table's rows would take, though the table is not on screen. A no-op (a move
+   * back into the section every entry came from) says so (`noop`). Null where no drop can be
+   * predicted: no drag in flight, a document that may not be edited, a row whose section takes no
+   * drop, and without `editing`.
+   */
+  dropDecision(rowId: string | null, mode: DragMode): TableDropDecision | null;
+  /**
+   * With `editing`: drop the row drag in flight onto `rowId` (a row `dropDecision` named), as a drop
+   * on that row of the table does: the source's `drop`, so it is one edit of this document, undone by
+   * its Undo, and a move takes the entries out of the document they came from. Handed over at once,
+   * where `dropDecision` allows it; call it while the drag is on (from the `drop` event), since its
+   * end lets the entries go. Settles once the source is done with it, with whether it refused it and
+   * why, for the app to say (the table's banner says it too): a task after the promise the source's
+   * `drop` returns (a workspace's documents return one, a JSON dictionary's settling only when the
+   * edits queued before it are done), or a task after the call for a source that returns none (one
+   * across a channel), which has refused it by then or is taken to have dropped it. Anything the
+   * source refuses meanwhile counts against it, as a refusal does not say what it was about. It is no
+   * editing menu item, and tells no `ran`.
+   */
+  drop(rowId: string, mode: DragMode): Promise<DropResult>;
+  /**
+   * With `editing`: `drop(rowId, 'copy')` with the entries of `replacing` (rows of this table's
+   * document) taken out first in the same edit (the source's `dropReplacing`): one edit of this
+   * document, undone by one Undo. Until core can paste in place, the copy goes last in its section.
+   * Judged and settled as `drop` is (dropDecision first, then the
+   * source's promise and a task). A source without `dropReplacing` refuses it:
+   * `{ dropped: false, count, reason: '<file> does not replace entries.' }`. No `ran` is told.
+   */
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<DropResult>;
+  /**
+   * Ask the source for the inspector's page again, for a change the table does not hear of: that
+   * the document now holds edits, or none, on the file's page (`inspectorPages`). A listener is sent
+   * it only if it is not the page last sent.
+   */
+  refreshInspector(): void;
   /** Stop: the table keeps what it shows and hears nothing more. */
   dispose(): void;
 }
@@ -317,6 +437,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     action: new Set(),
     copyFailed: new Set(),
     painted: new Set(),
+    failed: new Set(),
+    ran: new Set(),
   };
   // Each listener on its own: one that throws is the app's to fix, said on the console as the
   // workspace says a listener's failure, and costs the table nothing (what a paint does after it,
@@ -408,15 +530,12 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const applyPendingNameSelection = (): void => {
     if (!pendingSelectName) return;
     const rows = rowsNow();
-    // A top-level ENTRY: its parent is a section header or, in a table with no section rows (a
-    // MAT-file's), it has no parent and is no header itself.
-    const isEntry = (r: TreeTableRow): boolean => (typeof r.parent === 'string' ? isSectionRowId(r.parent) : !isSectionRowId(r.ID));
     const named = (r: TreeTableRow): boolean => r.Name?.label === pendingSelectName;
     // Entries first, because every by-name target means the top-level one: a nested row that
     // shares the name is not what a link means. Then any row, for a block named before SIDs;
     // then a block by its key, which no cell prints.
     const match =
-      rows.find((r) => named(r) && isEntry(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
+      rows.find((r) => named(r) && isEntryRow(r)) ?? rows.find(named) ?? rows.find((r) => r._blockKey === pendingSelectName);
     if (!match) return;
     table.selectedRowIds = [match.ID];
     emit('select', [match.ID]);
@@ -518,7 +637,10 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       },
       // A source closed while it was asked has nothing to show, and no banner to say it in.
       (err) => {
-        if (!disposed && !isSourceClosed(err)) failed(messageOf(err));
+        if (!disposed && !isSourceClosed(err)) {
+          failed(messageOf(err));
+          emit('failed', messageOf(err));
+        }
         release();
       },
     );
@@ -549,6 +671,8 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         return;
       }
       case 'error':
+        // A gesture just handed to the source did not happen, whatever the banner says of it.
+        editing?.failed(change.message);
         return failed(change.message);
       default:
         // The editing changes, which a table that does not edit ignores.
@@ -660,8 +784,11 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
     editing = wireEditing({
       table,
       source: isEditable(source) ? source : null,
+      dragOut: !!options.dragOut,
+      dragOutSource: dragOutSourceOf(source),
       textView: options.textView,
       undoChords: !!options.undoChords,
+      addChildChord: !!options.addChildChord,
       errorDialog: dialog!,
       listen: (type, listener, capture = false) => {
         table.addEventListener(type, listener, capture);
@@ -676,6 +803,9 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       view: () => view,
       select: selectRows,
       beginRename: beginRenameRow,
+      ran: (run) => {
+        if (!disposed) emit('ran', run);
+      },
     });
   }
 
@@ -765,8 +895,11 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         contextMenu.addEventListener('dex-menu-closed', onMenuClosed);
         menuListening = true;
       }
-      // After show(): a menu it replaces says it closed, which clears every table's context.
-      contextMenu.show(x, y, items);
+      // After show(): a menu it replaces says it closed, which clears every table's context. A menu
+      // a key opened takes the keyboard at once, and gives it back to the grid as it closes: left on
+      // the grid, the first arrow would move the selection the menu acts on too.
+      if (e.detail.keyboard) contextMenu.show(x, y, items, { focusFirst: true });
+      else contextMenu.show(x, y, items);
       menuOwners.set(contextMenu, menuOwner);
       menuContext = context;
     });
@@ -781,9 +914,34 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   // sent, so an edit elsewhere in the document does not close a grid open on this row.
   let shown: { groups: string; cells: { nodeId: string; page: string } | null } | null = null;
   let asking = 0;
+  // Listeners that came since the last page sent, owed the page there is: the one an ask answers,
+  // though it is the page the others were sent already (an inspector that follows this table again,
+  // its first page overtaken by a select of the row it was on, as Back from Root makes).
+  const owed = new Set<(page: InspectorView) => void>();
 
   const send = (page: InspectorView): void => {
+    owed.clear();
     for (const listener of [...pageListeners]) listener(page);
+  };
+  // The selection the inspector shows: the one the table last said, or, with `inspectorPages`, none
+  // (the file's page) until it says one.
+  const toInspect = (): readonly string[] | null => inspected ?? (options.inspectorPages ? [] : null);
+  // What the source is asked past the first row's properties: the pages, and editable rows where
+  // the document may be edited now. No options at all without either, as the source was always asked.
+  const inspectOptions = (): InspectOptions | undefined => {
+    const pages = !!options.inspectorPages;
+    const editable = !!options.inspectorEditing && !!editing?.editable();
+    const title = pages && options.inspectorFileTitle ? { fileTitle: options.inspectorFileTitle } : {};
+    return pages || editable ? { pages, editable, ...title } : undefined;
+  };
+  // The page for `rowIds`, and with `inspectorPages` its row's Usage links as a group of their own,
+  // as the table's cell holds them.
+  const pageOf = async (rowIds: readonly string[]): Promise<InspectorView> => {
+    const asked = inspectOptions();
+    const page = await (asked ? source.inspect(rowIds, asked) : source.inspect(rowIds));
+    if (!options.inspectorPages || page.rowId === undefined || rowIds.length !== 1) return page;
+    const usedBy = usedByGroup(table.rows.find((r) => r.ID === page.rowId));
+    return usedBy ? { ...page, groups: [...page.groups, usedBy] } : page;
   };
   /** Whether the grid open on the inspector's row would show other cells for `rowId`'s. */
   const cellsChanged = async (rowId: string): Promise<boolean> => {
@@ -796,7 +954,7 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
   const inspect = (rowIds: readonly string[], refresh: boolean): void => {
     if (pageListeners.size === 0) return;
     const ask = ++asking;
-    void source.inspect(rowIds).then(async (page) => {
+    void pageOf(rowIds).then(async (page) => {
       if (ask !== asking || disposed) return;
       if (page.rowId === undefined) {
         if (refresh) return;
@@ -804,14 +962,21 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
         return send({ groups: [] });
       }
       const groups = JSON.stringify(page.groups);
-      if (shown && shown.groups === groups && !(await cellsChanged(page.rowId))) return;
+      if (shown && shown.groups === groups && !(await cellsChanged(page.rowId))) {
+        // Not sent again, but to a listener owed it.
+        if (ask !== asking) return;
+        for (const listener of [...owed]) if (pageListeners.has(listener)) listener(page);
+        owed.clear();
+        return;
+      }
       if (ask !== asking) return;
       shown = { groups, cells: null };
       send(page);
     }, () => {});
   };
   const refreshInspector = (): void => {
-    if (inspected) inspect(inspected, true);
+    const rowIds = toInspect();
+    if (rowIds) inspect(rowIds, true);
   };
   const followSelection = (rowIds: string[]): void => {
     inspected = rowIds;
@@ -862,27 +1027,54 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       table.commitEdit();
       return editing ? editing.editsSettled() : Promise.resolve();
     },
+    dropDecision(rowId, mode) {
+      return editing && !disposed ? editing.dropDecision(rowId, mode) : null;
+    },
+    drop(rowId, mode) {
+      return editing && !disposed ? editing.drop(rowId, mode) : Promise.resolve({ dropped: false, count: 0 });
+    },
+    dropReplacing(rowId, replacing) {
+      return editing && !disposed ? editing.dropReplacing(rowId, replacing) : Promise.resolve({ dropped: false, count: 0 });
+    },
     undo() {
       editing?.history('undo');
     },
     redo() {
       editing?.history('redo');
     },
+    edit(change) {
+      if (disposed || !editing || !options.inspectorEditing || !editing.editable()) return;
+      void editing.edit(change).then(() => {
+        if (disposed) return;
+        // Sent again whatever it now says: a field the source refused still holds what was typed.
+        shown = null;
+        refreshInspector();
+      });
+    },
+    refreshInspector,
     onPage(listener) {
       pageListeners.add(listener);
       // What is selected now, told to this listener alone: the page the others were last sent is
-      // not sent again, and an inspector that follows this table once more has nothing shown.
-      if (inspected) {
+      // not sent again, and an inspector that follows this table once more has nothing shown. An ask
+      // made meanwhile answers it instead (owed), even with the page the others have.
+      const selection = toInspect();
+      if (selection) {
+        owed.add(listener);
         const at = asking;
-        void source.inspect(inspected).then(
+        void pageOf(selection).then(
           (page) => {
-            if (disposed || at !== asking || !pageListeners.has(listener)) return;
+            // Served meanwhile (an ask's page sent, or owed and given): not again.
+            if (disposed || at !== asking || !pageListeners.has(listener) || !owed.has(listener)) return;
+            owed.delete(listener);
             listener(page.rowId === undefined ? { groups: [] } : page);
           },
           () => {},
         );
       }
-      return () => void pageListeners.delete(listener);
+      return () => {
+        pageListeners.delete(listener);
+        owed.delete(listener);
+      };
     },
     async matrix(nodeId): Promise<MatrixPage> {
       const page = await source.matrix(nodeId);
@@ -906,6 +1098,17 @@ export function connectTable(table: DexTreeTable, source: TableSource, options: 
       pageListeners.clear();
     },
   };
+}
+
+/**
+ * Who takes a table's rows into the drag register as they are dragged out of it: its source, where it
+ * takes edits, or where it is read-only and has `dragStart` and `dragEnd` (a workspace's read-only
+ * document); else none.
+ */
+function dragOutSourceOf(source: TableSource): DragOutSource | null {
+  if (isEditable(source)) return source;
+  const { dragStart, dragEnd } = source;
+  return typeof dragStart === 'function' && typeof dragEnd === 'function' ? (source as TableSource & DragOutSource) : null;
 }
 
 /** The menu a read-only table gives a selection: its names and values, to copy. */

@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // The shell's in-page questions, for a host with no prompts of its own (a browser page): "Save
-// changes?" and "x changed on disk", asked in the one `<dex-confirm-dialog>`, one at a time.
+// changes?" and "x changed on disk", asked in the one `<dex-confirm-dialog>`, one at a time, and
+// the line of text Open from URL… asks for (the dialog's prompt), in the same turn.
 //
 // The dialog's show() answers a question still open with that question's cancel when it is asked
 // another. Asked as they came, a reload question would cancel a "Save changes?" under it, and a close
@@ -29,6 +30,16 @@ export function inPageQuestions(dialog, beforeAsking) {
                 finally {
                     shownStill = null;
                 }
+            });
+            queue = answer.catch(() => undefined);
+            return answer;
+        },
+        // In the same turn as the questions: the dialog answers whatever is up when it is asked another.
+        // Asked for by the user, so worth asking whatever closes meanwhile.
+        prompt(options) {
+            const answer = queue.then(() => {
+                beforeAsking();
+                return dialog.prompt(options);
             });
             queue = answer.catch(() => undefined);
             return answer;

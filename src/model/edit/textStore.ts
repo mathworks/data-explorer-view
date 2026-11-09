@@ -20,7 +20,10 @@
 //   an older text than the store's, and which one is not tracked. That errs on the side of a save.
 // - A listener that throws is reported (`report`: the host's notice, or the console), as VS Code's
 //   emitter logs it; never thrown again, which a Node or Electron host would take for a crash.
+// - It says where its undo stack stands (`history`), which a TextDocument does not, for the table to
+//   offer Undo and Redo only where there is something to undo or redo.
 import { minimalReplacement, type TextPatch } from 'data-explorer-core';
+import type { EditHistory } from '../source/tableSource.js';
 import type { RangeReplacement, TextStore, TextStoreChange } from './hooks.js';
 
 /** One edit as the stack keeps it: its replacements, each with the text it replaced. */
@@ -46,10 +49,17 @@ export interface PageTextStore extends TextStore {
    */
   reset(text: string): Promise<void>;
   /**
-   * The file changed and the text was kept instead (Doc.keepOver): no state of the undo stack is the
-   * file any more, so the store is dirty until the next save or reset, heard as a save's change is.
+   * The file changed and the text was kept instead (Doc.keepOver), or no file holds the text yet
+   * (Workspace.create): no state of the undo stack is the file, so the store is dirty until the next
+   * save or reset, heard as a save's change is.
    */
   diverged(): void;
+  /**
+   * Where its undo stack stands, for the table its dictionary is shown in to offer Undo and Redo by
+   * (EditableTableSource.history): told once an edit, an undo or a redo has landed and been heard,
+   * and once a reset has emptied the stack, the text it already held included.
+   */
+  readonly history: EditHistory;
 }
 
 /**
@@ -68,6 +78,9 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
   let reported = false;
   const changeListeners = new Set<(change: TextStoreChange) => void>();
   const saveListeners = new Set<() => void>();
+  const historyListeners = new Set<() => void>();
+  // What the undo stack could do as last told: `canUndo` and `canRedo`, spelled as one.
+  let could = 'false false';
   // Changes are heard one at a time, in the order they landed.
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -97,6 +110,15 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
     if (dirty === reported) return;
     reported = dirty;
     hear({ changes: [] });
+  };
+
+  // Tell the history's listeners, if what the undo stack can do moved: after the change is heard and
+  // its dirty state settled, so a table told reads a text that already holds it.
+  const settleHistory = (): void => {
+    const can = `${undoable.length > 0} ${redoable.length > 0}`;
+    if (can === could) return;
+    could = can;
+    each(historyListeners);
   };
 
   // Apply `patches` (in the text as it stands, from the start forwards) and answer them as a step.
@@ -163,6 +185,7 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
         if (savedAt !== null && savedAt > undoable.length - 1) savedAt = null;
         hear({ changes: asChanges(ordered) });
         settleDirty();
+        settleHistory();
         return true;
       });
     },
@@ -175,6 +198,7 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
         redoable.push(step);
         hear({ changes: asChanges(back), reason: 'undo' });
         settleDirty();
+        settleHistory();
       });
     },
     redo() {
@@ -185,6 +209,7 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
         undoable.push(step);
         hear({ changes: asChanges(step.patches), reason: 'redo' });
         settleDirty();
+        settleHistory();
       });
     },
     onChange(listener) {
@@ -222,7 +247,20 @@ export function createTextStore(text: string, report: (err: unknown) => void = (
         savedAt = 0;
         if (changes.length > 0) hear({ changes: asChanges(changes) });
         settleDirty();
+        settleHistory();
       });
+    },
+    history: {
+      get canUndo() {
+        return undoable.length > 0;
+      },
+      get canRedo() {
+        return redoable.length > 0;
+      },
+      onChange(listener) {
+        historyListeners.add(listener);
+        return () => void historyListeners.delete(listener);
+      },
     },
   };
 }

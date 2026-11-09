@@ -42,6 +42,7 @@ describe('connectShell', () => {
       'dex-toolbar toolbar',
       'dex-location-bar location',
       'dex-shell-view left left explorer',
+      'dex-shell-view left left folder',
       'dex-shell-view left left gallery',
       'dex-shell-view left left search',
       'dex-shell-action action left settings',
@@ -51,10 +52,12 @@ describe('connectShell', () => {
       'dex-shell-view right right raw',
       'dex-shell-view bottom bottom terminal',
       'dex-shell-view bottom bottom log',
-      'span status',
+      'dex-shell-status status',
     ]);
     const content = (view: string) => [...page.shell.querySelector(`dex-shell-view[view="${view}"]`)!.children].map((el) => el.localName);
-    expect(['gallery', 'search', 'raw', 'terminal', 'log'].map(content)).toEqual([
+    expect(['explorer', 'folder', 'gallery', 'search', 'raw', 'terminal', 'log'].map(content)).toEqual([
+      ['dex-explorer'],
+      ['dex-shell-folder'],
       ['dex-gallery-panel'],
       ['dex-search-panel'],
       ['dex-raw-viewer'],
@@ -74,6 +77,7 @@ describe('connectShell', () => {
     const views = [...page.shell.querySelectorAll('dex-shell-view')].map((v) => [v.getAttribute('view'), v.getAttribute('label'), v.getAttribute('icon'), v.getAttribute('shortcut')]);
     expect(views).toEqual([
       ['explorer', 'Explorer', 'filesSB', 'Mod+Shift+E'],
+      ['folder', 'Folder', 'folder', 'Mod+Shift+K'],
       ['gallery', 'Gallery', 'gridUI', 'Mod+Shift+L'],
       ['search', 'Search', 'find', 'Mod+Shift+F'],
       ['properties', 'Properties', 'propertyInspectorSB', 'Mod+Shift+I'],

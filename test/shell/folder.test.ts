@@ -1,10 +1,12 @@
 // Copyright 2026 The MathWorks, Inc.
 // @vitest-environment happy-dom
 //
-// A folder in the Explorer, served as the Electron app's main process serves it (folderReads
+// A folder in the Folder view, served as the Electron app's main process serves it (folderReads
 // through serveFolder) across a channel: its tree following the active tab, the Usage column it
-// fills, the links it resolves, its search, its changes, and its projects' pages. Ported from
-// data-explorer-app's page test of the same name, against <dex-shell-folder>.
+// fills, the links it resolves, the Search view over its names, its changes, and its projects'
+// pages. Ported from data-explorer-app's page test of the same name, against <dex-shell-folder>.
+// The folder had a search box of its own there; the Search view is the shell's one search, and
+// searches the folder's names as that box did.
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { sourceUri } from '../../src/model/source/sourceUri.js';
 import type { DexTreeTable } from '../../src/widgets/tree-table/dex-tree-table.js';
 import type { DexProjectPage } from '../../src/widgets/project-page/dex-project-page.js';
-import { fixture, folderPart, serveFolderTo, startPage, tempFolder, treeLabels, until, type Page } from './harness.js';
+import { fixture, folderBar, folderPart, searchPanel, serveFolderTo, startPage, tempFolder, treeLabels, until, type Page } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -45,25 +47,33 @@ const selectedInTree = () =>
 /** The blocks a variable's Usage cell names. */
 const usedBy = (file: string, name: string) =>
   ((rowAt(file, name)?.UsedBy as { blockLinks?: { blockName: string }[] } | undefined)?.blockLinks ?? []).map((b) => b.blockName);
-const searchBox = () => folderPart().searchInput;
-const results = () => [...(folderPart().shadowRoot?.querySelectorAll<HTMLElement>('.search-result') ?? [])];
+/** Search for `query` in the Search view, as its box asks once the typing pauses. */
+const ask = (query: string) => {
+  searchPanel().query = query;
+  searchPanel().dispatchEvent(new CustomEvent('dex-search-query', { detail: { query }, bubbles: true, composed: true }));
+};
+/** What the Search view lists: each entry's name, once it is done searching. */
+const found = () => (searchPanel().searching ? null : searchPanel().results.map((r) => r.entry.name));
 const PLANT = { 'params.sldd': 'params.sldd', 'shadow_ws.slx': 'shadow_ws.slx', 'shared_gain.slx': 'shared_gain.slx' };
 
-describe('a folder in the Explorer', () => {
+describe('a folder in the Folder view', () => {
   it('fills the Usage column from the models in it, for a dictionary opened before it was shown too', async () => {
     const dir = tempFolder('plant', PLANT);
     const page = pageOn();
-    expect(folderPart().hidden).toBe(true);
+    // No folder yet: the Folder view says none is open.
+    expect(folderPart().root).toBe('');
     const dict = path.join(dir, 'params.sldd');
     void page.handle.openPaths([dict]);
     await until(() => (tableAt(dict)?.columns?.length ?? 0) > 0);
-    expect(tableAt(dict)!.columns).not.toContain('UsedBy');
+    // Before: the open tabs' answer, and no model is open.
+    expect(usedBy(dict, 'Uo')).toEqual([]);
     show(page, dir);
     await until(() => !!tableAt(dict)!.columns?.includes('UsedBy') && usedBy(dict, 'Uo').includes('DictOnly'));
     expect(usedBy(dict, 'Kp')).toContain('PlantGain');
-    expect(folderPart().hidden).toBe(false);
-    await until(() => folderPart().shadowRoot?.querySelector('.title')?.textContent === 'plant');
-    expect(folderPart().shadowRoot!.querySelector<HTMLElement>('.title')!.title).toBe(dir);
+    // The folder's name the path bar's last segment, its path what that segment names.
+    expect(folderPart().root).toBe(dir);
+    await until(() => folderBar().segments.at(-1)?.label === 'plant');
+    expect(folderBar().segments.at(-1)!.path).toBe(dir);
   });
 
   it("selects the active tab's file in its tree, and a link opens the file the tree shows for its name, wherever it is", async () => {
@@ -91,7 +101,7 @@ describe('a folder in the Explorer', () => {
     await until(() => activePath() === path.join(dir, 'shadow_ws.slx'));
   });
 
-  it("follows a file added to it, and its search, above the tree, opens a block's model on that block", async () => {
+  it("follows a file added to it, which the Search view then finds, a match opening a block's model on that block", async () => {
     const dir = tempFolder('plant', PLANT);
     const page = pageOn(dir);
     await until(() => treeLabels().includes('shadow_ws.slx'));
@@ -99,48 +109,37 @@ describe('a folder in the Explorer', () => {
     page.folder!.changed([sourceUri(path.join(dir, 'extra.sldd'))]);
     await until(() => treeLabels().includes('extra.sldd'));
 
-    // The box comes before the tree it searches, in the folder's order and on screen.
-    const box = searchBox();
-    const tree = document.querySelector('dex-hierarchy')!;
-    expect(box.compareDocumentPosition(folderPart().shadowRoot!.querySelector('slot:not([name])')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    box.value = 'gain';
-    box.dispatchEvent(new Event('input', { bubbles: true }));
-    await until(() => results().length === 3);
-    expect(results().map((r) => r.querySelector('.search-label')?.textContent)).toEqual(['PlantGain', 'Trim', 'WsGain']);
-    // The matches stand in for the tree while the box holds a query.
-    expect(tree.hidden).toBe(true);
-    results()[2]!.click();
+    // The folder has no search box of its own: the Search view is the one search.
+    expect(folderPart().shadowRoot!.querySelector('input')).toBeNull();
+    ask('gain');
+    await until(() => found()?.length === 3);
+    expect(found()).toEqual(['PlantGain', 'WsGain', 'Trim']);
+    const hit = searchPanel().results[1]!;
+    searchPanel().dispatchEvent(new CustomEvent('dex-search-open', { detail: { sourceUri: hit.entry.sourceUri, revealName: hit.revealName }, bubbles: true, composed: true }));
     const model = path.join(dir, 'shadow_ws.slx');
     await until(() => activePath() === model && (tableAt(model)?.selectedRowIds.length ?? 0) === 1);
     expect(tableAt(model)!.selectedRowIds).toEqual([rowAt(model, 'WsGain')!.ID]);
-    // Escape empties the box, and the tree is back.
-    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await until(() => !tree.hidden && results().length === 0);
   });
 
-  it('its search finds the names a change to the folder brought, after a search before the change', async () => {
+  // The folder read, its search index built, then a change: the folder listed and the new file read
+  // again, and the index built again. Under a second alone, and past the harness's 3 s waits on a
+  // loaded machine: each wait given 15 s, the case 45 s.
+  it("the Search view finds the names a change to the folder brought, the results on show asked again", { timeout: 45_000 }, async () => {
     const dir = tempFolder('plant', PLANT);
     const page = pageOn(dir);
-    await until(() => treeLabels().includes('shadow_ws.slx'));
-    const query = (text: string) => {
-      searchBox().value = text;
-      searchBox().dispatchEvent(new Event('input', { bubbles: true }));
-    };
-    const labels = () => results().map((r) => r.querySelector('.search-label')?.textContent);
-    const none = () => !!folderPart().shadowRoot?.querySelector('.search-none');
-    query('gadget');
-    await until(none);
-    expect(labels()).toEqual([]);
+    await until(() => treeLabels().includes('shadow_ws.slx') && searchPanel().scope === 'Open files and plant', 15_000);
+    ask('gadget');
+    await until(() => found()?.length === 0, 15_000);
 
     copyFileSync(fixture('rt_bin.sldd'), path.join(dir, 'extra.sldd'));
     page.folder!.changed([sourceUri(path.join(dir, 'extra.sldd'))]);
-    await until(() => treeLabels().includes('extra.sldd'));
-    // The results on show are the folder's as it is now, and so are the next query's.
-    await until(() => labels().length > 0);
-    expect(labels()).toEqual(['gadget']);
-    query('gad');
-    await until(() => none() || labels().length > 0);
-    expect(labels()).toEqual(['gadget']);
+    await until(() => treeLabels().includes('extra.sldd'), 15_000);
+    // The results on show are the folder's as it is now, with no query typed since, and so are the next query's.
+    await until(() => (found()?.length ?? 0) > 0, 15_000);
+    expect(found()).toEqual(['gadget']);
+    ask('gad');
+    await until(() => (found()?.length ?? 0) > 0, 15_000);
+    expect(found()).toEqual(['gadget']);
   });
 
   it('says when it holds no data files, and a folder shown in its place takes its place', async () => {
@@ -151,7 +150,7 @@ describe('a folder in the Explorer', () => {
     const dir = tempFolder('plant', PLANT);
     show(page, dir);
     await until(() => treeLabels().includes('shadow_ws.slx') && !note());
-    await until(() => folderPart().shadowRoot?.querySelector('.title')?.textContent === 'plant');
+    await until(() => folderBar().segments.at(-1)?.label === 'plant');
   });
 });
 

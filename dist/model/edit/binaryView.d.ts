@@ -1,6 +1,6 @@
 import { type AppliedOp } from 'data-explorer-core';
 import { type RawView } from '../raw/rawView.js';
-import { type CellEdit, type ChildRows, type EditableTableSource, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
+import { type CellEdit, type ChildRows, type EditableTableSource, type EditHistory, type InspectOptions, type InspectorView, type MatrixPage, type NewEntry, type TableChange, type TableView } from '../source/tableSource.js';
 import type { BinaryDocument, ModelSource } from './binaryEngine.js';
 /** One table of a compressed dictionary: resolveCustomEditor's view, as an EditableTableSource. */
 export declare class BinaryView implements EditableTableSource {
@@ -57,7 +57,7 @@ export declare class BinaryView implements EditableTableSource {
     opened(view?: TableView): void;
     children(rowId: string): Promise<ChildRows>;
     matrix(nodeId: string): Promise<MatrixPage>;
-    inspect(selection: string | readonly string[]): Promise<InspectorView>;
+    inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView>;
     raw(rowId: string): Promise<RawView>;
     subscribe(listener: (change: TableChange) => void): () => void;
     /**
@@ -96,7 +96,10 @@ export declare class BinaryView implements EditableTableSource {
     private transferAdapter;
     private transferDeps;
     paste(rowId: string): void;
-    drop(rowId: string, mode: 'copy' | 'move'): void;
+    drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void;
+    dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void;
+    /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+    get history(): EditHistory | undefined;
     undo(): void;
     redo(): void;
     requestEditText(rowId: string): void;

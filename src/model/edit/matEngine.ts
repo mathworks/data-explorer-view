@@ -39,12 +39,11 @@
 // gesture's (its refusal, its selection) only the view it was made in.
 import { cloneForPaste, toEntrySelector, type PastePayload, type PasteResult, type Session } from 'data-explorer-core';
 import { matCatalog } from '../ids/addCatalog.js';
-import { uriPathBasename } from '../ids/pathUtil.js';
+import { basename, uriPathBasename } from '../ids/pathUtil.js';
 import { binaryEditSrcId } from '../ids/srcId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
-import { rawOfRow } from '../raw/rawOfRow.js';
+import { rawOfRow, type RawOptions } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
 import { childRowsMessage } from '../rows/childRequest.js';
 import { LAZY_ROW_BUDGET, lazyRowsBanner } from '../rows/lazyRows.js';
@@ -58,6 +57,8 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -72,6 +73,7 @@ import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refuse
 import { NOT_FOUND_REASON, reach, type DeleteTarget, type Registers } from './registers.js';
 import { MAT_FILE, type EngineFile } from './engineFile.js';
 import { replacementsIn, SaveMarks, type SaveMark, type SaveSnapshot } from './saveMarks.js';
+import { replacingOrRefuse } from './replacing.js';
 import {
   runTransfer,
   TransferRefused,
@@ -80,6 +82,17 @@ import {
   type TransferDeps,
   type TransferTarget,
 } from './transfer.js';
+
+/**
+ * Core's refusal of a delete, said of the replace it stopped: `Cannot delete "tau": <why>. Nothing
+ * was deleted.` as `Cannot replace "tau": <why>. Nothing was replaced.`, core's reason kept word for
+ * word (a replacing copy deletes the variable first, which is what core refused). A refusal of
+ * another shape is core's as it is.
+ */
+function replaceRefusal(text: string): string {
+  const m = /^Cannot delete ("[^"]*"): ([\s\S]*?)\s*Nothing was deleted\.$/.exec(text);
+  return m ? `Cannot replace ${m[1]}: ${m[2]} Nothing was replaced.` : text;
+}
 
 /** How a MAT-file engine fills a table's Usage column: before a paint, and at once for a narrow repaint. */
 export interface UsageFill {
@@ -103,6 +116,13 @@ export interface MatEngineOptions {
   sink: EditSink;
   /** Where the stack stands, and its save point. */
   index: EditIndex;
+  /**
+   * Where the stack the edits go on (`sink`) stands, which its tables hand on as their `history`
+   * (EditableTableSource.history) for a table to offer Undo and Redo only where there is something
+   * to undo or redo: in the page, the stack itself (EditStack). Default: none, and Undo and Redo are
+   * offered wherever the document may be edited (in the VS Code extension the stack is VS Code's).
+   */
+  history?: EditHistory;
   /** The registers the window's documents share. */
   registers: Registers;
   /** Where a notice the table does not show goes. Default: nowhere. */
@@ -1188,19 +1208,22 @@ class MatView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the tree as edited, as the Raw pane's: the MAT-file, or the
+  // model whose Model Workspace this edits. The file's page says it holds edits while its undo stack
+  // is off the save point.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.closed || this.doc.disposed) return { groups: [] };
+    const doc = this.doc;
+    const tree = { root: () => doc.root(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: doc.session, dirty: () => doc.options.index.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the tree as edited: the MAT-file, or the
-  // model whose Model Workspace this edits. Nothing once closed.
-  async raw(rowId: string): Promise<RawView> {
+  // model whose Model Workspace this edits; with `record`, a variable's record for its bytes.
+  // Nothing once closed.
+  async raw(rowId: string, options?: RawOptions): Promise<RawView> {
     if (this.closed || this.doc.disposed) return noRaw();
-    return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId);
+    return rawOfRow({ root: () => this.doc.root(), fileIds: [this.doc.uri, this.doc.srcId], find: this.findForRead }, rowId, options);
   }
 
   subscribe(listener: (change: TableChange) => void): () => void {
@@ -1435,7 +1458,8 @@ class MatView implements EditableTableSource {
     return {
       docUri: this.doc.uri,
       // One section: a same-file move is always the no-op, so the policy never asks this file to
-      // take entries out and paste them in one edit — and refuses, should it ever have to.
+      // take entries out and paste them in one edit for a move — and refuses, should it ever have
+      // to. What a copy replaces (a compare's Copy to Right) is taken out in the commit below.
       takesRemoveFirst: false,
       // Any row, and no row at all (''), is the file's variables; but a row of a section beside them
       // that takes a paste (a model's configuration sets), which is that section (EngineFile.pasteTarget).
@@ -1448,17 +1472,21 @@ class MatView implements EditableTableSource {
         if (this.doc.file.readOnly(mat)) throw new TransferRefused(this.readOnlyNotice(mat) ?? `${this.name} is read-only.`);
       },
       commit: ({ target, payloads, removeFirst, label }) => {
-        // The policy guarantees none (takesRemoveFirst: false); a paste that went on regardless
-        // would leave the originals standing beside what it pasted.
-        if (removeFirst.length > 0) throw new Error(`a move within ${this.name} reached its paste`);
+        // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
+        // spelling for stays itself): the register keeps its records for the next paste.
+        const into = target.containerId ?? this.doc.file.target(this.doc.srcId, this.doc.model());
+        const clones = payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[];
+        // Only a copy that replaces names any (the policy asks none for a move: takesRemoveFirst).
+        // Each is found, and asked of, before anything changes, so a refusal changes nothing.
+        const replaced = removeFirst.length > 0 ? this.replacedVariables(target, into, clones, removeFirst) : [];
         let result: PasteResult | undefined;
         const observed = this.gesture(
           label,
           () => {
-            // Clones, as a dictionary's paste takes (core's cloneForPaste: a number JSON has no
-            // spelling for stays itself): the register keeps its records for the next paste.
-            const into = target.containerId ?? this.doc.file.target(this.doc.srcId, this.doc.model());
-            result = this.session.pasteEntries(into, payloads.map((p) => cloneForPaste(p)) as unknown as PastePayload[]);
+            // The variables it replaces go first, in the same gesture, so the copies keep their
+            // names and one Undo puts the old ones back.
+            if (replaced.length > 0) this.session.deleteNodesById(replaced);
+            result = this.session.pasteEntries(into, clones);
           },
           // The variables it made, whose Status the save marks keep: a set pasted beside them (a
           // model's configuration sets) shows none, as one added or renamed shows none.
@@ -1467,7 +1495,11 @@ class MatView implements EditableTableSource {
         if (!observed) throw new Told();
         // Refused whole by core, in its words: nothing was made, recorded or published.
         if (!result || 'error' in result) {
-          throw new TransferRefused(result ? this.doc.describe((result as { reason: string }).reason) : `Could not paste into ${this.name}.`);
+          const why = result ? this.doc.describe((result as { reason: string }).reason) : `Could not paste into ${this.name}.`;
+          // Unless it replaced variables, which went out before core refused (the deep ask above
+          // said it would not): a change, so a failure, painted again, and not a refusal.
+          if (replaced.length > 0) throw new Error(why);
+          throw new TransferRefused(why);
         }
         // Selected once their rows arrive: the repaint that brings them is on its way.
         const ids = (result as { nodes: any[] }).nodes.map((n: any) => n.id);
@@ -1479,6 +1511,32 @@ class MatView implements EditableTableSource {
       },
       report: (message) => this.error(this.doc.describe(message)),
     };
+  }
+
+  /**
+   * The ids of the variables a replacing copy takes out (TransferCommit.removeFirst), or a
+   * TransferRefused before anything changes: each the one child of the paste's container that has
+   * the name (a MAT-file's selectors are names: its payloads carry no uuid), none of them one core
+   * will not delete, and every copy one core will paste, asked deeply (made and taken back, seen by
+   * no one), since the variables would be gone by the time a refusal of it came.
+   */
+  private replacedVariables(target: TransferTarget & { containerId?: string }, into: string, clones: readonly PastePayload[], selectors: readonly { name: string }[]): string[] {
+    const container = target.containerId ? this.findNode(target.containerId) : this.doc.model();
+    const children: any[] = container?.children ?? [];
+    const ids: string[] = [];
+    for (const { name } of selectors) {
+      const named = children.filter((child) => child.name === name);
+      if (named.length === 0) throw new TransferRefused(`"${name}" is no longer in ${this.name}.`);
+      if (named.length > 1) throw new TransferRefused(`Cannot replace "${name}": ${this.name} holds more than one "${name}".`);
+      ids.push(String(named[0].id));
+    }
+    const kept = deleteRefusal(this.session, ids);
+    if (kept) throw new TransferRefused(this.doc.describe(replaceRefusal(kept)));
+    for (const clone of clones) {
+      const why = this.session.pasteRefusal(into, clone, { deep: true });
+      if (why) throw new TransferRefused(this.doc.describe(why));
+    }
+    return ids;
   }
 
   // A move that left its original behind is said where it stays, not only in the banner a row
@@ -1501,14 +1559,44 @@ class MatView implements EditableTableSource {
     });
   }
 
-  drop(rowId: string, mode: 'copy' | 'move'): void {
+  // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
+  drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void {
+    let run: Promise<unknown> | undefined;
     this.handle('drop', () => {
       const registers = this.doc.options.registers;
-      this.transferred(runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()));
+      run = runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+      this.transferred(run);
     });
+    return run?.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // A copy that takes the place of variables of this file (a compare's Copy to Right): the register
+  // read on arrival, as a drop's is, and the variables taken out in the paste's own gesture.
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void {
+    let run: Promise<unknown> | undefined;
+    this.handle('drop', () => {
+      const registers = this.doc.options.registers;
+      const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+      const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+      if (!selectors) return;
+      run = runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps());
+      this.transferred(run);
+    });
+    return run?.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   // --- Undo, redo, and the whole text of a Value --------------------------------------------------
+
+  /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   undo(): void {
     this.handle('undo', () => this.doc.options.sink.undo());

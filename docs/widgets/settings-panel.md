@@ -1,11 +1,14 @@
 # `<dex-settings-panel>`
 
-The shell's Settings popover, opened from the gear on an activity bar: the theme (Light, Dark,
-Hi-Con, Auto) and the toolbar's density (Normal, Compact), each a row of segments that is a radio
-group. It shows `settings` and asks for a change: a click, or an arrow key inside a row, sends
-`dex-settings-change` with the whole new record, and the panel changes nothing by itself. The app
-applies the settings, keeps them, and sets `settings` back. The popover stays open meanwhile, so
-the themes can be tried one after another.
+The shell's Settings popover, opened from the gear on an activity bar: the theme (Auto, Light,
+Dark, Hi-Con), the toolbar's density (Normal, or Compact: a lower row, its icons smaller and
+beside their labels), the icons of the shell's own buttons (Minimal, in one colour, or Colorful),
+how the tables are ruled (Grid, or Rows) and how Root's relationship graph is laid out (Tree, or
+Indented), each a row of segments that is a radio group. It shows `settings` and asks for a
+change: a click, or an arrow key inside a row, sends `dex-settings-change` with the whole new
+record, and the panel changes nothing by itself. The app applies the settings, keeps them, and
+sets `settings` back. The popover stays open meanwhile, so the themes can be tried one after
+another.
 
 show() opens it beside the button that opened it, focused on the chosen theme. Escape, a press
 outside it or close() closes it, and the focus goes back to the button.
@@ -15,15 +18,18 @@ import { defineSettingsPanel } from 'data-explorer-view/app-shell';
 
 defineSettingsPanel();
 const panel = document.body.appendChild(document.createElement('dex-settings-panel'));
-panel.settings = { theme: 'auto', toolbar: 'normal' };
+panel.settings = { theme: 'auto', toolbar: 'normal', iconStyle: 'minimal', tableStyle: 'grid', graphLayout: 'tree' };
 
 shell.addEventListener('dex-shell-action', (e) => {
   if (e.detail.actionId === 'settings') panel.show(e.detail.anchor);
 });
 panel.addEventListener('dex-settings-change', (e) => {
-  const { theme, toolbar } = e.detail.settings;
+  const { theme, toolbar, iconStyle, tableStyle, graphLayout } = e.detail.settings;
   document.documentElement.dataset.theme = theme === 'auto' ? systemTheme() : theme; // theme.css reads it
   toolbarElement.compact = toolbar === 'compact';
+  toolbarElement.mono = iconStyle === 'minimal'; // and the location bar's and the shell's `mono`
+  for (const table of tables) table.tableStyle = tableStyle === 'rows' ? 'light' : 'normal';
+  graphElement.layout = graphLayout; // the relationship graph's own words
   panel.settings = e.detail.settings;
   localStorage.setItem('my-app:settings', JSON.stringify(e.detail.settings));
 });
@@ -31,7 +37,8 @@ panel.addEventListener('dex-settings-change', (e) => {
 
 connectShell does all of this, and draws the page in the saved theme as it starts, before
 Settings is first opened; Auto follows the system's light, dark or high-contrast scheme as it
-changes.
+changes, a table opened later is ruled as the setting says, and Root's graph is drawn in the
+layout the setting names from the start.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -93,8 +100,23 @@ export interface SettingsChangeDetail {
 export interface ShellSettings {
   /** The theme, or `'auto'` to follow the system's (see `effectiveTheme`). */
   theme: Theme | 'auto';
-  /** The toolbar's density: labelled buttons, or icons alone. */
+  /** The toolbar's density: each label under its icon, or a lower row with smaller icons and the labels beside them. */
   toolbar: 'normal' | 'compact';
+  /**
+   * The icons of the shell's own buttons (the toolbar's, the location bar's Back, Forward and Up,
+   * the activity bars' and the status bar's): `minimal` draws each in one colour, the text's, and
+   * `colorful` as its file has it. A file's or an entry's icon keeps its colours either way: there
+   * the colour tells kinds apart.
+   */
+  iconStyle: 'minimal' | 'colorful';
+  /** How the tables are ruled: `grid`, a line round every cell, or `rows`, a faint line between rows alone. */
+  tableStyle: 'grid' | 'rows';
+  /**
+   * How Root's relationship graph is laid out, in the graph's own words (GraphLayoutStyle): `tree`,
+   * two columns of top-down trees, or `indented`, each column a file tree, one box a row, which
+   * draws a large set of files narrower and so at a larger scale.
+   */
+  graphLayout: 'tree' | 'indented';
 }
 
 /** A theme a page can be drawn in: the three theme.css defines. */

@@ -1,19 +1,26 @@
 # `<dex-relationship-graph>`
 
-How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their references, the data files on the right, each
-a box in its kind's colour, a file referenced and not open as a dashed box, and the edges between
-them. Every box starts closed. An open box lists the blocks and variables that take part (a
-model's workspace variables under a divider), each other box shows those of its items the open
-one reaches (a model open shows, in a dictionary, the variables its blocks read), and an edge
-runs from each block to each variable it reads, labelled with the block parameter.
+How the open models, dictionaries and MAT-files connect: the models on the left as a tree of their
+references, the data files on the right, each a box in its kind's colour, a file referenced and not
+open as a dashed box, and the edges between them. Every box starts closed. An open box lists the
+blocks and variables that take part (every block of a model that names something in a parameter,
+and a model's workspace variables under a divider), each other box shows those of its items the
+open one reaches (a model open shows, in a dictionary, the variables its blocks read), and an edge
+runs from each block to each variable it reads, labelled with the block parameter as the block's
+property (`.Gain`). A data link is drawn in the colour of the file it links, a dictionary's green
+or a MAT-file's sand.
 
 A click on a box or an item selects it and lights what its edges reach, dimming the rest; a click
 on the background clears it. A double-click asks to open the file, at the item's row for an item,
 and a dashed box by the reference that names it, for the app to look for. A box's − or + asks to
-hide or show its items, and the app answers by setting `expanded`. The wheel, the + and − buttons
+hide or show its items, and the app answers by setting `expanded`; a box so opened is zoomed to
+with the files it reaches (along data links, dictionary references and usages, not model
+references) and the rest dimmed, until it is closed, Escape is pressed or the background clicked,
+and a double-click on the background asks to close every box and fits the graph. The pointer on an
+item traces what it is joined to; on an edge, the other edges fade. The wheel, the + and − buttons
 and a drag of the background zoom and pan, and the fit button and fit() show the whole graph. A
 Legend names the kinds. On the keyboard, the arrows move the selection to the nearest box that
-way, Enter opens, Space shows or hides a box's items, + and − zoom and 0 fits.
+way, Enter opens, Space shows or hides a box's items, Escape clears, + and − zoom and 0 fits.
 
 ```js
 import { defineRelationshipGraph } from 'data-explorer-view/app-shell';
@@ -36,8 +43,53 @@ view.addEventListener('dex-graph-open', (e) => {
 
 A graph rebuilt from the same files (after an edit) keeps the view, and its ids are the same, so
 `selected` and `expanded` still hold; a graph of other files is fitted to the canvas afresh.
-`reveal(id)` brings a box or an item to the middle, for a "Show in Graph" from a table: the id of
-a file's box, or of an entry's item, is `graphIdOf(graph, uri, name)` (`data-explorer-view/model`).
+`reveal(id)` brings a box or an item to the middle, and `zoomToReach(id)` zooms onto it and what
+it reaches, for a "Show in Graph" from a table: the id of a file's box, or of an entry's item, is
+`graphIdOf(graph, uri, name)` (`data-explorer-view/model`). The app shell's Show in Graph selects
+it, opens its box, and zooms onto its reach.
+
+`layout` chooses how the columns are drawn: `tree`, the default, or `indented` (attribute or
+property). The app shell's graph pane sets it with `setLayout(layout)`.
+
+Where it differs from the prototype it follows, and why:
+
+- The default look is the prototype's: two columns of top-down trees, what a file references in
+  the row under it. Each file takes the width it needs in its tree rather than a slot as wide as
+  the column's widest box, and the gap between the columns is as wide as the data links' lanes need
+  (about 13.3 pixels of gap a link, their lanes 8 pixels apart over 60% of it, between 120 and
+  300) rather than 300: the prototype's slots and gap drew the fifteen files of the table below
+  2170 pixels wide, a label 4 pixels at a fit.
+- `layout: 'indented'` draws each column as a file tree instead: one box a row, what a file
+  references in the rows under it a step to the right, a line down the referrer's left side. A large
+  set of files draws far narrower, so it reads at a larger scale; a column too long for a 1440 by 900
+  window is dealt into columns side by side, whole trees each, decided with every box closed. The
+  wrap aims at a fixed 900 by 600 canvas, about the shell's graph at that size, not at the element's
+  own: the layout knows no pane, and following one would move every box on a resize.
+- A fit stops at 0.7, where a label is near 8 pixels; what does not fit then starts at the top
+  left, to pan from. A box opened is zoomed to with what it reaches at no less than that too.
+- A box opened lights the files it reaches along data links, dictionary references and usages, not
+  the models a model references: it is opened to see the data its blocks read, as the prototype's
+  expand lit the files a model links.
+- A data link takes the border token of the file it links (`--dex-graph-sldd-border`,
+  `--dex-graph-mat-border`), as the prototype coloured links by their target, so
+  `--dex-graph-edge-data-link` now colours only a link to a file of neither kind, which core's
+  extraction never names. The Legend's "Dictionary Reference" and "Data Link to Dictionary" are then
+  near one colour, and one in the high-contrast theme: where they run tells them apart, a reference
+  between two dictionaries in the right column, a link across the gap from a model.
+
+`focus()` gives the canvas the keyboard, where the arrow keys go from box to box; asked while
+there is no graph to draw yet (`graph` null), it gives it once there is, unless the focus has gone
+anywhere in the page meanwhile or the graph comes with nothing to draw: then the request is
+forgotten, and a draw much later takes no keyboard.
+
+What fits, in the app shell at 1440 by 900 (a graph about 900 by 610 pixels), for fifteen files
+(eight models one tree five leaves wide, five dictionaries one tree three wide, two MAT-files):
+
+| | `tree` | `indented` |
+|---|---|---|
+| Drawn | 1890 by 390 | 740 by 540 |
+| Fitted, closed | 0.7, the models; the data files off the screen to pan to | 1.0, both columns |
+| PowerTrain opened | 0.77, it and its three data files, both columns | 0.87, both columns |
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -76,14 +128,34 @@ they read, only the variables they read. None, the default, the graph starts wit
 and the links between them. The app sets it, in answer to `dex-graph-expand`; the element never
 changes it.
 
+### `layout`
+
+type `GraphLayoutStyle` · default `'tree'` · attribute `layout`
+
+How the graph is laid out. 'tree', the default, is the prototype's: two columns of top-down
+trees, what a file references side by side in the row under it. 'indented' draws each column
+as a file tree, one box a row, what a file references in the rows under it a step to the right,
+which draws a large set of files narrower and so at a larger scale: fifteen files that fit a
+1440 by 900 window's shell at 0.7 in trees fit it at 1.0 indented. A long indented column is
+dealt into columns side by side for a fixed 900 by 600 canvas, not for the element's size. A
+change fits the graph afresh, its boxes being elsewhere; what is open and selected stays. A
+value it does not know is 'tree'. Attribute `layout`.
+
 ## Methods
 
 ### `fit(): void`
 
 Scales and moves the view so the whole graph shows, centred, at no more than its own size and
-no less than 0.6 of it: a graph bigger than that shows from its top left, to pan from.
+no less than 0.7 of it: a graph bigger than that shows from its top left, to pan from.
 Called with a draw to come (just after `graph` or `expanded` was set), it fits what that draw
 lays out; before the element has a size (not on the page yet, or hidden), once it has one.
+
+### `focus(options?: FocusOptions): void`
+
+Gives the keyboard to the canvas, where the arrow keys go from box to box: at once, or, while
+there is no graph to draw yet (`graph` null: an app still building it), once there is. Not if
+the focus has gone anywhere in the page meanwhile, even if it is back on the body by then, nor
+if the graph comes with nothing to draw: then the request is forgotten.
 
 ### `reveal(id: string): void`
 
@@ -93,11 +165,37 @@ an app revealing a row sets `selected` (and `expanded`) too, and may call this s
 since with a draw to come it reveals where that draw puts the row. An id the graph does not
 hold moves nothing.
 
+### `zoomToReach(id: string): void`
+
+Zooms the view onto the box or item `id` and what a selection of it lights (it, what its edges
+reach, and their boxes), centred, at no more than their own size and no less than the least a
+fit shrinks to; where they do not fit at that, the box or item itself is kept in view, its top
+left first. For an app's "Show in Graph", which sets `selected` (and `expanded`) too and may call
+this straight after: with a draw to come, it zooms onto where that draw puts them. Changes
+neither the selection nor which boxes are open; an id the graph does not hold moves nothing.
+
 ## Events
 
 Each is a `CustomEvent` that bubbles and is composed (it leaves the shadow root), declared on
 `HTMLElementEventMap`, `DocumentEventMap` and `WindowEventMap`, so a listener's `e.detail` is
 typed with no cast, on the element, the document or the window.
+
+### `dex-graph-expand`
+
+Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`
+to include the box, or to leave it out. The graph changes nothing itself.
+
+`detail` is a `GraphExpandDetail`:
+
+```ts
+/** What `dex-graph-expand` carries: the box whose items to show or hide. */
+export interface GraphExpandDetail {
+  /** The box. */
+  id: string;
+  /** True to show its items, false to hide them. */
+  expanded: boolean;
+}
+```
 
 ### `dex-graph-selected`
 
@@ -136,23 +234,6 @@ export interface GraphOpenDetail {
    * resolve as it resolves a link to a file. It may find nothing; what then is the app's to say.
    */
   ref?: string;
-}
-```
-
-### `dex-graph-expand`
-
-Show or hide this box's items: its − or + was pressed, or Space on it. A request: set `expanded`
-to include the box, or to leave it out. The graph changes nothing itself.
-
-`detail` is a `GraphExpandDetail`:
-
-```ts
-/** What `dex-graph-expand` carries: the box whose items to show or hide. */
-export interface GraphExpandDetail {
-  /** The box. */
-  id: string;
-  /** True to show its items, false to hide them. */
-  expanded: boolean;
 }
 ```
 
@@ -195,7 +276,7 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | `--dex-graph-mat-bg` | `#f4f0e8` |  |
 | `--dex-graph-mat-border` | `#918267` |  |
 | `--dex-graph-mat-selected` | `#7d653e` |  |
-| `--dex-graph-model-bg` | `#e8f0f7` | The relationship graph (dex-relationship-graph): each kind of box's surface, border and selected border, each kind of edge (the legend's swatches too), the items inside a box (a model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues darkened until every line and border is 3:1 against the canvas. |
+| `--dex-graph-model-bg` | `#e8f0f7` | The relationship graph (dex-relationship-graph): each kind of box's surface, border and selected border, each kind of edge (the legend's swatches too), the items inside a box (a model's workspace variables in a tint of the workspace edge), and a ghost's label. Hues darkened until every line and border is 3:1 against the canvas. A data link is drawn in the border colour of the file it links (a dictionary's, a MAT-file's), so the data-link edge token colours only a link to a file of neither kind, which core's extraction never names. |
 | `--dex-graph-model-border` | `#6c8899` |  |
 | `--dex-graph-model-selected` | `#436e8a` |  |
 | `--dex-graph-sldd-bg` | `#e8f4ec` |  |

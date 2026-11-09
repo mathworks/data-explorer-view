@@ -40,6 +40,14 @@ function navigatorIsMac() {
         return true;
     return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 }
+/**
+ * Delete's key as the menu labels it, on macOS when `mac`: ⌫, as the key marked delete there is
+ * Backspace, and Del elsewhere. A key and not a chord: the table answers Delete and Backspace
+ * alike. Exported so that an app's toolbar names the key the menu does.
+ */
+export function deleteKeyLabel(mac) {
+    return mac ? '⌫' : 'Del';
+}
 export function resolveShortcutAction(e) {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && !e.shiftKey && !e.altKey) {
@@ -89,8 +97,8 @@ export function shouldOpenCellEditor(editable) {
  * Build the right-click context menu for the CURRENT SELECTION.
  *
  * Pure and synchronous: enablement comes from the host-computed row flags, the cached
- * clipboard state, the target section's rules, and whether the document is editable —
- * no round-trip. Two things it deliberately does NOT decide: which rows are operands
+ * clipboard state, the target section's rules, whether the document is editable, and where its
+ * undo stack stands when the source says — no round-trip. Two things it deliberately does NOT decide: which rows are operands
  * (resolveOperands does, so the keyboard cannot diverge) and whether a payload may land
  * in a section (dropDecision.rejectReason does, so a Paste offered here is a drop the
  * hover feedback would allow).
@@ -153,9 +161,17 @@ export function buildContextMenuItems(input) {
         }
         return base;
     };
+    // Greyed where the document may not be edited, and, where the source says where its stack stands,
+    // where there is no step to take back or make again: saying so, as Paste says its clipboard is
+    // empty. A source that does not say leaves both offered, as an editor's stack (VS Code's) is.
+    const step = (id, label, shortcut, can) => {
+        const nothing = editable && can === false;
+        return { id, label, shortcut, disabled: !editable || nothing, ...(nothing ? { reason: `Nothing to ${id}` } : {}) };
+    };
+    const { history } = input;
     const undoRedo = [
-        { id: 'undo', label: 'Undo', shortcut: `${MOD}Z`, disabled: !editable },
-        { id: 'redo', label: 'Redo', shortcut: `${SHIFT}${MOD}Z`, disabled: !editable },
+        step('undo', 'Undo', `${MOD}Z`, history && !!history.canUndo),
+        step('redo', 'Redo', `${SHIFT}${MOD}Z`, history && !!history.canRedo),
     ];
     // A selection with no data-row operands is a header selection (or nothing at all).
     // Row actions are OMITTED rather than disabled: a section can never be copied, so a
@@ -203,6 +219,7 @@ export function buildContextMenuItems(input) {
         id: 'addChild',
         label: 'Add Child',
         icon: 'addChild',
+        ...(input.addChildChord ? { shortcut: '+' } : {}),
         disabled: !editable || n > 1 || !soleRow?._canAddChild,
         ...(n > 1
             ? { reason: 'Select a single item to add a child' }
@@ -213,7 +230,7 @@ export function buildContextMenuItems(input) {
     const del = {
         id: 'delete',
         icon: 'delete',
-        shortcut: navigatorIsMac() ? '⌫' : 'Del',
+        shortcut: deleteKeyLabel(navigatorIsMac()),
         disabled: !editable || !!undeletableRow,
         ...operandLabel('Delete', 'Items', deleteNames),
         ...(undeletableRow ? { reason: "This element can't be removed from its parent" } : {}),

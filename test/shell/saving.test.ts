@@ -57,6 +57,16 @@ describe('Saver', () => {
     expect(told).toEqual(['saved 1']);
   });
 
+  it('says the host handed the save to the user as a download, and tells the document its bytes landed', async () => {
+    const { doc, told } = fakeDoc();
+    const result = await new Saver({ saveFile: async () => ({ overwritten: false, downloaded: true }), saveFileAs: vi.fn() }).save(tab(doc));
+    expect(result).toEqual({ kind: 'saved', downloaded: true });
+    expect(told).toEqual(['saved 1']);
+    // A Save As the host downloads under the file's own path is a save of it, downloaded too.
+    const as = await new Saver({ saveFile: vi.fn(), saveFileAs: async (path) => ({ path, overwritten: false, downloaded: true }) }).save(tab(fakeDoc().doc), true);
+    expect(as).toEqual({ kind: 'saved', downloaded: true });
+  });
+
   it('tells the document a write that failed was not saved, and says why', async () => {
     const { doc, told } = fakeDoc();
     const saveFile = vi.fn(async () => Promise.reject(new Error('Cannot save "plant.sldd": the file is read-only.')));

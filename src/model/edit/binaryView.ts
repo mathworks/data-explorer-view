@@ -47,8 +47,8 @@ import {
 } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildSectionRowId } from '../ids/sectionRowId.js';
-import { InspectorSelection } from '../inspector/inspectorSelection.js';
-import { buildPropertyGroups } from '../inspector/piBuilder.js';
+import { basename } from '../ids/pathUtil.js';
+import { inspectTree } from '../inspector/inspectTree.js';
 import { matrixCellsMessage } from '../matrix/matrixRequest.js';
 import { rawOfRow } from '../raw/rawOfRow.js';
 import { noRaw, type RawView } from '../raw/rawView.js';
@@ -63,6 +63,8 @@ import {
   type CellEdit,
   type ChildRows,
   type EditableTableSource,
+  type EditHistory,
+  type InspectOptions,
   type InspectorView,
   type MatrixPage,
   type NewEntry,
@@ -76,6 +78,7 @@ import { sectionTarget, type SectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, refusedChange, type RefusedGesture } from './refusal.js';
 import { NOT_FOUND_REASON, reach, type DeleteTarget } from './registers.js';
+import { replacingOrRefuse } from './replacing.js';
 import { runTransfer, type SourceDeleteResult, type TransferAdapter, type TransferDeps } from './transfer.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -394,12 +397,13 @@ export class BinaryView implements EditableTableSource {
     return matrix ? { nodeId, matrix } : { nodeId, message: message ?? 'This value could not be read as a table.' };
   }
 
-  async inspect(selection: string | readonly string[]): Promise<InspectorView> {
-    const rowIds = typeof selection === 'string' ? [selection] : selection;
-    let view: InspectorView = { groups: [] };
-    const show = { showNode: (node: unknown) => void (view = { rowId: rowIds[0], groups: buildPropertyGroups(node) }), clear: () => {} };
-    new InspectorSelection(show, (_uri, id) => this.findForRead(id)).show(this.doc.uri, rowIds);
-    return view;
+  // The inspector's page (inspectTree), off the model as it stands, as the Raw pane's: the file's page
+  // says it holds edits while its undo stack is off the save point.
+  async inspect(selection: string | readonly string[], options?: InspectOptions): Promise<InspectorView> {
+    if (this.closed || this.doc.disposed) return { groups: [] };
+    const doc = this.doc;
+    const tree = { root: () => doc.liveModel(), fileIds: [doc.uri, doc.srcId], find: this.findForRead, name: basename(this.name), sources: this.session, dirty: () => doc.options.index.dirty };
+    return inspectTree(tree, selection, options);
   }
 
   // The Raw pane's answer for a row (raw/rawOfRow.ts), off the model as it stands: at rest, the
@@ -815,13 +819,36 @@ export class BinaryView implements EditableTableSource {
     void runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps());
   }
 
-  drop(rowId: string, mode: 'copy' | 'move'): void {
+  // Settled once the transfer is done, refused or not, for whoever waits on it (handle.drop()).
+  drop(rowId: string, mode: 'copy' | 'move'): Promise<void> | void {
     if (this.closed) return;
     const registers = this.doc.options.registers;
-    void runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps());
+    return runTransfer({ rowId }, registers.dragRegister(mode, () => registers.broadcastDragState()), this.transferAdapter(), this.transferDeps()).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // A copy that takes the place of entries of this document (a compare's Copy to Right): the entries
+  // go out of chunkXml and the model in the commit, before the paste, as a same-document move's do.
+  dropReplacing(rowId: string, replacing: readonly string[]): Promise<void> | void {
+    if (this.closed) return;
+    const registers = this.doc.options.registers;
+    const register = registers.dragRegister('copy', () => registers.broadcastDragState());
+    const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
+    if (!selectors) return;
+    return runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps()).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   // --- Undo, redo, and the whole text of a Value ---------------------------------------------------
+
+  /** Where the document's undo stack stands, as the engine was given it (its `history`). */
+  get history(): EditHistory | undefined {
+    return this.doc.options.history;
+  }
 
   undo(): void {
     if (this.closed) return;

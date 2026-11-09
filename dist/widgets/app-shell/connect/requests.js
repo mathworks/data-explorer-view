@@ -2,19 +2,24 @@
 //
 // What the shell's parts ask, and what connectShell does for each: the toolbar's buttons, the
 // welcome's and the command palette's rows (each a ShellCommand); a view the user brought forward;
-// the Settings and About buttons; the tab row's select, close, pin and move; the location bar's
-// Back, Forward, Up and segments; the Explorer's rows and its files' menus. Each part names a tab by
-// its id, and a request about a tab that has closed since does nothing.
+// the Settings and About buttons; each pane's tab row's select, close, pin and move; the documents'
+// area's pane focused, tab dropped and divider moved; the location bar's Back, Forward, Up and
+// segments; the Explorer's rows and its files' menus; a tab's menu. Each part names a tab by its
+// id, and a request about a tab that has closed since does nothing.
+import { comparable, PICK_PREFIX } from './comparePick.js';
 import { connectFileMenu } from './fileMenu.js';
+import { connectTabMenu } from './tabMenu.js';
+import { isMatlabCommand } from './matlab.js';
 import { SHELL_VIEWS } from './views.js';
 const COMMANDS = new Set([
-    'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut', 'copy',
-    'paste', 'delete', 'next-tab', 'previous-tab', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about', 'palette',
-    'show-graph', ...SHELL_VIEWS.map((v) => v.command),
+    'new-file', 'open-file', 'open-folder', 'save', 'save-as', 'save-all', 'close-tab', 'undo', 'redo', 'add-child', 'cut',
+    'copy', 'paste', 'delete', 'next-tab', 'previous-tab', 'split-right', 'move-to-other-pane', 'focus-pane-1', 'focus-pane-2', 'focus-filter', 'back', 'forward', 'up', 'settings', 'about',
+    'palette', 'show-graph', 'folder-up', 'folder-refresh', 'open-url', 'copy-link', 'compare-with', 'next-change', 'previous-change', ...SHELL_VIEWS.map((v) => v.command),
 ]);
 /** Whether `id` is a command the shell carries out: what a part sends as one may be anything. */
 export function isShellCommand(id) {
-    return COMMANDS.has(id);
+    // A MATLAB's commands are matlab.ts's, which knows them.
+    return COMMANDS.has(id) || isMatlabCommand(id);
 }
 /** Answer `parts`' requests with `on`; returns what stops it. */
 export function connectRequests(shell, parts, on) {
@@ -27,26 +32,46 @@ export function connectRequests(shell, parts, on) {
         if (isShellCommand(id))
             on.command(id);
     };
-    // The toolbar, the welcome's buttons, which ask what the toolbar's Open and Folder ask, and the palette.
+    // The toolbar, the welcome's buttons, which ask what the toolbar's Open and Folder ask, the Folder
+    // view's Open Folder… with no folder shown, and the palette.
     listen(parts.toolbar, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
     listen(parts.docs, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
-    listen(parts.palette, 'dex-palette-run', (e) => asked(e.detail.id));
+    listen(parts.folderPart, 'dex-toolbar-action', (e) => asked(e.detail.actionId));
+    // A row of the palette is a command, or an answer to the question it was shown with (a pick).
+    listen(parts.palette, 'dex-palette-run', (e) => {
+        const { id } = e.detail;
+        if (id.startsWith(PICK_PREFIX))
+            on.picked(id.slice(PICK_PREFIX.length));
+        else
+            asked(id);
+    });
     listen(shell, 'dex-shell-view-changed', (e) => on.viewChanged(e.detail.view, e.detail.open));
     listen(shell, 'dex-shell-action', (e) => {
         const { actionId, anchor } = e.detail;
         if (actionId === 'settings' || actionId === 'about')
             on.toggle(actionId, anchor);
     });
-    // The tab row's requests, each about a tab by its id; a move's index is the tab's place once moved.
-    const onTab = (type, act) => listen(parts.strip, type, (e) => {
+    // The panes' tab rows' requests, heard on the documents' area they are in (a second pane's row
+    // comes and goes), each about a tab by its id, from the row of a pane; a move's index is the
+    // tab's place once moved, in the row it was dropped on.
+    const onTab = (type, act) => listen(parts.docs, type, (e) => {
+        const pane = on.paneOfRow(e.target);
         const tab = on.tabOf(e.detail.id);
-        if (tab)
-            act(tab, e);
+        if (tab && pane >= 0)
+            act(tab, e, pane);
     });
     onTab('dex-tab-select', (tab) => on.activate(tab));
     onTab('dex-tab-close', (tab) => on.close(tab));
     onTab('dex-tab-pin', (tab) => on.pin(tab));
-    onTab('dex-tab-move', (tab, e) => on.move(tab, e.detail.index));
+    onTab('dex-tab-move', (tab, e, pane) => on.move(tab, e.detail.index, pane));
+    // The documents' area: the pane the user is in, a tab dropped on a pane's documents, the divider.
+    listen(parts.docs, 'dex-pane-focus', (e) => on.focusPane(e.detail.pane));
+    listen(parts.docs, 'dex-pane-drop', (e) => {
+        const tab = on.tabOf(e.detail.id);
+        if (tab)
+            on.drop(tab, e.detail.pane, e.detail.side);
+    });
+    listen(parts.docs, 'dex-panes-resized', (e) => on.resized(e.detail.ratio));
     listen(parts.location, 'dex-location-go', (e) => {
         const { to } = e.detail;
         if (typeof to === 'number')
@@ -67,8 +92,30 @@ export function connectRequests(shell, parts, on) {
         if (sectionId !== undefined)
             tab.handle?.select([sectionId]);
     });
-    // A file's menu in the Explorer: Save, Save As and Close for that file.
-    stops.push(connectFileMenu(parts.explorer, parts.menu, { tabOf: on.tabOf, save: on.save, close: on.close }));
+    // A file's menu in the Explorer: Save, Save As, Compare With… and Close for that file, and a
+    // connected MATLAB's commands for it.
+    stops.push(connectFileMenu(parts.explorer, parts.menu, {
+        tabOf: on.tabOf,
+        save: on.save,
+        close: on.close,
+        comparable,
+        compareWith: on.compareWith,
+        ...(on.matlabItems ? { matlabItems: on.matlabItems } : {}),
+        ...(on.runMatlab ? { runMatlab: on.runMatlab } : {}),
+    }));
+    // A tab's menu: Compare With… or a compare's steps, Close, Close Others and Copy Link for that tab.
+    stops.push(connectTabMenu(parts.docs, parts.menu, {
+        tabOf: on.tabOf,
+        others: on.others,
+        close: on.close,
+        closeOthers: on.closeOthers,
+        link: on.link,
+        copyLink: on.copyLink,
+        comparable,
+        compareWith: on.compareWith,
+        changes: (tab) => (tab.compare ? { hasChanges: tab.compare.hasChanges } : null),
+        step: (tab, by) => tab.compare?.step(by),
+    }));
     return () => {
         for (const stop of stops.splice(0))
             stop();

@@ -21,9 +21,19 @@ export interface RawTree {
     /** The node a row id names in the tree, or null. */
     find(rowId: string): unknown;
 }
+/** How a row's raw form is asked for: `TableSource.raw`'s options. */
+export interface RawOptions {
+    /**
+     * The record a save writes, as JSON, in place of the bytes a MAT-file's or a Model Workspace's
+     * variable was read from: what the command window's json prints, where the Raw pane dumps the
+     * bytes. A variable of more than HEX_LIMIT bytes, whose record would run to many times their
+     * size, and one whose record core will not write, still answer the bytes. Default false.
+     */
+    record?: boolean;
+}
 /**
  * The raw form of the row `rowId` of the document `tree` is of, for the Raw pane: see the head
  * of this file for each kind of row. Nothing to show for a row that is not there (NO_RAW_DATA),
  * and RAW_NOT_WRITTEN where core throws as it writes one.
  */
-export declare function rawOfRow(tree: RawTree, rowId: string): RawView;
+export declare function rawOfRow(tree: RawTree, rowId: string, options?: RawOptions): RawView;

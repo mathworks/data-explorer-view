@@ -96,6 +96,14 @@ export class DexAddGallery extends LitElement {
          */
         this.inline = false;
         /**
+         * Whether the tiles are drawn small, as many to a row as fit at 44px or wider (four in the app
+         * shell's sidebar), with no frame until one is pointed at or focused, and each badge under its
+         * label: the layout `<dex-gallery-panel>` draws the gallery in, beside the table, so the whole
+         * palette is on screen. Default false: the popover's 96px tiles, as the table draws them.
+         * Attribute `compact`, reflected, which the layout's rules select on.
+         */
+        this.compact = false;
+        /**
          * The classes a MAT-file can take a new variable of, as core lists them, or null for a
          * dictionary's gallery. Given, the tiles are those classes' (the model's matCatalog): a MAT-file has
          * no sections, so no tile names one, and nothing is offered that the file cannot take.
@@ -475,6 +483,75 @@ export class DexAddGallery extends LitElement {
       background: var(--dex-bg-secondary, #f8f8f8);
     }
 
+    /* Compact: the layout a sidebar draws the gallery in (the app shell's Gallery panel), so
+       the whole palette is on screen beside the table. Small tiles, as many to a row as fit at
+       44px or wider, which is four in the shell's 200px sidebar less 6px either side; the
+       popover's rigid 96px tile gave two there, and a palette that scrolled. A tile shows no
+       frame or surface of its own until it is pointed at or focused: twenty-eight framed boxes
+       this small read as a grid of cells rather than as a palette. Its label is 9px, where the
+       catalog's widest word ("Connection", 50px) all but fits a 45px tile; at 10px it is 55px,
+       and ran into the tile beside it. A word wider than the tile stays whole and centred,
+       spilling into the gutter, rather than breaking mid-word.
+
+       The badge cannot stay in the corner: a 24px icon centred in a 45px tile reaches within
+       11px of either edge, and the narrowest badge is wider than that. It goes under the label,
+       in the flow, so the tiles of a row with one grow by a line together. The popover, which
+       is the table's (and the VS Code extension's), never sets this.
+
+       No max-content cap either: it is the popover's "as wide as the widest category's row of
+       96px tiles", and a grid of tracks that fill whatever width they are given has a max-content
+       of a column or two, which would hold the gallery to a strip of the sidebar. */
+    :host([compact]) {
+      max-width: none;
+      padding: 8px 6px;
+    }
+
+    :host([compact]) .kind-header {
+      padding: 6px 2px 2px;
+      font-size: 10px;
+    }
+
+    :host([compact]) .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 2px;
+    }
+
+    :host([compact]) .tile {
+      min-height: 0;
+      gap: 2px;
+      padding: 4px 1px;
+      border-color: transparent;
+      border-radius: 4px;
+      background: none;
+      font-size: 9px;
+    }
+
+    :host([compact]) .tile:hover {
+      background: var(--dex-bg-hover, #e8e8e8);
+      border-color: var(--dex-border-color-light, #e0e0e0);
+    }
+
+    /* The shared ring as well as the accent border: on a tile this small, a 1px border alone is
+       easily missed. */
+    :host([compact]) .tile:focus-visible {
+      border-color: var(--dex-color-accent, #0078d4);
+      box-shadow: var(--dex-focus-ring, 0 0 0 2px rgba(0, 120, 212, 0.4));
+    }
+
+    :host([compact]) .tile-line {
+      display: flex;
+      justify-content: center;
+      line-height: 11px;
+      white-space: nowrap;
+    }
+
+    :host([compact]) .tile-badge {
+      position: static;
+      font-size: 9px;
+      line-height: 11px;
+    }
+
     /* Forced colors drops every background and border above, which would take the badge
        and the tile outline with it — and the badge is the only thing telling a tile from
        the same-labelled one a few rows up that writes to a different section. */
@@ -506,6 +583,15 @@ export class DexAddGallery extends LitElement {
       .tile:focus-visible {
         outline: 2px solid Highlight !important;
         outline-offset: 1px !important;
+      }
+      /* A compact tile is framed only under the pointer, as it is outside this mode: a word wider
+         than the tile (a 50px "Connection" in a 45px tile) spills past its edge, and would run
+         through a frame drawn round it at rest. Its focus is the Highlight outline above. */
+      :host([compact]) .tile {
+        border-color: Canvas !important;
+      }
+      :host([compact]) .tile:hover {
+        border-color: ButtonText !important;
       }
     }
   `]; }
@@ -748,6 +834,9 @@ __decorate([
 __decorate([
     property({ type: Boolean })
 ], DexAddGallery.prototype, "inline", void 0);
+__decorate([
+    property({ type: Boolean, reflect: true })
+], DexAddGallery.prototype, "compact", void 0);
 __decorate([
     property({ attribute: false })
 ], DexAddGallery.prototype, "classes", void 0);

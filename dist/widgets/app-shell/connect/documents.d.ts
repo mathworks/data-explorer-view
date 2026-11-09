@@ -1,12 +1,13 @@
 import type { Doc } from '../../../model/source/workspace.js';
-import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexErrorDialog } from '../../error-dialog/dex-error-dialog.js';
 import type { DexProjectPage, ProjectOpenDetail } from '../../project-page/dex-project-page.js';
-import { type TableHandle } from '../../tree-table/connectTable.js';
+import { type TableHandle, type TableMenuContext } from '../../tree-table/connectTable.js';
 import type { DexTreeTable } from '../../tree-table/dex-tree-table.js';
 import type { DexVariableEditor } from '../../variable-editor/dex-variable-editor.js';
 import type { DocTab } from '../dex-doc-tabs.js';
 import type { FolderView } from './folder.js';
+import type { CompareConnection } from './compare.js';
 import type { ShellTab } from './tabs.js';
 import type { ShellHost } from './types.js';
 /** A tab as the shell keeps it: a ShellTab, its table's selection, and its listeners. */
@@ -23,26 +24,56 @@ export interface OpenTab extends ShellTab {
     ready: Promise<void>;
     /** The bytes its file holds as the shell last read or wrote them: what the relationship graph draws. */
     bytes?: Uint8Array;
+    /** A compare tab's connection (compare.ts); absent for a file's tab. A compare tab's `path` is '' and it has no doc, table or handle. */
+    compare?: CompareConnection;
 }
 /** The item a document's table menu ends with: the row's item, or the file's box, in the relationship graph. */
 export declare const SHOW_IN_GRAPH: {
     readonly id: "showInGraph";
     readonly label: "Show in Graph";
 };
+/** A document row's link, for a host that makes links (ShellHost.entryLink): before Show in Graph. */
+export declare const COPY_ENTRY_LINK: {
+    readonly id: "copyEntryLink";
+    readonly label: "Copy Link to Entry";
+};
 /** Put `text` on the host's clipboard, or the page's for a host without one, asked at each copy. */
 export declare function copyText(host: ShellHost, text: string): Promise<void>;
-/** How the tab row draws `tab`: its name, its kind's icon, its path as the tooltip, its marks. */
-export declare function docTabOf(tab: OpenTab): DocTab;
-/** What the status bar says of the active tab: its kind, and `· Modified` while it holds unsaved edits. */
-export declare function statusOf(tab: OpenTab | undefined): string;
+/**
+ * How the tab row draws `tab`: its name and its kind's icon, `title` as the tooltip (its path, as the
+ * host says it), its marks. While its selection is in a section of its file (a dictionary's Design
+ * Data, a model's Model Workspace), the section's name and icon, with the file's name as the
+ * subtitle: the section the Explorer marks for the same selection, and what the prototype's tab
+ * read for a section it showed.
+ */
+export declare function docTabOf(tab: OpenTab, title?: string): DocTab;
+/** What the status bar says of a file: its format, as its pill names it (`SLDD`); its kind, in words; whether it holds edits. */
+export interface FileStatus {
+    format: string;
+    kind: string;
+    modified: boolean;
+}
+/**
+ * What the status bar says of the active tab (<dex-shell-status>): its file's format, by its
+ * extension (`SLDD`, `SLX`, `MDL`, `MAT`), or a project by its kind, its file's extension
+ * (matlab.toml's, a .prj's) being no format a user knows it by; its kind in words (`Data
+ * dictionary`); and whether it holds unsaved edits. Nothing for no tab, or a file of no kind the
+ * shell names. A compare tab is a Comparison, of no format, holding no edits of its own.
+ */
+export declare function statusOf(tab: Pick<OpenTab, 'path' | 'dirty' | 'compare'> | undefined): FileStatus;
 /**
  * Select no row of `tab`'s table: the file itself. TableHandle.select([]) selects nothing rather
  * than clearing, so the selection goes as a click on no row takes it, the table's own event saying
  * so, which is what connectTable (its `select`, the inspector's feed) hears.
  */
 export declare function clearSelection(tab: OpenTab): void;
-/** A table in `tab`'s panel, its column choices kept under `storageKey`. */
-export declare function newTable(tab: OpenTab, storageKey: string, editable?: boolean): DexTreeTable;
+/**
+ * The note `tab`'s panel shows while its file is read and parsed, which for a large file takes a
+ * while: "Opening plant.sldd…", as a status. Remove it once the file is shown, or failed.
+ */
+export declare function openingNote(tab: OpenTab): HTMLElement;
+/** A table in `tab`'s panel, its column choices kept under `storageKey`, ruled as `tableStyle` says (the setting's). */
+export declare function newTable(tab: OpenTab, storageKey: string, editable?: boolean, tableStyle?: DexTreeTable['tableStyle']): DexTreeTable;
 /** The shared parts a document's table is connected with, and the folder it is read against. */
 export interface DocumentWiring {
     host: ShellHost;
@@ -51,6 +82,10 @@ export interface DocumentWiring {
     dialog: DexErrorDialog;
     /** The folder shown now, if any: its Usage, and the files its tree shows for a link's names. */
     folder(): FolderView | undefined;
+    /** How a table made now is ruled: the table style setting's. */
+    tableStyle(): DexTreeTable['tableStyle'];
+    /** The MATLAB items a row's menu ends with (connectShell's, from matlab.ts); none without a MATLAB. */
+    matlabItems?(tab: OpenTab, context: TableMenuContext): ContextMenuItem[];
 }
 /** Connect `doc`'s source to a new table in `tab`'s panel, kept under `storageKey`. */
 export declare function connectDocument(tab: OpenTab, doc: Doc, storageKey: string, wiring: DocumentWiring): TableHandle;

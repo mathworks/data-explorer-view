@@ -3,12 +3,45 @@ import type { HierarchyItem } from '../../model/hierarchy/folderHierarchy.js';
 export type { HierarchyItem };
 /** What `dex-hierarchy-selected` carries: the row chosen. */
 export interface HierarchySelectedDetail {
-    /** The file the row opens (its `id`), or null for a row that is no file: a folder, External Data, a reference no file answers. */
+    /**
+     * The file the row opens (its `id`), or null for a row that is no file: a folder, External Data,
+     * a reference no file answers; and for a `dimmed` row, a file the app does not open.
+     */
     uri: string | null;
     /** The row's key, as `selectedKey` now holds it. */
     key: string;
     /** The row. */
     item: HierarchyItem;
+}
+/** What `dex-hierarchy-selection-changed` carries: every selected row, in the tree's order. */
+export interface HierarchySelectionChangedDetail {
+    keys: string[];
+    items: HierarchyItem[];
+}
+/**
+ * How a row's file stands in the tabs, by its uri (HierarchyItem.id): the tabs' own vocabulary,
+ * so a row reads as the tab of its file does. Every row of the file is marked, wherever it is.
+ */
+export interface RowMark {
+    /** Open in a tab: a bar in the accent at the row's left edge (a border in forced colours). */
+    open?: boolean;
+    /** The active tab: the row drawn as a selected one is (not `selectedKey`), and `aria-current="true"`. */
+    active?: boolean;
+    /** Unsaved: ● after the label, the tab's mark, which a screen reader reads as unsaved changes. The index's own `modified` mark is the same badge: a row never shows two. */
+    unsaved?: boolean;
+    /** A preview tab (one a single click opened, which the next replaces): the label in italics. */
+    preview?: boolean;
+}
+/** What `dex-hierarchy-menu` carries: the row whose menu is asked for, and where to show it. */
+export interface HierarchyMenuDetail {
+    /** The row. */
+    item: HierarchyItem;
+    /** Where the menu's left edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's left edge. */
+    x: number;
+    /** Where the menu's top edge goes, in the viewport's pixels: the pointer's, or for the keyboard the row's bottom edge. */
+    y: number;
+    /** Asked by the keyboard (Shift+F10, the ContextMenu key): the menu takes the focus to its first item. */
+    keyboard?: true;
 }
 /**
  * A folder's hierarchy as a tree: each project and folder, the files in it, and under each file
@@ -18,6 +51,14 @@ export interface HierarchySelectedDetail {
  * file's name and kind, an unresolved reference a warning, a file's mark a badge (a circular
  * reference, unsaved changes), and a notice (a folder of which only the first files are shown) an
  * information mark.
+ *
+ * For a folder drawn as a file browser draws it (FolderTree's rows), a `dimmed` row is a file the
+ * app does not open, in the muted ink, disabled for a screen reader and opening nothing; a row's
+ * `relation` says after its name what it is to the row above it; and `marks` mark each file's rows
+ * as its tab stands (open, active, unsaved, a preview). With `rowMenu`, a right click, Shift+F10 or
+ * the ContextMenu key asks for a row's menu (`dex-hierarchy-menu`), which the app draws. Rows
+ * without these fields, a tree without marks and one without `rowMenu` draw and answer as they
+ * always have.
  *
  * A click or Enter chooses a row: it is selected, `dex-hierarchy-selected` says which file it
  * opens, and a row with rows under it opens or closes. The arrow keys move through the rows
@@ -42,8 +83,20 @@ export declare class DexHierarchy extends LitElement {
      * whose key is here opens as soon as it is shown. Default none.
      */
     expandedKeys: string[];
+    /**
+     * How each file's rows stand in the tabs, by the file's uri (a row's `id`): open, the active
+     * tab, unsaved, a preview. Setting it redraws the rows; it sends nothing. Default none.
+     */
+    marks: ReadonlyMap<string, RowMark>;
     /** The key of the selected row, or null. The tree changes it as the user chooses; setting it sends nothing. */
     selectedKey: string | null;
+    /**
+     * Whether a row's menu is the app's: a right click on a row, or Shift+F10 or the ContextMenu key
+     * on the focused row, sends `dex-hierarchy-menu`, the browser's own menu kept away and both keys
+     * spent, and the tree names the keys (`aria-keyshortcuts`). False, the default, leaves the right
+     * click and both keys to the browser, as they always were. Attribute `row-menu`.
+     */
+    rowMenu: boolean;
     /** What a screen reader calls the tree. Default `Files`. Attribute `label`. */
     label: string;
     /**
@@ -53,6 +106,17 @@ export declare class DexHierarchy extends LitElement {
      * Off, the default, a folder opens closed. Attribute `expand-top-level`.
      */
     expandTopLevel: boolean;
+    /**
+     * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,
+     * and so does Space (or Mod+Space) on the focused row: `selectedKeys` holds every selected row
+     * and `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as
+     * before. Default false: one row at a time. Attribute `multi-select`.
+     */
+    multiSelect: boolean;
+    /** With `multiSelect`: the keys of every selected row, `selectedKey` (the last taken in) among them. Property only. */
+    selectedKeys: string[];
+    /** The items of `selectedKeys` among the rows loaded, in the tree's order. */
+    get selectedItems(): HierarchyItem[];
     private _children;
     private _previous;
     private _asked;
@@ -62,6 +126,7 @@ export declare class DexHierarchy extends LitElement {
     private _open;
     private _openedTop;
     private _scrollKey;
+    private _keyMenu;
     /**
      * Show a row: open each row of `path` but the last (the rows from a top-level row down to it,
      * as FolderHierarchy's `pathTo` gives them), select the last, and scroll it into view as soon as
@@ -84,7 +149,15 @@ export declare class DexHierarchy extends LitElement {
     private _setOpen;
     private _focus;
     private _choose;
+    private _mod;
+    private _onClick;
+    private _toggle;
+    private _selectionChanged;
     private _announce;
+    private _menu;
+    private _onContextMenu;
+    private _isMenuKey;
+    private _onKeyup;
     private _onKeydown;
     private _onTwisty;
     private _icon;
@@ -102,9 +175,17 @@ export declare function defineHierarchy(tag?: string): void;
 export interface HierarchyEventMap {
     /**
      * A row was chosen, by a click or Enter, and is now the selected one: the file it opens, or
-     * null for a row that is no file. Sent again each time a row is chosen.
+     * null for a row that is no file (or a dimmed one). Sent again each time a row is chosen.
      */
     'dex-hierarchy-selected': CustomEvent<HierarchySelectedDetail>;
+    /**
+     * A row's menu is asked for: a right click on it (the browser's own menu kept away), or Shift+F10
+     * or the ContextMenu key on the focused row (`keyboard`, at the row's lower left). The tree
+     * draws no menu: the app does, for the row's `item`.
+     */
+    'dex-hierarchy-menu': CustomEvent<HierarchyMenuDetail>;
+    /** With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, Space, a plain click or Enter). */
+    'dex-hierarchy-selection-changed': CustomEvent<HierarchySelectionChangedDetail>;
 }
 declare global {
     interface HTMLElementTagNameMap {

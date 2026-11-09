@@ -4,7 +4,7 @@ The open files, as the app shell's Explorer lists them: Root first, the row for 
 at once, then each kind of file under a heading of its own (Simulink Models, Data Dictionaries,
 MAT-Files, Projects, Other, always in that order, and a heading only over files). A file with
 sections has a twisty that opens it onto them (a dictionary's Design Data, Configurations, …),
-and a file with unsaved changes reads ` *` after its name.
+and a file with unsaved changes shows ● after its name, as its tab in the shell does.
 
 It draws what it is given and asks for the rest. A click on a row sends `dex-explorer-open` for
 it, unpinned, for an app that shows it in a preview tab; a double-click or Enter sends it pinned;
@@ -36,7 +36,9 @@ explorer.addEventListener('dex-explorer-menu', (e) => {
 ```
 
 Which files are open onto their sections is the element's own, and a file that leaves `files` is
-forgotten, so it comes back closed.
+forgotten, so it comes back closed. `focusRow(at)` gives the keyboard to a row (`{ fileId: null }`
+for Root), and says whether it took it: the shell calls it when its tab row hides at Root with the
+focus on a tab.
 
 <!-- Everything below is written by scripts/gen-widget-docs.mjs from custom-elements.json. -->
 
@@ -71,9 +73,23 @@ type `string` · default `'Root'` · attribute `root-label`
 
 What the first row, the one for every open file at once, reads. Default `Root`. Attribute `root-label`.
 
+### `dropPredictor`
+
+type `((target: ExplorerDropTarget, mode: DragMode) => ExplorerDropVerdict | null) | null` · default `null` · property only
+
+What a drag of table rows let go over a file's row or a section's would do: asked on each
+dragover of such a drag, with the row and the mode the keys held ask, and again as it is let go.
+Its answer is drawn on the row (an outline, a tooltip, words for a screen reader) and decides
+whether the row takes the drop; null takes none there and draws nothing (a drop that would do
+nothing, a file that takes none). Null, the default: the explorer takes no drop. Property only.
+
 ## Methods
 
-None.
+### `focusRow(at: ExplorerSelection): boolean`
+
+Give the keyboard to the row `at` names: Root for `{ fileId: null }`, a file, or a section of an
+open file, as the arrow keys would land on it. Whether the row took it: false for one not drawn
+(a file not listed, a section of a closed file, an Explorer not drawn yet).
 
 ## Events
 
@@ -123,6 +139,27 @@ export interface ExplorerMenuDetail {
 }
 ```
 
+### `dex-explorer-drop`
+
+Table rows were let go over this file's row, or this section's, and `dropPredictor` takes the
+drop: move or copy them there. A request: the explorer changes nothing itself.
+
+`detail` is a `ExplorerDropDetail`:
+
+```ts
+/** What `dex-explorer-drop` carries: the row table rows were let go over, and whether to move or copy them. */
+export interface ExplorerDropDetail {
+  /** The file. */
+  fileId: string;
+  /** The file's section; absent for the file itself. */
+  sectionId?: string;
+  /** What the drop does: the effect the predictor said, else the keys held at the last dragover. */
+  mode: DragMode;
+}
+
+export type DragMode = 'copy' | 'move';
+```
+
 ## Parts it defines
 
 `defineExplorer()` defines these first, under their default names, then `<dex-explorer>`:
@@ -138,7 +175,10 @@ Each falls back to the light default when the page sets none (see `data-explorer
 | Token | Light default | |
 |---|---|---|
 | `--dex-bg-hover` | `#e8e8e8` |  |
+| `--dex-color-accent` | `#0078d4` |  |
 | `--dex-color-accent-bg` | `#cde4f7` |  |
+| `--dex-color-error` | `#d32f2f` |  |
+| `--dex-color-modified` | `#b45309` | The Status column's "Modified". |
 | `--dex-color-text` | `#333` |  |
 | `--dex-color-text-muted` | `#666` |  |
 | `--dex-color-text-secondary` | `#555` |  |

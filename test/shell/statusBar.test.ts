@@ -1,0 +1,209 @@
+// Copyright 2026 The MathWorks, Inc.
+// @vitest-environment happy-dom
+//
+// What the status bar says of the active tab (<dex-shell-status>, which connectShell puts in the
+// shell's status slot): the file's format as a small uppercase pill ("SLDD"), its kind in words as
+// the pill's tooltip and what a screen reader hears of it, and "Modified" in the warning colour while the tab holds unsaved edits. The
+// words have to be read on the status bar in every theme: the warning ink is 4.05:1 on the light
+// bar itself, under WCAG AA's 4.5, so "Modified" sits on a chip of the page's surface, where it
+// is 4.6:1 or better; the pill's ink is the text's, on the badge's wash over the bar. happy-dom
+// composites nothing, so the pairs are worked out from the theme sheet's three sets, and the
+// stylesheet is checked to draw with those tokens.
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { DexShellStatus, defineShellStatus } from '../../src/widgets/app-shell/connect/dex-shell-status.js';
+import { statusOf } from '../../src/widgets/app-shell/connect/documents.js';
+import { THEME_SETS } from '../tools/cssTokens.js';
+import { edit, open, startPage, until } from './harness.js';
+
+beforeAll(() => defineShellStatus());
+afterEach(() => document.body.replaceChildren());
+
+async function mount(props: Partial<Pick<DexShellStatus, 'format' | 'kind' | 'modified' | 'matlab' | 'matlabTitle'>>): Promise<DexShellStatus> {
+  const el = new DexShellStatus();
+  Object.assign(el, props);
+  document.body.append(el);
+  await el.updateComplete;
+  return el;
+}
+
+const pill = (el: Element) => el.shadowRoot!.querySelector<HTMLElement>('.format');
+const mark = (el: Element) => el.shadowRoot!.querySelector<HTMLElement>('.modified');
+const matlabButtons = (el: Element) => [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('button.matlab')];
+
+// The stylesheet as text, comments out and whitespace folded.
+const sheet = (): string =>
+  [DexShellStatus.styles]
+    .flat(Infinity)
+    .map((s) => (s as { cssText: string }).cssText)
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ');
+// Every declaration of the rules `selector` is one of the selectors of, in order.
+const rule = (selector: string, css = sheet()): string =>
+  [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, selectors]) => selectors!.split(',').some((one) => one.trim() === selector))
+    .map(([, , body]) => body)
+    .join(';');
+
+// A colour of the theme sheet as [r, g, b, alpha]: #rgb, #rrggbb or rgba(r, g, b, a).
+function rgba(colour: string): [number, number, number, number] {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour)?.[1];
+  if (hex) {
+    const [r, g, b] = (hex.length === 3 ? [...hex].map((h) => h + h) : hex.match(/../g)!).map((h) => parseInt(h, 16));
+    return [r!, g!, b!, 1];
+  }
+  const [r, g, b, a] = colour.match(/[\d.]+/g)!.map(Number);
+  return [r!, g!, b!, a ?? 1];
+}
+// `top` painted over the opaque `under`.
+const over = (top: string, under: string): [number, number, number] => {
+  const [r, g, b, a] = rgba(top);
+  const [ur, ug, ub] = rgba(under);
+  return [r * a + ur * (1 - a), g * a + ug * (1 - a), b * a + ub * (1 - a)];
+};
+// WCAG's contrast ratio of two opaque colours.
+function contrast(a: readonly number[], b: readonly number[]): number {
+  const luminance = (rgb: readonly number[]): number => {
+    const [r, g, bl] = rgb.map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * bl!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+describe('<dex-shell-status>', () => {
+  it("draws the format as a pill, the kind in words its tooltip, and no Modified mark while there are no edits", async () => {
+    const el = await mount({ format: 'SLDD', kind: 'Data dictionary' });
+    expect(pill(el)!.querySelector('[aria-hidden="true"]')!.textContent).toBe('SLDD');
+    expect(pill(el)!.title).toBe('Data dictionary');
+    expect(getComputedStyle(pill(el)!).textTransform).toBe('uppercase');
+    expect(mark(el)).toBeNull();
+  });
+
+  it('says the kind in words to a screen reader, in place of the format it would spell out', async () => {
+    // "SLDD Modified" was what a screen reader heard of the bar.
+    const el = await mount({ format: 'SLDD', kind: 'Data dictionary' });
+    const said = pill(el)!.querySelector<HTMLElement>('.sr-only')!;
+    expect(said.textContent).toBe('Data dictionary');
+    expect(getComputedStyle(said).position).toBe('absolute');
+    expect(getComputedStyle(said).width).toBe('1px');
+    // Shown, the format alone; heard, the kind alone.
+    expect([...pill(el)!.childNodes].filter((n) => n.nodeType === Node.ELEMENT_NODE).map((n) => (n as Element).className || (n as Element).getAttribute('aria-hidden'))).toEqual(['true', 'sr-only']);
+  });
+
+  it('says Modified after the pill while the file holds edits', async () => {
+    const el = await mount({ format: 'MAT', kind: 'MAT-file', modified: true });
+    expect([pill(el)!.querySelector('[aria-hidden="true"]')!.textContent, mark(el)!.textContent]).toEqual(['MAT', 'Modified']);
+  });
+
+  it('draws nothing for no file, or one of no kind it names', async () => {
+    const el = await mount({});
+    expect(el.shadowRoot!.querySelectorAll('span')).toHaveLength(0);
+    expect(el.shadowRoot!.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('draws the MATLAB connected as a button, with no file open too', async () => {
+    // At Root, with nothing open, the bar still says which MATLAB the window reaches.
+    const el = await mount({ matlab: 'MATLAB R2027a', matlabTitle: 'Connected to MATLAB R2027a (process 47857)' });
+    const [button, ...more] = matlabButtons(el);
+    expect(more).toEqual([]);
+    expect(button!.textContent?.trim()).toBe('MATLAB R2027a');
+    expect(button!.title).toBe('Connected to MATLAB R2027a (process 47857)');
+    expect(button!.type).toBe('button');
+    expect(button!.querySelector('dex-icon')).toBeNull();
+    expect(pill(el)).toBeNull();
+  });
+
+  it('draws the MATLAB button before the pill', async () => {
+    const el = await mount({ matlab: 'MATLAB R2027a', format: 'SLDD', kind: 'Data dictionary' });
+    const drawn = [...el.shadowRoot!.children].map((n) => n.className);
+    expect(drawn).toEqual(['matlab', 'format']);
+  });
+
+  it("draws the MATLAB button before a comparison's kind, which has no pill", async () => {
+    const el = await mount({ matlab: 'MATLAB R2027a', kind: 'Comparison' });
+    const drawn = [...el.shadowRoot!.children].map((n) => n.className);
+    expect(drawn).toEqual(['matlab', 'kind']);
+    expect(el.shadowRoot!.querySelector('.kind')!.textContent).toBe('Comparison');
+  });
+
+  it('asks to show how to connect when the MATLAB button is pressed', async () => {
+    const el = await mount({ matlab: 'MATLAB R2027a' });
+    const heard: Event[] = [];
+    const listen = (e: Event) => heard.push(e);
+    document.addEventListener('dex-shell-matlab-connect', listen);
+    try {
+      matlabButtons(el)[0]!.click();
+    } finally {
+      document.removeEventListener('dex-shell-matlab-connect', listen);
+    }
+    expect(heard).toHaveLength(1);
+    expect(heard[0]!.bubbles).toBe(true);
+    expect(heard[0]!.composed).toBe(true);
+  });
+
+  it('draws the pill and the mark in the theme, each readable at 4.5:1 or better in every theme', () => {
+    expect(rule('.format')).toContain('background: var(--dex-bg-badge, rgba(128, 128, 128, 0.18))');
+    expect(rule('.format')).toContain('color: var(--dex-color-text, #333)');
+    expect(rule('.modified')).toContain('color: var(--dex-color-warning, #d83b01)');
+    expect(rule('.modified')).toContain('background: var(--dex-bg-primary, #fff)');
+    for (const [set, t] of Object.entries(THEME_SETS)) {
+      const bar = t.get('--dex-bg-activity-bar')!;
+      const badge = over(t.get('--dex-bg-badge')!, bar);
+      expect(contrast(rgba(t.get('--dex-color-text')!), badge), `${set}: the pill`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(rgba(t.get('--dex-color-warning')!), rgba(t.get('--dex-bg-primary')!)), `${set}: Modified`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("draws the MATLAB button's ink readable on the bar at 4.5:1 or better in every theme, ringed when focused", () => {
+    // The status area's muted ink is 4.3:1 on the dark bar: the button is a control, and takes the
+    // secondary text's.
+    expect(rule('.matlab')).toContain('color: var(--dex-color-text-secondary, #555)');
+    for (const [set, t] of Object.entries(THEME_SETS)) {
+      const bar = rgba(t.get('--dex-bg-activity-bar')!);
+      expect(contrast(rgba(t.get('--dex-color-text-secondary')!), bar), `${set}: the MATLAB button`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(rule('button:focus-visible')).toContain('box-shadow: var(--dex-focus-ring');
+  });
+
+  it('outlines both in forced colours, where their surfaces are painted over', () => {
+    const forced = /@media \(forced-colors: active\) \{(.*)\}\s*$/.exec(sheet())?.[1] ?? '';
+    expect(rule('.format', forced)).toContain('border-color: CanvasText');
+    expect(rule('.modified', forced)).toContain('border-color: CanvasText');
+    expect(rule('.matlab', forced)).toContain('border: 1px solid ButtonText');
+  });
+});
+
+describe('statusOf', () => {
+  it("says a tab's format by its file's extension, its kind in words, and whether it holds edits", () => {
+    const tab = (path: string, dirty?: boolean) => ({ path, ...(dirty === undefined ? {} : { dirty }) }) as Parameters<typeof statusOf>[0];
+    expect(statusOf(tab('/w/params.sldd'))).toEqual({ format: 'SLDD', kind: 'Data dictionary', modified: false });
+    expect(statusOf(tab('/w/m.slx', true))).toEqual({ format: 'SLX', kind: 'Simulink model', modified: true });
+    expect(statusOf(tab('/w/old.mdl'))).toEqual({ format: 'MDL', kind: 'Simulink model', modified: false });
+    expect(statusOf(tab('/w/ParamMat.mat'))).toEqual({ format: 'MAT', kind: 'MAT-file', modified: false });
+    // A project by its kind: its file's extension (matlab.toml's, a .prj's) is no format a user knows it by.
+    expect(statusOf(tab('/w/p/matlab.toml'))).toEqual({ format: 'PROJECT', kind: 'Project', modified: false });
+    expect(statusOf(tab('/w/p/plant.prj'))).toEqual({ format: 'PROJECT', kind: 'Project', modified: false });
+    expect(statusOf(undefined)).toEqual({ format: '', kind: '', modified: false });
+    expect(statusOf(tab('/w/notes.txt', true))).toEqual({ format: '', kind: '', modified: false });
+  });
+});
+
+describe('the status bar, connected', () => {
+  const status = () => document.querySelector<DexShellStatus>('dex-shell-status[slot="status"]')!;
+
+  it("shows the active tab's format, then Modified once it is edited", async () => {
+    const page = startPage({ 'params.sldd': 'params.sldd' });
+    await open(page, 'params.sldd');
+    await until(() => status().format === 'SLDD');
+    expect(status().kind).toBe('Data dictionary');
+    expect(status().modified).toBe(false);
+    await edit('params.sldd', 'Kp', '7');
+    await until(() => status().modified);
+    await status().updateComplete;
+    expect(mark(status())!.textContent).toBe('Modified');
+  });
+});

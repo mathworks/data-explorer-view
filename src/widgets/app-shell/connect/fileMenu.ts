@@ -1,13 +1,26 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // A file's menu in the Explorer: a right-click on an open file's row shows the shared context menu
-// with Save, Save As and Close for that file, whichever tab is active. The menu is the tables' too:
-// it is acted on by its next choice only, and a dismissal, or the menu shown again by a table (which
-// says the Explorer's closed first), ends it, so a table's Copy is never taken for a file's Close.
+// with Save, Save As, Compare With… and Close for that file, whichever tab is active, each labelled with the chord
+// that does the same to the active tab (keys.ts, as the toolbar's tooltips name them). The menu is
+// the tables' too: it is acted on by its next choice only, and a dismissal, or the menu shown again
+// by a table (which says the Explorer's closed first), ends it, so a table's Copy is never taken for
+// a file's Close. A connected MATLAB's commands for the file come after the file's own, a
+// separator between, for a host with a MATLAB.
 
-import type { DexContextMenu } from '../../context-menu/dex-context-menu.js';
+import { chordLabel, parseChord } from '../../../model/shell/chords.js';
+import type { ContextMenuItem, DexContextMenu } from '../../context-menu/dex-context-menu.js';
 import type { DexExplorer } from '../dex-explorer.js';
+import { chordOf, onMac } from './keys.js';
+import { isMatlabAction, type MatlabAction } from './matlab.js';
 import type { ShellTab } from './tabs.js';
+import type { ShellCommand } from './types.js';
+
+/** The menu's label of the chord of `command`, read at each menu as the platform says it (a tab's menu's too). */
+export const shortcutOf = (command: ShellCommand): { shortcut?: string } => {
+  const chord = chordOf(command);
+  return chord ? { shortcut: chordLabel(parseChord(chord), onMac()) } : {};
+};
 
 /** What the menu's items do, on the tab they were shown for. */
 export interface FileMenuActions<T extends ShellTab> {
@@ -15,6 +28,14 @@ export interface FileMenuActions<T extends ShellTab> {
   tabOf(fileId: string): T | undefined;
   save(tab: T, as: boolean): void;
   close(tab: T): void;
+  /** Whether `tab` is a file a compare reads: Compare With… is enabled. */
+  comparable(tab: T): boolean;
+  /** Ask which file to compare `tab`'s with (Compare With…). */
+  compareWith(tab: T): void;
+  /** The MATLAB items after the file's own, a separator before them; none without a MATLAB. */
+  matlabItems?(tab: T): ContextMenuItem[];
+  /** Carry out a MATLAB item chosen on `tab`'s file. */
+  runMatlab?(tab: T, id: MatlabAction): void;
 }
 
 /** Answer `explorer`'s file menus with `menu`; returns what stops it. */
@@ -26,10 +47,12 @@ export function connectFileMenu<T extends ShellTab>(explorer: DexExplorer, menu:
     const editable = !!tab.doc?.editable;
     // As the toolbar's buttons: Save for a file with edits to write, Save As for one the page edits.
     menu.show(e.detail.x, e.detail.y, [
-      { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty) },
-      { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable },
+      { id: 'save', label: 'Save', icon: 'saved', disabled: !(editable && tab.dirty), ...shortcutOf('save') },
+      { id: 'save-as', label: 'Save As…', icon: 'saveAs', disabled: !editable, ...shortcutOf('save-as') },
+      { id: 'compare-with', label: 'Compare With…', icon: 'compareUI', disabled: !actions.comparable(tab) },
       { id: '', label: '', separator: true },
-      { id: 'close-tab', label: 'Close', icon: 'close' },
+      { id: 'close-tab', label: 'Close', icon: 'close', ...shortcutOf('close-tab') },
+      ...(actions.matlabItems?.(tab) ?? []),
     ]);
     // After show(): a menu it replaced said it closed, which ends the menu before this one.
     menuFor = tab;
@@ -41,6 +64,8 @@ export function connectFileMenu<T extends ShellTab>(explorer: DexExplorer, menu:
     const id = e.detail.actionId;
     if (id === 'save' || id === 'save-as') actions.save(tab, id === 'save-as');
     else if (id === 'close-tab') actions.close(tab);
+    else if (id === 'compare-with') actions.compareWith(tab);
+    else if (isMatlabAction(id)) actions.runMatlab?.(tab, id);
   };
   const onClosed = (): void => {
     menuFor = null;

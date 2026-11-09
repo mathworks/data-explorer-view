@@ -1,9 +1,11 @@
-import type { ConfirmOptions, DexConfirmDialog } from '../dex-confirm-dialog.js';
+import type { ConfirmOptions, DexConfirmDialog, PromptOptions } from '../dex-confirm-dialog.js';
 import type { CloseAnswer, ShellHost } from './types.js';
 /** The in-page questions, as connectShell asks them. */
 export interface Questions {
     /** Ask `question` once the questions before it are answered, unless `still` says by then it need not be: its answer's id. */
     ask(question: ConfirmOptions, still?: () => boolean): Promise<string>;
+    /** Ask for a line of text in the dialog (its prompt), once the questions before it are answered: the text, or null. */
+    prompt(options: PromptOptions): Promise<string | null>;
     /** Something closed: the question up, if `still` now says it need not be asked, goes, answered with its cancel. */
     recheck(): void;
 }

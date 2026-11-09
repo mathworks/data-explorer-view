@@ -10,18 +10,29 @@ export declare function samePlace(a: ShellPlace, b: ShellPlace): boolean;
 /** A segment of the bar, and the place it stands for. */
 export interface LocationStep extends LocationSegment {
     place: ShellPlace;
+    /**
+     * The rows of a selection of several, on the one segment that counts them ("<3 selected>"): where
+     * the user is, which a press on the segment leaves selected. Its `place` is the first of them, as
+     * the shell's history knows the selection. Absent on every other segment.
+     */
+    selection?: readonly string[];
 }
 /** The active tab, as the bar names its file. */
 export interface LocationTab {
     id: string;
     name: string;
     path: string;
+    /** The file segment's tooltip: its path, as the host says it (ShellHost.pathTitle). Default the path. */
+    title?: string;
 }
 /**
- * The bar's segments for `rowId` in `tab` (or the file, for null; or Root, for no tab), and the
- * place Up goes to (null at Root, which has nothing above it).
+ * The bar's segments for `selection` in `tab` (a row, or the rows of a selection, the first the one
+ * the shell's history knows; null or none for the file itself; no tab for Root), and the place Up
+ * goes to (null at Root, which has nothing above it). `preview`, at Root: the file selected in the
+ * graph, a dimmed segment after Root whose place is Root still (the shell opens its file when it is
+ * pressed).
  */
-export declare function locationOf(tab: LocationTab | null, rowId: string | null, rowOf: (rowId: string) => TreeTableRow | undefined, rootLabel?: string): {
+export declare function locationOf(tab: LocationTab | null, selection: string | null | readonly string[], rowOf: (rowId: string) => TreeTableRow | undefined, rootLabel?: string, preview?: LocationSegment): {
     segments: LocationStep[];
     up: ShellPlace | null;
 };

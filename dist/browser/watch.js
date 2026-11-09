@@ -52,6 +52,7 @@ export function watchOpenFiles(files, onChanged, deps) {
             }
         },
         unwatch: (path) => void watched.delete(path),
+        has: (path) => watched.has(path),
         saving(path) {
             const w = watched.get(path);
             if (!w)

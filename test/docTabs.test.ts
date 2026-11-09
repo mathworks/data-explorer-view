@@ -19,6 +19,7 @@ import {
   type DocTabsEventMap,
 } from '../src/widgets/app-shell/dex-doc-tabs.js';
 import { highContrastStyles } from '../src/widgets/shared/high-contrast.styles.js';
+import { THEME_SETS } from './tools/cssTokens.js';
 
 beforeAll(() => defineDocTabs());
 afterEach(() => document.body.replaceChildren());
@@ -42,7 +43,8 @@ const labels = (el: DexDocTabs): string[] => tabEls(el).map((t) => t.querySelect
 const closeOf = (el: DexDocTabs, id: string): HTMLButtonElement => tabOf(el, id).querySelector<HTMLButtonElement>('button.close')!;
 const focused = (el: DexDocTabs): HTMLElement | null => el.shadowRoot!.activeElement as HTMLElement | null;
 const strip = (el: DexDocTabs): HTMLElement => el.shadowRoot!.querySelector<HTMLElement>('[role="tablist"]')!;
-const overflowButton = (el: DexDocTabs): HTMLButtonElement | null => el.shadowRoot!.querySelector<HTMLButtonElement>('button.overflow');
+// The … button, while it is offered: it is drawn always, and hidden while the tabs fit.
+const overflowButton = (el: DexDocTabs): HTMLButtonElement | null => el.shadowRoot!.querySelector<HTMLButtonElement>('button.overflow:not([hidden])');
 const menuItems = (el: DexDocTabs): HTMLElement[] => [...el.shadowRoot!.querySelectorAll<HTMLElement>('[role="menuitem"]')];
 
 /** Every detail of `type` the element sends from now on, heard on the document: the events must leave the shadow root. */
@@ -224,6 +226,35 @@ describe('the tabs', () => {
     expect(tabOf(el, 'a').getAttribute('aria-label')).toBe('a.sldd, preview');
     expect(tabOf(el, 'b').getAttribute('aria-label')).toBe('b.mat, preview, unsaved');
   });
+
+  it('draws a subtitle before the icon and the label, smaller and muted, and names both to a screen reader', async () => {
+    // A tab showing a part of its file (a dictionary's Design Data) is labelled with the part, and
+    // the file is its subtitle: as a path reads, the file first. A tab with none draws no subtitle.
+    const section: DocTab = { id: 'a', label: 'Design Data', icon: 'designData', subtitle: 'a.sldd', preview: true };
+    const el = await mount([section, B]);
+    const tab = tabOf(el, 'a');
+    const subtitle = tab.querySelector<HTMLElement>('.subtitle')!;
+    expect(subtitle.textContent).toBe('a.sldd');
+    expect([...tab.children].map((c) => c.className || c.localName)).toEqual(['subtitle', 'dex-icon', 'label', 'close']);
+    expect(getComputedStyle(subtitle).fontSize).toBe('11px');
+    // Text, not a mark: the secondary ink, readable (4.5:1) on the bar, a hovered tab and the active
+    // tab in every theme. The muted ink was 4.3:1 on the dark bar.
+    const ink = getComputedStyle(subtitle).color;
+    expect(contrast(ink, getComputedStyle(el.shadowRoot!.querySelector('.bar')!).backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText).join('\n');
+    expect(/\.subtitle \{[^}]*color: var\((--dex-[\w-]+), #555\)/.exec(css.replace(/\s+/g, ' '))?.[1]).toBe('--dex-color-text-secondary');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      for (const surface of ['--dex-bg-tabbar', '--dex-bg-hover', '--dex-bg-primary']) {
+        expect(contrast(tokens.get('--dex-color-text-secondary')!, tokens.get(surface)!), `${set} ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // The italic is the label's, the part a preview shows; the file's name stays upright.
+    expect(getComputedStyle(subtitle).fontStyle).not.toBe('italic');
+    expect(tab.getAttribute('aria-label')).toBe('a.sldd, Design Data, preview');
+    expect(closeOf(el, 'a').getAttribute('aria-label')).toBe('Close a.sldd, Design Data');
+    expect(tabOf(el, 'b').querySelector('.subtitle')).toBeNull();
+    expect(closeOf(el, 'b').getAttribute('aria-label')).toBe('Close b.mat');
+  });
 });
 
 describe('what the mouse asks for', () => {
@@ -398,6 +429,133 @@ describe('scrolling', () => {
     }
   });
 
+  it('offers the … button before it scrolls the active tab into view, in the one update, so the button never covers it', async () => {
+    // The row overflowed as a tab was added: scrolled first, the new tab ended under the button the
+    // measure then turned on, and setting that state inside updated() made Lit draw again (and warn).
+    const el = await mount([A]);
+    Object.defineProperty(strip(el), 'scrollWidth', { configurable: true, value: 600 });
+    Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 200 });
+    const buttonThere: boolean[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      buttonThere.push(overflowButton(el) !== null);
+    });
+    try {
+      el.tabs = [A, B, C];
+      el.active = 'c';
+      // Lit's updateComplete is false when an update set a property inside updated(), drawing again.
+      expect(await el.updateComplete).toBe(true);
+      expect(buttonThere).toEqual([true]);
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it('scrolls the active tab into view again when it is drawn otherwise, a subtitle or a longer label widening it', async () => {
+    const el = await mount([A, B, C], 'c');
+    const scrolled: string[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      scrolled.push(this.dataset.id ?? '');
+    });
+    try {
+      el.tabs = [A, B, { ...C, label: 'Model Workspace', subtitle: 'c.slx' }];
+      await el.updateComplete;
+      expect(scrolled).toEqual(['c']);
+      // Another tab drawn otherwise, or the active one marked unsaved, leaves the strip as it is.
+      el.tabs = [{ ...A, label: 'Design Data', subtitle: 'a.sldd' }, B, { ...C, label: 'Model Workspace', subtitle: 'c.slx', dirty: true }];
+      await el.updateComplete;
+      expect(scrolled).toEqual(['c']);
+    } finally {
+      scroll.mockRestore();
+    }
+  });
+
+  it("sizes each tab's icon itself, so a tab is as wide before its icon has drawn as after, and the scroll lands right", async () => {
+    // <dex-icon> takes its size from its own first draw, which comes after the row's: measured and
+    // scrolled before, a tab grew by its icon afterwards, and its end went back under the … button.
+    const el = await mount();
+    const icons = [...el.shadowRoot!.querySelectorAll('dex-icon')];
+    expect(icons.length).toBe(2);
+    for (const icon of icons) expect(getComputedStyle(icon).width).toBe('14px');
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')).join('\n');
+    expect(css).toContain('dex-icon { flex-shrink: 0; width: 14px; height: 14px; }');
+  });
+
+  it('scrolls the active tab into view again whenever the row is resized, the … button coming or there already', async () => {
+    const observers: (() => void)[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    );
+    const scrolled: string[] = [];
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: HTMLElement) {
+      scrolled.push(this.dataset.id ?? '');
+    });
+    try {
+      const el = await mount([A, B, C], 'c');
+      scrolled.length = 0;
+      Object.defineProperty(strip(el), 'scrollWidth', { configurable: true, value: 600 });
+      Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 200 });
+      observers[0]!();
+      expect(overflowButton(el)).not.toBeNull();
+      expect(scrolled).toEqual(['c']);
+      // Narrowed again, the button there already (a window made smaller, a sidebar's sash dragged):
+      // the active tab is kept in view all the same, clear of the button.
+      Object.defineProperty(strip(el), 'clientWidth', { configurable: true, value: 120 });
+      observers[0]!();
+      expect(overflowButton(el)).not.toBeNull();
+      expect(scrolled).toEqual(['c', 'c']);
+    } finally {
+      scroll.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('hides the × of a tab scrolled partly out past the row\'s start, so no × is left there alone', async () => {
+    // Scrolled so that only a tab's end shows at the left edge, its × stood there with no label.
+    const el = await mount();
+    await crowd(el);
+    const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 28, height: 28, x: left, y: 0, toJSON() {} }) as DOMRect;
+    let scrolledBy = 0;
+    vi.spyOn(strip(el), 'getBoundingClientRect').mockImplementation(() => rect(0, 200));
+    tabEls(el).forEach((tab, i) => vi.spyOn(tab, 'getBoundingClientRect').mockImplementation(() => rect(i * 120 - scrolledBy, 120)));
+    scrolledBy = 100;
+    strip(el).dispatchEvent(new Event('scroll'));
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([true, false, false]);
+    scrolledBy = 0;
+    strip(el).dispatchEvent(new Event('scroll'));
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([false, false, false]);
+    // A redraw keeps the mark it measured: Lit does not own the attribute.
+    scrolledBy = 130;
+    strip(el).dispatchEvent(new Event('scroll'));
+    el.tabs = [...el.tabs];
+    await el.updateComplete;
+    expect(tabEls(el).map((t) => t.hasAttribute('data-clipped'))).toEqual([true, true, false]);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    // The × alone: an unsaved tab's ● still says it is unsaved at the edge.
+    expect(css).toContain('.tab[data-clipped] .x { visibility: hidden; }');
+    expect(css).not.toContain('.tab[data-clipped] .close');
+  });
+
+  it('never draws a tab wider than the row, its label giving way to an ellipsis instead', async () => {
+    // A section's tab (the file, its icon, the section) could be wider than a narrow window's row.
+    // happy-dom lays nothing out, so the rules are what is pinned.
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')).join('\n');
+    expect(/\.tab \{[^}]*\}/.exec(css)?.[0]).toContain('max-width: 100%;');
+    expect(/\.close \{[^}]*\}/.exec(css)?.[0]).toContain('flex-shrink: 0;');
+    for (const part of ['label', 'subtitle']) {
+      const rule = new RegExp(`\\.${part} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
+      expect(rule, part).toContain('overflow: hidden;');
+      expect(rule, part).toContain('text-overflow: ellipsis;');
+    }
+  });
+
   it('turns a vertical wheel into a sideways scroll of a crowded row, and leaves an uncrowded one to the page', async () => {
     const el = await mount();
     const roomy = new WheelEvent('wheel', { deltaY: 40, bubbles: true, composed: true, cancelable: true });
@@ -437,6 +595,15 @@ describe('the overflow menu', () => {
     expect(select).toEqual([{ id: 'c' }]);
     expect(menuItems(el)).toEqual([]);
     expect(focused(el)).toBe(overflowButton(el));
+  });
+
+  it("lists a tab's subtitle before its label, as the tab draws it", async () => {
+    const el = await mount([{ ...A, label: 'Design Data', subtitle: 'a.sldd' }, B]);
+    await crowd(el);
+    overflowButton(el)!.click();
+    await el.updateComplete;
+    expect(menuItems(el).map((i) => [...i.querySelectorAll('.subtitle, .label')].map((s) => s.textContent))).toEqual([['a.sldd', 'Design Data'], ['b.mat']]);
+    expect(menuItems(el)[0]!.getAttribute('aria-label')).toBe('a.sldd, Design Data');
   });
 
   it('opens on the active tab, moves with the arrows, and asks for the one Enter is pressed on', async () => {
@@ -590,6 +757,199 @@ describe('drag to reorder', () => {
     drag(tabOf(el, 'c'), 'dragleave', dt);
     await el.updateComplete;
     expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(false);
+  });
+});
+
+describe("drop on the row's empty end", () => {
+  it('moves its own tab to the end of the row, and asks nothing for the last tab', async () => {
+    const el = await mount();
+    const { move } = listen();
+    const dt = transfer();
+    drag(tabOf(el, 'a'), 'dragstart', dt);
+    // Over the strip itself, past the last tab: the mark is after the last tab.
+    expect(drag(strip(el), 'dragover', dt).defaultPrevented).toBe(true);
+    await el.updateComplete;
+    expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(true);
+    expect(drag(strip(el), 'drop', dt).defaultPrevented).toBe(true);
+    drag(tabOf(el, 'a'), 'dragend', dt);
+    expect(move).toEqual([{ id: 'a', index: 2 }]);
+    // The last tab is at the end already.
+    const last = transfer();
+    drag(tabOf(el, 'c'), 'dragstart', last);
+    expect(drag(strip(el), 'dragover', last).defaultPrevented).toBe(false);
+    drag(tabOf(el, 'c'), 'dragend', last);
+    expect(move).toHaveLength(1);
+  });
+
+  it('leaves a dragover on a tab to the tab, and takes its mark off as the drag leaves the row', async () => {
+    const el = await mount();
+    const dt = transfer();
+    drag(tabOf(el, 'a'), 'dragstart', dt);
+    drag(tabOf(el, 'b'), 'dragover', dt);
+    await el.updateComplete;
+    expect(tabOf(el, 'b').classList.contains('drop-after')).toBe(true);
+    expect(tabOf(el, 'c').classList.contains('drop-after')).toBe(false);
+    drag(strip(el), 'dragover', dt);
+    drag(strip(el), 'dragleave', dt);
+    await el.updateComplete;
+    expect(tabEls(el).some((t) => t.className.includes('drop-'))).toBe(false);
+    drag(tabOf(el, 'a'), 'dragend', dt);
+  });
+});
+
+describe('rows of one group', () => {
+  // Two panes side by side, each with its row: a tab dragged from one row onto the other moves to
+  // the other pane. The rows say so by their group; a row of no group, or another, takes only its
+  // own tabs, as before.
+  const D: DocTab = { id: 'd', label: 'd.sldd' };
+  const E: DocTab = { id: 'e', label: 'e.mat' };
+
+  async function rows(left = 'docs', right = 'docs'): Promise<[DexDocTabs, DexDocTabs]> {
+    const one = await mount([A, B, C], 'a');
+    const two = await mount([D, E], 'd');
+    one.group = left;
+    two.group = right;
+    await Promise.all([one.updateComplete, two.updateComplete]);
+    return [one, two];
+  }
+
+  /** `el`'s tab `id` laid out from x 100 to 180. */
+  function placed(el: DexDocTabs, id: string): HTMLElement {
+    const tab = tabOf(el, id);
+    tab.getBoundingClientRect = () => ({ left: 100, right: 180, width: 80, top: 0, bottom: 28, height: 28, x: 100, y: 0, toJSON: () => ({}) });
+    return tab;
+  }
+
+  function dragAt(target: HTMLElement, type: string, dt: ReturnType<typeof transfer>, clientX: number): Event {
+    const ev = new Event(type, { bubbles: true, composed: true, cancelable: true });
+    Object.assign(ev, { dataTransfer: dt, clientX, clientY: 10, relatedTarget: null });
+    target.dispatchEvent(ev);
+    return ev;
+  }
+
+  it('reflects its group', async () => {
+    const [one] = await rows();
+    expect(one.getAttribute('group')).toBe('docs');
+  });
+
+  it("asks the row a tab is dropped on to take it: before or after the tab under the pointer, by its half, or at the row's end", async () => {
+    const [one, two] = await rows();
+    const moves: [string, unknown][] = [];
+    for (const [name, el] of [['one', one], ['two', two]] as const) el.addEventListener('dex-tab-move', (e) => moves.push([name, e.detail]));
+    const before = transfer();
+    drag(tabOf(one, 'b'), 'dragstart', before);
+    expect(dragAt(placed(two, 'e'), 'dragover', before, 120).defaultPrevented).toBe(true);
+    await two.updateComplete;
+    expect(tabOf(two, 'e').classList.contains('drop-before')).toBe(true);
+    dragAt(tabOf(two, 'e'), 'drop', before, 120);
+    drag(tabOf(one, 'b'), 'dragend', before);
+    const after = transfer();
+    drag(tabOf(one, 'b'), 'dragstart', after);
+    dragAt(placed(two, 'd'), 'dragover', after, 170);
+    await two.updateComplete;
+    expect(tabOf(two, 'd').classList.contains('drop-after')).toBe(true);
+    dragAt(tabOf(two, 'd'), 'drop', after, 170);
+    drag(tabOf(one, 'b'), 'dragend', after);
+    const end = transfer();
+    drag(tabOf(one, 'c'), 'dragstart', end);
+    expect(drag(strip(two), 'dragover', end).defaultPrevented).toBe(true);
+    drag(strip(two), 'drop', end);
+    drag(tabOf(one, 'c'), 'dragend', end);
+    // Each an index into the row it was dropped on, which does not hold the tab.
+    expect(moves).toEqual([
+      ['two', { id: 'b', index: 1 }],
+      ['two', { id: 'b', index: 1 }],
+      ['two', { id: 'c', index: 2 }],
+    ]);
+    // The rows draw what they are given: neither moved anything itself.
+    expect(labels(one)).toEqual(['a.sldd', 'b.mat', 'c.slx']);
+    expect(labels(two)).toEqual(['d.sldd', 'e.mat']);
+  });
+
+  it('leaves the keyboard off its neighbours when the tab it was on went to a row of its group', async () => {
+    // The tab was moved, not closed: the keyboard is the app's to give to the row the tab went to.
+    // On a neighbour, it would put the user back in the pane the tab left.
+    const [one, two] = await rows();
+    tabOf(one, 'b').focus();
+    expect(focused(one)).toBe(tabOf(one, 'b'));
+    // The app moves b: each row is given its tabs before either draws them.
+    one.tabs = [A, C];
+    two.tabs = [D, E, B];
+    await Promise.all([one.updateComplete, two.updateComplete]);
+    await one.updateComplete;
+    expect(focused(one)).toBeNull();
+    // Closed (in no row of the group), the tab's neighbour takes the keyboard, as in any row.
+    tabOf(one, 'c').focus();
+    one.tabs = [A];
+    await one.updateComplete;
+    await one.updateComplete;
+    expect(focused(one)).toBe(tabOf(one, 'a'));
+  });
+
+  it('takes no tab from a row of another group, or of none', async () => {
+    for (const [left, right] of [['docs', 'other'], ['', ''], ['docs', '']]) {
+      const [one, two] = await rows(left, right);
+      const moves: unknown[] = [];
+      two.addEventListener('dex-tab-move', (e) => moves.push(e.detail));
+      const dt = transfer();
+      drag(tabOf(one, 'a'), 'dragstart', dt);
+      expect(drag(tabOf(two, 'd'), 'dragover', dt).defaultPrevented, `${left}/${right}`).toBe(false);
+      expect(drag(strip(two), 'dragover', dt).defaultPrevented).toBe(false);
+      drag(tabOf(two, 'd'), 'drop', dt);
+      drag(tabOf(one, 'a'), 'dragend', dt);
+      expect(moves).toEqual([]);
+      document.body.replaceChildren();
+    }
+  });
+
+  it("takes nothing once the drag is over, nor a drop naming another tab than the one dragged", async () => {
+    const [one, two] = await rows();
+    const moves: unknown[] = [];
+    two.addEventListener('dex-tab-move', (e) => moves.push(e.detail));
+    const dt = transfer();
+    drag(tabOf(one, 'a'), 'dragstart', dt);
+    drag(tabOf(one, 'a'), 'dragend', dt);
+    expect(drag(tabOf(two, 'd'), 'dragover', dt).defaultPrevented).toBe(false);
+    const forged = transfer();
+    drag(tabOf(one, 'a'), 'dragstart', forged);
+    forged.setData('application/x-dex-tab', 'b');
+    drag(tabOf(two, 'd'), 'dragover', forged);
+    drag(tabOf(two, 'd'), 'drop', forged);
+    drag(tabOf(one, 'a'), 'dragend', forged);
+    expect(moves).toEqual([]);
+  });
+});
+
+describe('a row not focused', () => {
+  it("draws its active tab's mark in the muted ink, which still clears 3:1, and in the accent again once focused", async () => {
+    // Two panes: the row of the one the user is not in. Its active tab is the one that pane shows,
+    // but the toolbar acts on the other pane's: the accent marks that one alone.
+    // happy-dom matches no :host() selector in getComputedStyle, so the rule itself is what is pinned.
+    const el = await mount();
+    el.unfocused = true;
+    await el.updateComplete;
+    expect(el.hasAttribute('unfocused')).toBe(true);
+    const css = [DexDocTabs.styles].flat(Infinity).map((sheet) => (sheet as { cssText: string }).cssText.replace(/\s+/g, ' ')).join('\n');
+    expect(/:host\(\[unfocused\]\) \.tab\.active \{[^}]*border-bottom-color: var\((--dex-[\w-]+), #666\)/.exec(css)?.[1]).toBe('--dex-color-text-muted');
+    for (const [set, tokens] of Object.entries(THEME_SETS)) {
+      for (const surface of ['--dex-bg-tabbar', '--dex-bg-primary']) {
+        expect(contrast(tokens.get('--dex-color-text-muted')!, tokens.get(surface)!), `${set} ${surface}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+    el.unfocused = false;
+    await el.updateComplete;
+    expect(el.hasAttribute('unfocused')).toBe(false);
+  });
+});
+
+describe('focusActive', () => {
+  it('puts the keyboard on the active tab, once it is drawn', async () => {
+    const el = await mount([A, B], 'a');
+    el.active = 'b';
+    el.focusActive();
+    await el.updateComplete;
+    expect(focused(el)).toBe(tabOf(el, 'b'));
+    expect(tabOf(el, 'b').tabIndex).toBe(0);
   });
 });
 
