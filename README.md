@@ -25,8 +25,8 @@ release notes before you move the pin.
 
 ```json
 "dependencies": {
-  "data-explorer-view": "github:mathworks/data-explorer-view#v1.7.0",
-  "data-explorer-core": "github:mathworks/data-explorer-core#v1.58.0",
+  "data-explorer-view": "github:mathworks/data-explorer-view#v1.8.0",
+  "data-explorer-core": "github:mathworks/data-explorer-core#v1.59.0",
   "lit": "^3.2.0"
 }
 ```
