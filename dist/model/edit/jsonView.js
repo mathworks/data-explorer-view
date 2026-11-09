@@ -11,7 +11,8 @@
 // the text, a patch of the entry's own span (one undo step); the change the write fires confirms
 // the paint (its echo), and every other change of the text — an undo, a redo, a keystroke in a text
 // view, a reload — is planned narrowly where it can be (core's jsonEntrySync), and repainted wide
-// where it cannot. Structural edits are queued, one text state at a time (queueStructural).
+// where it cannot. Every edit, a cell's or a structural one, takes its turn on the document's one
+// queue of writes, shared with its other tables, one text state at a time (queueWrite).
 import { addChild as addChildEdit, addNewEntry, applyEntryOps, catalogFunctionRenameOf, catalogRenameOf, cellEdit, deleteChild, deleteChildren, deleteEntriesByName, deleteEntry, detectIndent, editRefusalText, entrySelectorOf, findEntryByName, findEntrySpan, findOwningEntry, hintFor, insertOp, isPaintedEcho, minimalReplacement, mutateEntry, opsOfPastedEntries, parsesAsJson, pasteEntries, patchOfPairs, planDeletion, planEntrySync, planKnownChange, planKnownOps, planOwnEdit, refuseDisallowedPaste, removalPairs, removeEntries, removeOp, replaceOp, reselectAfterRemoval, reserializeEntry, scJsonFunctionRenameEdits, scJsonRenameEdits, sectionByName, } from 'data-explorer-core';
 import { sectionRules } from '../actions/sectionRules.js';
 import { buildSectionRowId } from '../ids/sectionRowId.js';
@@ -89,8 +90,6 @@ export class JsonView {
         this.knownEdits = [];
         /** Whether the last change this table saw was an undo or a redo. */
         this.lastByHistory = false;
-        /** Structural edits, one text state at a time (queueStructural). */
-        this.structuralChain = Promise.resolve();
         this.findNode = (rowId) => this.doc.registry.findNode(this.uri, rowId);
         // Guard against an edit while a text view holds invalid JSON (a mid-edit state). An in-step
         // document is waved through: its tree is already proof that the text parses.
@@ -122,7 +121,9 @@ export class JsonView {
         const registers = doc.options.registers;
         // So that clipboard and drag broadcasts from ANY table reach this one (a cut only marks the
         // clipboard, and the source row needs a repaint to show it), and so that a cross-document move
-        // whose SOURCE is this dictionary can take its originals out of the text.
+        // whose SOURCE is this dictionary can take its originals out of the text, in its turn on the
+        // document's queue: the document's, not this table's, so a table of it still open answers it
+        // whichever registered it last.
         this.unsubscribe.push(registers.listen({
             clipboard: (state) => {
                 reach(() => this.emit({ kind: 'clipboard', state }));
@@ -130,7 +131,7 @@ export class JsonView {
             },
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         }));
-        registers.registerSourceDeleter(this.uri, (targets) => this.deleteFromSourceDocument(targets));
+        registers.registerSourceDeleter(this.uri, (targets) => doc.writes.enqueue(() => this.deleteFromSourceDocument(targets)));
         // Every tab of this document repaints wide when the baseline moves (repaintAll).
         this.docState.repaints.add(this.repaintThis);
         // Repaint on ANY change to the text: this table's edits, a text view's, undo and redo.
@@ -659,8 +660,9 @@ export class JsonView {
     edit(msg) {
         if (this.disposed)
             return Promise.resolve();
-        // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for.
-        return this.applyEdit(msg);
+        // Settled once the edit is in the text, or refused: what a host's commitEdit() waits for. At
+        // once when no write is in front of it, so it paints in this run; else behind that write.
+        return this.queueWrite(() => this.applyEdit(msg), true);
     }
     async applyEdit(msg) {
         // The entry this edit has already changed in the model and shown, if it got that far.
@@ -1087,32 +1089,43 @@ export class JsonView {
         };
     }
     // A move that left its original behind is said where it stays, not only in the banner a row update
-    // clears: see TransferDeps.warn.
-    transferDeps() {
+    // clears: see TransferDeps.warn. The source delete of a cross-document move lets this document's
+    // queue go first (`release`): this text is done with (the paste half written, the cut spent), and
+    // the delete waits for its turn on the SOURCE document's queue. Holding this one meanwhile, two
+    // moves the opposite ways at once would each wait for the other for ever.
+    transferDeps(release) {
         return {
-            deleteFromSource: (uri, selectors) => this.doc.options.registers.deleteFromSource(uri, selectors),
+            deleteFromSource: (uri, selectors) => {
+                release();
+                return this.doc.options.registers.deleteFromSource(uri, selectors);
+            },
             warn: (message) => this.doc.options.notify?.({ level: 'warning', message }),
         };
     }
     /**
-     * Structural edits, one text state at a time. Every one reads the text when it starts and writes
-     * at the end, with an await between: two in flight at once would compute offsets over a text the
-     * other moved. So each waits for the write in front of it; none is dropped, and one that fails
-     * does not poison the chain. A cell edit is not queued.
+     * Every edit of this table, a cell edit as much as a structural one, in its turn on the
+     * document's queue of writes (writeQueue.ts), behind every edit in front of it from this table,
+     * the document's other tables, and a move out of it. A cell edit with nothing in front of it
+     * (`now`) runs in the run it is sent in, so it paints before anything else happens, as it always
+     * has. One whose table closed while it waited does nothing, as one sent after the close does: it
+     * has nowhere to paint, and would read back into the registry the tree the close released.
      */
-    queueStructural(run) {
-        this.structuralChain = this.structuralChain.catch(() => { }).then(run);
-        return this.structuralChain;
+    queueWrite(run, now = false) {
+        return this.doc.writes.enqueue(async (release) => {
+            if (this.disposed)
+                return;
+            await run(release);
+        }, now);
     }
     delete(rowIds) {
         if (this.disposed)
             return;
-        void this.queueStructural(() => this.applyDelete(rowIds));
+        void this.queueWrite(() => this.applyDelete(rowIds));
     }
     addChild(rowId) {
         if (this.disposed)
             return;
-        void this.queueStructural(() => this.applyAddChild(rowId));
+        void this.queueWrite(() => this.applyAddChild(rowId));
     }
     // A paste reads the clipboard when its turn comes, so the second of two queued pastes of one cut
     // finds the clipboard that cut left.
@@ -1120,7 +1133,7 @@ export class JsonView {
         if (this.disposed)
             return;
         const registers = this.doc.options.registers;
-        void this.queueStructural(() => runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps()));
+        void this.queueWrite((release) => runTransfer({ rowId }, registers.clipboardRegister(() => registers.broadcastClipboardState()), this.transferAdapter(), this.transferDeps(release)));
     }
     // A drop reads its register when the message ARRIVES, not when its turn comes: the source's
     // dragEnd follows it at once and clears the register.
@@ -1130,7 +1143,7 @@ export class JsonView {
             return;
         const registers = this.doc.options.registers;
         const register = registers.dragRegister(mode, () => registers.broadcastDragState());
-        return this.queueStructural(() => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps())).then(() => undefined, () => undefined);
+        return this.queueWrite((release) => runTransfer({ rowId }, register, this.transferAdapter(), this.transferDeps(release))).then(() => undefined, () => undefined);
     }
     // A copy that takes the place of entries of this document (a compare's Copy to Right): read on
     // arrival as a drop is, the register and the entries it replaces both, and queued as a drop is.
@@ -1143,16 +1156,16 @@ export class JsonView {
         const selectors = replacingOrRefuse(replacing, this.findNode, register, this.name, (message) => this.error(message));
         if (!selectors)
             return;
-        return this.queueStructural(() => runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps())).then(() => undefined, () => undefined);
+        return this.queueWrite((release) => runTransfer({ rowId, replacing: selectors }, register, this.transferAdapter(), this.transferDeps(release))).then(() => undefined, () => undefined);
     }
     addEntry(msg) {
         if (this.disposed)
             return;
-        void this.queueStructural(() => this.applyAddEntry(msg));
+        void this.queueWrite(() => this.applyAddEntry(msg));
     }
     /**
      * Create ONE new default entry from the Add gallery: a paste with no source, always narrow. Through
-     * queueStructural, never directly.
+     * queueWrite, never directly.
      */
     async applyAddEntry(msg) {
         let painted = false;
@@ -1209,9 +1222,13 @@ export class JsonView {
      * Remove named entries from THIS document on behalf of another document's paste or drop (a
      * cross-file move), as one write. Refused for a text that does not parse: the move's paste half
      * has landed, so the user is left with a copy rather than a mangled original. Every outcome is
-     * ANSWERED, never posted: the table the paste landed in reports it.
+     * ANSWERED, never posted: the table the paste landed in reports it. Run in its turn on the
+     * document's queue, so it reads the text every edit in front of it has written; by then the last
+     * table of the document may have closed, which answers as a close before the paste does.
      */
     async deleteFromSourceDocument(targets) {
+        if (this.doc.state === null)
+            return { removed: false, reason: 'its table is no longer open' };
         const srcText = this.doc.text.text;
         if (!parsesAsJson(srcText))
             return { removed: false, reason: 'the file has invalid JSON' };
@@ -1449,7 +1466,9 @@ export class JsonView {
         return this.doc.options.history;
     }
     // One stack, the text's own: an undo here is an undo of the text, which every table and text view
-    // of the document hears.
+    // of the document hears. Not queued behind the edits (queueWrite): it takes back what the text
+    // holds when it lands, so one sent while an edit waits for its turn undoes the write before that
+    // edit, which then lands over the undone text.
     undo() {
         if (this.disposed)
             return;

@@ -326,7 +326,7 @@ describe("commitEdit() over a JSON dictionary whose text takes its edit later, a
     assert.ok(store.text.includes('"KpTyped"'), 'the text holds the name typed');
   });
 
-  it('waits for both of two writes held, and the text is still JSON holding the first', async () => {
+  it('waits for both of two writes, the second held behind the first, and the text is JSON holding both', async () => {
     const { store, held, engine } = heldJson();
     const { table, handle } = mount(engine.view());
     await settle(table);
@@ -337,16 +337,18 @@ describe("commitEdit() over a JSON dictionary whose text takes its edit later, a
     let settled = false;
     const committing = handle.commitEdit().then(() => void (settled = true));
     await settle(table);
-    assert.strictEqual(held.length, 2, 'both writes are held');
+    // The second edit waits for the first to land before it reads the text (jsonView's queueWrite):
+    // asked for over the text the first is about to move, the store would refuse it, as VS Code
+    // refuses a WorkspaceEdit over a document that moved.
+    assert.strictEqual(held.length, 1, 'the first write is held, and the second waits behind it');
     held.shift()!();
     await settle(table);
+    assert.strictEqual(held.length, 1, 'the second write is asked for once the first has landed');
     assert.strictEqual(settled, false, 'not while the second write is held');
     held.shift()!();
     await committing;
     JSON.parse(store.text);
     assert.ok(store.text.includes('"KpFirst"'), 'the text holds the first name');
-    // The second was asked for over a text the first then moved, so the store refused it, as VS Code
-    // refuses a WorkspaceEdit over a document that moved. Out of reach today: the page's own store
-    // lands a write within a turn, and the extension's webview does not wait for its host.
+    assert.ok(store.text.includes('"KiSecond"'), 'and the second');
   });
 });

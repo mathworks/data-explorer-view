@@ -22,6 +22,7 @@ import { describeSource } from './refusal.js';
 import type { Registers } from './registers.js';
 import { EntryBaseline, type BaselineSource, type DiskStamp } from './slddBaseline.js';
 import { JsonView } from './jsonView.js';
+import { WriteQueue } from './writeQueue.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -124,6 +125,12 @@ export interface JsonDocument {
   readonly text: TextStore;
   readonly baseline: EntryBaseline;
   readonly views: Set<JsonView>;
+  /**
+   * The document's edits, one text state at a time: every table's, and the source delete of a move
+   * out of it (writeQueue.ts). The engine's, not a table's, nor the state its tables share: a write
+   * a table began is still on its way after that table, the last one even, has closed.
+   */
+  readonly writes: WriteQueue;
   describe(text: string): string;
   /** Count one more open table, and answer what the document already knows. */
   openView(): JsonDocState;
@@ -169,6 +176,7 @@ export class JsonEngine {
       text: options.text,
       baseline: this.baseline,
       views: this.views,
+      writes: new WriteQueue(),
       // Core's messages name this source by its id (the uri), which every message shown here
       // spells as the file's name.
       describe: describeSource(this.uri, this.name),
