@@ -5640,7 +5640,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Space (or Mod+Space) on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
               "attribute": "multi-select"
             },
             {
@@ -5693,7 +5693,7 @@
               "type": {
                 "text": "CustomEvent<HierarchySelectionChangedDetail>"
               },
-              "description": "With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter)."
+              "description": "With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, Space, a plain click or Enter)."
             },
             {
               "name": "dex-hierarchy-selected",
@@ -5744,7 +5744,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
+              "description": "Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,\nand so does Space (or Mod+Space) on the focused row: `selectedKeys` holds every selected row\nand `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as\nbefore. Default false: one row at a time. Attribute `multi-select`.",
               "fieldName": "multiSelect"
             }
           ],

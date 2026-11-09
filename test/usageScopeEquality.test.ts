@@ -110,9 +110,12 @@ describe('a scoped usage graph answers exactly as the whole folder does', () => 
     expect(CORPUS).toContain('chain_leaf.sldd');
   });
 
-  it('gives every file in the corpus the same answers as the unscoped graph', async () => {
-    const whole = await graphFor(newSourceCache(), null);
+  // Every file's scoped graph built from nothing, by design: the corpus read once a file, a second
+  // or more on a loaded machine.
+  it('gives every file in the corpus the same answers as the unscoped graph', { timeout: 20_000 }, async () => {
+    // The whole folder planned once: its graph, and the probes gathered from it.
     const all = await planSummaries(newSourceCache(), reader, FILES, null);
+    const whole = buildUsageGraphFromSummaries(all);
     const { names, keys } = probes(all);
     expect(names.length).toBeGreaterThan(3);
     expect(keys.length).toBeGreaterThan(3);

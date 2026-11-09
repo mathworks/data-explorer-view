@@ -81,7 +81,7 @@ export class DexHierarchy extends LitElement {
         this.expandTopLevel = false;
         /**
          * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,
-         * and so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row
+         * and so does Space (or Mod+Space) on the focused row: `selectedKeys` holds every selected row
          * and `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as
          * before. Default false: one row at a time. Attribute `multi-select`.
          */
@@ -480,7 +480,7 @@ export class DexHierarchy extends LitElement {
             return this._choose(item);
         this._toggle(item);
     }
-    // The row taken into the selection, or out of it (Mod+click, Mod+Space), opening nothing.
+    // The row taken into the selection, or out of it (Mod+click, Space, Mod+Space), opening nothing.
     _toggle(item) {
         this._scrollKey = null;
         this._focusKey = item.key;
@@ -552,9 +552,12 @@ export class DexHierarchy extends LitElement {
             this._menu({ item: line.item, x: box?.left ?? 0, y: box?.bottom ?? 0, keyboard: true });
             return;
         }
-        // Mod+Space on the focused row: taken into the selection, or out of it, as the tree pattern's
-        // Control+Space does, so a tree said to select several can be made to from the keyboard.
-        if (this.multiSelect && e.key === ' ' && this._mod(e) && !e.altKey && !e.shiftKey) {
+        // Space, or Mod+Space, on the focused row: taken into the selection, or out of it, as the tree
+        // pattern's Space and Control+Space do, so a tree said to select several can be made to from the
+        // keyboard. Space alone above all on macOS, which keeps Cmd+Space for Spotlight and Ctrl+Space
+        // for the input source.
+        const alone = !e.ctrlKey && !e.metaKey;
+        if (this.multiSelect && e.key === ' ' && (alone || this._mod(e)) && !e.altKey && !e.shiftKey) {
             e.preventDefault();
             this._toggle(line.item);
             return;

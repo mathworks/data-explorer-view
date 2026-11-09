@@ -108,7 +108,7 @@ export declare class DexHierarchy extends LitElement {
     expandTopLevel: boolean;
     /**
      * Cmd+click (macOS) or Ctrl+click takes a row into the selection, or out of it, without opening it,
-     * and so does Cmd+Space or Ctrl+Space on the focused row: `selectedKeys` holds every selected row
+     * and so does Space (or Mod+Space) on the focused row: `selectedKeys` holds every selected row
      * and `dex-hierarchy-selection-changed` says so. A plain click or Enter selects that row alone, as
      * before. Default false: one row at a time. Attribute `multi-select`.
      */
@@ -184,7 +184,7 @@ export interface HierarchyEventMap {
      * draws no menu: the app does, for the row's `item`.
      */
     'dex-hierarchy-menu': CustomEvent<HierarchyMenuDetail>;
-    /** With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, a plain click or Enter). */
+    /** With `multiSelect`, the user changed which rows are selected (a Cmd/Ctrl+click, Space, a plain click or Enter). */
     'dex-hierarchy-selection-changed': CustomEvent<HierarchySelectionChangedDetail>;
 }
 declare global {

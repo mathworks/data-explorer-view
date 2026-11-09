@@ -51,7 +51,14 @@ export interface CoreIcons {
   readonly ids: ReadonlySet<string>;
 }
 
+let scanned: CoreIcons | undefined;
+
+/** The ids, read once per test file: the scan reads every file of core's dist. */
 export function coreIconIds(): CoreIcons {
+  return (scanned ??= scan());
+}
+
+function scan(): CoreIcons {
   const ids = new Set<string>();
   let getters = 0;
   for (const file of coreFiles(CORE_DIST)) {

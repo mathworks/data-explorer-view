@@ -121,21 +121,24 @@ describe('a folder in the Folder view', () => {
     expect(tableAt(model)!.selectedRowIds).toEqual([rowAt(model, 'WsGain')!.ID]);
   });
 
-  it("the Search view finds the names a change to the folder brought, the results on show asked again", async () => {
+  // The folder read, its search index built, then a change: the folder listed and the new file read
+  // again, and the index built again. Under a second alone, and past the harness's 3 s waits on a
+  // loaded machine: each wait given 15 s, the case 45 s.
+  it("the Search view finds the names a change to the folder brought, the results on show asked again", { timeout: 45_000 }, async () => {
     const dir = tempFolder('plant', PLANT);
     const page = pageOn(dir);
-    await until(() => treeLabels().includes('shadow_ws.slx') && searchPanel().scope === 'Open files and plant');
+    await until(() => treeLabels().includes('shadow_ws.slx') && searchPanel().scope === 'Open files and plant', 15_000);
     ask('gadget');
-    await until(() => found()?.length === 0);
+    await until(() => found()?.length === 0, 15_000);
 
     copyFileSync(fixture('rt_bin.sldd'), path.join(dir, 'extra.sldd'));
     page.folder!.changed([sourceUri(path.join(dir, 'extra.sldd'))]);
-    await until(() => treeLabels().includes('extra.sldd'));
+    await until(() => treeLabels().includes('extra.sldd'), 15_000);
     // The results on show are the folder's as it is now, with no query typed since, and so are the next query's.
-    await until(() => (found()?.length ?? 0) > 0);
+    await until(() => (found()?.length ?? 0) > 0, 15_000);
     expect(found()).toEqual(['gadget']);
     ask('gad');
-    await until(() => (found()?.length ?? 0) > 0);
+    await until(() => (found()?.length ?? 0) > 0, 15_000);
     expect(found()).toEqual(['gadget']);
   });
 
