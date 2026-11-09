@@ -61,4 +61,10 @@ describe('sameCellText', () => {
     expect(sameCellText(a, b, tolerance)).toBe(false);
     expect(sameCellText(b, a, tolerance)).toBe(false);
   });
+
+  it('counts the digits of a literal with a long run of zeros inside it at once, not in time that grows with its square', () => {
+    const long = `1.${'0'.repeat(200_000)}1`;
+    expect(sameCellText(long, long)).toBe(true);
+    expect(sameCellText(long, `1.${'0'.repeat(200_000)}2`)).toBe(false);
+  });
 });

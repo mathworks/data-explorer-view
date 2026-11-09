@@ -207,7 +207,13 @@ export function sharedNameRefusal(verb, name, sourceDocUri) {
 export function sourceKeptMessage(isPaste, sourceDocUri, count, reason, gone = false) {
     const what = count === 1 ? 'the original' : 'the originals';
     const where = sourceDocUri ? ` in ${fileNameOf(sourceDocUri)}` : '';
-    const why = (reason ?? 'the source did not say why').replace(/[.\s]+$/, '');
+    // Its trailing dots and spaces cut by index, not by /[.\s]+$/, which backtracks over a long run
+    // of them that something else follows (quadratic in a reason the source wrote).
+    const said = reason ?? 'the source did not say why';
+    let end = said.length;
+    while (end > 0 && /[.\s]/.test(said[end - 1]))
+        end--;
+    const why = said.slice(0, end);
     const verb = isPaste ? 'Pasted' : 'Moved';
     // Nothing to remove by hand: what holds the original's name there now is something else.
     if (gone)

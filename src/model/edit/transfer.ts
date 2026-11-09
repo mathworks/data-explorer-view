@@ -407,7 +407,12 @@ export function sourceKeptMessage(
 ): string {
   const what = count === 1 ? 'the original' : 'the originals';
   const where = sourceDocUri ? ` in ${fileNameOf(sourceDocUri)}` : '';
-  const why = (reason ?? 'the source did not say why').replace(/[.\s]+$/, '');
+  // Its trailing dots and spaces cut by index, not by /[.\s]+$/, which backtracks over a long run
+  // of them that something else follows (quadratic in a reason the source wrote).
+  const said = reason ?? 'the source did not say why';
+  let end = said.length;
+  while (end > 0 && /[.\s]/.test(said[end - 1]!)) end--;
+  const why = said.slice(0, end);
   const verb = isPaste ? 'Pasted' : 'Moved';
   // Nothing to remove by hand: what holds the original's name there now is something else.
   if (gone) return `${verb} here; ${what}${where} ${count === 1 ? 'is' : 'are'} no longer there to remove: ${why}.`;

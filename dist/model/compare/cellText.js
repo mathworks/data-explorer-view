@@ -68,7 +68,15 @@ function significantDigits(text) {
     const mantissa = text.replace(/^[+-]/, '').split(/[eE]/)[0];
     if (!/\d/.test(mantissa))
         return 0;
-    return mantissa.replace('.', '').replace(/^0+/, '').replace(/0+$/, '').length;
+    // Counted by index, not by /0+$/, which backtracks over a long run of zeros (quadratic).
+    const digits = mantissa.replace('.', '');
+    let start = 0;
+    while (start < digits.length && digits[start] === '0')
+        start++;
+    let end = digits.length;
+    while (end > start && digits[end - 1] === '0')
+        end--;
+    return end - start;
 }
 /** One element's text as an element, or null: a real, an imaginary, or (`spaced` for a scalar) a complex. */
 function elementOf(text, spaced) {
