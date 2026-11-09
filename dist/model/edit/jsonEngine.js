@@ -3,6 +3,7 @@ import { parseDetached } from '../workspace/SlddModel.js';
 import { describeSource } from './refusal.js';
 import { EntryBaseline } from './slddBaseline.js';
 import { JsonView } from './jsonView.js';
+import { WriteQueue } from './writeQueue.js';
 const freshState = () => ({
     views: 0,
     baseline: { captured: false, pending: false, version: -1, cleanAt: -1 },
@@ -31,6 +32,7 @@ export class JsonEngine {
             text: options.text,
             baseline: this.baseline,
             views: this.views,
+            writes: new WriteQueue(),
             // Core's messages name this source by its id (the uri), which every message shown here
             // spells as the file's name.
             describe: describeSource(this.uri, this.name),

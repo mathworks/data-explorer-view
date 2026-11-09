@@ -6,6 +6,7 @@ import type { Notify, TextStore } from './hooks.js';
 import type { Registers } from './registers.js';
 import { EntryBaseline, type BaselineSource, type DiskStamp } from './slddBaseline.js';
 import { JsonView } from './jsonView.js';
+import { WriteQueue } from './writeQueue.js';
 /**
  * How a JSON dictionary engine fills a table's Usage column: `fill` before a whole paint and for a
  * fetched row, `fillNow` for a narrow repaint — false when it has no graph to fill from at once,
@@ -93,6 +94,12 @@ export interface JsonDocument {
     readonly text: TextStore;
     readonly baseline: EntryBaseline;
     readonly views: Set<JsonView>;
+    /**
+     * The document's edits, one text state at a time: every table's, and the source delete of a move
+     * out of it (writeQueue.ts). The engine's, not a table's, nor the state its tables share: a write
+     * a table began is still on its way after that table, the last one even, has closed.
+     */
+    readonly writes: WriteQueue;
     describe(text: string): string;
     /** Count one more open table, and answer what the document already knows. */
     openView(): JsonDocState;
