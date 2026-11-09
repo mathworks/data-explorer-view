@@ -54,6 +54,16 @@ const TABLE_CHORDS: Partial<Record<ShellCommand, string>> = {
 };
 
 
+/**
+ * A table chord as the table's menu writes it. Off macOS the menu puts Shift before Ctrl
+ * (`Shift+Ctrl+Z`, as VS Code's own webview did: test/fixtures/editing-trace.json), where
+ * chordLabel puts Ctrl first, so the tooltip follows the menu.
+ */
+function tableChordLabel(chord: string, mac: boolean): string {
+  const label = chordLabel(parseChord(chord), mac);
+  return mac ? label : label.replace(/^Ctrl\+Shift\+/, 'Shift+Ctrl+');
+}
+
 /** Each editing button's item of the table's menu. */
 const TABLE_ACTIONS: Partial<Record<ShellCommand, TableActionId>> = {
   undo: 'undo',
@@ -73,9 +83,17 @@ export function tableActionOf(command: ShellCommand): TableActionId | undefined 
 /** The toolbar's buttons for `state`, in the order they are drawn. */
 export function toolbarItems(state: ToolbarState): ToolbarItem[] {
   const item = (id: ShellCommand, label: string, icon: string, group: string, disabled: boolean, align?: 'end'): ToolbarItem => {
-    const chord = TABLE_CHORDS[id] ?? chordOf(id);
+    const tableChord = TABLE_CHORDS[id];
+    const chord = tableChord ?? chordOf(id);
     // Delete's is a key the menu names itself, not a chord.
-    const shortcut = id === 'delete' ? deleteKeyLabel(state.mac) : chord ? chordLabel(parseChord(chord), state.mac) : undefined;
+    const shortcut =
+      id === 'delete'
+        ? deleteKeyLabel(state.mac)
+        : tableChord
+          ? tableChordLabel(tableChord, state.mac)
+          : chord
+            ? chordLabel(parseChord(chord), state.mac)
+            : undefined;
     return {
       id,
       label,

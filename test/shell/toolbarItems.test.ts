@@ -81,7 +81,8 @@ describe('toolbarItems', () => {
       'save-all': 'Ctrl+Alt+S',
       'close-tab': 'Ctrl+W',
       undo: 'Ctrl+Z',
-      redo: 'Ctrl+Shift+Z',
+      // As the table's menu writes it off macOS (editing-trace.json): Shift before Ctrl.
+      redo: 'Shift+Ctrl+Z',
       'add-child': '+',
       cut: 'Ctrl+X',
       copy: 'Ctrl+C',
