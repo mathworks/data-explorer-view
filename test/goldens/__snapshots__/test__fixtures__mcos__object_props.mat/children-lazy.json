@@ -68,6 +68,11 @@
     "Kind": "Engine",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Cylinders": "8",
+     "Displacement": "5.7",
+     "Label": "\"V8\""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -351,6 +356,10 @@
     "Kind": "Garage",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Location": "\"Boston\"",
+     "Capacity": "25"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

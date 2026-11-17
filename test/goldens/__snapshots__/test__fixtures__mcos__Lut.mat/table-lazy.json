@@ -22,6 +22,11 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "BreakpointsSpecification": "Explicit values",
+     "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": "false",
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

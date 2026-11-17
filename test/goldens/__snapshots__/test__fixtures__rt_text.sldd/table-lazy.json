@@ -92,6 +92,12 @@
     "_descriptionApplies": false,
     "lastModified": "2026-08-14T15:44:52Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "Engine": "<1x1 MyEngine>",
+     "Specs": "<1x1 struct>",
+     "Tags": "{'coupe', 'fast', 'v12'}",
+     "Wheels": "4"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,

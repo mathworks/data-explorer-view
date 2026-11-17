@@ -89,7 +89,8 @@ export interface StampContext {
  * In this order, which both builders already applied: the entry's Status and clip mark, then
  * the capability flags, then the grid-view payload if the node's value is a griddable matrix,
  * then `_lazy` last, so a row is the same shape whichever builder made it. None rewrites the
- * row's columns.
+ * row's columns. The object's own properties beyond its columns go under `_props`, before the
+ * flags.
  *
  * The pool shares the FINISHED row, rather than being passed to `toRow()`: the row is the
  * node's cells plus the host's own, so sharing here covers all of them in one walk where doing

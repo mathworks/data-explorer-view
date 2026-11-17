@@ -133,6 +133,33 @@ const DEFAULT_HIDDEN_COLUMNS = ['Kind', 'Class', 'dimensions', 'dimensionsMode',
 // See _loadPersistedState. Kept beside the order and the hidden set, under the table's
 // storageKey: `dex-known-columns` by default.
 const KNOWN_COLUMNS_KEY = 'known-columns';
+// A property column: one the user adds by naming a property in the Columns menu's Other
+// Properties group. Its key is this prefix and the property's name, so it is never taken for a
+// built-in column whatever columns a document has (a dictionary's Value, a project's Type), and
+// its cells are the rows' `_props` of that name (the model's propertyCells), read-only and empty
+// on a row whose object has no such property. Kept, in order, under the table's storageKey:
+// `dex-property-columns` by default; whether each is shown is in the hidden set, as for any column.
+const PROPERTY_COLUMN_PREFIX = 'prop:';
+const PROPERTY_COLUMNS_KEY = 'property-columns';
+// The Columns menu's last group, which holds the property columns. Its id is no group label a
+// host could give a built-in column (columnGroups).
+const PROPERTY_GROUP = '\u0000properties';
+const PROPERTY_GROUP_LABEL = 'Other Properties';
+// A name a property column may have: a MATLAB property name (isvarname: a letter, then letters,
+// digits and underscores, 63 at most).
+const PROPERTY_NAME = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
+// The Columns menu's least height, and the gap it keeps above the table's bottom edge.
+const COLUMN_MENU_MIN_HEIGHT = 120;
+const COLUMN_MENU_BOTTOM_MARGIN = 4;
+function isPropertyColumn(col) {
+    return col.startsWith(PROPERTY_COLUMN_PREFIX);
+}
+function propertyColumnKey(name) {
+    return PROPERTY_COLUMN_PREFIX + name;
+}
+function propertyNameOf(col) {
+    return col.slice(PROPERTY_COLUMN_PREFIX.length);
+}
 // The columns where an empty read-only cell means "this property does not exist for this
 // kind of object" rather than "this property is unset". Only these get the not-applicable
 // wash; see _cellStateClass for the measurement that picked them, and issue #26.
@@ -242,7 +269,8 @@ const OP_WORD_TEXT = {
 };
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
- * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
+ * reorderable columns (the Columns menu shows, hides and orders them, each within its group, and
+ * adds a column for any property the user names, from the rows' `_props`; a right-click on a
  * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
  * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
  * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
@@ -279,8 +307,9 @@ export class DexTreeTable extends LitElement {
          */
         this.columnLabels = null;
         /**
-         * The group heading each column sits under in the Columns menu, by column key. Default null:
-         * no headings. Property only.
+         * The group heading each column sits under in the Columns menu, by column key. The columns are
+         * shown group by group, and the user moves a column within its group only, in the menu and by
+         * its header. Default null: no headings. Property only.
          */
         this.columnGroups = null;
         /**
@@ -483,9 +512,15 @@ export class DexTreeTable extends LitElement {
         this._columnMenuOpen = false;
         this._columnMenuX = 0;
         this._columnMenuY = 0;
+        this._columnMenuMaxHeight = 0;
         this._menuDragCol = null;
         this._menuDragOverCol = null;
         this._menuDragOverSide = null;
+        // The property columns the user added, by property name, in their order (the Other Properties
+        // group's, and so the table's after every built-in column).
+        this._propertyColumns = [];
+        // Why the name typed into Other Properties was not added; '' when there is nothing to say.
+        this._propertyNotice = '';
         // The Add gallery: whether it shows, and nothing else. Unlike the column menu, none of its
         // geometry is here — it is anchored under the search bar in the stylesheet (see the
         // dex-add-gallery rule), which is why a resize of the editor tab needs no notification to
@@ -1017,15 +1052,135 @@ export class DexTreeTable extends LitElement {
         outline: 1px solid var(--dex-color-accent, #0078d4);
       }
 
+      /* Three parts, as the in-MATLAB data explorer's Columns dropdown: the title and Reset at
+         the top and Other Properties at the bottom keep their size, and the built-in columns
+         between them are what scrolls. The menu scrolls as a whole only when even the parts'
+         least heights do not fit its max-height (set on open from the table's bottom). */
       .column-menu {
         position: fixed;
         z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        overflow-y: auto;
         background: var(--dex-bg-primary, #fff);
         border: 1px solid var(--dex-border-color, #d0d0d0);
         border-radius: 4px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        padding: 4px 0;
-        min-width: 200px;
+        width: 260px;
+        font-size: 12px;
+      }
+
+      .column-menu-top {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px 4px 10px;
+        border-bottom: 1px solid var(--dex-border-color-light, #e0e0e0);
+      }
+
+      .column-menu-title {
+        flex: 1 1 auto;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .column-menu-builtins {
+        flex: 1 1 auto;
+        min-height: 60px;
+        overflow-y: auto;
+        padding: 2px 0 4px;
+      }
+
+      .column-menu-bottom {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid var(--dex-border-color-light, #e0e0e0);
+        padding-bottom: 6px;
+      }
+
+      /* Four rows, then a scroll of its own, so the field below stays in view. */
+      .column-menu-customs {
+        max-height: 104px;
+        overflow-y: auto;
+      }
+
+      .column-menu-add {
+        display: flex;
+        gap: 4px;
+        padding: 4px 8px 0;
+      }
+
+      .column-menu-input {
+        flex: 1 1 auto;
+        min-width: 0;
+        box-sizing: border-box;
+        height: 22px;
+        padding: 0 6px;
+        border: 1px solid var(--dex-border-color, #d0d0d0);
+        border-radius: 3px;
+        background: var(--dex-bg-primary, #fff);
+        color: inherit;
+        font: inherit;
+      }
+
+      .column-menu-input:focus {
+        outline: none;
+        border-color: var(--dex-color-accent, #0078d4);
+      }
+
+      /* The notice below says why the typed name was not added. */
+      .column-menu-input[aria-invalid='true'] {
+        border-color: var(--dex-color-error, #d32f2f);
+      }
+
+      .column-menu-add-button,
+      .column-menu-reset {
+        flex: 0 0 auto;
+        box-sizing: border-box;
+        height: 22px;
+        padding: 0 8px;
+        border: 1px solid var(--dex-border-color, #d0d0d0);
+        border-radius: 3px;
+        background: var(--dex-bg-primary, #fff);
+        color: inherit;
+        font: inherit;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .column-menu-add-button:hover,
+      .column-menu-reset:hover {
+        background: var(--dex-bg-hover, #e8e8e8);
+      }
+
+      .column-menu-add-button:focus-visible,
+      .column-menu-reset:focus-visible {
+        outline: 1px solid var(--dex-color-accent, #0078d4);
+      }
+
+      .column-menu-notice {
+        padding: 4px 8px 0;
+        color: var(--dex-color-error, #d32f2f);
+        white-space: normal;
+      }
+
+      .column-menu-remove {
+        flex: 0 0 auto;
+        padding: 0 4px;
+        border: none;
+        background: none;
+        color: var(--dex-color-text-muted, #666);
+        font: inherit;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .column-menu-remove:hover,
+      .column-menu-remove:focus-visible {
+        color: var(--dex-color-text, #333);
       }
 
       .column-menu-item {
@@ -1074,12 +1229,9 @@ export class DexTreeTable extends LitElement {
 
       .column-menu-item .col-label {
         flex: 1 1 auto;
-      }
-
-      .column-menu-separator {
-        height: 1px;
-        margin: 4px 0;
-        background: var(--dex-border-color-light, #e0e0e0);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .column-menu-group-header {
@@ -1093,25 +1245,6 @@ export class DexTreeTable extends LitElement {
         cursor: default;
       }
 
-      .column-menu-reset {
-        display: block;
-        width: calc(100% - 16px);
-        margin: 0 8px 2px;
-        padding: 4px 8px;
-        border: none;
-        border-radius: 3px;
-        background: transparent;
-        color: var(--dex-color-accent, #0078d4);
-        font-size: 12px;
-        font-family: inherit;
-        text-align: left;
-        cursor: pointer;
-        outline: none;
-      }
-
-      .column-menu-reset:hover {
-        background: var(--dex-bg-hover, #e8e8e8);
-      }
 
       .column-menu-item.drag-over-top {
         box-shadow: inset 0 2px 0 0 var(--dex-color-accent, #0078d4);
@@ -2180,6 +2313,18 @@ export class DexTreeTable extends LitElement {
         catch {
             /* ignore */
         }
+        try {
+            const namesJson = localStorage.getItem(`${key}-${PROPERTY_COLUMNS_KEY}`);
+            if (namesJson) {
+                const arr = JSON.parse(namesJson);
+                if (Array.isArray(arr)) {
+                    this._propertyColumns = [...new Set(arr.filter((n) => typeof n === 'string' && PROPERTY_NAME.test(n)))];
+                }
+            }
+        }
+        catch {
+            /* ignore */
+        }
     }
     // The built-in columns the saved column state was saved against, or null when there is
     // no record (state saved before it existed) or the record cannot be read. Its own
@@ -2210,14 +2355,33 @@ export class DexTreeTable extends LitElement {
         localStorage.setItem(`${key}-hidden-columns`, JSON.stringify([...this._hiddenColumns]));
         localStorage.setItem(`${key}-${KNOWN_COLUMNS_KEY}`, JSON.stringify(DEFAULT_COLUMN_ORDER));
     }
+    _persistPropertyColumns() {
+        const key = this.storageKey;
+        if (!key)
+            return;
+        localStorage.setItem(`${key}-${PROPERTY_COLUMNS_KEY}`, JSON.stringify(this._propertyColumns));
+    }
     // The set of columns this document supports. When the host provides `columns`
     // that is authoritative; otherwise fall back to the built-in default order.
     get _availableColumns() {
         return this.columns || [...Object.keys(DEFAULT_WIDTHS)];
     }
-    // The user's preferred order restricted to the available columns, appending any
-    // available column the saved order doesn't mention (e.g. a newly added column).
-    get _orderedColumns() {
+    // The group a column is in: its host group (columnGroups), null for one with none, and Other
+    // Properties for a property column. A column moves only within its group.
+    _groupOf(col) {
+        if (isPropertyColumn(col))
+            return PROPERTY_GROUP;
+        return this.columnGroups?.[col] ?? null;
+    }
+    _sameGroup(a, b) {
+        return this._groupOf(a) === this._groupOf(b);
+    }
+    // The built-in columns: the user's preferred order restricted to the available columns,
+    // appending any available column the saved order doesn't mention (e.g. a newly added column),
+    // then put group by group, each group where the document's own order first has it. A reorder
+    // stays within its group, so this keeps the order a user made; it regroups an order saved
+    // before that rule, or one a host's new grouping interleaves, and keeps each group's own order.
+    get _orderedBuiltins() {
         const available = this._availableColumns;
         const availableSet = new Set(available);
         const ordered = this._columnOrder.filter((c) => availableSet.has(c));
@@ -2225,7 +2389,40 @@ export class DexTreeTable extends LitElement {
             if (!ordered.includes(c))
                 ordered.push(c);
         }
-        return ordered;
+        if (!this.columnGroups)
+            return ordered;
+        const rank = new Map();
+        for (const c of available) {
+            const group = this._groupOf(c);
+            if (!rank.has(group))
+                rank.set(group, rank.size);
+        }
+        return ordered
+            .map((col, at) => ({ col, at, rank: rank.get(this._groupOf(col)) ?? rank.size }))
+            .sort((a, b) => a.rank - b.rank || a.at - b.at)
+            .map((c) => c.col);
+    }
+    // Every column in display order: the built-in ones, then the property columns, which are the
+    // menu's last group and so the table's last columns.
+    get _orderedColumns() {
+        return [...this._orderedBuiltins, ...this._propertyColumns.map(propertyColumnKey)];
+    }
+    // The header and menu text of a column: its host label, its key, or a property column's name.
+    _columnLabel(col) {
+        if (isPropertyColumn(col))
+            return propertyNameOf(col);
+        return this.columnLabels?.[col] || col;
+    }
+    // What a search may name a column by: the host's columns and labels, and each property column
+    // by its name.
+    get _columnVocabulary() {
+        if (this._propertyColumns.length === 0)
+            return { labels: this.columnLabels, keys: this.columns };
+        const keys = this._propertyColumns.map(propertyColumnKey);
+        const labels = { ...(this.columnLabels ?? {}) };
+        for (const col of keys)
+            labels[col] = propertyNameOf(col);
+        return { labels, keys: this.columns ? [...this.columns, ...keys] : null };
     }
     get _visibleColumns() {
         return this._orderedColumns.filter((c) => !this._hiddenColumns.has(c));
@@ -2381,7 +2578,9 @@ export class DexTreeTable extends LitElement {
         }
     }
     _onHeaderDragOver(col, e) {
-        if (!this._dragColId || this._dragColId === col || col === 'Name')
+        // Not a drop target outside the dragged column's group: the default is left alone, so the
+        // pointer says no drop, and no drop line is drawn there.
+        if (!this._dragColId || this._dragColId === col || col === 'Name' || !this._sameGroup(this._dragColId, col))
             return;
         e.preventDefault();
         if (e.dataTransfer) {
@@ -2419,32 +2618,42 @@ export class DexTreeTable extends LitElement {
         this._dragColId = null;
         this._dragOverColId = null;
         this._dragOverSide = null;
-        // Splice `_orderedColumns`, NOT the raw `_columnOrder` — the same array the
-        // menu reorder edits. The raw order can be missing a column the user just
-        // dragged: it is whatever was persisted (possibly by an older version, or by
-        // a document with a different column set), while `_orderedColumns` is what
-        // the header row actually renders. Using the raw array made both indexOf
-        // lookups able to miss, and neither miss was benign — `fromIdx < 0` made the
-        // drop a silent no-op (every header reorder dead in a .prj view, whose
-        // columns are Type/Location/Labels), and `toIdx < 0` MISPLACED the column,
-        // since splice(-1, 0, x) inserts before the last element and the 'right'
-        // side turns -1 into 0, landing it ahead of the pinned Name. The bad order
-        // was then persisted, so it followed the user into every later session.
-        const order = [...this._orderedColumns];
+        this._moveColumn(dragged, col, side === 'right');
+    }
+    // Move `dragged` before `target`, or after it, within their group: the one reorder both the
+    // header and the menu make. A move into another group, or one that would take or displace
+    // the pinned Name, does nothing. A property column moves among the property columns; a
+    // built-in one among the built-in ones, which are saved as the order.
+    //
+    // Splice `_orderedBuiltins`, NOT the raw `_columnOrder`. The raw order can be missing a
+    // column the user just dragged: it is whatever was persisted (possibly by an older version,
+    // or by a document with a different column set), while `_orderedBuiltins` is what the header
+    // row actually renders. Using the raw array made both indexOf lookups able to miss, and
+    // neither miss was benign — `fromIdx < 0` made the drop a silent no-op (every header
+    // reorder dead in a .prj view, whose columns are Type/Location/Labels), and `toIdx < 0`
+    // MISPLACED the column, since splice(-1, 0, x) inserts before the last element and the
+    // 'right' side turns -1 into 0, landing it ahead of the pinned Name. The bad order was then
+    // persisted, so it followed the user into every later session.
+    _moveColumn(dragged, target, after) {
+        if (dragged === target || dragged === 'Name' || target === 'Name' || !this._sameGroup(dragged, target))
+            return;
+        const property = isPropertyColumn(dragged);
+        const order = property ? this._propertyColumns.map(propertyColumnKey) : [...this._orderedBuiltins];
         const fromIdx = order.indexOf(dragged);
-        const toIdx0 = order.indexOf(col);
-        // Both are present by construction (only rendered headers are draggable and
+        // Both are present by construction (only rendered headers and items are draggable and
         // droppable); kept as a guard so a future caller can't reintroduce a -1.
-        if (fromIdx < 0 || toIdx0 < 0)
+        if (fromIdx < 0 || !order.includes(target))
             return;
         order.splice(fromIdx, 1);
-        let toIdx = order.indexOf(col);
-        if (side === 'right') {
-            toIdx += 1;
+        order.splice(order.indexOf(target) + (after ? 1 : 0), 0, dragged);
+        if (property) {
+            this._propertyColumns = order.map(propertyNameOf);
+            this._persistPropertyColumns();
         }
-        order.splice(toIdx, 0, dragged);
-        this._columnOrder = order;
-        this._persistOrder();
+        else {
+            this._columnOrder = order;
+            this._persistOrder();
+        }
     }
     _onHeaderDragEnd(_e) {
         this._dragColId = null;
@@ -2541,6 +2750,14 @@ export class DexTreeTable extends LitElement {
         // the right edge doesn't push the dropdown off-screen and truncate labels.
         this._columnMenuX = Math.max(0, window.innerWidth - rect.right);
         this._columnMenuY = rect.bottom + 2;
+        // No taller than the table below the button (else the window), so Reset at its top and
+        // Other Properties at its bottom stay on screen and the columns between them scroll. A
+        // floor, so a table too short for the menu does not collapse it; a host with no layout
+        // (all zeros) gets the window's height.
+        const hostBottom = this.getBoundingClientRect().bottom;
+        const bottom = hostBottom > this._columnMenuY ? Math.min(hostBottom, window.innerHeight || hostBottom) : window.innerHeight;
+        this._columnMenuMaxHeight = Math.max(COLUMN_MENU_MIN_HEIGHT, bottom - this._columnMenuY - COLUMN_MENU_BOTTOM_MARGIN);
+        this._propertyNotice = '';
         this._columnMenuOpen = true;
     }
     // --- Per-column filter popup ---
@@ -2584,7 +2801,7 @@ export class DexTreeTable extends LitElement {
     // `Name:a Name:b` — two conditions ANDed, so nothing matches, which reads as a
     // bug rather than as a replaced filter.
     _applyColumnFilter(col, op, value) {
-        const label = this.columnLabels?.[col] || col;
+        const label = this._columnLabel(col);
         const text = formatToken(label, op, value);
         const existing = this._tokenForColumn(col);
         const next = existing
@@ -2631,13 +2848,100 @@ export class DexTreeTable extends LitElement {
         this._hiddenColumns = updated;
         this._persistHidden();
     }
-    // Restore the default column order and visibility, discarding any customization.
+    // Restore the default order and visibility of the built-in columns, discarding any
+    // customization of them. The property columns stay as they are, each shown or hidden as it
+    // was: they are the ones the user named, and × is how one goes.
     _resetColumns(e) {
         e.stopPropagation();
         this._columnOrder = [...DEFAULT_COLUMN_ORDER];
-        this._hiddenColumns = new Set(DEFAULT_HIDDEN_COLUMNS);
+        const hidden = new Set(DEFAULT_HIDDEN_COLUMNS);
+        for (const col of this._hiddenColumns)
+            if (isPropertyColumn(col))
+                hidden.add(col);
+        this._hiddenColumns = hidden;
         this._persistOrder();
         this._persistHidden();
+    }
+    // --- Property columns (the menu's Other Properties) ---
+    // The name typed into Other Properties, added: a built-in column's key or label (in any
+    // case, so `storage class` or `DataType`) shows that column; a property name not in the
+    // list becomes a shown property column at the end; one in the list but hidden is shown.
+    // Anything else says why it was not added (_propertyNotice). Answers whether the name was
+    // taken, so the field can be emptied.
+    _addPropertyColumn(typed) {
+        const name = typed.trim();
+        if (name === '')
+            return false;
+        const lower = name.toLowerCase();
+        const builtIn = this._availableColumns.find((c) => c.toLowerCase() === lower || (this.columnLabels?.[c] ?? '').toLowerCase() === lower);
+        const col = builtIn ?? propertyColumnKey(name);
+        if (!builtIn) {
+            if (!PROPERTY_NAME.test(name)) {
+                this._propertyNotice = `"${name}" is not a valid property name.`;
+                return false;
+            }
+            if (this._propertyColumns.includes(name) && !this._hiddenColumns.has(col)) {
+                this._propertyNotice = `"${name}" is already in the list.`;
+                return false;
+            }
+            if (!this._propertyColumns.includes(name)) {
+                this._propertyColumns = [...this._propertyColumns, name];
+                this._persistPropertyColumns();
+                this._propertyColumnsChanged();
+            }
+        }
+        this._propertyNotice = '';
+        if (this._hiddenColumns.has(col))
+            this._toggleColumnVisibility(col);
+        return true;
+    }
+    // A property column taken off the table, with everything that was about it: whether it was
+    // hidden, its width, its sort, and a filter popup open on it.
+    _removePropertyColumn(name) {
+        const col = propertyColumnKey(name);
+        this._propertyColumns = this._propertyColumns.filter((n) => n !== name);
+        if (this._hiddenColumns.has(col)) {
+            const hidden = new Set(this._hiddenColumns);
+            hidden.delete(col);
+            this._hiddenColumns = hidden;
+            this._persistHidden();
+        }
+        if (this._columnWidths.has(col)) {
+            const widths = new Map(this._columnWidths);
+            widths.delete(col);
+            this._columnWidths = widths;
+        }
+        if (this._sortState.some((s) => s.column === col))
+            this._sortState = this._sortState.filter((s) => s.column !== col);
+        if (this._filterPopupCol === col)
+            this._filterPopupCol = null;
+        this._propertyNotice = '';
+        this._persistPropertyColumns();
+        this._propertyColumnsChanged();
+    }
+    // The search's vocabulary has another column, or one fewer: a qualified term may name it.
+    _propertyColumnsChanged() {
+        this._filterParseCache = null;
+        this._visibleRowsCache = null;
+    }
+    _onPropertyInputKeyDown(e) {
+        // The field's keys are the field's: none reaches the table or the menu around it.
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this._addTypedPropertyColumn();
+        }
+        else if (e.key === 'Escape') {
+            // Closed, and the focus back on the button that opened it, not dropped on the page.
+            e.preventDefault();
+            this._columnMenuOpen = false;
+            this.shadowRoot?.querySelector('.columns-button')?.focus();
+        }
+    }
+    _addTypedPropertyColumn() {
+        const input = this.shadowRoot?.querySelector('.column-menu-input');
+        if (input && this._addPropertyColumn(input.value))
+            input.value = '';
     }
     // --- Column reordering from the menu list ---
     _onMenuDragStart(col, e) {
@@ -2652,7 +2956,9 @@ export class DexTreeTable extends LitElement {
         }
     }
     _onMenuDragOver(col, e) {
-        if (!this._menuDragCol || col === 'Name')
+        // Only an item of the dragged column's group takes the drop: elsewhere the default is left
+        // alone, so the pointer says no drop and no drop line is drawn.
+        if (!this._menuDragCol || col === 'Name' || !this._sameGroup(this._menuDragCol, col))
             return;
         e.preventDefault();
         if (e.dataTransfer)
@@ -2674,20 +2980,10 @@ export class DexTreeTable extends LitElement {
         this._menuDragOverCol = null;
         const side = this._menuDragOverSide;
         this._menuDragOverSide = null;
-        // Name is pinned first and can neither move nor be displaced.
-        if (!dragged || dragged === col || dragged === 'Name' || col === 'Name')
+        // Name is pinned first and can neither move nor be displaced; nothing leaves its group.
+        if (!dragged)
             return;
-        const order = [...this._orderedColumns];
-        const fromIdx = order.indexOf(dragged);
-        if (fromIdx < 0)
-            return;
-        order.splice(fromIdx, 1);
-        let toIdx = order.indexOf(col);
-        if (side === 'bottom')
-            toIdx += 1;
-        order.splice(toIdx, 0, dragged);
-        this._columnOrder = order;
-        this._persistOrder();
+        this._moveColumn(dragged, col, side === 'bottom');
     }
     _onMenuDragEnd() {
         this._menuDragCol = null;
@@ -2764,7 +3060,7 @@ export class DexTreeTable extends LitElement {
     _renderFunnel(col) {
         if (this.fixedRows)
             return nothing;
-        const label = this.columnLabels?.[col] || col;
+        const label = this._columnLabel(col);
         const active = this._tokenForColumn(col) !== undefined;
         return html `
       <button
@@ -2859,6 +3155,8 @@ export class DexTreeTable extends LitElement {
                 // blank the whole table the moment the user sorts by Usage.
                 return cellText(row.UsedBy);
             default: {
+                if (isPropertyColumn(col))
+                    return row._props?.[propertyNameOf(col)] ?? '';
                 const raw = row[col];
                 if (raw === undefined || raw === null) {
                     return '';
@@ -3044,10 +3342,7 @@ export class DexTreeTable extends LitElement {
         // `_getCellText` is passed rather than reached for inside rowFilter.ts because
         // reading a cell's text depends on cell shape, which is this component's
         // concern, not the grammar's.
-        return parseFilterExpression(text, this._visibleColumns, (row, col) => this._getCellText(row, col), {
-            labels: this.columnLabels,
-            keys: this.columns,
-        });
+        return parseFilterExpression(text, this._visibleColumns, (row, col) => this._getCellText(row, col), this._columnVocabulary);
     }
     // The parse behind the current search, cached because _highlight runs once per
     // rendered cell and the chips render once per repaint, while the tokens only
@@ -3069,7 +3364,7 @@ export class DexTreeTable extends LitElement {
         // `_stickyRowIds` is passed rather than reached for inside rowFilter.ts
         // because it is this component's edit-tracking state, not part of the
         // grammar (see nextStickyIds in rowUpdates.ts).
-        return filterRows(rows, text, this._visibleColumns, (row, col) => this._getCellText(row, col), this._stickyRowIds, { labels: this.columnLabels, keys: this.columns });
+        return filterRows(rows, text, this._visibleColumns, (row, col) => this._getCellText(row, col), this._stickyRowIds, this._columnVocabulary);
     }
     _flattenToVisible(rows) {
         const topLevel = [];
@@ -4333,6 +4628,12 @@ export class DexTreeTable extends LitElement {
             const val = cellText(row.Status);
             return html `<span class="${val ? 'status-modified' : ''}">${this._highlight(val, columnId)}</span>`;
         }
+        // A property column: the row's property of that name, read-only, or nothing where the row's
+        // object has no such property.
+        if (isPropertyColumn(columnId)) {
+            const val = row._props?.[propertyNameOf(columnId)];
+            return val ? html `<span class="readonly-cell">${this._highlight(val, columnId)}</span>` : html ``;
+        }
         // Generic branch for schema-driven columns (storageClass, alignment,
         // dimensions, complexity, and any future column). Reads the value emitted by
         // toRow under row[columnId]: a plain string for a read-only column, or an
@@ -4360,6 +4661,8 @@ export class DexTreeTable extends LitElement {
         if (changedProps.has('storageKey') && this.storageKey !== this._loadedStorageKey) {
             this._columnOrder = [...DEFAULT_COLUMN_ORDER];
             this._hiddenColumns = new Set(DEFAULT_HIDDEN_COLUMNS);
+            this._propertyColumns = [];
+            this._propertyColumnsChanged();
             this._loadPersistedState();
         }
         if (changedProps.has('rows')) {
@@ -4604,7 +4907,7 @@ export class DexTreeTable extends LitElement {
                       @dragend=${(e) => this._onHeaderDragEnd(e)}
                     >
                       <div class="th-content">
-                        <span class="th-label">${this.columnLabels?.[col] || col}</span>
+                        <span class="th-label">${this._columnLabel(col)}</span>
                         ${this._renderFunnel(col)} ${this._getSortIndicator(col)}
                       </div>
                       <div
@@ -4792,7 +5095,7 @@ export class DexTreeTable extends LitElement {
       <dex-column-filter
         ${styleProps({ left: `${this._filterPopupX}px`, top: `${this._filterPopupY}px` })}
         .column=${col}
-        .columnLabel=${this.columnLabels?.[col] || col}
+        .columnLabel=${this._columnLabel(col)}
         .op=${existing?.op ?? 'contains'}
         .value=${existing?.value ?? ''}
         .hasExisting=${existing !== undefined}
@@ -4804,68 +5107,132 @@ export class DexTreeTable extends LitElement {
       ></dex-column-filter>
     `;
     }
+    // The Columns menu (the in-MATLAB data explorer's Columns dropdown): its title and Reset at the
+    // top, the built-in columns group by group in the middle, which is the part that scrolls, and
+    // Other Properties at the bottom, always in view: the property columns, and the field a
+    // property's name is typed into. A column moves only within its group.
     _renderColumnMenu() {
         if (!this._columnMenuOpen)
             return nothing;
+        const builtIns = this._orderedBuiltins;
+        let lastGroup = null;
         return html `
-      <div class="column-menu" ${styleProps({ right: `${this._columnMenuX}px`, top: `${this._columnMenuY}px` })}>
-        ${(() => {
-            let lastGroup = null;
-            return this._orderedColumns.map((col) => {
-                const group = this.columnGroups?.[col] ?? null;
-                const header = group && group !== lastGroup
-                    ? html `<div class="column-menu-group-header">${group}</div>`
-                    : nothing;
-                lastGroup = group;
-                const isName = col === 'Name';
-                const isVisible = !this._hiddenColumns.has(col);
-                const overCls = this._menuDragOverCol === col
-                    ? this._menuDragOverSide === 'top'
-                        ? 'drag-over-top'
-                        : 'drag-over-bottom'
-                    : '';
-                const draggingCls = this._menuDragCol === col ? 'dragging' : '';
-                return html `
-              ${header}
-              <label
-              class="column-menu-item ${isName ? 'disabled' : ''} ${overCls} ${draggingCls}"
-              draggable=${isName ? 'false' : 'true'}
-              @dragstart=${(e) => this._onMenuDragStart(col, e)}
-              @dragover=${(e) => this._onMenuDragOver(col, e)}
-              @dragleave=${() => this._onMenuDragLeave()}
-              @drop=${(e) => this._onMenuDrop(col, e)}
-              @dragend=${() => this._onMenuDragEnd()}
-              @click=${(e) => {
-                    // Only keep the click inside the menu. The toggle itself belongs
-                    // to the checkbox's @change: a click anywhere in a <label> is
-                    // forwarded to the control it labels, so toggling here as well
-                    // would run twice per click and cancel itself out — which left
-                    // clicking a column's NAME doing nothing at all.
-                    e.stopPropagation();
-                }}
-            >
-              <span class="col-grip" title="Drag to reorder">⋮⋮</span>
-              <input
-                type="checkbox"
-                .checked=${isVisible}
-                .disabled=${isName}
-                @click=${(e) => e.stopPropagation()}
-                @change=${(e) => {
-                    e.stopPropagation();
-                    if (!isName)
-                        this._toggleColumnVisibility(col);
-                }}
-              />
-              <span class="col-label">${this.columnLabels?.[col] || col}</span>
-            </label>
-          `;
-            });
-        })()}
-        <div class="column-menu-separator"></div>
-        <button type="button" class="column-menu-reset" @click=${(e) => this._resetColumns(e)}>
-          Reset to default
-        </button>
+      <div
+        class="column-menu"
+        role="dialog"
+        aria-label="Columns"
+        ${styleProps({
+            right: `${this._columnMenuX}px`,
+            top: `${this._columnMenuY}px`,
+            'max-height': this._columnMenuMaxHeight > 0 ? `${this._columnMenuMaxHeight}px` : null,
+        })}
+      >
+        <div class="column-menu-top">
+          <span class="column-menu-title">Columns</span>
+          <button
+            type="button"
+            class="column-menu-reset"
+            title="Restore default columns"
+            aria-label="Restore default columns"
+            @click=${(e) => this._resetColumns(e)}
+          >
+            Reset
+          </button>
+        </div>
+        <div class="column-menu-builtins">
+          ${builtIns.map((col) => {
+            const group = this._groupOf(col);
+            const header = group && group !== lastGroup ? html `<div class="column-menu-group-header">${group}</div>` : nothing;
+            lastGroup = group;
+            return html `${header}${this._renderColumnMenuItem(col)}`;
+        })}
+        </div>
+        <div class="column-menu-bottom">
+          <div class="column-menu-group-header">${PROPERTY_GROUP_LABEL}</div>
+          ${this._propertyColumns.length > 0
+            ? html `<div class="column-menu-customs">
+                ${this._propertyColumns.map((name) => this._renderColumnMenuItem(propertyColumnKey(name)))}
+              </div>`
+            : nothing}
+          <div class="column-menu-add">
+            <input
+              type="text"
+              class="column-menu-input"
+              placeholder="Property name"
+              aria-label="Property name"
+              spellcheck="false"
+              aria-invalid=${this._propertyNotice ? 'true' : nothing}
+              @keydown=${(e) => this._onPropertyInputKeyDown(e)}
+              @input=${() => (this._propertyNotice = '')}
+            />
+            <button type="button" class="column-menu-add-button" @click=${() => this._addTypedPropertyColumn()}>
+              Add
+            </button>
+          </div>
+          ${this._propertyNotice
+            ? html `<div class="column-menu-notice" role="status">${this._propertyNotice}</div>`
+            : nothing}
+        </div>
       </div>
+    `;
+    }
+    // One column of the menu: its grip, its box and its name, and a property column's ×. The whole
+    // row is draggable, within its group.
+    _renderColumnMenuItem(col) {
+        const isName = col === 'Name';
+        const property = isPropertyColumn(col);
+        const isVisible = !this._hiddenColumns.has(col);
+        const overCls = this._menuDragOverCol === col ? (this._menuDragOverSide === 'top' ? 'drag-over-top' : 'drag-over-bottom') : '';
+        const draggingCls = this._menuDragCol === col ? 'dragging' : '';
+        const label = this._columnLabel(col);
+        return html `
+      <label
+        class="column-menu-item ${isName ? 'disabled' : ''} ${overCls} ${draggingCls}"
+        draggable=${isName ? 'false' : 'true'}
+        @dragstart=${(e) => this._onMenuDragStart(col, e)}
+        @dragover=${(e) => this._onMenuDragOver(col, e)}
+        @dragleave=${() => this._onMenuDragLeave()}
+        @drop=${(e) => this._onMenuDrop(col, e)}
+        @dragend=${() => this._onMenuDragEnd()}
+        @click=${(e) => {
+            // Only keep the click inside the menu. The toggle itself belongs
+            // to the checkbox's @change: a click anywhere in a <label> is
+            // forwarded to the control it labels, so toggling here as well
+            // would run twice per click and cancel itself out — which left
+            // clicking a column's NAME doing nothing at all.
+            e.stopPropagation();
+        }}
+      >
+        <span class="col-grip" title="Drag to reorder within its group">⋮⋮</span>
+        <input
+          type="checkbox"
+          .checked=${isVisible}
+          .disabled=${isName}
+          @click=${(e) => e.stopPropagation()}
+          @change=${(e) => {
+            e.stopPropagation();
+            if (!isName)
+                this._toggleColumnVisibility(col);
+        }}
+        />
+        <span class="col-label">${label}</span>
+        ${property
+            ? html `<button
+              type="button"
+              class="column-menu-remove"
+              title="Remove ${label}"
+              aria-label="Remove ${label}"
+              @click=${(e) => {
+                // Not a click on the label's checkbox, which the browser would forward it to.
+                e.preventDefault();
+                e.stopPropagation();
+                this._removePropertyColumn(propertyNameOf(col));
+            }}
+            >
+              ×
+            </button>`
+            : nothing}
+      </label>
     `;
     }
 }
@@ -5015,6 +5382,9 @@ __decorate([
 ], DexTreeTable.prototype, "_columnMenuY", void 0);
 __decorate([
     state()
+], DexTreeTable.prototype, "_columnMenuMaxHeight", void 0);
+__decorate([
+    state()
 ], DexTreeTable.prototype, "_menuDragCol", void 0);
 __decorate([
     state()
@@ -5022,6 +5392,12 @@ __decorate([
 __decorate([
     state()
 ], DexTreeTable.prototype, "_menuDragOverSide", void 0);
+__decorate([
+    state()
+], DexTreeTable.prototype, "_propertyColumns", void 0);
+__decorate([
+    state()
+], DexTreeTable.prototype, "_propertyNotice", void 0);
 __decorate([
     state()
 ], DexTreeTable.prototype, "_addGalleryOpen", void 0);

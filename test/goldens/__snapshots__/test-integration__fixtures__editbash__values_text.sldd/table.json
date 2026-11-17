@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/editbash/values_text.sldd",
   "rows": {
    "digested": true,
-   "sha256": "537bd5d66c6b3e9fe3d000f3cb8b57e2b46e2c190f4cce72b337bf78c92c91ae",
+   "sha256": "638d488f182b5f245858ce1bcd09e0d9cf5fb1539e4ed2eb6985bc0a22f0c21f",
    "rowCount": 322,
    "firstRows": [
     {
@@ -45,6 +45,11 @@
      "_descriptionApplies": true,
      "lastModified": "2026-10-26T02:44:54Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "DataScope": "Auto",
+      "HeaderFile": "",
+      "PreserveElementDimensions": "false"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": true
@@ -106,6 +111,9 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -167,6 +175,9 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false

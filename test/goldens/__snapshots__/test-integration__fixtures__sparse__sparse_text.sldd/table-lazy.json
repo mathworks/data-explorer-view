@@ -356,6 +356,12 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:19Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "BaseType": "'double'",
+     "DataScope": "'Auto'",
+     "Fh": "@sin",
+     "HeaderFile": "''"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -382,6 +388,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:19Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "BaseType": "'double'",
+     "DataScope": "'Auto'",
+     "HeaderFile": "''"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,

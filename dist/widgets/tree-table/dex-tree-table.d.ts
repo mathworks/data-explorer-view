@@ -112,7 +112,8 @@ export interface TableScrolledDetail {
 }
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
- * reorderable columns (the Columns menu shows, hides and orders them, and a right-click on a
+ * reorderable columns (the Columns menu shows, hides and orders them, each within its group, and
+ * adds a column for any property the user names, from the rows' `_props`; a right-click on a
  * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
  * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
  * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
@@ -148,8 +149,9 @@ export declare class DexTreeTable extends LitElement {
      */
     columnLabels: Record<string, string> | null;
     /**
-     * The group heading each column sits under in the Columns menu, by column key. Default null:
-     * no headings. Property only.
+     * The group heading each column sits under in the Columns menu, by column key. The columns are
+     * shown group by group, and the user moves a column within its group only, in the menu and by
+     * its header. Default null: no headings. Property only.
      */
     columnGroups: Record<string, string> | null;
     /**
@@ -364,9 +366,12 @@ export declare class DexTreeTable extends LitElement {
     private _columnMenuOpen;
     private _columnMenuX;
     private _columnMenuY;
+    private _columnMenuMaxHeight;
     private _menuDragCol;
     private _menuDragOverCol;
     private _menuDragOverSide;
+    private _propertyColumns;
+    private _propertyNotice;
     private _addGalleryOpen;
     private _addPinned;
     private _filterPopupCol;
@@ -401,8 +406,14 @@ export declare class DexTreeTable extends LitElement {
     private _readKnownColumns;
     private _persistOrder;
     private _persistHidden;
+    private _persistPropertyColumns;
     private get _availableColumns();
+    private _groupOf;
+    private _sameGroup;
+    private get _orderedBuiltins();
     private get _orderedColumns();
+    private _columnLabel;
+    private get _columnVocabulary();
     private get _visibleColumns();
     private _getColWidth;
     private _defaultColWidth;
@@ -413,6 +424,7 @@ export declare class DexTreeTable extends LitElement {
     private _onHeaderDragOver;
     private _onHeaderDragLeave;
     private _onHeaderDrop;
+    private _moveColumn;
     private _onHeaderDragEnd;
     private _onAddButtonClick;
     /**
@@ -443,6 +455,11 @@ export declare class DexTreeTable extends LitElement {
     private _onColumnFilterCleared;
     private _toggleColumnVisibility;
     private _resetColumns;
+    private _addPropertyColumn;
+    private _removePropertyColumn;
+    private _propertyColumnsChanged;
+    private _onPropertyInputKeyDown;
+    private _addTypedPropertyColumn;
     private _onMenuDragStart;
     private _onMenuDragOver;
     private _onMenuDragLeave;
@@ -617,6 +634,7 @@ export declare class DexTreeTable extends LitElement {
     private _renderColumnsButton;
     private _renderColumnFilterPopup;
     private _renderColumnMenu;
+    private _renderColumnMenuItem;
 }
 /**
  * Registers the widget as `<dex-tree-table>`, or under `tag`, after the parts its template draws,

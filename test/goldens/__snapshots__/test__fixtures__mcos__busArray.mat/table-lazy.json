@@ -45,6 +45,12 @@
     "Kind": "Bus",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "Alignment": "-1",
+     "PreserveElementDimensions": "false",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": true,
@@ -69,6 +75,12 @@
     "Kind": "Bus",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "Alignment": "-1",
+     "PreserveElementDimensions": "false",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": true,
@@ -93,6 +105,12 @@
     "Kind": "Bus",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "Alignment": "-1",
+     "PreserveElementDimensions": "false",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": true,

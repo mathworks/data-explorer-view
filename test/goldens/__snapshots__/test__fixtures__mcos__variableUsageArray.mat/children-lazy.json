@@ -1,8 +1,8 @@
 {
  "digested": true,
- "sha256": "68c4fca8ad6caa2b4fec9ef54603d1dfe50302cec491273c643fc985726fa019",
+ "sha256": "820148763696e390fffe386654ea2087b8580b2920f36ac8fdf463c730a1434e",
  "entryCount": 1,
  "entries": {
-  "binedit:file:///fx/test/fixtures/mcos/variableUsageArray.mat/variables": "bf8df4410c0af067"
+  "binedit:file:///fx/test/fixtures/mcos/variableUsageArray.mat/variables": "a7f3958d30c9d010"
  }
 }

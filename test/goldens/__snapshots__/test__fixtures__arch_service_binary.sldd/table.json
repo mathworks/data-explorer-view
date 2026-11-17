@@ -81,6 +81,10 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Prototype": "y = f(u)",
+     "Asynchronous": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -104,6 +108,10 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Prototype": "[a,b] = g(g)",
+     "Asynchronous": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

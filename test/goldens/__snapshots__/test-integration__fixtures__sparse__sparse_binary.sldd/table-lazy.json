@@ -356,6 +356,12 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "Fh": "@sin",
+     "BaseType": "'double'",
+     "DataScope": "'Auto'",
+     "HeaderFile": "''"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -382,6 +388,12 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "K": "7",
+     "BaseType": "'double'",
+     "DataScope": "'Auto'",
+     "HeaderFile": "''"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -440,6 +452,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -483,6 +498,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -517,6 +535,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -551,6 +572,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-09T20:50:22Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,

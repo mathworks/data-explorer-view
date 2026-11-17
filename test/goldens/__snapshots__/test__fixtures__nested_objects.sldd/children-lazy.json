@@ -77,6 +77,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -185,6 +188,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

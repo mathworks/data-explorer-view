@@ -60,6 +60,9 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -121,6 +124,9 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -364,6 +370,10 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Asynchronous": "false",
+     "Prototype": "y = f(u,v)"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -387,6 +397,10 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Asynchronous": "false",
+     "Prototype": "y = f1(u,v,w,y)"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -410,6 +424,10 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Asynchronous": "false",
+     "Prototype": "y = f2(u,v)"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -478,6 +496,9 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -539,6 +560,9 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

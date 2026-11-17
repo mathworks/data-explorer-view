@@ -371,6 +371,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -424,6 +427,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -468,6 +474,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -512,6 +521,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -839,6 +851,12 @@
     "Kind": "Configuration Set",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "ConfigPrmDlgPosition": "[0, 0, 0, 0]",
+     "CurrentDlgPage": "",
+     "ExtraOptions": "",
+     "Version": "27.0.0"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

@@ -22,6 +22,11 @@
     "Kind": "Level1",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L1'",
+     "Count": "1",
+     "Child": "<1x1 Level2>"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -91,6 +96,12 @@
     "Kind": "Level2",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L2'",
+     "Count": "2",
+     "Child": "<1x1 Level3>",
+     "Sibling": "{<1x1 Level3>}"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -160,6 +171,11 @@
     "Kind": "Level3",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L3'",
+     "Count": "3",
+     "Depth": "301"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -275,6 +291,11 @@
     "Kind": "Level3",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L3'",
+     "Count": "33",
+     "Depth": "302"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

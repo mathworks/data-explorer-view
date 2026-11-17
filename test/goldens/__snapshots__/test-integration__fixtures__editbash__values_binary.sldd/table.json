@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/editbash/values_binary.sldd",
   "rows": {
    "digested": true,
-   "sha256": "7ec416c61622b118265ab4cfaf80282bbc3edca846d88fe69813d6ee417cc3a0",
+   "sha256": "510bc98239ca820009ebf852a224d1bfe21a2c145412259d7b91507d5f3ba340",
    "rowCount": 322,
    "firstRows": [
     {
@@ -45,6 +45,12 @@
      "_descriptionApplies": true,
      "lastModified": "2026-10-26T02:44:55Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "Alignment": "-1",
+      "PreserveElementDimensions": "false",
+      "DataScope": "Auto",
+      "HeaderFile": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": true
@@ -106,6 +112,11 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "SamplingMode": "Sample based",
+      "SampleTime": "-1",
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -167,6 +178,11 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "SamplingMode": "Sample based",
+      "SampleTime": "-1",
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -398,6 +414,9 @@
      "Kind": "Simulink Parameter",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false

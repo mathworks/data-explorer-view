@@ -68,6 +68,11 @@
     "Kind": "Level3",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L3'",
+     "Count": "3",
+     "Depth": "301"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -183,6 +188,11 @@
     "Kind": "Level3",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Tag": "'L3'",
+     "Count": "33",
+     "Depth": "302"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

@@ -118,6 +118,12 @@
     "_descriptionApplies": false,
     "lastModified": "2026-08-14T13:48:07Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "FleetName": "\"east\"",
+     "Count": "3",
+     "Lead": "<1x1 Garage>",
+     "Notes": "<1x1 struct>"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -144,6 +150,12 @@
     "_descriptionApplies": false,
     "lastModified": "2026-08-14T13:48:07Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "Wheels": "6",
+     "Engine": "<1x1 Engine>",
+     "Specs": "<1x1 struct>",
+     "Tags": "{'suv', 'electric'}"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,

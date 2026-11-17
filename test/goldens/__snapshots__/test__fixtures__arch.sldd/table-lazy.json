@@ -58,6 +58,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-06T12:59:50Z",
     "lastModifiedBy": "user",
+    "_props": {
+     "BaseType": "double",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -108,6 +113,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-06T15:04:15Z",
     "lastModifiedBy": "user",
+    "_props": {
+     "DataScope": "Auto",
+     "HeaderFile": "",
+     "PreserveElementDimensions": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": true,
@@ -143,6 +153,10 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-06T15:04:52Z",
     "lastModifiedBy": "user",
+    "_props": {
+     "StorageType": "int32",
+     "DefaultValue": "enum2"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": true,
@@ -169,6 +183,18 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-06T12:59:48Z",
     "lastModifiedBy": "user",
+    "_props": {
+     "Bias": "0",
+     "DataScope": "Auto",
+     "DataTypeMode": "Double",
+     "DataTypeOverride": "Inherit",
+     "FixedExponent": "0",
+     "HeaderFile": "",
+     "IsAlias": "false",
+     "SignednessBool": "true",
+     "SlopeAdjustmentFactor": "1",
+     "WordLength": "64"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -246,6 +272,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-06T15:15:06Z",
     "lastModifiedBy": "user",
+    "_props": {
+     "DataScope": "Auto",
+     "HeaderFile": "",
+     "PreserveElementDimensions": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": true,
