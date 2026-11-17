@@ -41,6 +41,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-09-14T00:00:00Z",
     "lastModifiedBy": "make-typelink",
+    "_props": {
+     "BaseType": "uint8",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

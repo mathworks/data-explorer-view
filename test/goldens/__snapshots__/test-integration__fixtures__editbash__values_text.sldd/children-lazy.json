@@ -1,9 +1,9 @@
 {
  "digested": true,
- "sha256": "f6c6702f24aea751c1bac5384ffa0a84880ee39d5eeae8ddd0465f80cc808e0c",
+ "sha256": "e16fddb4ccb8c4adc0bc4436e9f0d0833fe8882ac7a26ae9dd4bc8b9fa30182c",
  "entryCount": 30,
  "entries": {
-  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/bus": "93b333dd4565ffed",
+  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/bus": "d8ef95cf4063b90d",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/c2x2": "8fabf44e59bc00d4",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cHoldsParam": "a228a0f9244c8ef6",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cLeaves": "5040c8bd4a4448fc",

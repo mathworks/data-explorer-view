@@ -8139,7 +8139,7 @@
       "declarations": [
         {
           "kind": "class",
-          "description": "The tree table: a document's rows as a tree, with a search bar, sortable, resizable and\nreorderable columns (the Columns menu shows, hides and orders them, and a right-click on a\nheader filters on that column), cell editors, row drag and drop, links, matrix glyphs, an\n`+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties\n(`rows` above all) and every user action goes out as a `dex-*` event; it never changes the\ndocument itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts\nof that off.",
+          "description": "The tree table: a document's rows as a tree, with a search bar, sortable, resizable and\nreorderable columns (the Columns menu shows, hides and orders them, each within its group, and\nadds a column for any property the user names, from the rows' `_props`; a right-click on a\nheader filters on that column), cell editors, row drag and drop, links, matrix glyphs, an\n`+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties\n(`rows` above all) and every user action goes out as a `dex-*` event; it never changes the\ndocument itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts\nof that off.",
           "name": "DexTreeTable",
           "members": [
             {
@@ -8187,7 +8187,7 @@
                 "text": "Record<string, string> | null"
               },
               "default": "null",
-              "description": "The group heading each column sits under in the Columns menu, by column key. Default null:\nno headings. Property only."
+              "description": "The group heading each column sits under in the Columns menu, by column key. The columns are\nshown group by group, and the user moves a column within its group only, in the menu and by\nits header. Default null: no headings. Property only."
             },
             {
               "kind": "field",

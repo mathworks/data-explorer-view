@@ -56,6 +56,11 @@
     "Kind": "Alias Type",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "BaseType": "int16",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -79,6 +84,9 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -102,6 +110,11 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "BreakpointsSpecification": "Explicit values",
+     "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": "false",
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -125,6 +138,21 @@
     "Kind": "Numeric Type",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DataTypeMode": "Double",
+     "SignednessBool": "true",
+     "WordLength": "64",
+     "FixedExponent": "0",
+     "SlopeAdjustmentFactor": "1",
+     "Bias": "0",
+     "DataTypeOverride": "Inherit",
+     "IsAlias": "false",
+     "DataScope": "Auto",
+     "HeaderFile": "",
+     "Signed": "Signed",
+     "FractionLength": "0",
+     "Slope": "1"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -168,6 +196,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": "m/s"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -211,6 +242,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -287,6 +321,12 @@
     "Kind": "Simulink Signal",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SampleTime": "-1",
+     "SamplingMode": "auto",
+     "InitialValue": "",
+     "DocUnits": "V"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -327,6 +367,12 @@
     "Kind": "Configuration Set",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "ConfigPrmDlgPosition": "[0, 0, 0, 0]",
+     "CurrentDlgPage": "Solver",
+     "ExtraOptions": "",
+     "Version": "26.1.0"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

@@ -22,6 +22,10 @@
     "Kind": "MyEngine",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Cylinders": "12",
+     "Displacement": "6.2"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

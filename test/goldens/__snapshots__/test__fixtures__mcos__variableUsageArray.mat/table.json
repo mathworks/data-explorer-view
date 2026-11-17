@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test/fixtures/mcos/variableUsageArray.mat",
   "rows": {
    "digested": true,
-   "sha256": "1a6b884fd8e1748ae38672e4e5606cf0ea0cce64a2b9bdd046a652bc7235c3ed",
+   "sha256": "e642b2af28fc54fdb646c3dbba7ccf69e319e9b6b82c32b8f84f181ce9995e9e",
    "rowCount": 126,
    "firstRows": [
     {
@@ -49,6 +49,11 @@
      "Kind": "Simulink.VariableUsage",
      "_descriptionEditable": false,
      "_descriptionApplies": false,
+     "_props": {
+      "Source": "'f14'",
+      "SourceType": "'model workspace'",
+      "Users": "{'f14/Controller/Gain3'}"
+     },
      "_canCopy": true,
      "_canDelete": false,
      "_canAddChild": false
@@ -187,6 +192,11 @@
      "Kind": "Simulink.VariableUsage",
      "_descriptionEditable": false,
      "_descriptionApplies": false,
+     "_props": {
+      "Source": "'f14'",
+      "SourceType": "'model workspace'",
+      "Users": "{'f14/Controller/Gain'}"
+     },
      "_canCopy": true,
      "_canDelete": false,
      "_canAddChild": false
@@ -325,6 +335,11 @@
      "Kind": "Simulink.VariableUsage",
      "_descriptionEditable": false,
      "_descriptionApplies": false,
+     "_props": {
+      "Source": "'f14'",
+      "SourceType": "'model workspace'",
+      "Users": "{['f14/Controller/Proportional' newline 'plus integral' newline 'compensator']}"
+     },
      "_canCopy": true,
      "_canDelete": false,
      "_canAddChild": false
@@ -463,6 +478,11 @@
      "Kind": "Simulink.VariableUsage",
      "_descriptionEditable": false,
      "_descriptionApplies": false,
+     "_props": {
+      "Source": "'f14'",
+      "SourceType": "'model workspace'",
+      "Users": "{'f14/Controller/Gain2'}"
+     },
      "_canCopy": true,
      "_canDelete": false,
      "_canAddChild": false

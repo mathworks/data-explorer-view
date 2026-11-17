@@ -265,6 +265,10 @@
     "Kind": "Simulink.VariableUsage",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Source": "'f14'",
+     "SourceType": "'model workspace'"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -357,6 +361,10 @@
     "Kind": "Simulink.VariableUsage",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Source": "'f14'",
+     "SourceType": "'model workspace'"
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

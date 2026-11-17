@@ -1,5 +1,6 @@
 import { stampMatrix } from '../matrix/matrixPayload.js';
 import { stampLazy } from './lazyRows.js';
+import { propertyCells } from './propertyCells.js';
 /** The mark key for one entry. `\0` cannot occur in a section or entry name. */
 export function clipMarkKey(section, name) {
     return `${section}\u0000${name}`;
@@ -80,7 +81,8 @@ export function sharedIdTest() {
  * In this order, which both builders already applied: the entry's Status and clip mark, then
  * the capability flags, then the grid-view payload if the node's value is a griddable matrix,
  * then `_lazy` last, so a row is the same shape whichever builder made it. None rewrites the
- * row's columns.
+ * row's columns. The object's own properties beyond its columns go under `_props`, before the
+ * flags.
  *
  * The pool shares the FINISHED row, rather than being passed to `toRow()`: the row is the
  * node's cells plus the host's own, so sharing here covers all of them in one walk where doing
@@ -102,6 +104,11 @@ export function stampRow(built, n, ctx) {
     const flags = ctx.sharedId
         ? { _canCopy: false, _canDelete: false, _canAddChild: false }
         : capabilityFlags(n, { canCopy: ctx.canCopy });
+    // The object's own properties the row has no column for, which a property column the user
+    // names reads (propertyCells.ts). Only on a row whose object has any.
+    const props = propertyCells(n, row);
+    if (props)
+        row = { ...row, _props: props };
     const stamped = stampLazy(stampMatrix({ ...row, ...flags }, n), ctx.deferred);
     return ctx.pool ? ctx.pool.share(stamped) : stamped;
 }

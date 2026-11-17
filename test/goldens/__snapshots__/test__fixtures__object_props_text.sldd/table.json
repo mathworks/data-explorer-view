@@ -182,6 +182,11 @@
     "Kind": "Fleet",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Count": "3",
+     "FleetName": "\"east\"",
+     "Lead": "<1x1 Garage>"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -251,6 +256,10 @@
     "Kind": "Garage",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Capacity": "25",
+     "Location": "\"Boston\""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -320,6 +329,12 @@
     "Kind": "Vehicle",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Engine": "<1x1 Engine>",
+     "Specs": "<1x1 struct>",
+     "Tags": "{'suv', 'electric'}",
+     "Wheels": "6"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -343,6 +358,11 @@
     "Kind": "Engine",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "Cylinders": "8",
+     "Displacement": "5.7",
+     "Label": "\"V8\""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false

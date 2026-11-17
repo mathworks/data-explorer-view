@@ -135,6 +135,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-20T23:36:54Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false,
@@ -219,6 +222,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-20T23:36:54Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

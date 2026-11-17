@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/sparse/sparse_values.mat",
   "rows": {
    "digested": true,
-   "sha256": "8bd2b0551bed5b610d5050f268611146def4ecb9e8f067f6e4eb79ffc6939d2b",
+   "sha256": "071919fdb3b31ee447a8c9e26cf2fd020014c35c2f652b1fbc8d556edde2687b",
    "rowCount": 239,
    "firstRows": [
     {

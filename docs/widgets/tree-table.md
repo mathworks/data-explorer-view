@@ -191,8 +191,9 @@ Default null. Property only.
 
 type `Record<string, string> | null` · default `null` · property only
 
-The group heading each column sits under in the Columns menu, by column key. Default null:
-no headings. Property only.
+The group heading each column sits under in the Columns menu, by column key. The columns are
+shown group by group, and the user moves a column within its group only, in the menu and by
+its header. Default null: no headings. Property only.
 
 ### `columns`
 

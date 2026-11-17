@@ -41,6 +41,11 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "BaseType": "int16",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -66,6 +71,9 @@
     "_descriptionApplies": false,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -91,6 +99,10 @@
     "_descriptionApplies": false,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": "false",
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -116,6 +128,18 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "Bias": "0",
+     "DataScope": "Auto",
+     "DataTypeMode": "Double",
+     "DataTypeOverride": "Inherit",
+     "FixedExponent": "0",
+     "HeaderFile": "",
+     "IsAlias": "false",
+     "SignednessBool": "true",
+     "SlopeAdjustmentFactor": "1",
+     "WordLength": "64"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -173,6 +197,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "DocUnits": "m/s"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -320,6 +347,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-08-07T21:40:32Z",
     "lastModifiedBy": "weiwang",
+    "_props": {
+     "DocUnits": "V"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/editbash/values_text.sldd",
   "rows": {
    "digested": true,
-   "sha256": "e338f6bdd9afee9d07498f409a8c502fdfd491cbf12229985442dbd1be9d1b45",
+   "sha256": "6a46a498e6de51638358bb1177c2743df0681e654cc733386adad474c7514a08",
    "rowCount": 67,
    "firstRows": [
     {
@@ -45,6 +45,11 @@
      "_descriptionApplies": true,
      "lastModified": "2026-10-26T02:44:54Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "DataScope": "Auto",
+      "HeaderFile": "",
+      "PreserveElementDimensions": "false"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": true,

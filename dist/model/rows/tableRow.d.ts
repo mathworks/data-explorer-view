@@ -62,6 +62,12 @@ export interface TreeTableRow {
     _blockPath?: string;
     _entryCount?: number;
     /**
+     * The object's own properties the row has no column for, each its value as text, by the
+     * property's name (`{ SampleTime: '-1', MyPropA: '5' }`): what a property column the user adds
+     * in the Columns menu shows. Absent on a row whose object has none (propertyCells.ts).
+     */
+    _props?: Record<string, string>;
+    /**
      * Every other cell the row has, by column key: a dictionary entry's `Min`, `Max`, `Unit`, …,
      * a block row's parameter links. Each column's cell has a shape of its own, which the table
      * reads; `unknown` here, so code that reads one says which shape it expects.

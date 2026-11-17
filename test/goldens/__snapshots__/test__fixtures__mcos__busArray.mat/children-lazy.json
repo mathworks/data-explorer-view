@@ -60,6 +60,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -128,6 +133,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -189,6 +199,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -257,6 +272,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -318,6 +338,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -379,6 +404,11 @@
     "Kind": "Bus Element",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SamplingMode": "Sample based",
+     "SampleTime": "-1",
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

@@ -22,6 +22,11 @@
     "Kind": "Alias Type",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "BaseType": "int16",
+     "DataScope": "Auto",
+     "HeaderFile": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

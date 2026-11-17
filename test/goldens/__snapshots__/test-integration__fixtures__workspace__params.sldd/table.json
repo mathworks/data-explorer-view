@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/workspace/params.sldd",
   "rows": {
    "digested": true,
-   "sha256": "f651f4ef399baa516aa58ca0c9765067598db33624a924e0ffc77e8c48e6e388",
+   "sha256": "30dd5a0403db46c0cb45c144323bea423744f429f4cbc583e6f1acc4b9beab5f",
    "rowCount": 96,
    "firstRows": [
     {
@@ -45,6 +45,11 @@
      "_descriptionApplies": true,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "BaseType": "int32",
+      "DataScope": "Auto",
+      "HeaderFile": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -70,6 +75,9 @@
      "_descriptionApplies": false,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "SupportTunableSize": "false"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -95,6 +103,11 @@
      "_descriptionApplies": true,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "DataScope": "Auto",
+      "HeaderFile": "",
+      "PreserveElementDimensions": "false"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": true
@@ -156,6 +169,9 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -217,6 +233,9 @@
      "Kind": "Bus Element",
      "_descriptionEditable": true,
      "_descriptionApplies": true,
+     "_props": {
+      "DocUnits": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -393,6 +412,10 @@
      "_descriptionApplies": false,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": "false",
+      "SupportTunableSize": "false"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -418,6 +441,18 @@
      "_descriptionApplies": true,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "Bias": "0",
+      "DataScope": "Auto",
+      "DataTypeMode": "Fixed-point: binary point scaling",
+      "DataTypeOverride": "Inherit",
+      "FixedExponent": "-8",
+      "HeaderFile": "",
+      "IsAlias": "false",
+      "SignednessBool": "true",
+      "SlopeAdjustmentFactor": "1",
+      "WordLength": "16"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -506,6 +541,9 @@
      "_descriptionApplies": false,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "ValueType": "Numeric"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -531,6 +569,9 @@
      "_descriptionApplies": false,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "Condition": "A == 1"
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false
@@ -556,6 +597,10 @@
      "_descriptionApplies": false,
      "lastModified": "2026-07-04T01:52:02Z",
      "lastModifiedBy": "weiwang",
+     "_props": {
+      "Bank": "",
+      "Specification": ""
+     },
      "_canCopy": true,
      "_canDelete": true,
      "_canAddChild": false

@@ -95,6 +95,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -126,6 +129,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": false,
     "_canAddChild": false
@@ -228,6 +234,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -445,6 +454,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -532,6 +544,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-20T23:36:54Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -634,6 +649,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": false,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -852,6 +870,9 @@
     "_descriptionApplies": true,
     "lastModified": "2026-10-20T23:36:54Z",
     "lastModifiedBy": "fixture",
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -968,6 +989,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": "m"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -1097,6 +1121,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": false,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -1199,6 +1226,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -1230,6 +1260,9 @@
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "DocUnits": ""
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
@@ -1345,6 +1378,12 @@
     "Kind": "Simulink Signal",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SampleTime": "-1",
+     "SamplingMode": "auto",
+     "InitialValue": "",
+     "DocUnits": "V"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

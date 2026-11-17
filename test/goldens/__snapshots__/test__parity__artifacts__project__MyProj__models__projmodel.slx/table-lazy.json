@@ -73,6 +73,12 @@
     "Kind": "Configuration Set",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "ConfigPrmDlgPosition": "[0, 0, 0, 0]",
+     "CurrentDlgPage": "Solver",
+     "ExtraOptions": "",
+     "Version": "26.1.0"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

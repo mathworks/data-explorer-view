@@ -22,6 +22,9 @@
     "Description": "",
     "_descriptionEditable": false,
     "_descriptionApplies": false,
+    "_props": {
+     "SupportTunableSize": "false"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false

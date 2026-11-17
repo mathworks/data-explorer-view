@@ -76,6 +76,12 @@
     "Kind": "Simulink Signal",
     "_descriptionEditable": true,
     "_descriptionApplies": true,
+    "_props": {
+     "SampleTime": "-1",
+     "SamplingMode": "auto",
+     "InitialValue": "",
+     "DocUnits": "V"
+    },
     "_canCopy": true,
     "_canDelete": true,
     "_canAddChild": false
