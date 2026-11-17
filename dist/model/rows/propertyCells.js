@@ -13,7 +13,10 @@
 //     derived from one), each top-level property by its name, where the value is one a property
 //     column shows: text, a number, a logical, a list of those, or a typed scalar (MATLAB's rule
 //     for these columns). Not a nested object (`CoderInfo`, `LoggingInfo`), whose own properties
-//     are not columns, nor a `*_internal` or envelope key.
+//     are not columns, nor a `*_internal` or envelope key;
+//   - and, for a name the bag has no top-level property of, the attribute of that name of the
+//     object's storage class (`CoderInfo.CustomAttributes.GetFunction` as `GetFunction`), as the
+//     in-MATLAB data explorer reads a custom column (its design's G8).
 //
 // A property the row already has a cell for (Value, Description, `complexity` for `Complexity`)
 // is left out: the menu shows that column for its name instead, so its text here would be a
@@ -62,8 +65,46 @@ export function propertyCells(n, row) {
             if (text !== null)
                 put(name, text);
         }
+        // Then its storage class's attributes, each by its short name, for a name the object has no
+        // top-level property of: a top-level property of the name wins whatever its value, an object
+        // one included, and a built-in column's name never reads one (MATLAB's G8).
+        const attributes = customAttributes(bag);
+        if (attributes) {
+            for (const name of Object.keys(attributes)) {
+                if (!PROPERTY_NAME.test(name) || name.endsWith('_internal') || name in bag || BUILT_IN_DATA.has(name))
+                    continue;
+                const text = primitiveText(attributes[name]);
+                if (text !== null)
+                    put(name, text);
+            }
+        }
     }
     return props;
+}
+// The built-in data columns, by the property each shows, which never read a storage class
+// attribute of the same name, even on an object that lacks the property: MATLAB's list
+// (COLUMN_CUSTOMIZATION_DESIGN.md 11.7), with this table's own code-generation columns.
+const BUILT_IN_DATA = new Set([
+    'Value', 'DataType', 'Description', 'Dimensions', 'DimensionsMode', 'Complexity', 'Min', 'Max', 'Unit',
+    'StorageClass', 'HeaderFile', 'Alignment', 'DefinitionFile', 'PreStatement', 'PostStatement', 'Qualifier',
+]);
+// The attributes of the object's storage class, `CoderInfo.CustomAttributes`, or null.
+function customAttributes(bag) {
+    const coderInfo = objectProperties(bag.CoderInfo);
+    return coderInfo ? objectProperties(coderInfo.CustomAttributes) : null;
+}
+// A nested object's own properties, or null. A text dictionary keeps them as the object's
+// `_properties`; a binary one keeps the object as a 1x1 object array, whose one element has them.
+function objectProperties(v) {
+    if (!isPlainObject(v))
+        return null;
+    if (isPlainObject(v._properties))
+        return v._properties;
+    const elements = v._elements;
+    if (Array.isArray(elements) && elements.length === 1 && isPlainObject(elements[0]) && isPlainObject(elements[0]._properties)) {
+        return elements[0]._properties;
+    }
+    return null;
 }
 // A MATLAB property name: a letter, then letters, digits and underscores.
 const PROPERTY_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;

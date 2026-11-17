@@ -95,6 +95,65 @@ describe("a Simulink object's stored properties", () => {
   });
 });
 
+describe("a storage class's attributes", () => {
+  // test-integration/fixtures/cscattributes/make_csc_attributes.m wrote both, in MATLAB, and read
+  // back the attributes asserted here.
+  const TEXT = 'test-integration/fixtures/cscattributes/csc_attributes_text.sldd';
+  const BINARY = 'test-integration/fixtures/cscattributes/csc_attributes_binary.sldd';
+  const ATTRIBUTES = ['Owner', 'PreserveDimensions', 'GetFunction', 'SetFunction', 'StructName'];
+  const attributesOf = (row: TreeTableRow): Record<string, string> =>
+    Object.fromEntries(Object.entries(row._props ?? {}).filter(([name]) => ATTRIBUTES.includes(name)));
+
+  it("are the row's _props by their short names, where the object has no top-level property of the name", async () => {
+    const rows = await rowsOf(TEXT);
+    expect(attributesOf(rowNamed(rows, 'pExport'))).toEqual({ Owner: '', PreserveDimensions: 'false' });
+    expect(attributesOf(rowNamed(rows, 'sGetSet'))).toEqual({ GetFunction: 'get_s', SetFunction: 'set_s', PreserveDimensions: 'false' });
+    expect(attributesOf(rowNamed(rows, 'pStruct'))).toEqual({ StructName: 'calib' });
+    expect(attributesOf(rowNamed(rows, 'pAuto'))).toEqual({});
+  });
+
+  it("leave a built-in column's to it: HeaderFile is the Header File cell, DefinitionFile no property column's", async () => {
+    const pExport = rowNamed(await rowsOf(TEXT), 'pExport');
+    expect((pExport as Record<string, unknown>).headerFile).toBe('p_export.h');
+    expect(pExport._props).not.toHaveProperty('HeaderFile');
+    expect(pExport._props).not.toHaveProperty('DefinitionFile');
+  });
+
+  it('are the same in a binary dictionary, which keeps each nested object as a 1x1 object array', async () => {
+    const text = await rowsOf(TEXT);
+    const binary = await rowsOf(BINARY);
+    for (const name of ['pExport', 'sGetSet', 'pStruct', 'pAuto']) {
+      expect(attributesOf(rowNamed(binary, name)), name).toEqual(attributesOf(rowNamed(text, name)));
+    }
+  });
+
+  const withAttributes = (top: Record<string, unknown>, attributes: Record<string, unknown>) =>
+    propertyCells(
+      {
+        serial: {
+          _properties: {
+            ...top,
+            CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CustomAttributes: { _properties: attributes } } },
+          },
+        },
+      },
+      { ID: 'x', Value: '' },
+    );
+
+  it('give way to a top-level property of the same name, whatever its value, an object one included', () => {
+    expect(withAttributes({ Owner: 'top' }, { Owner: 'attribute' })).toEqual({ Owner: 'top' });
+    expect(withAttributes({ Owner: { _object_class: 'X', _properties: {} } }, { Owner: 'attribute' })).toBeUndefined();
+  });
+
+  it("are never read under a built-in data column's name, even on an object without the property", () => {
+    expect(withAttributes({}, { Min: '1', Value: '2', StorageClass: 'x', Priority: 3 })).toEqual({ Priority: '3' });
+  });
+
+  it('are read only where they are values a column shows', () => {
+    expect(withAttributes({}, { Flags: [1, 2], Nested: { _properties: {} }, Mixed: [1, { a: 1 }] })).toEqual({ Flags: '[1, 2]' });
+  });
+});
+
 describe('a row whose object has no properties of its own', () => {
   it('carries no _props', async () => {
     const rows = await rowsOf('test-integration/fixtures/sldd/params_binary.sldd');

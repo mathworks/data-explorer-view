@@ -5,6 +5,7 @@ import { property, state, query } from 'lit/decorators.js';
 import { defineElement } from '../shared/define.js';
 import { hiddenStyles } from '../shared/hidden.styles.js';
 import { highContrastStyles } from '../shared/high-contrast.styles.js';
+import { live } from 'lit/directives/live.js';
 import { styleProps } from '../shared/styleProps.js';
 import { dragModeFromModifiers, type DragMode } from '../shared/dragMode.js';
 import { hasLineBreak, withHeldLineBreaks } from '../shared/lineBreaks.js';
@@ -287,9 +288,29 @@ const PROPERTY_GROUP_LABEL = 'Other Properties';
 // digits and underscores, 63 at most).
 const PROPERTY_NAME = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
 
+// A typed property name may name a storage class attribute by its path: one leading
+// `CoderInfo.CustomAttributes.` is taken off, as the in-MATLAB data explorer takes it off, and
+// the column is the attribute's short name (the model's propertyCells reads it so).
+const ATTRIBUTE_PATH_PREFIX = 'CoderInfo.CustomAttributes.';
+
 // The Columns menu's least height, and the gap it keeps above the table's bottom edge.
 const COLUMN_MENU_MIN_HEIGHT = 120;
 const COLUMN_MENU_BOTTOM_MARGIN = 4;
+
+// One group of the Columns menu: its key (a host group's label, PROPERTY_GROUP for Other
+// Properties), the name its header shows, and its columns in display order.
+interface ColumnMenuGroup {
+  key: string;
+  label: string;
+  cols: string[];
+}
+
+// Whether each group of the Columns menu is expanded, by the table's storageKey and the group's
+// key. The window's, as the in-MATLAB data explorer keeps it: every table of one storageKey
+// shares it, and it is never saved. A group not in it is expanded when it shows a column; opening
+// the menu writes that down for each group with columns, so a group does not fold away while
+// its columns are being unchecked.
+const columnGroupExpanded = new Map<string, boolean>();
 
 function isPropertyColumn(col: string): boolean {
   return col.startsWith(PROPERTY_COLUMN_PREFIX);
@@ -438,9 +459,10 @@ const OP_WORD_TEXT: Record<FilterOp, string> = {
 
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
- * reorderable columns (the Columns menu shows, hides and orders them, each within its group, and
- * adds a column for any property the user names, from the rows' `_props`; a right-click on a
- * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
+ * reorderable columns (the Columns menu shows, hides and orders them, each within its group, by
+ * drag or Alt+↑/↓, folds each group and shows or hides it whole, and adds a column for any
+ * property the user names, from the rows' `_props`; a right-click on a header filters on that
+ * column), cell editors, row drag and drop, links, matrix glyphs, an
  * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
  * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
  * document itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts
@@ -1046,15 +1068,82 @@ export class DexTreeTable extends LitElement {
         text-overflow: ellipsis;
       }
 
+      /* A group's header lines up with its rows: the toggle in the grips' column, the group's box
+         in the boxes' column, then its name and, on the right, its count. Its rows are indented
+         by a box and a gap, so a row's box sits under the group's name. */
       .column-menu-group-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         padding: 6px 12px 2px 6px;
+        user-select: none;
+        cursor: default;
+      }
+
+      .column-menu-toggle {
+        flex: 0 0 auto;
+        width: 12px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--dex-color-text-muted, #666);
+        font: inherit;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .column-menu-toggle:hover,
+      .column-menu-toggle:focus-visible {
+        color: var(--dex-color-text, #333);
+      }
+
+      .column-menu-toggle:focus-visible {
+        outline: 1px solid var(--dex-color-accent, #0078d4);
+      }
+
+      /* A group with no column has nothing to fold. */
+      .column-menu-toggle:disabled {
+        visibility: hidden;
+      }
+
+      .column-menu-group-check {
+        margin: 0;
+      }
+
+      .column-menu-group-label {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         font-size: 11px;
         font-weight: 600;
         color: var(--dex-color-text-muted, #666);
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        user-select: none;
-        cursor: default;
+        cursor: pointer;
+      }
+
+      .column-menu-group-count {
+        flex: 0 0 auto;
+        font-size: 11px;
+        color: var(--dex-color-text-muted, #666);
+        white-space: nowrap;
+      }
+
+      .column-menu-group-rows .column-menu-item,
+      .column-menu-customs .column-menu-item {
+        padding-left: 27px;
+      }
+
+      /* Read by a screen reader, not shown. */
+      .column-menu-live {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
       }
 
 
@@ -1926,8 +2015,10 @@ export class DexTreeTable extends LitElement {
   @property({ attribute: false }) columnLabels: Record<string, string> | null = null;
   /**
    * The group heading each column sits under in the Columns menu, by column key. The columns are
-   * shown group by group, and the user moves a column within its group only, in the menu and by
-   * its header. Default null: no headings. Property only.
+   * shown group by group, and the user moves a column within its group only, in the menu (by drag
+   * or Alt+↑/↓) and by its header. Each heading folds its group, opening expanded when the group
+   * shows a column, and its box shows or hides the group's columns at once. Default null: no
+   * headings. Property only.
    */
   @property({ attribute: false }) columnGroups: Record<string, string> | null = null;
   /**
@@ -2277,6 +2368,8 @@ export class DexTreeTable extends LitElement {
   @state() private _columnMenuX = 0;
   @state() private _columnMenuY = 0;
   @state() private _columnMenuMaxHeight = 0;
+  // What the menu's live region last said: a column's new place after a move from the keyboard.
+  @state() private _columnMenuAnnouncement = '';
   @state() private _menuDragCol: string | null = null;
   @state() private _menuDragOverCol: string | null = null;
   @state() private _menuDragOverSide: 'top' | 'bottom' | null = null;
@@ -2925,7 +3018,130 @@ export class DexTreeTable extends LitElement {
     const bottom = hostBottom > this._columnMenuY ? Math.min(hostBottom, window.innerHeight || hostBottom) : window.innerHeight;
     this._columnMenuMaxHeight = Math.max(COLUMN_MENU_MIN_HEIGHT, bottom - this._columnMenuY - COLUMN_MENU_BOTTOM_MARGIN);
     this._propertyNotice = '';
+    this._columnMenuAnnouncement = '';
+    this._keepGroupsExpanded();
     this._columnMenuOpen = true;
+    void this._focusColumnMenu();
+  }
+
+  // The focus into the menu just opened: the first column box of an expanded part that takes it
+  // (Name's does not), else the first group toggle that does, else the property name's field.
+  private async _focusColumnMenu(): Promise<void> {
+    await this.updateComplete;
+    const menu = this.shadowRoot?.querySelector('.column-menu');
+    if (!menu) return;
+    const boxes = Array.from(menu.querySelectorAll<HTMLInputElement>('.column-menu-item input[type=checkbox]'));
+    const toggles = Array.from(menu.querySelectorAll<HTMLButtonElement>('.column-menu-toggle'));
+    const target =
+      boxes.find((b) => !b.disabled && !b.closest('[hidden]')) ??
+      toggles.find((t) => !t.disabled) ??
+      menu.querySelector<HTMLElement>('.column-menu-input');
+    target?.focus();
+  }
+
+  // --- Groups of the Columns menu ---
+
+  // The menu's built-in columns as runs of one group each, in display order: a run of columns
+  // with no host group has no header (key null), as the table's leading columns.
+  private _columnMenuRuns(): { key: string | null; cols: string[] }[] {
+    const runs: { key: string | null; cols: string[] }[] = [];
+    for (const col of this._orderedBuiltins) {
+      const key = this._groupOf(col);
+      const last = runs[runs.length - 1];
+      if (last && last.key === key) last.cols.push(col);
+      else runs.push({ key, cols: [col] });
+    }
+    return runs;
+  }
+
+  // Every group of the menu with a header, Other Properties last.
+  private _columnMenuGroups(): ColumnMenuGroup[] {
+    const groups: ColumnMenuGroup[] = [];
+    for (const run of this._columnMenuRuns()) if (run.key !== null) groups.push({ key: run.key, label: run.key, cols: run.cols });
+    groups.push({ key: PROPERTY_GROUP, label: PROPERTY_GROUP_LABEL, cols: this._propertyColumns.map(propertyColumnKey) });
+    return groups;
+  }
+
+  private _groupStateKey(key: string): string {
+    return `${this.storageKey ?? ''}\u0000${key}`;
+  }
+
+  private _isGroupExpanded(group: ColumnMenuGroup): boolean {
+    const kept = columnGroupExpanded.get(this._groupStateKey(group.key));
+    return kept ?? group.cols.some((c) => !this._hiddenColumns.has(c));
+  }
+
+  // The menu is opening: each group with columns that the window has no state for yet keeps the
+  // state it opens in. One with none is left out, so a property column added to it shows.
+  private _keepGroupsExpanded(): void {
+    for (const group of this._columnMenuGroups()) {
+      const key = this._groupStateKey(group.key);
+      if (group.cols.length > 0 && !columnGroupExpanded.has(key)) columnGroupExpanded.set(key, this._isGroupExpanded(group));
+    }
+  }
+
+  // Fold or unfold a group by its toggle or its name. A focus left inside the rows being folded
+  // goes to the toggle, not to the page.
+  private _toggleGroupFold(group: ColumnMenuGroup, toggleId: string): void {
+    const expanded = !this._isGroupExpanded(group);
+    columnGroupExpanded.set(this._groupStateKey(group.key), expanded);
+    this.requestUpdate();
+    if (expanded) return;
+    const root = this.shadowRoot;
+    const rows = root?.getElementById(`${toggleId}-rows`);
+    const active = root?.activeElement ?? null;
+    if (!active || (rows && rows.contains(active))) {
+      void this.updateComplete.then(() => (root?.getElementById(`${toggleId}-toggle`) as HTMLElement | null)?.focus());
+    }
+  }
+
+  // The group's box, as MATLAB's: on a group that shows every column, it hides every one the user
+  // may change; on any other, it shows them all. Name stays shown either way.
+  private _checkGroup(group: ColumnMenuGroup): void {
+    const show = !group.cols.every((c) => !this._hiddenColumns.has(c));
+    const hidden = new Set(this._hiddenColumns);
+    for (const col of group.cols) {
+      if (col === 'Name') continue;
+      if (show) hidden.delete(col);
+      else hidden.add(col);
+    }
+    this._hiddenColumns = hidden;
+    this._persistHidden();
+  }
+
+  // Alt+↑ / Alt+↓ on a column of the menu: the column moves one place within its group, as a
+  // drag would, and the live region says where it is now. Never above or onto Name.
+  private _onMenuItemKeyDown(col: string, e: KeyboardEvent): void {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const run = this._menuRunOf(col);
+    const at = run.indexOf(col);
+    const up = e.key === 'ArrowUp';
+    const neighbor = run[up ? at - 1 : at + 1];
+    if (col === 'Name' || neighbor === undefined || neighbor === 'Name') return;
+    this._moveColumn(col, neighbor, !up);
+    const moved = this._menuRunOf(col);
+    this._columnMenuAnnouncement = `${this._columnLabel(col)} moved to position ${moved.indexOf(col) + 1} of ${moved.length}`;
+    // The rows are drawn by position, so the moved column's box is another element now.
+    void this.updateComplete.then(() =>
+      (this.shadowRoot?.querySelector(`.column-menu-item[data-col="${col}"] input[type=checkbox]`) as HTMLElement | null)?.focus(),
+    );
+  }
+
+  // The columns of `col`'s group, in display order: the run a move of it stays in.
+  private _menuRunOf(col: string): string[] {
+    if (isPropertyColumn(col)) return this._propertyColumns.map(propertyColumnKey);
+    return this._orderedBuiltins.filter((c) => this._sameGroup(c, col));
+  }
+
+  // Escape anywhere in the menu closes it, and the focus goes back to the Columns button.
+  private _onColumnMenuKeyDown(e: KeyboardEvent): void {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._columnMenuOpen = false;
+    (this.shadowRoot?.querySelector('.columns-button') as HTMLElement | null)?.focus();
   }
 
   // --- Per-column filter popup ---
@@ -3041,11 +3257,16 @@ export class DexTreeTable extends LitElement {
   // The name typed into Other Properties, added: a built-in column's key or label (in any
   // case, so `storage class` or `DataType`) shows that column; a property name not in the
   // list becomes a shown property column at the end; one in the list but hidden is shown.
-  // Anything else says why it was not added (_propertyNotice). Answers whether the name was
-  // taken, so the field can be emptied.
+  // A storage class attribute typed by its path (`CoderInfo.CustomAttributes.GetFunction`) is
+  // the column of its short name. Anything else says why it was not added (_propertyNotice),
+  // quoting the text as typed. Answers whether the name was taken, so the field can be emptied.
   private _addPropertyColumn(typed: string): boolean {
-    const name = typed.trim();
-    if (name === '') return false;
+    const text = typed.trim();
+    const name = text.startsWith(ATTRIBUTE_PATH_PREFIX) ? text.slice(ATTRIBUTE_PATH_PREFIX.length).trim() : text;
+    if (name === '') {
+      if (text !== '') this._propertyNotice = `"${text}" is not a valid property name.`;
+      return false;
+    }
     const lower = name.toLowerCase();
     const builtIn = this._availableColumns.find(
       (c) => c.toLowerCase() === lower || (this.columnLabels?.[c] ?? '').toLowerCase() === lower,
@@ -3053,11 +3274,11 @@ export class DexTreeTable extends LitElement {
     const col = builtIn ?? propertyColumnKey(name);
     if (!builtIn) {
       if (!PROPERTY_NAME.test(name)) {
-        this._propertyNotice = `"${name}" is not a valid property name.`;
+        this._propertyNotice = `"${text}" is not a valid property name.`;
         return false;
       }
       if (this._propertyColumns.includes(name) && !this._hiddenColumns.has(col)) {
-        this._propertyNotice = `"${name}" is already in the list.`;
+        this._propertyNotice = `"${text}" is already in the list.`;
         return false;
       }
       if (!this._propertyColumns.includes(name)) {
@@ -3065,6 +3286,8 @@ export class DexTreeTable extends LitElement {
         this._persistPropertyColumns();
         this._propertyColumnsChanged();
       }
+      // Other Properties unfolds, so the column added is seen.
+      columnGroupExpanded.set(this._groupStateKey(PROPERTY_GROUP), true);
     }
     this._propertyNotice = '';
     if (this._hiddenColumns.has(col)) this._toggleColumnVisibility(col);
@@ -5444,11 +5667,17 @@ export class DexTreeTable extends LitElement {
   // The Columns menu (the in-MATLAB data explorer's Columns dropdown): its title and Reset at the
   // top, the built-in columns group by group in the middle, which is the part that scrolls, and
   // Other Properties at the bottom, always in view: the property columns, and the field a
-  // property's name is typed into. A column moves only within its group.
+  // property's name is typed into. Each group has a header that folds it, a box that shows or
+  // hides all its columns, and its count; a column moves only within its group, by drag or by
+  // Alt+↑/↓, and the live region says where a keyboard move left it.
   private _renderColumnMenu() {
     if (!this._columnMenuOpen) return nothing;
-    const builtIns = this._orderedBuiltins;
-    let lastGroup: string | null = null;
+    const properties: ColumnMenuGroup = {
+      key: PROPERTY_GROUP,
+      label: PROPERTY_GROUP_LABEL,
+      cols: this._propertyColumns.map(propertyColumnKey),
+    };
+    const propertiesExpanded = this._isGroupExpanded(properties);
     return html`
       <div
         class="column-menu"
@@ -5459,6 +5688,7 @@ export class DexTreeTable extends LitElement {
           top: `${this._columnMenuY}px`,
           'max-height': this._columnMenuMaxHeight > 0 ? `${this._columnMenuMaxHeight}px` : null,
         })}
+        @keydown=${(e: KeyboardEvent) => this._onColumnMenuKeyDown(e)}
       >
         <div class="column-menu-top">
           <span class="column-menu-title">Columns</span>
@@ -5473,19 +5703,23 @@ export class DexTreeTable extends LitElement {
           </button>
         </div>
         <div class="column-menu-builtins">
-          ${builtIns.map((col) => {
-            const group = this._groupOf(col);
-            const header =
-              group && group !== lastGroup ? html`<div class="column-menu-group-header">${group}</div>` : nothing;
-            lastGroup = group;
-            return html`${header}${this._renderColumnMenuItem(col)}`;
+          ${this._columnMenuRuns().map((run, at) => {
+            if (run.key === null) return run.cols.map((col) => this._renderColumnMenuItem(col));
+            const group: ColumnMenuGroup = { key: run.key, label: run.key, cols: run.cols };
+            const id = `column-menu-group-${at}`;
+            return html`<div class="column-menu-group" role="group" aria-labelledby="${id}-label">
+              ${this._renderColumnMenuGroupHeader(group, id)}
+              <div class="column-menu-group-rows" id="${id}-rows" ?hidden=${!this._isGroupExpanded(group)}>
+                ${run.cols.map((col) => this._renderColumnMenuItem(col))}
+              </div>
+            </div>`;
           })}
         </div>
-        <div class="column-menu-bottom">
-          <div class="column-menu-group-header">${PROPERTY_GROUP_LABEL}</div>
-          ${this._propertyColumns.length > 0
-            ? html`<div class="column-menu-customs">
-                ${this._propertyColumns.map((name) => this._renderColumnMenuItem(propertyColumnKey(name)))}
+        <div class="column-menu-bottom" role="group" aria-labelledby="column-menu-properties-label">
+          ${this._renderColumnMenuGroupHeader(properties, 'column-menu-properties')}
+          ${properties.cols.length > 0
+            ? html`<div class="column-menu-customs" id="column-menu-properties-rows" ?hidden=${!propertiesExpanded}>
+                ${properties.cols.map((col) => this._renderColumnMenuItem(col))}
               </div>`
             : nothing}
           <div class="column-menu-add">
@@ -5507,12 +5741,57 @@ export class DexTreeTable extends LitElement {
             ? html`<div class="column-menu-notice" role="status">${this._propertyNotice}</div>`
             : nothing}
         </div>
+        <div class="column-menu-live" aria-live="polite">${this._columnMenuAnnouncement}</div>
       </div>
     `;
   }
 
+  // A group's header, as MATLAB's: the toggle that folds it (▸/▾), the box over its columns
+  // (checked when all show, mixed when some do), its name, which folds it too and never checks
+  // it, and "a of b", its shown columns of all. A group with no column has neither toggle nor box
+  // to use. `id` names the header's parts and the group's rows (`<id>-rows`).
+  private _renderColumnMenuGroupHeader(group: ColumnMenuGroup, id: string) {
+    const expanded = this._isGroupExpanded(group);
+    const total = group.cols.length;
+    const shown = group.cols.filter((c) => !this._hiddenColumns.has(c)).length;
+    const fold = (e: Event) => {
+      e.stopPropagation();
+      this._toggleGroupFold(group, id);
+    };
+    return html`<div class="column-menu-group-header">
+      <button
+        type="button"
+        class="column-menu-toggle"
+        id="${id}-toggle"
+        aria-expanded=${expanded ? 'true' : 'false'}
+        aria-controls=${total > 0 ? `${id}-rows` : nothing}
+        aria-labelledby="${id}-label"
+        ?disabled=${total === 0}
+        @click=${fold}
+      >
+        ${expanded ? '▾' : '▸'}
+      </button>
+      <input
+        type="checkbox"
+        class="column-menu-group-check"
+        aria-label="Show all ${group.label} columns"
+        aria-describedby="${id}-count"
+        .checked=${live(total > 0 && shown === total)}
+        .indeterminate=${live(shown > 0 && shown < total)}
+        ?disabled=${group.cols.every((c) => c === 'Name')}
+        @click=${(e: Event) => e.stopPropagation()}
+        @change=${(e: Event) => {
+          e.stopPropagation();
+          this._checkGroup(group);
+        }}
+      />
+      <span class="column-menu-group-label" id="${id}-label" @click=${fold}>${group.label}</span>
+      <span class="column-menu-group-count" id="${id}-count">${shown} of ${total}</span>
+    </div>`;
+  }
+
   // One column of the menu: its grip, its box and its name, and a property column's ×. The whole
-  // row is draggable, within its group.
+  // row is draggable within its group, and Alt+↑/↓ on it moves it there too.
   private _renderColumnMenuItem(col: string) {
     const isName = col === 'Name';
     const property = isPropertyColumn(col);
@@ -5524,7 +5803,10 @@ export class DexTreeTable extends LitElement {
     return html`
       <label
         class="column-menu-item ${isName ? 'disabled' : ''} ${overCls} ${draggingCls}"
+        data-col=${col}
+        title=${isName ? 'Always shown first' : nothing}
         draggable=${isName ? 'false' : 'true'}
+        @keydown=${(e: KeyboardEvent) => this._onMenuItemKeyDown(col, e)}
         @dragstart=${(e: DragEvent) => this._onMenuDragStart(col, e)}
         @dragover=${(e: DragEvent) => this._onMenuDragOver(col, e)}
         @dragleave=${() => this._onMenuDragLeave()}

@@ -112,9 +112,10 @@ export interface TableScrolledDetail {
 }
 /**
  * The tree table: a document's rows as a tree, with a search bar, sortable, resizable and
- * reorderable columns (the Columns menu shows, hides and orders them, each within its group, and
- * adds a column for any property the user names, from the rows' `_props`; a right-click on a
- * header filters on that column), cell editors, row drag and drop, links, matrix glyphs, an
+ * reorderable columns (the Columns menu shows, hides and orders them, each within its group, by
+ * drag or Alt+↑/↓, folds each group and shows or hides it whole, and adds a column for any
+ * property the user names, from the rows' `_props`; a right-click on a header filters on that
+ * column), cell editors, row drag and drop, links, matrix glyphs, an
  * `+ Add` gallery and virtual scrolling for very large documents. Data comes in by properties
  * (`rows` above all) and every user action goes out as a `dex-*` event; it never changes the
  * document itself. Its defaults are a full editor; `readonly`, `canAdd` and `rowDrag` turn parts
@@ -150,8 +151,10 @@ export declare class DexTreeTable extends LitElement {
     columnLabels: Record<string, string> | null;
     /**
      * The group heading each column sits under in the Columns menu, by column key. The columns are
-     * shown group by group, and the user moves a column within its group only, in the menu and by
-     * its header. Default null: no headings. Property only.
+     * shown group by group, and the user moves a column within its group only, in the menu (by drag
+     * or Alt+↑/↓) and by its header. Each heading folds its group, opening expanded when the group
+     * shows a column, and its box shows or hides the group's columns at once. Default null: no
+     * headings. Property only.
      */
     columnGroups: Record<string, string> | null;
     /**
@@ -367,6 +370,7 @@ export declare class DexTreeTable extends LitElement {
     private _columnMenuX;
     private _columnMenuY;
     private _columnMenuMaxHeight;
+    private _columnMenuAnnouncement;
     private _menuDragCol;
     private _menuDragOverCol;
     private _menuDragOverSide;
@@ -443,6 +447,17 @@ export declare class DexTreeTable extends LitElement {
      */
     beginRename(rowId: string): boolean;
     private _onColumnsButtonClick;
+    private _focusColumnMenu;
+    private _columnMenuRuns;
+    private _columnMenuGroups;
+    private _groupStateKey;
+    private _isGroupExpanded;
+    private _keepGroupsExpanded;
+    private _toggleGroupFold;
+    private _checkGroup;
+    private _onMenuItemKeyDown;
+    private _menuRunOf;
+    private _onColumnMenuKeyDown;
     private _openColumnFilter;
     private _onHeaderContextMenu;
     private _onFunnelClick;
@@ -634,6 +649,7 @@ export declare class DexTreeTable extends LitElement {
     private _renderColumnsButton;
     private _renderColumnFilterPopup;
     private _renderColumnMenu;
+    private _renderColumnMenuGroupHeader;
     private _renderColumnMenuItem;
 }
 /**

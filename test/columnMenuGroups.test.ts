@@ -164,7 +164,8 @@ describe('the menu has its title and Reset at the top, Other Properties at the b
     const table = await mount();
     const menu = await openMenu(table);
     const parts = Array.from(menu.children).map((el) => el.className);
-    expect(parts).toEqual(['column-menu-top', 'column-menu-builtins', 'column-menu-bottom']);
+    // And the live region after them, which is not seen.
+    expect(parts).toEqual(['column-menu-top', 'column-menu-builtins', 'column-menu-bottom', 'column-menu-live']);
     const top = menu.querySelector('.column-menu-top') as HTMLElement;
     expect(top.querySelector('.column-menu-title')!.textContent!.trim()).toBe('Columns');
     const reset = top.querySelector('.column-menu-reset') as HTMLElement;
@@ -176,7 +177,7 @@ describe('the menu has its title and Reset at the top, Other Properties at the b
     expect(middle.querySelector('input[type=text], .column-menu-reset')).toBeNull();
     // Other Properties: its header, then the field and Add.
     const bottom = menu.querySelector('.column-menu-bottom')!;
-    expect(bottom.querySelector('.column-menu-group-header')!.textContent!.trim()).toBe('Other Properties');
+    expect(bottom.querySelector('.column-menu-group-header .column-menu-group-label')!.textContent!.trim()).toBe('Other Properties');
     expect(bottom.querySelector('input.column-menu-input')).not.toBeNull();
     expect(bottom.querySelector('.column-menu-add-button')!.textContent!.trim()).toBe('Add');
     table.remove();
