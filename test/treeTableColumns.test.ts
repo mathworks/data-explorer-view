@@ -390,7 +390,7 @@ describe('the Variant Bank and coder info columns', () => {
     document.body.appendChild(table as any);
     await (table as any).updateComplete;
     const headers = Array.from(
-      (table as any).shadowRoot.querySelectorAll('.column-menu-group-header'),
+      (table as any).shadowRoot.querySelectorAll('.column-menu-group-header .column-menu-group-label'),
     ).map((el: any) => el.textContent.trim());
     const items = (table as any).shadowRoot.querySelectorAll('.column-menu-item').length;
     (table as any).remove();
@@ -521,7 +521,7 @@ describe('grouped column picker', () => {
     document.body.appendChild(table as any);
     await (table as any).updateComplete;
     const headers = Array.from(
-      (table as any).shadowRoot.querySelectorAll('.column-menu-builtins .column-menu-group-header'),
+      (table as any).shadowRoot.querySelectorAll('.column-menu-builtins .column-menu-group-header .column-menu-group-label'),
     ).map((el: any) => el.textContent.trim());
     expect(headers).toEqual(['Data Object', 'Code Generation', 'Data Dictionary']);
     const items = (table as any).shadowRoot.querySelectorAll('.column-menu-item');
@@ -536,7 +536,7 @@ describe('grouped column picker', () => {
     await (table as any).updateComplete;
     const sr = (table as any).shadowRoot;
     expect(sr.querySelectorAll('.column-menu-builtins .column-menu-group-header').length).toBe(0);
-    expect(Array.from(sr.querySelectorAll('.column-menu-group-header')).map((el: any) => el.textContent.trim())).toEqual([
+    expect(Array.from(sr.querySelectorAll('.column-menu-group-header .column-menu-group-label')).map((el: any) => el.textContent.trim())).toEqual([
       'Other Properties',
     ]);
     (table as any).remove();

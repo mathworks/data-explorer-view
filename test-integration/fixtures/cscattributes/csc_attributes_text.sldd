@@ -1,0 +1,210 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "pAuto",
+						"metadata": {
+							"uuid": "3c33ac0c-f157-4736-8680-7945ef23601b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261117T201332.942826",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 1
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pExport",
+						"metadata": {
+							"uuid": "ee5d254c-2c1d-442d-a6a1-79e8f92bb0a6",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261117T201332.888572",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+													"_properties": {
+														"DefinitionFile": "p_export.c",
+														"HeaderFile": "p_export.h",
+														"Owner": "",
+														"PreserveDimensions": false
+													}
+												},
+												"CustomStorageClass": "ExportToFile",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Custom"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 5
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pStruct",
+						"metadata": {
+							"uuid": "a70d8887-577d-49ba-a317-933129c74874",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261117T201332.942658",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Struct",
+													"_properties": {
+														"StructName": "calib"
+													}
+												},
+												"CustomStorageClass": "Struct",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Custom"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 2
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sGetSet",
+						"metadata": {
+							"uuid": "9dace75b-216b-4431-97ee-aff6740575ea",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261117T201332.942408",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Signal",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_GetSet",
+													"_properties": {
+														"GetFunction": "get_s",
+														"HeaderFile": "getset.h",
+														"PreserveDimensions": false,
+														"SetFunction": "set_s"
+													}
+												},
+												"CustomStorageClass": "GetSet",
+												"ParameterOrSignal": "Signal",
+												"StorageClass": "Custom"
+											}
+										},
+										"LoggingInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.LoggingInfo",
+											"_properties": {}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

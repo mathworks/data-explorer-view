@@ -192,8 +192,10 @@ Default null. Property only.
 type `Record<string, string> | null` · default `null` · property only
 
 The group heading each column sits under in the Columns menu, by column key. The columns are
-shown group by group, and the user moves a column within its group only, in the menu and by
-its header. Default null: no headings. Property only.
+shown group by group, and the user moves a column within its group only, in the menu (by drag
+or Alt+↑/↓) and by its header. Each heading folds its group, opening expanded when the group
+shows a column, and its box shows or hides the group's columns at once. Default null: no
+headings. Property only.
 
 ### `columns`
 
