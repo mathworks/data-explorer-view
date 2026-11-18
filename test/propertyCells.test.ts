@@ -112,11 +112,20 @@ describe("a storage class's attributes", () => {
     expect(attributesOf(rowNamed(rows, 'pAuto'))).toEqual({});
   });
 
-  it("leave a built-in column's to it: HeaderFile is the Header File cell, DefinitionFile no property column's", async () => {
+  it("leave a built-in column's to it: HeaderFile is the Header File cell, DefinitionFile the Definition File one", async () => {
     const pExport = rowNamed(await rowsOf(TEXT), 'pExport');
     expect((pExport as Record<string, unknown>).headerFile).toBe('p_export.h');
+    expect((pExport as Record<string, unknown>).definitionFile).toBe('p_export.c');
     expect(pExport._props).not.toHaveProperty('HeaderFile');
     expect(pExport._props).not.toHaveProperty('DefinitionFile');
+  });
+
+  it('give the Definition File cell in both formats, blank under a storage class without one', async () => {
+    for (const file of [TEXT, BINARY]) {
+      const rows = await rowsOf(file);
+      const cell = (name: string) => (rowNamed(rows, name) as Record<string, unknown>).definitionFile;
+      expect(['pExport', 'sGetSet', 'pStruct', 'pAuto'].map(cell), file).toEqual(['p_export.c', '', '', '']);
+    }
   });
 
   it('are the same in a binary dictionary, which keeps each nested object as a 1x1 object array', async () => {

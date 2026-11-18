@@ -1,11 +1,11 @@
 {
  "digested": true,
- "sha256": "e16fddb4ccb8c4adc0bc4436e9f0d0833fe8882ac7a26ae9dd4bc8b9fa30182c",
+ "sha256": "2c6f351298558a69fb03712e79ad3a5cc4dca1172061f691686563c337c2c5b7",
  "entryCount": 30,
  "entries": {
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/bus": "d8ef95cf4063b90d",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/c2x2": "8fabf44e59bc00d4",
-  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cHoldsParam": "a228a0f9244c8ef6",
+  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cHoldsParam": "023e3ca13ec1fd12",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cLeaves": "5040c8bd4a4448fc",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/cNest": "eba369f59270193e",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/d2x3": "6bd4a897adef814b",
@@ -22,7 +22,7 @@
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/pStruct": "04321dbd3f344f67",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/pStructArr": "73deef74b00cb89f",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/sArr": "fac7f70da7478429",
-  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/sHoldsParam": "2de8829443f1106e",
+  "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/sHoldsParam": "ee972b845233c2e7",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/sLeaves": "2a93e1f06c13dc1b",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/sNest": "627ae6341b1934a0",
   "file:///fx/test-integration/fixtures/editbash/values_text.sldd/design/saCell": "6c0b9ff24a70662c",

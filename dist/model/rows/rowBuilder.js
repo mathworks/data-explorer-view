@@ -9,9 +9,11 @@ import { sharedIdTest, stampRow } from './rowStamp.js';
 // value properties surfaced as columns; lastModified/lastModifiedBy are
 // dictionary-entry metadata columns (host-owned, stamped in buildEntryRows).
 // Grouped and metadata columns ship hidden by default like Class/Kind.
-// definitionFile..qualifier are a Simulink.VariantBankCoderInfo's own fields (its HeaderFile
-// is the headerFile column), and bankName..activeChoiceCoderInfo a Simulink.VariantBank's,
-// node-owned like Min/Max/Unit: core sends each as an editable cell under this key.
+// preStatement..qualifier are a Simulink.VariantBankCoderInfo's own fields (its HeaderFile
+// is the headerFile column, its DefinitionFile the definitionFile one), and
+// bankName..activeChoiceCoderInfo a Simulink.VariantBank's, node-owned like Min/Max/Unit: core
+// sends each as an editable cell under this key. definitionFile is a Parameter's and a Signal's
+// too, their storage class's Definition File, which core's schema sends read-only like headerFile.
 // Description is shown, where the webview's default order puts it (after Class), for every row:
 // core says of each whether its object has one (`_descriptionApplies`), and the table draws the
 // cell not applicable, and offers no editor, where it does not.

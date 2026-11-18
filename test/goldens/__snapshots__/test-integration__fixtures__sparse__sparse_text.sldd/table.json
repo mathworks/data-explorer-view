@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/sparse/sparse_text.sldd",
   "rows": {
    "digested": true,
-   "sha256": "5624aa80cf21cff0c0b04447deff6cac83fa5e9ac8af08a1289468919d275a68",
+   "sha256": "5478d9c877bc4bf661bb3a169423a755518c1ae67f429358aee0945fc8f1a832",
    "rowCount": 254,
    "firstRows": [
     {
