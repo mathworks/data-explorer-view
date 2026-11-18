@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/editbash/values_binary.sldd",
   "rows": {
    "digested": true,
-   "sha256": "510bc98239ca820009ebf852a224d1bfe21a2c145412259d7b91507d5f3ba340",
+   "sha256": "510db88757bcd3d74c41351d4917a822281cfe2210e238e8d035413ccdcf9056",
    "rowCount": 322,
    "firstRows": [
     {
@@ -410,6 +410,7 @@
      },
      "headerFile": "",
      "alignment": "-1",
+     "definitionFile": "",
      "Class": "Simulink.Parameter",
      "Kind": "Simulink Parameter",
      "_descriptionEditable": true,

@@ -1,6 +1,6 @@
 {
  "digested": true,
- "sha256": "9a96a3c88eb862c5f9309e48be4f816a85b054df9ddd7fa7a648431eaf69ccce",
+ "sha256": "e8fa7995f823fcbc110b8f19fe7c97c805140a71174cc89e08816f91d9dedd9e",
  "entryCount": 29,
  "entries": {
   "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/nonFinVec": "f5d594403ef37a9b",
@@ -28,9 +28,9 @@
   "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/struct2x3": "c4c61c62c3499a9a",
   "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/structNd": "de2dcd277cd63f8c",
   "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/aBus": "b511870082e2aee3",
-  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/objRow": "8235d5d0d1efdb74",
-  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/objCol": "9b4285740f0616d2",
-  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/obj2x3": "c0422f1a761edc36",
-  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/obj2x3x2": "fb5299941310e579"
+  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/objRow": "a03df58972eae255",
+  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/objCol": "62d410017e089603",
+  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/obj2x3": "a826e080cb8d66ad",
+  "binedit:file:///fx/test-integration/fixtures/mat/cases.mat/obj2x3x2": "1ca9075dea58e402"
  }
 }

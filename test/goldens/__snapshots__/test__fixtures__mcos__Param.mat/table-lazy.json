@@ -49,6 +49,7 @@
     },
     "headerFile": "",
     "alignment": "-1",
+    "definitionFile": "",
     "Class": "Simulink.Parameter",
     "Kind": "Simulink Parameter",
     "_descriptionEditable": true,

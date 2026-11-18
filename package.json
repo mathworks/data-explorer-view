@@ -106,7 +106,7 @@
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@playwright/test": "1.62.0",
     "@vitest/coverage-v8": "4.1.12",
-    "data-explorer-core": "github:mathworks/data-explorer-core#v1.59.0",
+    "data-explorer-core": "github:mathworks/data-explorer-core#40e1e5deb403a83b510acfa1b0aa04021150f6c5",
     "fflate": "^0.8.3",
     "happy-dom": "^21.0.4",
     "lit": "^3.2.0",

@@ -4,7 +4,7 @@
   "docUri": "file:///fx/test-integration/fixtures/editbash/values_binary.sldd",
   "rows": {
    "digested": true,
-   "sha256": "e5b36bc5346a32269e007567f7a2d0b9dfa101efe55cdd1a54dcc1ba3dc38d40",
+   "sha256": "2bc95366e302f9d9b954de1ad23feeaca912cfd1dae3b75152d6480d3028a035",
    "rowCount": 67,
    "firstRows": [
     {
