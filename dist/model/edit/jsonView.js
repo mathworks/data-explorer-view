@@ -27,7 +27,7 @@ import { buildEntryRows, COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/r
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { SourceClosed, } from '../source/tableSource.js';
 import { parseDetached } from '../workspace/SlddModel.js';
-import { copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
+import { copyEntriesToClipboard, dragEntries, entriesUnder, readTaken } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { sectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
@@ -132,6 +132,9 @@ export class JsonView {
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         }));
         registers.registerSourceDeleter(this.uri, (targets) => doc.writes.enqueue(() => this.deleteFromSourceDocument(targets)));
+        // And so that a paste of what a Copy or a Cut took from it reads the entries from the text as
+        // it stands then, whichever writer last changed it.
+        registers.registerSourceReader(this.uri, (items) => readTaken(items, { session: this.session, entries: () => entriesUnder(this.liveModel()), describe: (m) => this.doc.describe(m) }));
         // Every tab of this document repaints wide when the baseline moves (repaintAll).
         this.docState.repaints.add(this.repaintThis);
         // Repaint on ANY change to the text: this table's edits, a text view's, undo and redo.
@@ -982,7 +985,8 @@ export class JsonView {
         copyEntriesToClipboard(rowIds, 'copy', this.uri, this.copyDeps(() => this.doc.options.registers.broadcastClipboardState()));
     }
     // Cut is LAZY: it only marks the entry on the clipboard and writes nothing. The source is removed
-    // at PASTE time, so a same-document move is a single write (one undo step).
+    // at PASTE time, so a same-document move is a single write (one undo step), and what moves is
+    // the entry as the text holds it then (the registered reader).
     cut(rowIds) {
         if (this.disposed)
             return;
@@ -1554,9 +1558,10 @@ export class JsonView {
             done?.(true);
         // Per table, paired with the open: the last one drops the tree it held.
         this.doc.registry.releaseSourceView(this.uri);
-        // Only once the LAST table of this document closes.
+        // Only once the LAST table of this document closes, and a clipboard taken from it with it
+        // (closeSource): there is nothing left to read it back from.
         if (this.doc.closeView(this.docState)) {
-            registers.unregisterSourceDeleter(this.uri);
+            registers.closeSource(this.uri);
             this.doc.baseline.clear();
         }
     }

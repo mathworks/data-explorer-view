@@ -19,7 +19,11 @@
 // cut is LAZY — the source deletion is deferred to paste time, so each item has to say where it
 // must be deleted FROM. One shared section would delete the wrong entry, or none. Each item is a
 // structural snapshot of a serialized node ({name, metadata, value}) captured at copy/cut time —
-// independent of the live model, so later mutations don't alias it.
+// independent of the live model, so later mutations don't alias it — and it is what the paste
+// asks the entry's document for again: a paste reads the entries as they are THEN (the source's
+// reader, as the Data Explorer in MATLAB resolves its clipboard at paste time), so an edit made
+// between a Copy or a Cut and its paste is what lands. That is also why closing the
+// document empties a clipboard taken from it (closeSource): there is nothing left to read.
 //
 // THE DRAG REGISTER exists because a drag's dataTransfer does not reliably cross a frame (a
 // webview's iframe): on drag start the host snapshots the dragged entries here, and on drop the
@@ -90,6 +94,24 @@ export type DeleteTarget = string | SourceSelector;
  * (transfer.ts) reports the answer on its own view, which is the one where the gesture happened.
  */
 export type SourceDeleter = (targets: DeleteTarget[]) => Promise<SourceDeleteResult> | SourceDeleteResult;
+
+/** What a document's reader found of the entries a Copy or a Cut took from it. */
+export interface SourceRead {
+  /** Each entry still there, as it is now, in the order taken. */
+  items: ClipboardItem[];
+  /** The names of the entries no longer there, as they were taken. */
+  gone: string[];
+}
+
+/**
+ * How one open document reads back the entries a Copy or a Cut took from it, as they are NOW: the
+ * paste's half of a lazy clipboard. Each item is found again by who it was (its uuid, its origin
+ * token, or its name in its section) and taken again as a copy takes it, so a paste lands the
+ * value the user sees, and a cut's delete names the entry as it is now. Synchronous, because a
+ * paste reads its register before it changes anything. Throws TransferRefused for an entry that
+ * cannot travel any more, in the words a copy would refuse it in.
+ */
+export type SourceReader = (items: readonly ClipboardItem[]) => SourceRead;
 
 /**
  * A deleter's reason when nothing in its document answers to the names it was given any more:
@@ -165,12 +187,21 @@ export interface Registers {
   /** How the document `uriString` removes entries from itself, for a move out of it. */
   registerSourceDeleter(uriString: string, fn: SourceDeleter): void;
   unregisterSourceDeleter(uriString: string): void;
+  /** How the document `uriString` reads back the entries a Copy or a Cut took from it (SourceReader). */
+  registerSourceReader(uriString: string, fn: SourceReader): void;
+  /**
+   * The document `uriString` closed (its last table did): its deleter and its reader go, and a
+   * clipboard taken from it, Copy or Cut, is emptied, and every table told. Nothing is left to
+   * read the entries from, and a cut's original can no longer be taken out, as the Data Explorer
+   * in MATLAB empties its clipboard when its source closes.
+   */
+  closeSource(uriString: string): void;
   /**
    * Complete the source-delete half of a cross-document move, and say whether it happened.
    *
-   * During a drag the source view is open (closing it ends the drag), so its deleter is here. A
-   * CUT is different: it is lazy, so its source may have been closed between the cut and the
-   * paste, and then there is no deleter — and no format-appropriate way to edit the file — so the
+   * During a drag the source view is open (closing it ends the drag), and a cut's source is open
+   * too: closing it empties the clipboard the cut is on (closeSource). A document that never
+   * registered a deleter has none, and no format-appropriate way to edit the file, so the
    * original stays where it is: an answer the caller reports.
    *
    * A deleter that throws still throws: the caller (transfer.ts) turns that into the same report.
@@ -210,6 +241,7 @@ export function createRegisters(): Registers {
   let clipboard: ClipboardEntry | null = null;
   let drag: DragEntry | null = null;
   const sourceDeleters = new Map<string, SourceDeleter>();
+  const sourceReaders = new Map<string, SourceReader>();
   const listeners = new Set<RegisterListener>();
 
   const getClipboard = (): ClipboardEntry | null => clipboard;
@@ -288,9 +320,16 @@ export function createRegisters(): Registers {
       let held: ClipboardEntry | null = null;
       return {
         kind: 'clipboard',
+        // As the entries are now, where their document reads them back (SourceReader); as they
+        // were taken where none does, which no open document is without.
         read(): TransferContents | null {
           held = getClipboard();
-          return held && { items: held.items, sourceDocUri: held.sourceDocUri, move: held.mode === 'cut' };
+          if (!held) return null;
+          const move = held.mode === 'cut';
+          const reader = held.sourceDocUri === undefined ? undefined : sourceReaders.get(held.sourceDocUri);
+          if (!reader) return { items: held.items, sourceDocUri: held.sourceDocUri, move };
+          const now = reader(held.items);
+          return { items: now.items, sourceDocUri: held.sourceDocUri, move, gone: now.gone };
         },
         clear(): void {
           if (held && getClipboard() === held) clearClipboard();
@@ -317,6 +356,16 @@ export function createRegisters(): Registers {
     },
     unregisterSourceDeleter(uriString) {
       sourceDeleters.delete(uriString);
+    },
+    registerSourceReader(uriString, fn) {
+      sourceReaders.set(uriString, fn);
+    },
+    closeSource(uriString) {
+      sourceDeleters.delete(uriString);
+      sourceReaders.delete(uriString);
+      if (clipboard?.sourceDocUri !== uriString) return;
+      clearClipboard();
+      broadcastClipboardState();
     },
     async deleteFromSource(uriString, targets) {
       const fn = sourceDeleters.get(uriString);

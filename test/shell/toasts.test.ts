@@ -7,7 +7,7 @@
 // activeConfig.test.ts read the workspace's warnings there now.
 import { describe, expect, it, vi } from 'vitest';
 import type { Toast } from '../../src/widgets/app-shell/dex-toast-host.js';
-import { at, choose, dirtyTabs, edit, menuOn, open, rowOf, startPage, tabNames, toastHost, toastTexts, until } from './harness.js';
+import { at, choose, dirtyTabs, edit, menuOn, open, rowOf, startPage, tableOf, tabNames, toastHost, toastTexts, until } from './harness.js';
 
 const FILES = { 'params.sldd': 'params.sldd', 'ParamMat.mat': 'ParamMat.mat' };
 
@@ -43,17 +43,18 @@ describe('toasts', () => {
     expect(shown[0]).toEqual({ level: 'info', message: 'Saved copy.sldd', ms: 2000 });
   });
 
-  it("the workspace's notices come as they are: a cut whose original stayed is a warning that stays", async () => {
+  it("the workspace's notices come as they are: an entry a paste could not paste is a warning", async () => {
     const page = startPage(FILES);
     const shown = shownToasts();
     await open(page, 'params.sldd', 'ParamMat.mat');
+    await menuOn('params.sldd', 'Uo', ['Kp']);
+    choose('copy');
     await menuOn('params.sldd', 'Uo');
-    choose('cut');
-    await edit('params.sldd', 'Uo', 'Uo2', 'Name');
-    await rowOf('params.sldd', 'Uo2');
+    choose('delete');
+    await until(() => !tableOf('params.sldd')!.rows.some((r) => r.Name?.label === 'Uo'));
     await menuOn('ParamMat.mat', 'ParamMat');
     choose('paste');
     await until(() => shown.some((t) => t.level === 'warning'));
-    expect(shown.find((t) => t.level === 'warning')!.message).toContain('the original in params.sldd could not be removed');
+    expect(shown.find((t) => t.level === 'warning')!.message).toBe('Not pasted: "Uo" is no longer in params.sldd.');
   });
 });

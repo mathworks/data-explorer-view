@@ -51,7 +51,7 @@ import { refuseIfUnreadable, sourceWarnings, warningBanner } from '../rows/parse
 import { COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { SourceClosed, } from '../source/tableSource.js';
-import { copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
+import { copyEntriesToClipboard, dragEntries, readTaken } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { answerEditTextRequest } from './editText.js';
 import { addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './refusal.js';
@@ -220,6 +220,7 @@ export class MatEngine {
             record: (label, run, touched) => this.record(label, run, touched),
             originOf: (variable) => this.originOf(variable),
             deleteMoved: (targets) => this.deleteMoved(targets),
+            readTaken: (items) => this.readTaken(items),
             notify: (level, message, ms) => this.notify(level, message, ms),
         };
     }
@@ -527,10 +528,24 @@ export class MatEngine {
         return { removed: false, reason: 'the file did not let it be removed' };
     }
     /**
+     * The variables a Copy or a Cut took from this file, as they are now, for a paste of them (the
+     * registers' source reader): each found by the token it was taken with (`originOf`), among the
+     * nodes `deleteMoved` would take it from, so the paste and a cut's delete find the same one.
+     */
+    readTaken(items) {
+        return readTaken(items, {
+            session: this.session,
+            entries: () => [...this.model().children, ...(this.file.movedOut?.(this.root()) ?? [])],
+            originOf: (variable) => this.originOf(variable),
+            describe: (message) => this.describe(message),
+        });
+    }
+    /**
      * The token a cut or a drag of `variable` carries (TransferItem.origin), which `deleteMoved`
      * tells the original by: one object for as long as the variable is the same node — through
-     * edits of it, a rename, and the undo of its delete, which puts the node itself back. A variable
-     * made since (an Add, a paste, a reload of the file) is another node, with another token.
+     * edits of it, a rename, and the undo of its delete, which puts the node itself back — and,
+     * through a reload of the file, for the variable the file still holds under its name
+     * (`carryTokens`). A variable made since (an Add, a paste) is another node, with another token.
      */
     originOf(variable) {
         let token = this.origins.get(variable);
@@ -619,6 +634,7 @@ export class MatEngine {
      * every view is painted from it.
      */
     replace(bytes) {
+        const held = this.loaded && !('error' in this.loaded) ? this.tokensByName() : null;
         this.session.removeDataSource(this.srcId);
         this.bytes = bytes;
         this.loaded = null;
@@ -629,11 +645,55 @@ export class MatEngine {
         // tree. A file that no longer reads says so at the paint.
         try {
             this.model();
+            if (held)
+                this.carryTokens(held);
         }
         catch {
             /* reported by the paint */
         }
         return this.repaintAll();
+    }
+    // The variables (and the nodes beside them) a reload makes again, each list's by name: only a
+    // name one node answers to in the list, since two of one name cannot be told apart.
+    uniquelyNamed() {
+        const lists = [this.model().children, [...(this.file.movedOut?.(this.root()) ?? [])]];
+        return lists.map((nodes) => {
+            const byName = new Map();
+            const twice = new Set();
+            for (const node of nodes) {
+                if (byName.has(node.name))
+                    twice.add(node.name);
+                byName.set(node.name, node);
+            }
+            for (const name of twice)
+                byName.delete(name);
+            return byName;
+        });
+    }
+    // The tokens the uniquely-named nodes carry before a reload, by name.
+    tokensByName() {
+        return this.uniquelyNamed().map((byName) => {
+            const tokens = new Map();
+            for (const [name, node] of byName) {
+                const token = this.origins.get(node);
+                if (token)
+                    tokens.set(name, token);
+            }
+            return tokens;
+        });
+    }
+    // A reload reads the file's variables again as new nodes: each takes the token the one of its
+    // name had (`originOf`), so a Copy or a Cut made before an outside change still finds the
+    // variable of that name in the file as it is now. A name two nodes answer to, before or after,
+    // takes none.
+    carryTokens(held) {
+        this.uniquelyNamed().forEach((byName, i) => {
+            for (const [name, token] of held[i] ?? []) {
+                const node = byName.get(name);
+                if (node)
+                    this.origins.set(node, token);
+            }
+        });
     }
     /** A table of the document: an EditableTableSource, until its `dispose()`. */
     view() {
@@ -703,8 +763,11 @@ class MatView {
             },
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         });
-        if (doc.views.size === 0)
+        if (doc.views.size === 0) {
             registers.registerSourceDeleter(doc.uri, (targets) => doc.deleteMoved(targets));
+            // And reads back, at a paste, the variables a Copy or a Cut took from it, as they are then.
+            registers.registerSourceReader(doc.uri, (items) => doc.readTaken(items));
+        }
         doc.views.add(this);
     }
     get session() {
@@ -1441,8 +1504,9 @@ class MatView {
             registers.clearDrag();
             registers.broadcastDragState();
         }
-        // The deleter is the document's, so it stays while any view of it does.
+        // The deleter and the reader are the document's, so they stay while any view of it does, and a
+        // clipboard taken from it goes with the last (closeSource): nothing is left to read it from.
         if (this.doc.views.size === 0)
-            registers.unregisterSourceDeleter(this.doc.uri);
+            registers.closeSource(this.doc.uri);
     }
 }

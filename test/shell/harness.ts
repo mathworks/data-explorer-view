@@ -344,9 +344,13 @@ export async function valueIn(bytes: Uint8Array, file: string, row: string): Pro
 /** The last bytes saved to `name`. */
 export const savedTo = (main: Main, name: string) => main.saves.filter((s) => s.path === at(name)).at(-1)?.bytes;
 
-/** The items the shared context menu shows when row `row` of `name` is right-clicked (none: no menu). */
-export async function menuOn(name: string, row: string): Promise<{ id: string; label: string; disabled?: boolean }[]> {
+/**
+ * The items the shared context menu shows when row `row` of `name` is right-clicked (none: no menu),
+ * with the rows `alsoSelected` selected beside it, as a ctrl-click selects them first.
+ */
+export async function menuOn(name: string, row: string, alsoSelected: string[] = []): Promise<{ id: string; label: string; disabled?: boolean }[]> {
   const r = await rowOf(name, row);
+  const others = await Promise.all(alsoSelected.map((other) => rowOf(name, other)));
   const table = tableOf(name)!;
   const menu = document.querySelector('dex-context-menu')!;
   let shown: { id: string; label: string; disabled?: boolean }[] = [];
@@ -355,7 +359,7 @@ export async function menuOn(name: string, row: string): Promise<{ id: string; l
     shown = items.filter((i) => !i.separator).map((i) => ({ id: i.id, label: i.label, disabled: i.disabled }));
     show(x, y, items);
   };
-  table.selectedRowIds = [r.ID];
+  table.selectedRowIds = [r.ID, ...others.map((o) => o.ID)];
   table.dispatchEvent(new CustomEvent('dex-table-context-menu', { detail: { x: 0, y: 0, rowId: r.ID }, bubbles: true, composed: true }));
   menu.show = show;
   return shown;

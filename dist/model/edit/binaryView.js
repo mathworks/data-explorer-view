@@ -22,7 +22,7 @@ import { sourceWarnings, warningBanner } from '../rows/parseWarnings.js';
 import { buildEntryRows, COLUMNS, COLUMN_GROUPS, COLUMN_LABELS } from '../rows/rowBuilder.js';
 import { rowPlannerFor } from '../rows/rowPlanner.js';
 import { SourceClosed, } from '../source/tableSource.js';
-import { copyEntriesToClipboard, dragEntries } from './clipboardAction.js';
+import { copyEntriesToClipboard, dragEntries, entriesUnder, readTaken } from './clipboardAction.js';
 import { clipMarkChange, clipMarkOfDoc } from './clipMarks.js';
 import { sectionTarget } from './dictionaryTarget.js';
 import { answerEditTextRequest } from './editText.js';
@@ -84,6 +84,8 @@ export class BinaryView {
             drag: (descriptor) => this.emit({ kind: 'drag', descriptor }),
         });
         registers.registerSourceDeleter(doc.uri, (targets) => this.deleteMoved(targets));
+        // And so that a paste of what a Copy or a Cut took from it reads the entries as they are now.
+        registers.registerSourceReader(doc.uri, (items) => readTaken(items, { session: this.session, entries: () => entriesUnder(this.doc.liveModel()), describe: (m) => this.doc.describe(m) }));
         doc.views.add(this);
     }
     get session() {
@@ -817,9 +819,10 @@ export class BinaryView {
             registers.clearDrag();
             registers.broadcastDragState();
         }
-        // Only once the LAST view of the document closes: both are the document's.
+        // Only once the LAST view of the document closes: both are the document's. A clipboard taken
+        // from it goes too (closeSource): there is nothing left to read it back from.
         if (this.doc.views.size === 0) {
-            registers.unregisterSourceDeleter(this.doc.uri);
+            registers.closeSource(this.doc.uri);
             this.doc.baseline.clear();
         }
     }

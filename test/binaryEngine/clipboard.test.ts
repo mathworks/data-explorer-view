@@ -293,7 +293,8 @@ async function cutAndPaste(w: ReturnType<typeof windowOf>, source: Opened, close
   target.view.posts.length = 0;
   target.view.send({ type: 'paste', rowId: 'section:design' });
   await waitFor('the paste to land or be refused', () => target.events.length > edits || errorsIn(target.view.posts).length > 0);
-  // The source delete runs after the paste's write, and its report after that.
+  // The source delete runs after the paste's write, and its report after that. (A closed source
+  // emptied the clipboard already.)
   await waitFor('the move to finish', () => w.registers.getClipboard() === null);
   await quiet();
   return {
@@ -313,17 +314,13 @@ describe('A cut from a compressed-binary .sldd, pasted into another dictionary',
     assert.ok(!run.sourceHolds, 'and left the source');
   });
 
-  it('says the original could not be removed when its tab was closed after the cut, and loses nothing', async () => {
+  it('pastes nothing when its tab was closed after the cut, and loses nothing: the close took the cut with it', async () => {
     const w = windowOf();
     const source = await w.bin('xdoc_src_closed_bin.sldd');
     const run = await cutAndPaste(w, source, true, 'xdoc_dst_closed_bin.sldd');
-    assert.deepStrictEqual(
-      run.errors,
-      ['Pasted here, but the original in xdoc_src_closed_bin.sldd could not be removed: its table is no longer open. Remove it there by hand.'],
-      'the target view says what is left to do',
-    );
-    assert.ok(run.targetHas, `${MOVED} landed in the target`);
-    assert.ok(run.sourceHolds, 'and is still in the source: two copies, neither lost');
+    assert.deepStrictEqual(run.errors, ['Nothing to paste — the clipboard is empty.']);
+    assert.ok(!run.targetHas, `${MOVED} did not land in the target`);
+    assert.ok(run.sourceHolds, 'and is still in the source');
   });
 });
 

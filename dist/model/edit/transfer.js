@@ -86,11 +86,28 @@ async function transfer(req, register, adapter, deps) {
     const isPaste = register.kind === 'clipboard';
     if (adapter.guard && !adapter.guard())
         return { kind: 'guarded' };
-    const contents = register.read();
+    let contents;
+    try {
+        // A paste's register reads its entries back from their document here, which can refuse one.
+        contents = register.read();
+    }
+    catch (err) {
+        return refusedOrFailed(err, adapter);
+    }
+    const gone = contents?.gone ?? [];
+    if (contents && contents.items.length === 0 && gone.length > 0) {
+        // Nothing the clipboard took is left to paste, now or on another try.
+        const message = goneMessage(gone, contents.sourceDocUri, true);
+        adapter.report(message);
+        register.clear();
+        register.broadcast();
+        return { kind: 'gone', message };
+    }
     if (!contents || contents.items.length === 0) {
         adapter.report(isPaste ? 'Nothing to paste — the clipboard is empty.' : 'Nothing to drop.');
         return { kind: 'empty' };
     }
+    const skipped = gone.length > 0 ? goneMessage(gone, contents.sourceDocUri, false) : undefined;
     const replacing = req.replacing ?? [];
     let target;
     try {
@@ -143,10 +160,21 @@ async function transfer(req, register, adapter, deps) {
     catch (err) {
         return refusedOrFailed(err, adapter);
     }
-    // Landed. Everything below is the source's half of a cross-document move, and none of it
-    // may undo or repaint what just happened here.
+    // Landed. Said where it landed, and where it stays until dismissed: the paste's repaint clears
+    // a banner, and an entry the user expected that never came is the outcome this is for.
+    if (skipped) {
+        adapter.report(skipped);
+        deps.warn?.(skipped);
+    }
+    const done = (sourceKept) => ({
+        kind: 'done',
+        ...(sourceKept ? { sourceKept } : {}),
+        ...(skipped ? { skipped } : {}),
+    });
+    // Everything below is the source's half of a cross-document move, and none of it may undo or
+    // repaint what just happened here.
     if (!contents.move)
-        return { kind: 'done' };
+        return done();
     // Consumed by the paste that just landed, whatever the source delete does next: a cut left
     // live would paste the same entries a second time. Cleared BEFORE the delete is awaited, so
     // a second Paste arriving meanwhile finds nothing to paste rather than this cut again.
@@ -154,14 +182,14 @@ async function transfer(req, register, adapter, deps) {
         register.clear();
     try {
         if (sameDoc || selectors.length === 0)
-            return { kind: 'done' };
+            return done();
         const result = await sourceDelete(contents.sourceDocUri, selectors, deps);
         if (result.removed)
-            return { kind: 'done' };
+            return done();
         const message = sourceKeptMessage(isPaste, contents.sourceDocUri, selectors.length, result.reason, result.gone === true);
         adapter.report(message);
         deps.warn?.(message);
-        return { kind: 'done', sourceKept: message };
+        return done(message);
     }
     finally {
         if (isPaste)
@@ -197,6 +225,19 @@ function refusedOrFailed(err, adapter) {
 export function sharedNameRefusal(verb, name, sourceDocUri) {
     const where = sourceDocUri ? fileNameOf(sourceDocUri) : 'its file';
     return `Cannot ${verb} "${name}": ${where} holds more than one "${name}", and a move takes its original out by name. Copy it instead.`;
+}
+/**
+ * 'Not pasted: "x" is no longer in a.sldd.' — the entries a Copy or a Cut took that their document
+ * no longer holds by the paste (TransferContents.gone), the first five by name. `nothingLeft`
+ * when no other entry was pasted either: 'Nothing to paste: "x" and "y" are no longer in a.sldd.'
+ */
+export function goneMessage(names, sourceDocUri, nothingLeft) {
+    const shown = names.slice(0, 5).map((n) => `"${n}"`);
+    const more = names.length - shown.length;
+    const listed = more > 0 ? `${shown.join(', ')} and ${more} more` : shown.length > 1 ? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}` : shown[0];
+    const where = sourceDocUri ? fileNameOf(sourceDocUri) : 'their file';
+    const lead = nothingLeft ? 'Nothing to paste' : 'Not pasted';
+    return `${lead}: ${listed} ${names.length === 1 ? 'is' : 'are'} no longer in ${where}.`;
 }
 /**
  * "Pasted here, but the original in a.sldd could not be removed: <reason>. Remove it there by

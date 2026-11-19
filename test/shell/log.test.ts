@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { portFromMessagePort } from '../../src/model/source/ports.js';
 import { serveFolder, type FolderReads } from '../../src/serve/index.js';
 import type { LogEntry } from '../../src/widgets/app-shell/modules/dex-log-panel.js';
-import { at, changedOutside, choose, commandWindow, dirtyTabs, edit, folderReads, logPanel, menuOn, open, rowOf, serveFolderTo, startPage, tempFolder, until, type Page } from './harness.js';
+import { at, changedOutside, choose, commandWindow, dirtyTabs, edit, folderReads, logPanel, menuOn, open, rowOf, serveFolderTo, startPage, tableOf, tempFolder, until, type Page } from './harness.js';
 
 let stop: (() => void)[] = [];
 afterEach(() => {
@@ -68,15 +68,17 @@ describe('the Log view', () => {
     await edit('params.sldd', 'Kp', 'Ki', 'Name');
     await until(() => lines.length >= 1);
     expect(lines[0]).toMatch(/^warning .*Ki/);
-    // A cut whose original was renamed before the paste: the workspace's warning.
+    // A copy of two entries, one of them deleted before the paste: the workspace's warning.
+    await menuOn('params.sldd', 'Uo', ['Kp']);
+    choose('copy');
     await menuOn('params.sldd', 'Uo');
-    choose('cut');
-    await edit('params.sldd', 'Uo', 'Uo2', 'Name');
-    await rowOf('params.sldd', 'Uo2');
+    choose('delete');
+    await until(() => !tableOf('params.sldd')!.rows.some((r) => r.Name?.label === 'Uo'));
     await menuOn('ParamMat.mat', 'ParamMat');
     choose('paste');
-    await until(() => lines.some((l) => l.includes('the original in params.sldd could not be removed')));
-    expect(lines.find((l) => l.includes('could not be removed'))!.startsWith('warning ')).toBe(true);
+    const skipped = 'Not pasted: "Uo" is no longer in params.sldd.';
+    await until(() => lines.some((l) => l.includes(skipped)));
+    expect(lines.find((l) => l.includes(skipped))!.startsWith('warning ')).toBe(true);
   });
 
   it('says a gesture the document refused, and a copy that did not reach the clipboard', async () => {
