@@ -429,25 +429,19 @@ describe('MAT-file engine: pastes and drops refused', () => {
     assert.deepStrictEqual(w.registers.getClipboard()?.items.map((i) => i.payload.name), ['str']);
   });
 
-  it('a move whose original became one of two of its name is pasted, and the original kept, said', async () => {
+  it('a cut whose original became one of two of its name is not pasted: which one it was cannot be told', async () => {
     const w = windowOf();
     const a = await w.open('back.mat', fixture('pv_basic.mat'));
     const t = await w.open('target.mat', emptyMat());
-    const warnings: string[] = [];
     a.view.send({ type: 'cut', rowIds: [variableRow(a.view.posts, 'x').ID] });
     // The file is read again holding two x (an outside change, with no unsaved edit): the cut's
-    // original is now one of two.
+    // original is now one of two, and the paste reads it back from the file as it is now.
     await a.engine.replace(buffer(twiceNamedMat()));
     assert.deepStrictEqual(namesOf(a), ['x', 'str', 'x']);
     await onMat(t, { type: 'paste', rowId: '' });
-    await waitFor('the cut to be spent', () => w.registers.getClipboard() === null);
-    await waitFor('the report', () => errorsIn(t.view.posts).length > 0);
-    const said =
-      'Pasted here, but the original in back.mat could not be removed: it holds more than one "x", and a move takes its original out by name. Remove it there by hand.';
-    assert.deepStrictEqual(errorsIn(t.view.posts), [said]);
-    for (const n of t.notices) warnings.push(n.message);
-    assert.deepStrictEqual(warnings, [said], 'said where it stays, too');
-    assert.ok(namesOf(t).includes('x'), 'the paste landed');
+    assert.deepStrictEqual(errorsIn(t.view.posts), ['Nothing to paste: "x" is no longer in back.mat.']);
+    assert.strictEqual(w.registers.getClipboard(), null, 'nothing is left to paste');
+    assert.deepStrictEqual(namesOf(t), [], 'nothing landed');
     assert.deepStrictEqual(namesOf(a), ['x', 'str', 'x'], 'and nothing was guessed at in the source');
     assert.strictEqual(a.events.length, 0);
   });
@@ -480,7 +474,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
 
   // A cut is lazy and a MAT-file's variable is told by name alone, so between the cut and the
   // paste the original can be deleted and another variable given its name. The cut carries who
-  // the original was (originOf), and the move takes out only that one.
+  // the original was (originOf): the paste reads back only that one, and the move takes out only it.
   const giveNameX = async (a: Opened, from: string) => {
     await onMat(a, { type: 'addEntry', section: '', className: 'MatlabVariable', rename: false });
     const added = namesOf(a).find((n) => !from.split(',').includes(n))!;
@@ -488,7 +482,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
     assert.ok(namesOf(a).includes('x'), 'another variable now holds the name');
   };
 
-  it('a cut whose variable was deleted and its name given to another: the paste lands, and the other is left alone', async () => {
+  it('a cut whose variable was deleted and its name given to another: nothing is pasted, it is said, and the other is left alone', async () => {
     const w = windowOf();
     const a = await w.open('cut.mat', fixture('pv_basic.mat'));
     const t = await w.open('target.mat', emptyMat());
@@ -498,30 +492,27 @@ describe('MAT-file engine: pastes and drops refused', () => {
     const other = variableOf(a, 'x');
     const edits = a.events.length;
     await onMat(t, { type: 'paste', rowId: '' });
-    await waitFor('the cut to be spent', () => w.registers.getClipboard() === null);
-    await waitFor('the report', () => errorsIn(t.view.posts).length > 0);
-    assert.deepStrictEqual(errorsIn(t.view.posts), [
-      'Pasted here; the original in cut.mat is no longer there to remove: the "x" it holds now is another variable, which was left as it is.',
-    ]);
-    assert.ok(namesOf(t).includes('x'), 'the paste landed');
+    assert.deepStrictEqual(errorsIn(t.view.posts), ['Nothing to paste: "x" is no longer in cut.mat.']);
+    assert.strictEqual(w.registers.getClipboard(), null, 'nothing is left to paste');
+    assert.deepStrictEqual(namesOf(t), [], 'the other variable was not pasted in its place');
     assert.strictEqual(variableOf(a, 'x'), other, 'and the variable that holds the name now was not taken out');
     assert.strictEqual(a.events.length, edits, 'no edit in the source');
   });
 
-  it('a cut whose variable was renamed and its name given to another: nothing is taken out, and the renamed one is named', async () => {
+  it('a cut whose variable was renamed and its name given to another moves the renamed one, and leaves the other alone', async () => {
     const w = windowOf();
     const a = await w.open('renamed.mat', fixture('pv_basic.mat'));
     const t = await w.open('target.mat', emptyMat());
     a.view.send({ type: 'cut', rowIds: [variableRow(a.view.posts, 'x').ID] });
     await onMat(a, { type: 'edit', rowId: variableOf(a, 'x').id, columnId: 'Name', oldValue: 'x', newValue: 'y' });
     await giveNameX(a, namesOf(a).join());
+    const other = variableOf(a, 'x');
     await onMat(t, { type: 'paste', rowId: '' });
     await waitFor('the cut to be spent', () => w.registers.getClipboard() === null);
-    await waitFor('the report', () => errorsIn(t.view.posts).length > 0);
-    assert.deepStrictEqual(errorsIn(t.view.posts), [
-      'Pasted here, but the original in renamed.mat could not be removed: the "x" it holds now is another variable, and the one taken is now "y". Remove it there by hand.',
-    ]);
-    assert.ok(namesOf(a).includes('x') && namesOf(a).includes('y'), 'both are where they were');
+    await waitFor('the renamed original to move out', () => !namesOf(a).includes('y'));
+    assert.deepStrictEqual(errorsIn(t.view.posts), []);
+    assert.deepStrictEqual(namesOf(t), ['y'], 'the variable the cut took, under the name it has now');
+    assert.strictEqual(variableOf(a, 'x'), other, 'and the one that holds its old name stays');
   });
 
   it('a cut whose variable was edited, or deleted and the delete undone, is still the one taken, and moves', async () => {
@@ -534,6 +525,7 @@ describe('MAT-file engine: pastes and drops refused', () => {
     await waitFor('the cut to be spent', () => w.registers.getClipboard() === null);
     await waitFor('the original moved out', () => !namesOf(a).includes('x'));
     assert.deepStrictEqual(errorsIn(t.view.posts), []);
+    assert.strictEqual(shownCells(variableOf(t, 'x'))['.']!.Value, '[4 5]', 'the value it was edited to after the cut');
 
     a.view.send({ type: 'cut', rowIds: [variableRow(a.view.posts, 'p').ID] });
     await onMat(a, { type: 'delete', rowIds: [variableOf(a, 'p').id] });

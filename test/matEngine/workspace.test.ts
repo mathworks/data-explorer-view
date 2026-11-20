@@ -184,16 +184,15 @@ describe('createWorkspace({editing}): a MAT-file edited in the page', () => {
     const ws = workspace(true, notices);
     const doc = await ws.open(fixture('cases.mat'), 'cases.mat');
     await doc.table.open();
-    const cut = await ws.open(fixture('pv_basic.mat'), 'twin.mat');
-    await cut.table.open();
-    // A cut whose source no longer has a table open: the paste lands, and the source keeps it.
-    (cut.table as any).cut([variableId(cut, 'x')]);
-    cut.dispose();
+    const twin = await ws.open(fixture('pv_basic.mat'), 'twin.mat');
+    await twin.table.open();
+    // A copy of two variables, one of them deleted before the paste: the other lands, and the
+    // paste says which one it could not paste.
+    (twin.table as any).copy([variableId(twin, 'x'), variableId(twin, 'p')]);
+    (twin.table as any).delete([variableId(twin, 'x')]);
+    await settle();
     (doc.table as any).paste('');
     await settle();
-    assert.deepStrictEqual(
-      notices.map((n) => [n.level, n.message]),
-      [['warning', 'Pasted here, but the original in twin.mat could not be removed: its table is no longer open. Remove it there by hand.']],
-    );
+    assert.deepStrictEqual(notices.map((n) => [n.level, n.message]), [['warning', 'Not pasted: "x" is no longer in twin.mat.']]);
   });
 });

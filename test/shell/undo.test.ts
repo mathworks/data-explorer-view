@@ -133,7 +133,7 @@ describe('between tabs', () => {
     expect(await valueIn(savedTo(page.main, 'params.sldd')!, 'params.sldd', 'Uo')).toBe('');
   });
 
-  it('a cut whose original was renamed before the paste says, in a toast that stays, that the original stayed', async () => {
+  it('a cut whose original was renamed before the paste moves it, under the name it has now', async () => {
     const page = startPage(FILES);
     await open(page, 'params.sldd', 'ParamMat.mat');
     await menuOn('params.sldd', 'Uo');
@@ -142,10 +142,24 @@ describe('between tabs', () => {
     await rowOf('params.sldd', 'Uo2');
     await menuOn('ParamMat.mat', 'ParamMat');
     choose('paste');
-    const toast = () => toastHost().shadowRoot?.querySelector<HTMLElement>('.toast');
+    await rowOf('ParamMat.mat', 'Uo2');
+    await until(() => !tableOf('params.sldd')!.rows.some((r) => r.Name?.label === 'Uo2'));
+    expect(tableOf('ParamMat.mat')!.rows.some((r) => r.Name?.label === 'Uo')).toBe(false);
+  });
+
+  it('an entry deleted between its copy and the paste is said in a toast that stays', async () => {
+    const page = startPage(FILES);
+    await open(page, 'params.sldd', 'ParamMat.mat');
+    await menuOn('params.sldd', 'Uo', ['Kp']);
+    choose('copy');
+    await menuOn('params.sldd', 'Uo');
+    choose('delete');
+    await until(() => !tableOf('params.sldd')!.rows.some((r) => r.Name?.label === 'Uo'));
+    await menuOn('ParamMat.mat', 'ParamMat');
+    choose('paste');
+    const toast = () => toastHost().shadowRoot?.querySelector<HTMLElement>('.toast.warning');
     await until(() => !!toast());
-    expect(toast()!.classList.contains('warning')).toBe(true);
-    expect(toast()!.textContent).toContain('the original in params.sldd could not be removed');
+    expect(toast()!.textContent).toContain('Not pasted: "Uo" is no longer in params.sldd.');
     toast()!.querySelector<HTMLElement>('.dismiss')!.click();
     await until(() => !toast());
   });

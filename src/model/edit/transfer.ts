@@ -76,6 +76,11 @@ export interface TransferContents {
   sourceDocUri: string | undefined;
   /** The source is to lose them: a cut, or a drop in move mode. */
   move: boolean;
+  /**
+   * The names of the entries taken that their document no longer holds, by the time a paste read
+   * them back (registers.ts's SourceReader): skipped, and named to the user. Absent: none.
+   */
+  gone?: readonly string[];
 }
 
 /**
@@ -227,8 +232,13 @@ export type TransferOutcome =
   | { kind: 'noop' }
   | { kind: 'refused'; message: string }
   | { kind: 'failed'; error: unknown }
-  /** Landed. `sourceKept` is the message reported when a move's source delete did not happen. */
-  | { kind: 'done'; sourceKept?: string };
+  /** Every entry the clipboard took is gone from its document: nothing pasted, and `message` said. */
+  | { kind: 'gone'; message: string }
+  /**
+   * Landed. `sourceKept` is the message reported when a move's source delete did not happen, and
+   * `skipped` the one naming the entries no longer there to paste (TransferContents.gone).
+   */
+  | { kind: 'done'; sourceKept?: string; skipped?: string };
 
 /**
  * Whether moving `contents` onto `sectionName` of `docUri` would change nothing: every item
@@ -279,11 +289,27 @@ async function transfer<T extends TransferTarget>(
 ): Promise<TransferOutcome> {
   const isPaste = register.kind === 'clipboard';
   if (adapter.guard && !adapter.guard()) return { kind: 'guarded' };
-  const contents = register.read();
+  let contents: TransferContents | null;
+  try {
+    // A paste's register reads its entries back from their document here, which can refuse one.
+    contents = register.read();
+  } catch (err) {
+    return refusedOrFailed(err, adapter);
+  }
+  const gone = contents?.gone ?? [];
+  if (contents && contents.items.length === 0 && gone.length > 0) {
+    // Nothing the clipboard took is left to paste, now or on another try.
+    const message = goneMessage(gone, contents.sourceDocUri, true);
+    adapter.report(message);
+    register.clear();
+    register.broadcast();
+    return { kind: 'gone', message };
+  }
   if (!contents || contents.items.length === 0) {
     adapter.report(isPaste ? 'Nothing to paste — the clipboard is empty.' : 'Nothing to drop.');
     return { kind: 'empty' };
   }
+  const skipped = gone.length > 0 ? goneMessage(gone, contents.sourceDocUri, false) : undefined;
 
   const replacing = req.replacing ?? [];
   let target: T | null;
@@ -337,21 +363,32 @@ async function transfer<T extends TransferTarget>(
     return refusedOrFailed(err, adapter);
   }
 
-  // Landed. Everything below is the source's half of a cross-document move, and none of it
-  // may undo or repaint what just happened here.
-  if (!contents.move) return { kind: 'done' };
+  // Landed. Said where it landed, and where it stays until dismissed: the paste's repaint clears
+  // a banner, and an entry the user expected that never came is the outcome this is for.
+  if (skipped) {
+    adapter.report(skipped);
+    deps.warn?.(skipped);
+  }
+  const done = (sourceKept?: string): TransferOutcome => ({
+    kind: 'done',
+    ...(sourceKept ? { sourceKept } : {}),
+    ...(skipped ? { skipped } : {}),
+  });
+  // Everything below is the source's half of a cross-document move, and none of it may undo or
+  // repaint what just happened here.
+  if (!contents.move) return done();
   // Consumed by the paste that just landed, whatever the source delete does next: a cut left
   // live would paste the same entries a second time. Cleared BEFORE the delete is awaited, so
   // a second Paste arriving meanwhile finds nothing to paste rather than this cut again.
   if (isPaste) register.clear();
   try {
-    if (sameDoc || selectors.length === 0) return { kind: 'done' };
+    if (sameDoc || selectors.length === 0) return done();
     const result = await sourceDelete(contents.sourceDocUri, selectors, deps);
-    if (result.removed) return { kind: 'done' };
+    if (result.removed) return done();
     const message = sourceKeptMessage(isPaste, contents.sourceDocUri, selectors.length, result.reason, result.gone === true);
     adapter.report(message);
     deps.warn?.(message);
-    return { kind: 'done', sourceKept: message };
+    return done(message);
   } finally {
     if (isPaste) register.broadcast();
   }
@@ -390,6 +427,21 @@ function refusedOrFailed(err: unknown, adapter: TransferAdapter<any>): TransferO
 export function sharedNameRefusal(verb: 'cut' | 'move', name: string, sourceDocUri: string | undefined): string {
   const where = sourceDocUri ? fileNameOf(sourceDocUri) : 'its file';
   return `Cannot ${verb} "${name}": ${where} holds more than one "${name}", and a move takes its original out by name. Copy it instead.`;
+}
+
+/**
+ * 'Not pasted: "x" is no longer in a.sldd.' — the entries a Copy or a Cut took that their document
+ * no longer holds by the paste (TransferContents.gone), the first five by name. `nothingLeft`
+ * when no other entry was pasted either: 'Nothing to paste: "x" and "y" are no longer in a.sldd.'
+ */
+export function goneMessage(names: readonly string[], sourceDocUri: string | undefined, nothingLeft: boolean): string {
+  const shown = names.slice(0, 5).map((n) => `"${n}"`);
+  const more = names.length - shown.length;
+  const listed =
+    more > 0 ? `${shown.join(', ')} and ${more} more` : shown.length > 1 ? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}` : shown[0];
+  const where = sourceDocUri ? fileNameOf(sourceDocUri) : 'their file';
+  const lead = nothingLeft ? 'Nothing to paste' : 'Not pasted';
+  return `${lead}: ${listed} ${names.length === 1 ? 'is' : 'are'} no longer in ${where}.`;
 }
 
 /**

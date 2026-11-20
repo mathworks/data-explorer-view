@@ -13,11 +13,11 @@
 // Everything format-specific is injected: `refresh` (bring the model up to date with the live
 // content) and `findNode` (resolve a row id against it) are the ONLY real difference between the
 // formats here, never what copying a row means.
-import { entrySelectorOf, owningEntryOf, type Session } from 'data-explorer-core';
+import { TransferRefused, entrySelectorOf, owningEntryOf, type Session } from 'data-explorer-core';
 import { dropFactsOf } from '../actions/dropFacts.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import type { ClipboardMode } from '../source/wire.js';
-import type { ClipboardItem, DragRegisterItem, Registers } from './registers.js';
+import type { ClipboardItem, DragRegisterItem, Registers, SourceRead } from './registers.js';
 import { sharedNameRefusal } from './transfer.js';
 
 /** The part of core's session a snapshot asks. */
@@ -142,19 +142,27 @@ function entriesSharingAName(entries: readonly any[]): Set<any> {
   return shared;
 }
 
-// How many entries of the document under `root` answer to each name: its entries are the
-// first nodes down each branch that are one (a MAT-file's children, a dictionary's sections'
-// children). Nothing below an entry is one.
+// How many entries of the document under `root` answer to each name.
 function entryNameCounts(root: any): Map<string, number> {
   const counts = new Map<string, number>();
+  for (const entry of entriesUnder(root)) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * The entries of the document under `root`: the first nodes down each branch that are one (a
+ * MAT-file's children, a dictionary's sections' children). Nothing below an entry is one.
+ */
+export function entriesUnder(root: any): any[] {
+  const entries: any[] = [];
   const visit = (node: any) => {
     for (const child of (node?.children ?? []) as any[]) {
-      if (child?.isEntry) counts.set(child.name, (counts.get(child.name) ?? 0) + 1);
+      if (child?.isEntry) entries.push(child);
       else visit(child);
     }
   };
   visit(root);
-  return counts;
+  return entries;
 }
 
 /**
@@ -169,7 +177,11 @@ function registerItemsOf(
   findNode: (rowId: string) => any,
   originOf?: (entry: any) => object | undefined,
 ): ClipboardItem[] {
-  const entries = owningEntriesOf(rowIds, findNode);
+  return itemsOfEntries(session, owningEntriesOf(rowIds, findNode), originOf);
+}
+
+// The register items of `entries`, as a copy, a cut and a drag take them, after the refusal they share.
+function itemsOfEntries(session: SnapshotSession, entries: readonly any[], originOf?: (entry: any) => object | undefined): ClipboardItem[] {
   refuseUncopyable(session, entries);
   const shared = entriesSharingAName(entries);
   return entries.map((entry): ClipboardItem => {
@@ -199,7 +211,8 @@ export function buildDragSnapshot(
 
 /**
  * Snapshot the rows a copy/cut acts on into the clipboard shape: the same walk and the same
- * dedupe as buildDragSnapshot. Each item keeps its OWN source section: a cut is lazy, so the
+ * dedupe as buildDragSnapshot. What a paste lands is this snapshot read back from its document at
+ * paste time (readTaken), by who each entry was. Each item keeps its OWN source section: a cut is lazy, so the
  * source deletion at paste time must find each entry where it actually lives.
  */
 export function buildClipboardSnapshot(
@@ -211,10 +224,75 @@ export function buildClipboardSnapshot(
   return registerItemsOf(session, rowIds, findNode, originOf);
 }
 
+/** What a document's reader needs of it to read back what a Copy or a Cut took (readTaken). */
+export interface ReadDeps {
+  /** Core's session, which the entries are asked of (copyRefusal) and resolved in. */
+  session: SnapshotSession;
+  /**
+   * The document's entries as they are now, its model first brought up to date with its live
+   * content (a JSON dictionary re-parses its text): once per paste, however many entries it reads.
+   */
+  entries: () => Iterable<any>;
+  /** The token its document tells an entry by (CopyDeps.originOf), where its selectors cannot. */
+  originOf?: (entry: any) => object | undefined;
+  /** Core's message in this document's words (a srcId said as the file's name). Default: as it is. */
+  describe?: (message: string) => string;
+}
+
+/**
+ * The entries `held` took from this document, as they are now (registers.ts's SourceReader): each
+ * found again by who it was, then taken again as a copy takes it, so the paste lands what the user
+ * sees and a cut's delete names the entry as it is now. Who an entry was is its origin token where
+ * it was taken with one (a MAT-file's variable: through edits and a rename, the same node), else
+ * its uuid (a dictionary entry's, which a rename keeps), else its name in the section it was taken
+ * from. One found nowhere, deleted since, is named in `gone`. A refusal (an entry that can no
+ * longer travel, a model that no longer reads) throws TransferRefused, in this document's words.
+ */
+export function readTaken(held: readonly ClipboardItem[], deps: ReadDeps): SourceRead {
+  const said = (message: string) => (deps.describe ? deps.describe(message) : message);
+  let live: any[];
+  try {
+    live = [...deps.entries()];
+  } catch (err) {
+    throw new TransferRefused(said(`Could not read the copied entries again: ${(err as Error)?.message || String(err)}`));
+  }
+  const byOrigin = new Map<object, any>();
+  const byUuid = new Map<string, any[]>();
+  for (const entry of live) {
+    const origin = deps.originOf?.(entry);
+    if (origin) byOrigin.set(origin, entry);
+    const { uuid } = entrySelectorOf(entry);
+    if (uuid) byUuid.set(uuid, [...(byUuid.get(uuid) ?? []), entry]);
+  }
+  const sameAsTaken = (it: ClipboardItem, entry: any) =>
+    entry.name === it.payload.name && sourceSectionOf(deps.session, entry) === it.sourceSection;
+  const found: any[] = [];
+  const gone: string[] = [];
+  for (const it of held) {
+    const { uuid } = entrySelectorOf(it.payload);
+    let entry: any;
+    if (it.origin) entry = byOrigin.get(it.origin);
+    else if (uuid) {
+      const withUuid = byUuid.get(uuid) ?? [];
+      entry = withUuid.length === 1 ? withUuid[0] : withUuid.find((e) => sameAsTaken(it, e));
+    } else entry = live.find((e) => sameAsTaken(it, e));
+    if (!entry) gone.push(String(it.payload.name ?? ''));
+    else if (!found.includes(entry)) found.push(entry);
+  }
+  try {
+    return { items: itemsOfEntries(deps.session, found, deps.originOf), gone };
+  } catch (err) {
+    throw new TransferRefused(said(err instanceof CopyRefused ? err.message : `Failed to paste: ${(err as Error)?.message || String(err)}`));
+  }
+}
+
 /**
  * Snapshot every entry the rows resolve to onto the clipboard in `mode`.
  *
  * Rows are deduped by owning entry, so selecting a bus and two of its elements copies ONE bus.
+ * Copy and Cut alike are read back from their document when they are pasted (readTaken): the
+ * snapshot says which entries, and the paste lands them as they are then.
+ *
  * `uriString` is recorded with the payloads because a cut is LAZY — the source delete is deferred
  * to paste time, and the paste may land in a different document, so the clipboard must remember
  * which document to delete from.

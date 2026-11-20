@@ -205,10 +205,17 @@ export declare class MatEngine {
      */
     private deleteMoved;
     /**
+     * The variables a Copy or a Cut took from this file, as they are now, for a paste of them (the
+     * registers' source reader): each found by the token it was taken with (`originOf`), among the
+     * nodes `deleteMoved` would take it from, so the paste and a cut's delete find the same one.
+     */
+    private readTaken;
+    /**
      * The token a cut or a drag of `variable` carries (TransferItem.origin), which `deleteMoved`
      * tells the original by: one object for as long as the variable is the same node — through
-     * edits of it, a rename, and the undo of its delete, which puts the node itself back. A variable
-     * made since (an Add, a paste, a reload of the file) is another node, with another token.
+     * edits of it, a rename, and the undo of its delete, which puts the node itself back — and,
+     * through a reload of the file, for the variable the file still holds under its name
+     * (`carryTokens`). A variable made since (an Add, a paste) is another node, with another token.
      */
     private originOf;
     private readonly origins;
@@ -226,6 +233,9 @@ export declare class MatEngine {
      * every view is painted from it.
      */
     replace(bytes: ArrayBuffer): Promise<void>;
+    private uniquelyNamed;
+    private tokensByName;
+    private carryTokens;
     /** A table of the document: an EditableTableSource, until its `dispose()`. */
     view(): EditableTableSource & {
         dispose(): void;

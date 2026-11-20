@@ -40,6 +40,22 @@ export type DeleteTarget = string | SourceSelector;
  * (transfer.ts) reports the answer on its own view, which is the one where the gesture happened.
  */
 export type SourceDeleter = (targets: DeleteTarget[]) => Promise<SourceDeleteResult> | SourceDeleteResult;
+/** What a document's reader found of the entries a Copy or a Cut took from it. */
+export interface SourceRead {
+    /** Each entry still there, as it is now, in the order taken. */
+    items: ClipboardItem[];
+    /** The names of the entries no longer there, as they were taken. */
+    gone: string[];
+}
+/**
+ * How one open document reads back the entries a Copy or a Cut took from it, as they are NOW: the
+ * paste's half of a lazy clipboard. Each item is found again by who it was (its uuid, its origin
+ * token, or its name in its section) and taken again as a copy takes it, so a paste lands the
+ * value the user sees, and a cut's delete names the entry as it is now. Synchronous, because a
+ * paste reads its register before it changes anything. Throws TransferRefused for an entry that
+ * cannot travel any more, in the words a copy would refuse it in.
+ */
+export type SourceReader = (items: readonly ClipboardItem[]) => SourceRead;
 /**
  * A deleter's reason when nothing in its document answers to the names it was given any more:
  * renamed or deleted since the cut. One spelling for every format, because it is one fact.
@@ -110,12 +126,21 @@ export interface Registers {
     /** How the document `uriString` removes entries from itself, for a move out of it. */
     registerSourceDeleter(uriString: string, fn: SourceDeleter): void;
     unregisterSourceDeleter(uriString: string): void;
+    /** How the document `uriString` reads back the entries a Copy or a Cut took from it (SourceReader). */
+    registerSourceReader(uriString: string, fn: SourceReader): void;
+    /**
+     * The document `uriString` closed (its last table did): its deleter and its reader go, and a
+     * clipboard taken from it, Copy or Cut, is emptied, and every table told. Nothing is left to
+     * read the entries from, and a cut's original can no longer be taken out, as the Data Explorer
+     * in MATLAB empties its clipboard when its source closes.
+     */
+    closeSource(uriString: string): void;
     /**
      * Complete the source-delete half of a cross-document move, and say whether it happened.
      *
-     * During a drag the source view is open (closing it ends the drag), so its deleter is here. A
-     * CUT is different: it is lazy, so its source may have been closed between the cut and the
-     * paste, and then there is no deleter — and no format-appropriate way to edit the file — so the
+     * During a drag the source view is open (closing it ends the drag), and a cut's source is open
+     * too: closing it empties the clipboard the cut is on (closeSource). A document that never
+     * registered a deleter has none, and no format-appropriate way to edit the file, so the
      * original stays where it is: an answer the caller reports.
      *
      * A deleter that throws still throws: the caller (transfer.ts) turns that into the same report.

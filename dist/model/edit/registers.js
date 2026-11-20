@@ -24,6 +24,7 @@ export function createRegisters() {
     let clipboard = null;
     let drag = null;
     const sourceDeleters = new Map();
+    const sourceReaders = new Map();
     const listeners = new Set();
     const getClipboard = () => clipboard;
     const clearClipboard = () => {
@@ -98,9 +99,18 @@ export function createRegisters() {
             let held = null;
             return {
                 kind: 'clipboard',
+                // As the entries are now, where their document reads them back (SourceReader); as they
+                // were taken where none does, which no open document is without.
                 read() {
                     held = getClipboard();
-                    return held && { items: held.items, sourceDocUri: held.sourceDocUri, move: held.mode === 'cut' };
+                    if (!held)
+                        return null;
+                    const move = held.mode === 'cut';
+                    const reader = held.sourceDocUri === undefined ? undefined : sourceReaders.get(held.sourceDocUri);
+                    if (!reader)
+                        return { items: held.items, sourceDocUri: held.sourceDocUri, move };
+                    const now = reader(held.items);
+                    return { items: now.items, sourceDocUri: held.sourceDocUri, move, gone: now.gone };
                 },
                 clear() {
                     if (held && getClipboard() === held)
@@ -128,6 +138,17 @@ export function createRegisters() {
         },
         unregisterSourceDeleter(uriString) {
             sourceDeleters.delete(uriString);
+        },
+        registerSourceReader(uriString, fn) {
+            sourceReaders.set(uriString, fn);
+        },
+        closeSource(uriString) {
+            sourceDeleters.delete(uriString);
+            sourceReaders.delete(uriString);
+            if (clipboard?.sourceDocUri !== uriString)
+                return;
+            clearClipboard();
+            broadcastClipboardState();
         },
         async deleteFromSource(uriString, targets) {
             const fn = sourceDeleters.get(uriString);

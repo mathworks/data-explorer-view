@@ -32,6 +32,11 @@ export interface TransferContents {
     sourceDocUri: string | undefined;
     /** The source is to lose them: a cut, or a drop in move mode. */
     move: boolean;
+    /**
+     * The names of the entries taken that their document no longer holds, by the time a paste read
+     * them back (registers.ts's SourceReader): skipped, and named to the user. Absent: none.
+     */
+    gone?: readonly string[];
 }
 /**
  * Where a transfer's items come from, and how it lets go of them.
@@ -181,10 +186,19 @@ export type TransferOutcome = {
     kind: 'failed';
     error: unknown;
 }
-/** Landed. `sourceKept` is the message reported when a move's source delete did not happen. */
+/** Every entry the clipboard took is gone from its document: nothing pasted, and `message` said. */
+ | {
+    kind: 'gone';
+    message: string;
+}
+/**
+ * Landed. `sourceKept` is the message reported when a move's source delete did not happen, and
+ * `skipped` the one naming the entries no longer there to paste (TransferContents.gone).
+ */
  | {
     kind: 'done';
     sourceKept?: string;
+    skipped?: string;
 };
 /**
  * Whether moving `contents` onto `sectionName` of `docUri` would change nothing: every item
@@ -209,6 +223,12 @@ export declare function runTransfer<T extends TransferTarget>(req: TransferReque
  * same words, because it is the same rule.
  */
 export declare function sharedNameRefusal(verb: 'cut' | 'move', name: string, sourceDocUri: string | undefined): string;
+/**
+ * 'Not pasted: "x" is no longer in a.sldd.' — the entries a Copy or a Cut took that their document
+ * no longer holds by the paste (TransferContents.gone), the first five by name. `nothingLeft`
+ * when no other entry was pasted either: 'Nothing to paste: "x" and "y" are no longer in a.sldd.'
+ */
+export declare function goneMessage(names: readonly string[], sourceDocUri: string | undefined, nothingLeft: boolean): string;
 /**
  * "Pasted here, but the original in a.sldd could not be removed: <reason>. Remove it there by
  * hand." — accurate about both halves: the paste DID land, and nothing was rolled back. Or, where

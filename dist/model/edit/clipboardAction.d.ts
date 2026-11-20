@@ -1,6 +1,6 @@
 import { type Session } from 'data-explorer-core';
 import type { ClipboardMode } from '../source/wire.js';
-import type { ClipboardItem, DragRegisterItem, Registers } from './registers.js';
+import type { ClipboardItem, DragRegisterItem, Registers, SourceRead } from './registers.js';
 /** The part of core's session a snapshot asks. */
 export type SnapshotSession = Pick<Session, 'copyRefusal' | 'findNodeById' | 'getDataSource'>;
 export interface CopyDeps {
@@ -50,6 +50,11 @@ export declare class CopyRefused extends Error {
  */
 export declare function sourceSectionOf(session: Pick<Session, 'getDataSource'>, entry: any): string;
 /**
+ * The entries of the document under `root`: the first nodes down each branch that are one (a
+ * MAT-file's children, a dictionary's sections' children). Nothing below an entry is one.
+ */
+export declare function entriesUnder(root: any): any[];
+/**
  * Snapshot the rows a drag started on into the drag-register shape: the same walk, dedupe and
  * refusal as a copy, so "if you can cut/copy you can drag". Each item keeps its OWN source
  * section: a multi-row drag can span sections, and whether a move is a no-op depends on every
@@ -60,14 +65,42 @@ export declare function buildDragSnapshot(session: SnapshotSession, rowIds: unkn
 };
 /**
  * Snapshot the rows a copy/cut acts on into the clipboard shape: the same walk and the same
- * dedupe as buildDragSnapshot. Each item keeps its OWN source section: a cut is lazy, so the
+ * dedupe as buildDragSnapshot. What a paste lands is this snapshot read back from its document at
+ * paste time (readTaken), by who each entry was. Each item keeps its OWN source section: a cut is lazy, so the
  * source deletion at paste time must find each entry where it actually lives.
  */
 export declare function buildClipboardSnapshot(session: SnapshotSession, rowIds: unknown, findNode: (rowId: string) => any, originOf?: (entry: any) => object | undefined): ClipboardItem[];
+/** What a document's reader needs of it to read back what a Copy or a Cut took (readTaken). */
+export interface ReadDeps {
+    /** Core's session, which the entries are asked of (copyRefusal) and resolved in. */
+    session: SnapshotSession;
+    /**
+     * The document's entries as they are now, its model first brought up to date with its live
+     * content (a JSON dictionary re-parses its text): once per paste, however many entries it reads.
+     */
+    entries: () => Iterable<any>;
+    /** The token its document tells an entry by (CopyDeps.originOf), where its selectors cannot. */
+    originOf?: (entry: any) => object | undefined;
+    /** Core's message in this document's words (a srcId said as the file's name). Default: as it is. */
+    describe?: (message: string) => string;
+}
+/**
+ * The entries `held` took from this document, as they are now (registers.ts's SourceReader): each
+ * found again by who it was, then taken again as a copy takes it, so the paste lands what the user
+ * sees and a cut's delete names the entry as it is now. Who an entry was is its origin token where
+ * it was taken with one (a MAT-file's variable: through edits and a rename, the same node), else
+ * its uuid (a dictionary entry's, which a rename keeps), else its name in the section it was taken
+ * from. One found nowhere, deleted since, is named in `gone`. A refusal (an entry that can no
+ * longer travel, a model that no longer reads) throws TransferRefused, in this document's words.
+ */
+export declare function readTaken(held: readonly ClipboardItem[], deps: ReadDeps): SourceRead;
 /**
  * Snapshot every entry the rows resolve to onto the clipboard in `mode`.
  *
  * Rows are deduped by owning entry, so selecting a bus and two of its elements copies ONE bus.
+ * Copy and Cut alike are read back from their document when they are pasted (readTaken): the
+ * snapshot says which entries, and the paste lands them as they are then.
+ *
  * `uriString` is recorded with the payloads because a cut is LAZY — the source delete is deferred
  * to paste time, and the paste may land in a different document, so the clipboard must remember
  * which document to delete from.

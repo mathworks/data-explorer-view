@@ -265,11 +265,14 @@ export type {
   RegisterListener,
   Registers,
   SourceDeleter,
+  SourceRead,
+  SourceReader,
 } from './edit/registers.js';
 // transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
 // (above), under a name of its own.
 export {
   TransferRefused,
+  goneMessage,
   isNoopMove as isNoopTransfer,
   runTransfer,
   sharedNameRefusal,

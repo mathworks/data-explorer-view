@@ -111,7 +111,7 @@ export { inspectorFeed, messageSource } from './source/messageSource.js';
 export { NOT_FOUND_REASON, createRegisters } from './edit/registers.js';
 // transfer.ts's isNoopMove, the host's half of the rule the drop predictor's isNoopMove answers
 // (above), under a name of its own.
-export { TransferRefused, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
+export { TransferRefused, goneMessage, isNoopMove as isNoopTransfer, runTransfer, sharedNameRefusal, sourceKeptMessage, } from './edit/transfer.js';
 export { REFUSAL_TITLES, addChildRefusal, addEntryRefusal, deleteRefusal, describeSource, refusedChange } from './edit/refusal.js';
 export { answerEditTextRequest } from './edit/editText.js';
 // A folder across a message channel, for a hierarchy where its files are not: the page's end

@@ -13,7 +13,7 @@
 // Everything format-specific is injected: `refresh` (bring the model up to date with the live
 // content) and `findNode` (resolve a row id against it) are the ONLY real difference between the
 // formats here, never what copying a row means.
-import { entrySelectorOf, owningEntryOf } from 'data-explorer-core';
+import { TransferRefused, entrySelectorOf, owningEntryOf } from 'data-explorer-core';
 import { dropFactsOf } from '../actions/dropFacts.js';
 import { WHOLE_FILE_SECTION } from '../ids/sectionRowId.js';
 import { sharedNameRefusal } from './transfer.js';
@@ -116,21 +116,29 @@ function entriesSharingAName(entries) {
     }
     return shared;
 }
-// How many entries of the document under `root` answer to each name: its entries are the
-// first nodes down each branch that are one (a MAT-file's children, a dictionary's sections'
-// children). Nothing below an entry is one.
+// How many entries of the document under `root` answer to each name.
 function entryNameCounts(root) {
     const counts = new Map();
+    for (const entry of entriesUnder(root))
+        counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1);
+    return counts;
+}
+/**
+ * The entries of the document under `root`: the first nodes down each branch that are one (a
+ * MAT-file's children, a dictionary's sections' children). Nothing below an entry is one.
+ */
+export function entriesUnder(root) {
+    const entries = [];
     const visit = (node) => {
         for (const child of (node?.children ?? [])) {
             if (child?.isEntry)
-                counts.set(child.name, (counts.get(child.name) ?? 0) + 1);
+                entries.push(child);
             else
                 visit(child);
         }
     };
     visit(root);
-    return counts;
+    return entries;
 }
 /**
  * Each row's owning entry as a register item: what to paste, the section it came from, the
@@ -139,7 +147,10 @@ function entryNameCounts(root) {
  * by. The one build behind both registers, after the one refusal they share.
  */
 function registerItemsOf(session, rowIds, findNode, originOf) {
-    const entries = owningEntriesOf(rowIds, findNode);
+    return itemsOfEntries(session, owningEntriesOf(rowIds, findNode), originOf);
+}
+// The register items of `entries`, as a copy, a cut and a drag take them, after the refusal they share.
+function itemsOfEntries(session, entries, originOf) {
     refuseUncopyable(session, entries);
     const shared = entriesSharingAName(entries);
     return entries.map((entry) => {
@@ -164,16 +175,74 @@ export function buildDragSnapshot(session, rowIds, findNode, originOf) {
 }
 /**
  * Snapshot the rows a copy/cut acts on into the clipboard shape: the same walk and the same
- * dedupe as buildDragSnapshot. Each item keeps its OWN source section: a cut is lazy, so the
+ * dedupe as buildDragSnapshot. What a paste lands is this snapshot read back from its document at
+ * paste time (readTaken), by who each entry was. Each item keeps its OWN source section: a cut is lazy, so the
  * source deletion at paste time must find each entry where it actually lives.
  */
 export function buildClipboardSnapshot(session, rowIds, findNode, originOf) {
     return registerItemsOf(session, rowIds, findNode, originOf);
 }
 /**
+ * The entries `held` took from this document, as they are now (registers.ts's SourceReader): each
+ * found again by who it was, then taken again as a copy takes it, so the paste lands what the user
+ * sees and a cut's delete names the entry as it is now. Who an entry was is its origin token where
+ * it was taken with one (a MAT-file's variable: through edits and a rename, the same node), else
+ * its uuid (a dictionary entry's, which a rename keeps), else its name in the section it was taken
+ * from. One found nowhere, deleted since, is named in `gone`. A refusal (an entry that can no
+ * longer travel, a model that no longer reads) throws TransferRefused, in this document's words.
+ */
+export function readTaken(held, deps) {
+    const said = (message) => (deps.describe ? deps.describe(message) : message);
+    let live;
+    try {
+        live = [...deps.entries()];
+    }
+    catch (err) {
+        throw new TransferRefused(said(`Could not read the copied entries again: ${err?.message || String(err)}`));
+    }
+    const byOrigin = new Map();
+    const byUuid = new Map();
+    for (const entry of live) {
+        const origin = deps.originOf?.(entry);
+        if (origin)
+            byOrigin.set(origin, entry);
+        const { uuid } = entrySelectorOf(entry);
+        if (uuid)
+            byUuid.set(uuid, [...(byUuid.get(uuid) ?? []), entry]);
+    }
+    const sameAsTaken = (it, entry) => entry.name === it.payload.name && sourceSectionOf(deps.session, entry) === it.sourceSection;
+    const found = [];
+    const gone = [];
+    for (const it of held) {
+        const { uuid } = entrySelectorOf(it.payload);
+        let entry;
+        if (it.origin)
+            entry = byOrigin.get(it.origin);
+        else if (uuid) {
+            const withUuid = byUuid.get(uuid) ?? [];
+            entry = withUuid.length === 1 ? withUuid[0] : withUuid.find((e) => sameAsTaken(it, e));
+        }
+        else
+            entry = live.find((e) => sameAsTaken(it, e));
+        if (!entry)
+            gone.push(String(it.payload.name ?? ''));
+        else if (!found.includes(entry))
+            found.push(entry);
+    }
+    try {
+        return { items: itemsOfEntries(deps.session, found, deps.originOf), gone };
+    }
+    catch (err) {
+        throw new TransferRefused(said(err instanceof CopyRefused ? err.message : `Failed to paste: ${err?.message || String(err)}`));
+    }
+}
+/**
  * Snapshot every entry the rows resolve to onto the clipboard in `mode`.
  *
  * Rows are deduped by owning entry, so selecting a bus and two of its elements copies ONE bus.
+ * Copy and Cut alike are read back from their document when they are pasted (readTaken): the
+ * snapshot says which entries, and the paste lands them as they are then.
+ *
  * `uriString` is recorded with the payloads because a cut is LAZY — the source delete is deferred
  * to paste time, and the paste may land in a different document, so the clipboard must remember
  * which document to delete from.
